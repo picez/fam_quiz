@@ -203,6 +203,53 @@ export function auctionLine(entry: { nickname: string; wager: number; points: nu
   return t('auctionHistoryLine', { nickname: entry.nickname, wager: entry.wager, points: signed(entry.points) });
 }
 
+/** «Думай інакше» (35): «Слова ведучого: …» і рядок кожного живого на відкритті — слово чи «—», вердикт і життя після запитання. */
+export function ThinkHistory({ think }: { think: NonNullable<GameQuestionResult['think']> }) {
+  const verdictKey = { safe: 'thinkHistorySafe', hit: 'thinkHistoryHit', empty: 'thinkHistoryEmpty' } as const;
+  return (
+    <div className="think-history">
+      {think.words.length > 0 && (
+        <p className="meta" dir="auto">
+          {t('thinkHistoryWords', { words: think.words.map((w) => (w.synonyms.length === 0 ? w.word : `${w.word} (${w.synonyms.join(', ')})`)).join(', ') })}
+        </p>
+      )}
+      <ul className="think-history-rows">
+        {think.rows.map((row) => (
+          <li key={row.nickname} className={row.lost ? 'is-wrong' : 'is-correct'}>
+            <span className="responses-name">{row.nickname}</span>
+            <span className="responses-answer" dir="auto">
+              {row.answer === '' ? '—' : row.answer}
+            </span>
+            <span className="tag">{t(verdictKey[row.verdict])}</span>
+            {row.manual === true && <span className="tag think-overridden">{t('thinkHostOverridden')}</span>}
+            {think.lives[row.nickname] !== undefined && <span className="meta think-history-lives">{`❤️ ${think.lives[row.nickname]}`}</span>}
+          </li>
+        ))}
+      </ul>
+      {/* Останнє зігране запитання раунду несе місця раунду — і з 0 балів, яких немає серед коригувань. */}
+      {think.places !== undefined && think.places.length > 0 && (
+        <table className="think-places-table think-history-places">
+          <caption className="meta">{t('thinkPlacesTitle')}</caption>
+          <tbody>
+            {think.places.map((row) => (
+              <tr key={row.nickname}>
+                <td className="think-place">{t('thinkPlace', { place: row.place })}</td>
+                <th scope="row" className="name" dir="auto">
+                  {row.nickname}
+                </th>
+                <td className="think-place-state">{row.outAt === null ? `❤️ ${row.lives}` : t('thinkOutAt', { index: row.outAt })}</td>
+                <td className="think-place-points" dir="ltr">
+                  {signed(row.points)}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </div>
+  );
+}
+
 /** «Правда про гравця»: хто написав факт і скільки балів отримав за тих, хто не вгадав. */
 export function truthLine(info: { author: string; points: number }): string {
   return t('truthHistoryAuthor', { nickname: info.author, points: signed(info.points) });
@@ -423,11 +470,13 @@ export function GameHistory() {
                             </span>
                           </>
                         )}
+                        {question.question.type !== 'think' && (
                         <span className="tag">
                           {isUnscored(question.question)
                             ? t('votedStat', { voted: question.answered })
                             : t('answeredStat', { answered: question.answered, accepted: question.accepted })}
                         </span>
+                        )}
                         {question.final !== null && (
                           <div className="wager-list">
                             <h4>{t(question.auction ? 'roundTypeAuction' : question.bets ? 'roundTypeBets' : question.final.mode === 'bank' ? 'historyFinalBank' : 'historyFinal')}</h4>
@@ -443,6 +492,7 @@ export function GameHistory() {
                         )}
                         {question.auction && question.final === null && <p className="meta auction-open">{t('auctionHistoryOpen')}</p>}
                         {question.truth !== undefined && <p className="meta truth-history">{truthLine(question.truth)}</p>}
+                        {question.think !== undefined && <ThinkHistory think={question.think} />}
                         {question.wipeout !== undefined && (
                           <ul className="wipeout-history">
                             {wipeoutLines(question.wipeout).map((line, at) => (
@@ -512,7 +562,7 @@ export function GameHistory() {
                             ))}
                           </ul>
                         )}
-                        {(question.responses.length > 0 || question.truth !== undefined) && (
+                        {question.think === undefined && (question.responses.length > 0 || question.truth !== undefined) && (
                           <details className="responses">
                             <summary>{t('responsesTitle', { count: question.responses.length })}</summary>
                             <ul>

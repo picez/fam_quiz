@@ -35,6 +35,11 @@ export function roundSummary(brief: RoundBrief, autopilot = false): string[] {
     lines.push(modifiers(brief, []));
     return lines.filter((line) => line !== '');
   }
+  if (brief.type === 'think' && brief.think !== null) {
+    const { lives, points, count } = brief.think;
+    lines.push(t('summaryThink', { lives, count, points }));
+    return lines;
+  }
   if (brief.type === 'truth' && brief.truth !== null) {
     lines.push(t('summaryTruth', { points: brief.truth.points }));
     return lines;

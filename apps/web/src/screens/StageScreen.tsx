@@ -57,6 +57,7 @@ import { MemoryStage } from './MemoryView';
 import { MelodyStage } from './MelodyView';
 import { SpotdiffStage } from './SpotdiffView';
 import type { DrawingModel } from '../live/drawing';
+import { ThinkPlaces, ThinkReveal, ThinkStage } from './ThinkView';
 import { TruthRecapView, TruthSkipped, TruthStage } from './TruthView';
 import { SortBoard, SortReveal, SortStage, SortWords } from './SortView';
 import { WallGrid } from './WallGrid';
@@ -963,6 +964,11 @@ function StandingsBoard({ view, standings, awardsSeq, splashing, ceremony = null
     />
   );
   const best = roundEndIndex !== null && <RoundHighlights standings={standings} roundIndex={roundEndIndex} />;
+  // «Думай інакше» (35): місця раунду з колонкою «Разом» замість таблиці на підсумках раунду; останній раунд іде одразу на фініш —
+  // тоді місця стоять поряд із п'єдесталом, щоб кімната їх побачила.
+  const thinkPlaces = view.think?.places != null && view.think.places.length > 0 ? view.think : null;
+  const totals = Object.fromEntries(standings.map((row) => [row.participantId, row.score]));
+  const placesTable = thinkPlaces !== null && <ThinkPlaces think={thinkPlaces} totals={totals} />;
   // Церемонія призів (14a): поки вона йде, п'єдестал і карусель не монтуються; ceremony — її onDone.
   if (phase === 'finished' && ceremony !== null && view.prizes !== undefined)
     return <Ceremony prizes={view.prizes} size="stage" hold={splashing} onDone={ceremony} />;
@@ -977,27 +983,38 @@ function StandingsBoard({ view, standings, awardsSeq, splashing, ceremony = null
         hold={splashing}
         extra={view.newAchievements === undefined ? null : <StageNewAchievements stage={view.newAchievements} />}
       >
-        <div className="stage-board is-final">
-          {heading}
-          {table}
-        </div>
+        {placesTable ? (
+          <div className="stage-board is-final has-think-places">
+            <div className="round-end-main">
+              {heading}
+              {table}
+            </div>
+            <aside className="think-stage-places">{placesTable}</aside>
+          </div>
+        ) : (
+          <div className="stage-board is-final">
+            {heading}
+            {table}
+          </div>
+        )}
       </AwardsCarousel>
     );
   if (roundEndIndex === null)
     return (
       <div className="stage-board">
         {heading}
-        {table}
+        {(phase === 'round_end' && placesTable) || table}
       </div>
     );
   // Підсумки раунду (12d): з картками — дві колонки, ліворуч таблиця й рядок 11f без змін, праворуч «Цікавинки раунду».
   const cards = view.facts?.round ?? [];
-  const board = `stage-board is-round-end${highlighted ? ' has-highlights' : ''}`;
+  const board = `stage-board is-round-end${highlighted ? ' has-highlights' : ''}${placesTable ? ' is-think' : ''}`;
+  const shown = placesTable || table;
   if (cards.length === 0)
     return (
       <div className={board}>
         {heading}
-        {table}
+        {shown}
         {best}
       </div>
     );
@@ -1005,7 +1022,7 @@ function StandingsBoard({ view, standings, awardsSeq, splashing, ceremony = null
     <div className={`${board} has-facts`}>
       <div className="round-end-main">
         {heading}
-        {table}
+        {shown}
         {best}
       </div>
       <aside className="round-facts">
@@ -1030,6 +1047,8 @@ export function StageScreen({ view: live, code, joinUrl, offsetMs, hostOnline, a
   const truthStage = view.truth !== undefined && view.truth.index !== null && view.question?.type === 'single';
   // Раунд truth скінчено раніше (останнього розкриття-підсумку не було): на round_end сцена показує підсумок; фініш — подіум, як завжди.
   const truthEarly = phase === 'round_end' && view.truth?.recap?.early === true;
+  // «Думай інакше» (35): своя сцена — тема, ряд ❤️ і ✓ без слів; на розкритті слова ведучого й усі відповіді; наприкінці — місця.
+  const thinkStage = view.think !== undefined && view.question?.type === 'think';
   return (
     // Реакції (13a): бейджі біля ніків і смуга внизу — лише в REACTION_PHASES (.has-reactions тримає запас під смугою).
     <ReactionMain className={['app stage game-bg', appeal !== null ? 'has-appeal' : '', suspense ? 'is-suspense' : ''].filter(Boolean).join(' ')} phase={phase} reactions={reactions} size="stage">
@@ -1066,7 +1085,19 @@ export function StageScreen({ view: live, code, joinUrl, offsetMs, hostOnline, a
       {phase === 'guide' && view.guide !== null && <GuidePageView guide={view.guide} size="stage" autopilot={view.autopilot} />}
       {(phase === 'question' || phase === 'locked' || phase === 'reveal') && view.ladder !== null && <LadderStage view={view} offsetMs={offsetMs} audioCommand={audioCommand} />}
       {(phase === 'question' || phase === 'locked' || phase === 'reveal') && truthStage && <TruthStage view={view} offsetMs={offsetMs} />}
-      {(phase === 'question' || phase === 'locked' || phase === 'reveal') && view.ladder === null && !truthStage && <Question view={view} offsetMs={offsetMs} blink={blink} blinking={blinking} audioCommand={audioCommand} tilts={tilts} drawing={drawing} />}
+      {(phase === 'question' || phase === 'locked') && thinkStage && <ThinkStage view={view} offsetMs={offsetMs} />}
+      {phase === 'reveal' && thinkStage && view.think !== undefined && view.question !== null && (
+        <div className="stage-question think-stage is-reveal">
+          <header className="bar">
+            <span>{view.think.index === null ? '' : t('thinkOf', { index: view.think.index + 1, total: view.think.total })}</span>
+          </header>
+          <h1 className={questionClass(view.question.text)} dir="auto">
+            {view.question.text}
+          </h1>
+          <ThinkReveal think={view.think} big />
+        </div>
+      )}
+      {(phase === 'question' || phase === 'locked' || phase === 'reveal') && view.ladder === null && !truthStage && !thinkStage && <Question view={view} offsetMs={offsetMs} blink={blink} blinking={blinking} audioCommand={audioCommand} tilts={tilts} drawing={drawing} />}
       {/* Апеляція (12f) — шар position: fixed унизу по центру; .has-appeal тримає під ним запас унизу, щоб розкриття не ховалося. */}
       {appeal !== null && <AppealCard view={appeal} screenQuestion={view.question} size="stage" teams={view.teams !== null} offsetMs={offsetMs} />}
       {phase === 'duel' && view.duel !== null && <DuelStage view={view} offsetMs={offsetMs} />}

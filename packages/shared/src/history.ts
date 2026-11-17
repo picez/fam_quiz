@@ -5,8 +5,9 @@ import type { AdjustmentSource, BuffKind, DebuffKind } from './game';
 import type { FactCard, FactTableRow } from './facts';
 import type { LadderOutcomeKind } from './ladder';
 import type { SavedInfo } from './saved';
-import type { CellKind, LifelineKind, Question, Round, TrialKind, WagerMode } from './quiz';
+import type { CellKind, LifelineKind, Question, Round, ThinkWord, TrialKind, WagerMode } from './quiz';
 import type { UndoTarget } from './undo';
+import type { ThinkVerdict } from './views';
 import type { WipeoutStatus } from './wipeout';
 
 /** saved (13b) — гру збережено, щоб догра́ти пізніше. */
@@ -160,6 +161,19 @@ export interface GameQuestionResult {
   auction: boolean;
   /** «Правда про гравця» (28b): нікнейм автора факту й його бали (частка за тих, хто не вгадав; 0 — нікого не обдурив). Автор у responses не входить. */
   truth?: { author: string; points: number };
+  /**
+   * «Думай інакше» (35): фінальні слова ведучого (із синонімами), життя після запитання (нікнейм → життя) і рядок кожного,
+   * хто був живий на відкритті, за турнірною таблицею: слово ('' — мовчав), вердикт і чи втратив життя (лише розкрите забирає).
+   * Бали — коригування 'think' на кінці раунду (adjustments).
+   */
+  think?: {
+    words: ThinkWord[];
+    lives: Record<string, number>;
+    /** manual — вердикт поставив ведучий вручну. */
+    rows: { nickname: string; answer: string; verdict: ThinkVerdict; lost: boolean; manual?: true }[];
+    /** Лише на останньому зіграному запитанні раунду: місця раунду (і з 0 балів) — місце, життя, номер запитання вибування, бали. */
+    places?: { nickname: string; place: number; lives: number; outAt: number | null; points: number }[];
+  };
   /** Запитання фіналу: ставки й результати учасників за турнірною таблицею; null поза фіналом. */
   final: {
     /** Тип ставок фіналу зі знімка. */

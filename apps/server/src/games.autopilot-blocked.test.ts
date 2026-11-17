@@ -1,10 +1,10 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
-import { makeQuiz, single, text } from '@quiz/engine/testing';
+import { classicRound, makeQuiz, makeRoundsQuiz, single, text, think, thinkRound } from '@quiz/engine/testing';
 import { buildApp } from './app';
 import { TEST_AUTH, signUp } from './testing/accounts';
 import { createTestDb } from './testing/test-db';
 
-// Блокувань у наявних форматах немає (AUTOPILOT_BLOCKS порожній): перевірка підміняє їх для вікторини з цією назвою.
+// Перевірка підміняє блокування для вікторини з цією назвою; справжнє (35, think_words) — окремим тестом.
 const BLOCKED_TITLE = 'Заблокована вікторина';
 vi.mock('@quiz/shared', async (importOriginal) => {
   const shared = await importOriginal<typeof import('@quiz/shared')>();
@@ -48,5 +48,16 @@ describe('an autopilot room from a blocked quiz (11g)', () => {
     const saved = await call('/api/quizzes', account.cookie, makeQuiz([single, text]));
     const { id: quizId } = saved.json() as { id: string };
     expect((await call('/api/games', account.cookie, { quizId, autopilot: true, nickname: 'Тарас' })).statusCode).toBe(201);
+  });
+
+  it('a quiz with a wordless think question cannot start the autopilot', async () => {
+    const red = { word: 'червоний', synonyms: [] };
+    const account = await signUp(ctx.app, 'Віра');
+    const quizOf = (first: (typeof red)[]) => makeRoundsQuiz([thinkRound('r1', [think('t1', first), think('t2', [red]), think('t3', [red])]), classicRound('r2', [single])]);
+    const save = async (first: (typeof red)[]) => ((await call('/api/quizzes', account.cookie, quizOf(first))).json() as { id: string }).id;
+    const wordless = await call('/api/games', account.cookie, { quizId: await save([]), autopilot: true, nickname: 'Віра' });
+    expect(wordless.statusCode).toBe(409);
+    expect(wordless.json()).toEqual({ error: 'autopilot_blocked' });
+    expect((await call('/api/games', account.cookie, { quizId: await save([red]), autopilot: true, nickname: 'Віра' })).statusCode).toBe(201);
   });
 });

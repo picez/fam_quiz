@@ -1,7 +1,7 @@
 import type { AddressInfo } from 'node:net';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { io as connect, type Socket } from 'socket.io-client';
-import { auctionRound, betsRound, bluff, blitzRound, boardRound, bool, chain, classicRound, clues, cloud, duels, finalRound, makeQuiz, multi, makeRoundsQuiz, single, sortQ, survey, survivalQuestions, survivalRound, survivalTrials, text, wall, withAudio, withId, wipeoutLadder, wipeoutRound, ladderRound, letterwords, moreless, drawing, timedlist, truthRound, wordladder, puzzlesQuiz, sudoku, jigsaw, jigsawQuiz, spotdiff, spotdiffQuiz, memoryQuiz, melodyQuiz, questQuiz } from '@quiz/engine/testing';
+import { auctionRound, betsRound, bluff, blitzRound, boardRound, bool, chain, classicRound, clues, cloud, duels, finalRound, makeQuiz, multi, makeRoundsQuiz, single, sortQ, survey, survivalQuestions, survivalRound, survivalTrials, text, wall, withAudio, withId, wipeoutLadder, wipeoutRound, ladderRound, letterwords, moreless, drawing, timedlist, truthRound, think, thinkRound, wordladder, puzzlesQuiz, sudoku, jigsaw, jigsawQuiz, spotdiff, spotdiffQuiz, memoryQuiz, melodyQuiz, questQuiz } from '@quiz/engine/testing';
 import { DEFAULT_RULES, defaultTeams, memoryLayout, STICKERS, SPLASH_MS, type AckResult, type ClientToServerEvents, type DrawingEvent, type GameView, type HostDrafts, type Reaction, type ServerToClientEvents, type SocketAuth, type SortTilt } from '@quiz/shared';
 import { eq, inArray } from 'drizzle-orm';
 import { buildApp } from './app';
@@ -1071,6 +1071,31 @@ describe('host presence', () => {
     expect(await send(host, 'host:truth-hide', { playerId: olenaJoin.playerId, hidden: true })).toEqual({ ok: true });
     const mine = await until(olena, (view) => view.role === 'player' && view.me.truth?.hidden === true);
     expect(mine.truth?.count).toBe(0);
+  });
+
+  it('host:think-words sets the words; players cannot', async () => {
+    const red = { word: 'червоний', synonyms: ['багряний'] };
+    const quiz = makeRoundsQuiz([thinkRound('r1', [think('t1'), think('t2', [red]), think('t3', [red])]), classicRound('r2', [single])]);
+    const { host, stage, olena } = await lobby((await startGame(ctx.app, quiz)).game);
+    expect(await send(host, 'host:start')).toEqual({ ok: true });
+    expect(await send(host, 'host:next')).toEqual({ ok: true });
+    await until(olena, (view) => view.phase === 'question');
+    expect(await send(olena, 'host:think-words', { words: [red] })).toEqual({ ok: false, error: 'forbidden' });
+    for (const payload of [undefined, { words: 'червоний' }, { words: [red, red, red, red].map((w, i) => ({ ...w, word: `${w.word}${i}` })) }]) {
+      expect(await send(host, 'host:think-words', payload)).toEqual({ ok: false, error: 'invalid_payload' });
+    }
+    expect(await send(host, 'host:think-words', { words: [red] })).toEqual({ ok: true });
+    // Ack відповіді — лише ok: ні оцінки, ні слів ведучого до розкриття.
+    expect(await send(olena, 'player:answer', { type: 'think', value: 'Червона' })).toEqual({ ok: true });
+    const hostView = await until(host, (view) => view.role === 'host' && (view.think?.answers.some((a) => a.hit === true) ?? false));
+    expect(JSON.stringify(hostView)).toContain('багряний');
+    const mine = await until(olena, (view) => view.role === 'player' && view.me.answer !== null);
+    const scene = await until(stage, (view) => view.think?.rows.some((r) => r.answered) ?? false);
+    for (const view of [mine, scene]) {
+      expect(JSON.stringify(view)).not.toContain('червоний');
+      expect(JSON.stringify(view)).not.toContain('багряний');
+    }
+    if (mine.role === 'player') expect(mine.me.result).toBeNull();
   });
 
   it('player:sort is player-only and validated', async () => {

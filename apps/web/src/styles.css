@@ -23785,6 +23785,585 @@ input.sudoku-editor-cell:focus-visible {
   margin-top: 1.5rem;
 }
 
+/* ---------- «Думай інакше» (35): редактор та історія ---------- */
+
+.think-settings,
+.think-words-editor {
+  border: 0;
+  margin: 0 0 0.75rem;
+  padding: 0;
+  min-width: 0;
+}
+
+.think-settings legend,
+.think-words-editor legend {
+  max-width: 100%;
+  padding: 0;
+  margin-bottom: 0.5rem;
+}
+
+.think-word-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.5fr) auto;
+  align-items: end;
+  gap: 0.5rem;
+  min-width: 0;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.think-word-row .field {
+  min-width: 0;
+  margin: 0;
+}
+
+@media (max-width: 30rem) {
+  .think-word-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .think-word-row .field:nth-child(2) {
+    grid-column: 1;
+  }
+
+  .think-word-remove {
+    grid-column: 2;
+    grid-row: 1;
+  }
+}
+
+.think-no-words {
+  margin-top: 0.5rem;
+}
+
+.think-history-rows {
+  list-style: none;
+  margin: 0.25rem 0 0;
+  padding: 0;
+  display: grid;
+  gap: 0.25rem;
+}
+
+.think-history-rows li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.25rem 0.75rem;
+  padding: 0.25rem 0.5rem;
+  border-inline-start: 3px solid var(--correct);
+  overflow-wrap: anywhere;
+}
+
+.think-history-places {
+  margin-top: 0.5rem;
+}
+
+.think-history-places caption {
+  text-align: start;
+}
+
+.think-history-rows li.is-wrong {
+  border-inline-start-color: var(--wrong);
+}
+
+/* ---------- «Думай інакше» (35): телефон, сцена й пульт ---------- */
+
+.think-hearts {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.0625em;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.think-hearts.is-compact {
+  gap: 0.25em;
+  font-variant-numeric: tabular-nums;
+}
+
+.think-heart.is-gone {
+  opacity: 0.55;
+  filter: grayscale(1);
+}
+
+/* Світла тема: на світлому тлі сіре серце й так видно — блідіше, щоб живі виділялися. */
+:where(:root.is-light) .think-heart.is-gone {
+  opacity: 0.35;
+}
+
+.think-hearts.is-compact.is-lost {
+  color: var(--wrong);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  :where(:root:not(.is-easy)) .think-heart.is-lost {
+    animation: think-heart-fade 1.2s ease-out both;
+  }
+}
+
+@keyframes think-heart-fade {
+  0% {
+    opacity: 1;
+    filter: none;
+    transform: scale(1.35);
+  }
+  60% {
+    transform: scale(0.85);
+  }
+  100% {
+    opacity: 0.55;
+    filter: grayscale(1);
+    transform: scale(1);
+  }
+}
+
+.think-me {
+  margin: 0;
+  font-size: 1.25rem;
+}
+
+.think-input {
+  display: grid;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.think-input .field {
+  margin: 0;
+}
+
+.think-field {
+  width: 100%;
+  min-width: 0;
+  font-size: 1.25rem;
+}
+
+.think-prompt,
+.think-error {
+  margin: 0;
+}
+
+.think-sent h2,
+.think-locked h2,
+.think-status {
+  overflow-wrap: anywhere;
+}
+
+.think-verdict {
+  padding: 0.75rem 1rem;
+  border-radius: var(--radius);
+  border: 2px solid var(--correct);
+  background: var(--surface);
+}
+
+.think-verdict.is-hit {
+  border-color: var(--wrong);
+}
+
+.think-verdict h2 {
+  margin: 0;
+}
+
+.think-verdict.is-hit h2 {
+  color: var(--wrong);
+}
+
+.think-verdict.is-safe h2 {
+  color: var(--correct);
+}
+
+.think-verdict .lead {
+  margin: 0.25rem 0 0;
+}
+
+.think-reveal {
+  display: grid;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.think-words-title {
+  margin: 0;
+}
+
+.think-words {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.think-word {
+  display: grid;
+  min-width: 0;
+  padding: 0.25rem 0.75rem;
+  border: 2px solid var(--accent);
+  border-radius: var(--radius);
+  overflow-wrap: anywhere;
+}
+
+.think-word strong {
+  font-family: var(--display);
+  font-size: 1.25rem;
+}
+
+.think-synonyms {
+  color: var(--dim);
+}
+
+.think-reveal-rows,
+.think-rows {
+  display: grid;
+  gap: 0.25rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.think-reveal-row,
+.think-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+  padding: 0.25rem 0.5rem;
+  border-inline-start: 4px solid var(--correct);
+  border-radius: 4px;
+  background: var(--surface);
+}
+
+.think-row {
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  border-inline-start-color: var(--line);
+}
+
+/* Телефон і пульт: нік і серця в рядок, слово — під ними на всю ширину (довгі ніки не тиснуть слово). */
+.think-reveal:not(.is-big) .think-reveal-row {
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas: 'name hearts' 'word word';
+  row-gap: 0.125rem;
+}
+
+.think-reveal:not(.is-big) .think-reveal-row .name {
+  grid-area: name;
+  color: var(--dim);
+  font-size: 0.875rem;
+}
+
+.think-reveal:not(.is-big) .think-reveal-word {
+  grid-area: word;
+  font-size: 1.125rem;
+}
+
+.think-reveal:not(.is-big) .think-reveal-row .think-hearts {
+  grid-area: hearts;
+}
+
+.think-reveal-row.is-hit {
+  border-inline-start-color: var(--wrong);
+  background: var(--spot);
+}
+
+.think-reveal-row .name,
+.think-row .name,
+.think-reveal-word {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.think-reveal-row.is-hit .think-reveal-word {
+  color: var(--wrong);
+  font-weight: 700;
+}
+
+.think-row.is-out {
+  opacity: 0.5;
+}
+
+.think-reveal-row.is-me,
+.think-row.is-me {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.think-answered {
+  color: var(--correct);
+  font-weight: 700;
+}
+
+.think-places {
+  min-width: 0;
+}
+
+.think-places h2 {
+  margin: 0 0 0.5rem;
+}
+
+.think-places-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.think-places-table td,
+.think-places-table th {
+  padding: 0.25rem 0.5rem;
+  border-bottom: 1px solid var(--line);
+  text-align: start;
+  overflow-wrap: anywhere;
+}
+
+/* Вузький телефон: стан («вибування на питанні 3» чи ❤️) — під ніком, а не четвертою колонкою, що ламала б слова по літерах. */
+@media (max-width: 26rem) {
+  .think-places-table tbody tr {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-areas: 'place name points' 'place state points';
+    align-items: center;
+    column-gap: 0.5rem;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .think-places-table tbody td,
+  .think-places-table tbody th {
+    padding: 0.125rem 0.25rem;
+    border-bottom: 0;
+  }
+
+  .think-places-table .think-place {
+    grid-area: place;
+  }
+
+  .think-places-table .name {
+    grid-area: name;
+  }
+
+  .think-places-table .think-place-state {
+    grid-area: state;
+    color: var(--dim);
+    font-size: 0.875em;
+  }
+
+  .think-places-table .think-place-points {
+    grid-area: points;
+  }
+}
+
+/* Нік — break-word, не anywhere: його колонка не стискається нижче найдовшого слова («Тар|ас» на 360 px); тиснеться стан. */
+.think-places-table .name {
+  overflow-wrap: break-word;
+}
+
+.think-places-table tr.is-me {
+  background: var(--spot);
+}
+
+.think-place {
+  white-space: nowrap;
+}
+
+.think-places-table .think-place-points,
+.think-places-table .think-place-total {
+  text-align: end;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.think-places-table thead th {
+  color: var(--dim);
+  font-size: 0.75em;
+  font-weight: 400;
+}
+
+.think-places-table thead td {
+  border-bottom: 1px solid var(--line);
+}
+
+.think-places-table .think-place-total {
+  font-weight: 700;
+}
+
+/* «≈ синій»: з яким словом ведучого збіглася відповідь — дрібно під словом, і в щільному режимі сцени теж. */
+.think-matched {
+  display: block;
+  color: var(--dim);
+  font-size: 0.75em;
+  font-weight: 400;
+}
+
+/* «вручну»: вердикт поставив ведучий — видно всім. */
+.think-overridden {
+  font-size: 0.75em;
+  white-space: nowrap;
+}
+
+.think-no-answer {
+  color: var(--wrong);
+}
+
+/* Сцена: тема великим, ряд учасників сіткою; 20+ учасників — дрібніше. */
+.think-stage .think-stage-prompt {
+  margin: 0;
+  color: var(--dim);
+  text-align: center;
+}
+
+.think-stage .think-rows {
+  grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr));
+  gap: 0.5rem 1vw;
+  font-size: clamp(1rem, 1.6vw, 1.75rem);
+}
+
+.think-stage .think-rows.is-many {
+  /* 1280 px — п'ять колонок: ім'я з прізвищем переноситься між словами, а не посеред імені. */
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 14rem), 1fr));
+  font-size: clamp(0.75rem, 1.15vw, 1.25rem);
+}
+
+.think-reveal.is-big .think-words {
+  justify-content: center;
+}
+
+.think-reveal.is-big .think-word {
+  text-align: center;
+  padding: 0.5rem 1.5rem;
+}
+
+.think-reveal.is-big .think-word strong {
+  font-size: clamp(2rem, 4vw, 4rem);
+}
+
+.think-reveal.is-big .think-synonyms {
+  font-size: clamp(1rem, 1.5vw, 1.5rem);
+}
+
+.think-reveal.is-big .think-reveal-rows {
+  grid-template-columns: repeat(auto-fill, minmax(22rem, 1fr));
+  gap: 0.375rem 1vw;
+  font-size: clamp(1rem, 1.5vw, 1.625rem);
+}
+
+.think-reveal.is-big .think-reveal-rows.is-many {
+  /* 1280 px — три колонки, 1600 px — чотири: слову лишається місце, рядків — не більше восьми. */
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 20rem), 1fr));
+  font-size: clamp(0.75rem, 1.1vw, 1.25rem);
+}
+
+/* 20+ учасників: слова ведучого нижчі, рядки щільніші — уся таблиця вміщується на 1280×720. */
+.think-reveal.is-big:has(.think-reveal-rows.is-many) .think-word {
+  padding: 0.125rem 1rem;
+}
+
+.think-reveal.is-big:has(.think-reveal-rows.is-many) .think-word strong {
+  font-size: clamp(1.5rem, 2.6vw, 2.75rem);
+}
+
+.think-reveal.is-big .think-reveal-rows.is-many .think-reveal-row {
+  padding-block: 0.125rem;
+  line-height: 1.2;
+}
+
+/* Сцена: розкриття — колонка слова ширша за нік; слова переносяться за складами (lang на <html>), а не посеред літер. */
+.think-reveal.is-big .think-reveal-row {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.35fr) auto;
+}
+
+.think-reveal.is-big .think-reveal-row:has(.think-overridden) {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.35fr) auto auto;
+}
+
+.think-reveal.is-big .think-reveal-row .name,
+.think-reveal.is-big .think-reveal-word,
+.think-stage .think-row .name,
+.think-reveal.is-big .think-word {
+  /* Перенос за складами, де браузер знає мову; слово, якому й так немає місця, ламається лише в останню мить. */
+  overflow-wrap: break-word;
+  word-break: normal;
+  hyphens: auto;
+}
+
+/* 20+ учасників: синоніми ховаються (головні слова лишаються), картки слів і тема нижчі, а знизу — запас під «Читати вголос». */
+.think-reveal.is-big:has(.think-reveal-rows.is-many) .think-synonyms {
+  display: none;
+}
+
+.think-stage.is-reveal:has(.think-reveal-rows.is-many) {
+  gap: 1vh;
+  padding-bottom: 3.25rem;
+}
+
+.think-stage.is-reveal:has(.think-reveal-rows.is-many) h1 {
+  font-size: clamp(1.5rem, 3vw, 3rem);
+}
+
+/* Реакція в рядку учасника — за шрифтом рядка (як на тісних дошках «Вибування»): рядок не росте на висоту бейджа. */
+.think-row .reaction-badge,
+.think-reveal-row .reaction-badge {
+  --reaction-size: min(56px, 1.5em);
+}
+
+/* Підсумки раунду: таблиця місць замість звичайної — з колонкою «Разом». */
+.stage-board .think-places h2 {
+  margin: 0 0 0.25rem;
+  color: var(--dim);
+  font-size: clamp(1rem, 1.4vw, 1.5rem);
+}
+
+.stage-board .think-places-table {
+  font-size: clamp(1rem, 1.6vw, 1.75rem);
+}
+
+/* Останній раунд — одразу фініш: п'єдестал ліворуч, місця раунду праворуч. */
+.stage .stage-board.is-final.has-think-places {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 2rem;
+  align-items: start;
+  width: min(100%, 90rem);
+}
+
+.stage-board .think-stage-places {
+  min-width: 0;
+}
+
+.stage-board .think-stage-places .think-places-table {
+  font-size: clamp(0.875rem, 1.25vw, 1.375rem);
+}
+
+/* Пульт: слова ведучого й відповіді зі збігом. */
+.think-host-words .panel-actions {
+  margin-top: 0.5rem;
+}
+
+.think-host-late {
+  color: var(--pending);
+}
+
+.think-answer-rows li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem 0.75rem;
+}
+
+.think-answer-word {
+  flex: 1 1 8rem;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.think-answer.is-hit .think-answer-word {
+  color: var(--wrong);
+  font-weight: 700;
+}
+
+.think-answer.is-empty .think-answer-word {
+  color: var(--dim);
+}
+
 /* ---------- Світла тема ----------
    Змінні — у :root.is-light на початку файлу; тут лише місця, де темна тема має власні числа (білі вуалі, чорні тіні,
    пастельний текст). Як і легкий режим: у кінці файлу й через :where() — специфічність та сама, що в звичайних правил,

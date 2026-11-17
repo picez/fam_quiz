@@ -17,6 +17,7 @@ import {
   next,
   pause,
   removePlayer,
+  override,
   resume,
   setConnected,
   start,
@@ -76,6 +77,7 @@ import {
   type TimedListProgress,
   type WordLadderProgress,
   type TruthFact,
+  type ThinkPlay,
   type TruthPlay,
   type TruthState,
   type DrawingPlay,
@@ -131,6 +133,8 @@ import {
   moreless,
   withReveal,
   wordladder,
+  think,
+  thinkRound,
   truthRound,
   drawing,
   puzzlesRound,
@@ -161,6 +165,7 @@ import { moreLessPick } from './moreless';
 import { drawGuess, drawStroke } from './drawing';
 import { puzzleFill, puzzleFinish } from './puzzles';
 import { hideTruth, submitTruth } from './truth';
+import { setThinkWords, thinkVerdicts } from './think';
 import { ladderWord } from './wordladder';
 import { pickDoor } from './survival';
 import { decideWipeout, wipeoutChoiceOf, wipeoutPlayOf } from './wipeout';
@@ -358,7 +363,7 @@ const STATE_SHAPE: Record<string, string> = {
   Quiz: keysOf<Quiz>()(['title', 'description', 'settings', 'rounds', 'duels', 'spares'], true),
   QuizSettings: keysOf<QuizSettings>()(['leaderboard', 'debuffs', 'buffs', 'newcomers', 'family', 'debuffPrices', 'debuffShop', 'teams', 'awayPenalty', 'levelBonuses'], true),
   PlayerState: keysOf<PlayerState>()(['id', 'nickname', 'connected', 'score', 'totalTimeMs', 'streak'], true),
-  Play: keysOf<Play>()(['roundIndex', 'question', 'answers', 'blitz', 'extraMs', 'board', 'final', 'chain', 'wordladder', 'sort', 'buffs', 'overtime', 'clues', 'wall', 'cloudHidden', 'survey', 'bluff', 'wipeout', 'survival', 'ladder', 'buzzers', 'clueOpens', 'away', 'timedlist', 'letterwords', 'moreless', 'truth', 'drawing', 'puzzle', 'jigsaw', 'spotdiff', 'memory', 'melody'], true),
+  Play: keysOf<Play>()(['roundIndex', 'question', 'answers', 'blitz', 'extraMs', 'board', 'final', 'chain', 'wordladder', 'sort', 'buffs', 'overtime', 'clues', 'wall', 'cloudHidden', 'survey', 'bluff', 'wipeout', 'survival', 'ladder', 'buzzers', 'clueOpens', 'away', 'timedlist', 'letterwords', 'moreless', 'truth', 'drawing', 'puzzle', 'jigsaw', 'spotdiff', 'memory', 'melody', 'think'], true),
   AnswerRecord: keysOf<AnswerRecord>()(
     ['answer', 'timeMs', 'accepted', 'accuracy', 'grade', 'basePoints', 'streakBonus', 'points', 'overridden', 'buff', 'spare'],
     true,
@@ -409,6 +414,7 @@ const STATE_SHAPE: Record<string, string> = {
   TruthState: keysOf<TruthState>()(['facts', 'deck'], true),
   TruthFact: keysOf<TruthFact>()(['text', 'hidden', 'at', 'revised'], true),
   TruthPlay: keysOf<TruthPlay>()(['authorId', 'actorId', 'guessers', 'right'], true),
+  ThinkPlay: keysOf<ThinkPlay>()(['words', 'lives', 'revealed', 'watch'], true),
   DrawingPlay: keysOf<DrawingPlay>()(['drawerId', 'side', 'strokes', 'packed', 'rev', 'guessed', 'scored'], true),
   DrawingScored: keysOf<NonNullable<DrawingPlay['scored']>>()(['guessed', 'could'], true),
   Stroke: keysOf<Stroke>()(['c', 'w', 'p'], true),
@@ -1232,7 +1238,7 @@ const KEYS: Record<number, Record<string, string>> = {
     Quiz: 'description,duels,rounds,settings,spares,title',
     QuizSettings: 'awayPenalty,buffs,debuffPrices,debuffShop,debuffs,family,leaderboard,levelBonuses,newcomers,teams',
     PlayerState: 'connected,id,nickname,score,streak,totalTimeMs',
-    Play: 'answers,away,blitz,bluff,board,buffs,buzzers,chain,cloudHidden,clueOpens,clues,drawing,extraMs,final,jigsaw,ladder,letterwords,melody,memory,moreless,overtime,puzzle,question,roundIndex,sort,spotdiff,survey,survival,timedlist,truth,wall,wipeout,wordladder',
+    Play: 'answers,away,blitz,bluff,board,buffs,buzzers,chain,cloudHidden,clueOpens,clues,drawing,extraMs,final,jigsaw,ladder,letterwords,melody,memory,moreless,overtime,puzzle,question,roundIndex,sort,spotdiff,survey,survival,think,timedlist,truth,wall,wipeout,wordladder',
     AnswerRecord: 'accepted,accuracy,answer,basePoints,buff,grade,overridden,points,spare,streakBonus,timeMs',
     BoardState: 'awaySince,circle,circleNo,dice,done',
     DiceState: 'throws,tour,tourNo,waiting',
@@ -1277,6 +1283,7 @@ const KEYS: Record<number, Record<string, string>> = {
     TruthState: 'deck,facts',
     TruthFact: 'at,hidden,revised,text',
     TruthPlay: 'actorId,authorId,guessers,right',
+    ThinkPlay: 'lives,revealed,watch,words',
     DrawingPlay: 'drawerId,guessed,packed,rev,scored,side,strokes',
     DrawingScored: 'could,guessed',
     Stroke: 'c,p,w',
@@ -1643,6 +1650,7 @@ function representative(): GameState[] {
     perked(),
     hintPerked(),
     ...questing(),
+    thinkAsked(),
   ];
 }
 
@@ -1670,6 +1678,15 @@ function truthAsked(): GameState {
   const open = must(next(must(start(lobby)), T0, seededRng(7)));
   const author = open.plays[0].truth?.authorId ?? '';
   return must(submitAnswer(open, 'p3', { type: 'single', optionId: author }, T0 + 1000));
+}
+
+/** 35: «Думай інакше» (Оля, Петро, Іра) — запитання без слів, ведучий дописав «червоний», Оля збіглася, Петро — ні. */
+function thinkAsked(): GameState {
+  const quiz = makeRoundsQuiz([thinkRound('r1', [think('t1'), think('t2'), think('t3')])]);
+  const open = must(next(must(start(lobbyWith(quiz, 'Оля', 'Петро', 'Іра'))), T0));
+  const worded = must(setThinkWords(open, [{ word: 'червоний', synonyms: ['багряний'] }]));
+  const red = must(submitAnswer(worded, 'p1', { type: 'think', value: 'Червона' }, T0 + 1000));
+  return must(submitAnswer(red, 'p2', { type: 'think', value: 'синій' }, T0 + 1200));
 }
 
 /** 28c: «Малюнок» (Оля, Петро, Іра) — Оля намалювала штрих, Петро вгадав. */
@@ -2131,6 +2148,22 @@ describe('the saved state', () => {
     expect('truth' in roundTrip(suspend(roundTrip(plain), T0 + 1000))).toBe(false);
   });
 
+  it("a suspended think question keeps the host's words, lives and records", () => {
+    expect(GAME_STATE_VERSION).toBe(22);
+    const open = thinkAsked();
+    const back = roundTrip(suspend(roundTrip(open), T0 + 1500));
+    expect(back.plays[0].think).toEqual({ words: [{ word: 'червоний', synonyms: ['багряний'] }], lives: { p1: 3, p2: 3, p3: 3 }, revealed: false });
+    expect(back.plays[0].answers).toEqual(open.plays[0].answers);
+    // розкриття з ручною оцінкою: після перезапуску вердикти ті самі
+    const resumed = must(resume(back, T0 + 1500 + HOUR));
+    const shown = must(override(must(next(must(lock(resumed)), T0 + 2000 + HOUR)), 'p1', 'correct'));
+    expect(shown.phase).toBe('reveal');
+    const again = roundTrip(suspend(roundTrip(shown), T0 + 3000 + HOUR));
+    expect(thinkVerdicts(again, 0)).toEqual({ p1: 'safe', p2: 'safe', p3: 'empty' });
+    expect(thinkVerdicts(again, 0)).toEqual(thinkVerdicts(shown, 0));
+    expect(again.plays[0].answers.p1).toMatchObject({ overridden: true, grade: 'correct' });
+  });
+
   it('a suspended truth question keeps the deck, the author and the records', () => {
     expect(GAME_STATE_VERSION).toBe(22);
     const open = truthAsked();
@@ -2466,6 +2499,7 @@ describe('the saved state', () => {
       add('TruthState', [s.truth]);
       add('TruthFact', Object.values(s.truth?.facts ?? {}));
       add('TruthPlay', s.plays.map((p) => p.truth));
+      add('ThinkPlay', s.plays.map((p) => p.think));
       add('DrawingPlay', s.plays.map((p) => p.drawing));
       add('DrawingScored', s.plays.map((p) => p.drawing?.scored));
       add('Stroke', s.plays.flatMap((p) => p.drawing?.strokes ?? []));

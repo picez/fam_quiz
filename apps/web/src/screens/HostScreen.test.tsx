@@ -3940,3 +3940,49 @@ describe('HostScreen: code quest attempt times (29g)', () => {
     expect(screen.getByText('СОВИ · 0:42 · після 1')).toBeTruthy();
   });
 });
+
+describe('HostScreen: think round (35)', () => {
+  const think: Question = { id: 'q9', type: 'think', text: 'Напишіть колір веселки', imageUrl: null, video: null, timeLimit: 30, points: 0, words: [] };
+  const hostThink = (over = {}) => ({
+    lives: 3,
+    points: 10000,
+    index: 0,
+    total: 5,
+    rows: [],
+    words: null,
+    places: null,
+    draft: [],
+    editable: true,
+    canReveal: false,
+    answers: [{ id: 'p1', nickname: 'Оля', answer: 'Червоний', hit: false, overridden: false }],
+    ...over,
+  });
+
+  it('«Показати» waits for a host word', async () => {
+    show(during('locked', think, { think: hostThink() }));
+    expect(button(t('reveal')).disabled).toBe(true);
+    expect(button(t('reveal')).title).toBe(t('err_think_no_words'));
+    expect(screen.getByText(t('thinkHostLate'))).toBeTruthy();
+    expect(screen.getByText('Червоний')).toBeTruthy();
+    cleanup();
+    const send = show(during('locked', think, { think: hostThink({ draft: [{ word: 'червоний', synonyms: [] }], editable: false, canReveal: true }) }));
+    expect(button(t('reveal')).disabled).toBe(false);
+    fireEvent.click(button(t('reveal')));
+    await waitFor(() => expect(send).toHaveBeenCalledWith('host:next', undefined));
+  });
+
+  it('the think round last: the finished host shows the places', () => {
+    const places = [{ id: 'p1', nickname: 'Оля', place: 1, lives: 2, outAt: null, points: 10000 }];
+    show(during('finished', think, { think: hostThink({ places, index: null }) }));
+    expect(screen.getByText(t('thinkPlacesTitle'))).toBeTruthy();
+  });
+
+  it('the answered count is out of the living participants, not every player', () => {
+    const answers = [
+      { id: 'p1', nickname: 'Оля', answer: 'Червоний', hit: false, overridden: false },
+      { id: 'p2', nickname: 'Тарас', answer: null, hit: null, overridden: false },
+    ];
+    show(during('question', think, { think: hostThink({ answers }) }));
+    expect(screen.getAllByText(t('answeredOf', { answered: 1, total: 2 })).length).toBeGreaterThan(0);
+  });
+});

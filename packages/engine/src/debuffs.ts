@@ -7,9 +7,9 @@ import { spendWard, wardReady } from './perks';
 import { spendStealth, stealthReady } from './stealth';
 import { isGhost, survivalAlive } from './survival';
 
-/** Раунди без дебафів: «Ва-банк», «Мільйонер» (14a), «Правда про гравця» (28b) і «Головоломки» (28d). */
+/** Раунди без дебафів: «Ва-банк», «Мільйонер» (14a), «Правда про гравця» (28b), «Головоломки» (28d) і «Думай інакше» (35). */
 function noDebuffRound(type: string | undefined): boolean {
-  return type === 'wipeout' || type === 'ladder' || type === 'truth' || type === 'puzzles';
+  return type === 'wipeout' || type === 'ladder' || type === 'truth' || type === 'puzzles' || type === 'think';
 }
 
 /** У раундах без дебафів (noDebuffRound) дебафів немає: на їхніх етапах, крім round_end. */

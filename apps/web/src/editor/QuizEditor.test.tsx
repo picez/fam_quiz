@@ -25,7 +25,7 @@ function open(initial: Quiz = newQuiz(), result: string | null = null) {
 
 const fill = (label: string, value: string) => fireEvent.change(screen.getByLabelText(label), { target: { value } });
 const click = (name: string) => fireEvent.click(screen.getByRole('button', { name }));
-const addRound = (type: 'Класичний' | 'Бліц' | 'Фінал' | 'Ставки' | 'Аукціон' | 'Ва-банк' | 'Правда про гравця' | 'Головоломки' | 'Вибування' | 'Мільйонер' | 'Квест із кодом') => {
+const addRound = (type: 'Класичний' | 'Бліц' | 'Фінал' | 'Ставки' | 'Аукціон' | 'Ва-банк' | 'Правда про гравця' | 'Головоломки' | 'Вибування' | 'Мільйонер' | 'Квест із кодом' | 'Думай інакше') => {
   click('+ Раунд');
   click(type);
 };
@@ -3404,5 +3404,46 @@ describe('QuizEditor: «Із групи» (12l)', () => {
     const round = { ...newClassicRound(), questions: Array.from({ length: LIMITS.maxQuestions }, () => newQuestion('single')) };
     withGroups({ ...newQuiz(), rounds: [round] });
     expect(fromGroup().disabled).toBe(true);
+  });
+});
+
+describe('QuizEditor: think round (35)', () => {
+  const pick = (index: number) => fireEvent.click(document.querySelectorAll('.question-item')[index]!);
+
+  it('creates a think round with lives, points and word questions', async () => {
+    const { onSave } = open();
+    fill('Назва вікторини', 'Гра');
+    fill('Текст запитання', 'Перше?');
+    fireEvent.click(screen.getByRole('button', { name: 'так чи ні' }));
+    addRound('Думай інакше');
+    fireEvent.click(screen.getAllByText('Налаштування раунду')[0]);
+    expect((screen.getByLabelText(t('thinkLivesLabel')) as HTMLInputElement).value).toBe('3');
+    expect((screen.getByLabelText(t('thinkPointsLabel')) as HTMLInputElement).value).toBe('5000');
+    // Група полів має нейтральну назву: «Думай інакше ⓘ» уже в заголовку налаштувань раунду.
+    expect(document.querySelector('.think-settings legend')?.textContent).toBe(t('thinkSettingsLegend'));
+    expect(document.querySelector('.think-settings legend button')).toBeNull();
+    expect(document.querySelectorAll('.question-item')).toHaveLength(3);
+    for (const item of document.querySelectorAll('.question-item-type')) expect(item.textContent).toBe(t('typeShort_think'));
+    // Меню типу — лише «Слово на тему», ціни немає.
+    const chips = within(screen.getByRole('group', { name: t('questionType') })).getAllByRole('button');
+    expect(chips.map((chip) => chip.textContent)).toEqual([t('typeShort_think')]);
+    expect(screen.queryByLabelText(t('pointsLabel'))).toBeNull();
+    expect(screen.getByText(t('thinkNoWordsNote'))).toBeTruthy();
+    fill('Текст запитання', 'Напишіть колір веселки');
+    click(t('thinkAddWord'));
+    fill(t('thinkWordLabel', { index: 1 }), 'червоний');
+    fill(t('thinkSynonymsLabel'), 'багряний, ');
+    pick(1);
+    fill('Текст запитання', 'Напишіть фрукт');
+    pick(2);
+    fill('Текст запитання', 'Напишіть птаха');
+    click('Зберегти');
+    await waitFor(() => expect(onSave).toHaveBeenCalled());
+    const quiz = saved(onSave);
+    expect(quizSchema.safeParse(quiz).success).toBe(true);
+    expect(quiz.rounds[1]).toMatchObject({ type: 'think', lives: 3, points: 5000 });
+    const questions = roundQuestions(quiz.rounds[1]);
+    expect(questions.map((q) => q.type)).toEqual(['think', 'think', 'think']);
+    expect(questions[0]).toMatchObject({ points: 0, words: [{ word: 'червоний', synonyms: ['багряний'] }] });
   });
 });

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent as ReactKeyboardEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
-import { AUTOPILOT_CHANGES, type AutopilotCheck } from '@quiz/shared';
+import { AUTOPILOT_BLOCKS, AUTOPILOT_CHANGES, type AutopilotCheck } from '@quiz/shared';
 import { createAutopilotGame, getAutopilotCheck, getMyProfile, type QuizSummary } from '../api';
 import { HelpButton } from '../help/HelpButton';
 import { countText, errorText, t, type TextKey } from '../i18n';
@@ -110,7 +110,23 @@ export function AutopilotLaunch({ quiz, onClose }: { quiz: QuizSummary; onClose:
         <p>{t('autopilotLead')}</p>
 
         {check.state === 'checking' && <p className="meta">{t('autopilotChecking')}</p>}
-        {blocked && <p className="error">{t('autopilotBlocked')}</p>}
+        {blocked && (
+          <>
+            <p className="error">{t('autopilotBlocked')}</p>
+            <ul className="autopilot-changes autopilot-blocks">
+              {AUTOPILOT_BLOCKS.flatMap((code) => {
+                const issue = check.check.blocked.find((item) => item.code === code);
+                return issue === undefined
+                  ? []
+                  : [
+                      <li key={code}>
+                        <span>{t(`autopilotBlock_${code}`)}</span> <strong>{roundsText(issue.rounds)}</strong>
+                      </li>,
+                    ];
+              })}
+            </ul>
+          </>
+        )}
         {check.state === 'ready' && !blocked && check.check.changed.length === 0 && <p className="meta">{t('autopilotNoChanges')}</p>}
         {check.state === 'ready' && !blocked && check.check.changed.length > 0 && (
           <section>

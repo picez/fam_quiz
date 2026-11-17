@@ -1,6 +1,6 @@
 import { asc, eq } from 'drizzle-orm';
 import { describe, expect, it, vi } from 'vitest';
-import { auctionRound, betsRound, bluff, blitzRound, boardRound, bool, chain, classicRound, clues, duels, finalRound, makeQuiz, makeRoundsQuiz, numeric, poll, cloud, wall, single, survey, surveyCloud, text, survivalQuestions, survivalRound, survivalTrials, withId, wipeoutLadder, wipeoutRound, ladderRound, letterwords, letterwordsRandom, moreless, drawing, timedlist, truthRound, wordladder, melody, memory } from '@quiz/engine/testing';
+import { auctionRound, betsRound, bluff, blitzRound, boardRound, bool, chain, classicRound, clues, duels, finalRound, makeQuiz, makeRoundsQuiz, numeric, poll, cloud, wall, single, survey, surveyCloud, text, survivalQuestions, survivalRound, survivalTrials, withId, wipeoutLadder, wipeoutRound, ladderRound, letterwords, letterwordsRandom, moreless, drawing, timedlist, truthRound, think, thinkRound, wordladder, melody, memory } from '@quiz/engine/testing';
 import { DEFAULT_RULES, defaultTeams, isUnscored, memoryLayout, SPLASH_MS, packStrokes, unpackStrokes, type Question, type Quiz } from '@quiz/shared';
 import type { Db } from './db/client';
 import * as store from './achievement-store';
@@ -280,6 +280,33 @@ describe('recorder', () => {
     expect(participants.find((p) => p.id === ctx.olena)?.score).toBe(150);
     // факт — лише в журналі цієї гри
     expect(JSON.stringify(games[0].quizSnapshot)).not.toContain('парашутом');
+    expect(ctx.errors).toEqual([]);
+  });
+
+  it('a think question records the final host words', async () => {
+    const red = { word: 'червоний', synonyms: [] };
+    const blue = { word: 'синій', synonyms: ['блакитний'] };
+    const quiz = makeRoundsQuiz([thinkRound('r1', [think('t1', [red]), think('t2', [red]), think('t3', [red])]), classicRound('r2', [single])]);
+    const ctx = await setup(undefined, 5000, 30, quiz);
+    ctx.host('start');
+    ctx.host('next');
+    // Ведучий замінює заготовлене слово; Олена збігається, але ведучий знімає збіг.
+    expect(ctx.manager.host(ctx.room, { type: 'think-words', words: [blue] })).toEqual({ ok: true });
+    expect(ctx.manager.answer(ctx.room, ctx.olena, { type: 'think', value: 'Синя' })).toEqual({ ok: true });
+    expect(ctx.manager.answer(ctx.room, ctx.taras, { type: 'think', value: 'блакитна' })).toEqual({ ok: true });
+    ctx.host('lock');
+    ctx.host('next');
+    expect(ctx.manager.host(ctx.room, { type: 'override', playerId: ctx.olena, grade: 'correct' })).toEqual({ ok: true });
+    ctx.host('next');
+    const { games, answers } = await ctx.saved();
+    expect(games[0].plays[0].think).toEqual({ words: [blue], lives: { [ctx.olena]: 3, [ctx.taras]: 3 }, revealed: true, hit: [ctx.taras], manual: [ctx.olena] });
+    // Слово — не відповідь для статистики (як голос): 0 балів, без «прийнято».
+    expect(answers.filter((a) => a.questionIndex === 0).map((a) => [a.participantId, a.attempt, a.payload, a.points, a.accepted, a.overridden]).sort()).toEqual(
+      [
+        [ctx.olena, VOTE_ATTEMPT, { type: 'think', value: 'Синя' }, 0, false, true],
+        [ctx.taras, VOTE_ATTEMPT, { type: 'think', value: 'блакитна' }, 0, false, false],
+      ].sort(),
+    );
     expect(ctx.errors).toEqual([]);
   });
 

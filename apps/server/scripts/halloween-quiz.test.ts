@@ -9,7 +9,7 @@ const themes = Object.keys(HALLOWEEN_THEMES) as HalloweenTheme[];
 const key = (text: string) => text.trim().toLocaleLowerCase('uk');
 const played = (q: Quiz): Question[] => [...questionsOf(q), ...q.rounds.flatMap(roundTrials)];
 
-const EXPECTED_TYPES = QUESTION_TYPES.filter((t) => t !== 'poll' && t !== 'wordcloud' && t !== 'timedlist' && t !== 'letterwords' && t !== 'moreless' && t !== 'drawing' && t !== 'sudoku' && t !== 'crossword' && t !== 'jigsaw' && t !== 'spotdiff' && t !== 'memory' && t !== 'melody'); // 27c: новий тип, демо без списку; 27d: новий тип, демо без слів з літер; 28a: новий тип, демо без «Більше чи менше»; 28c: новий тип, демо без «Малюнка»; 28d: нові типи, демо без судоку й кросворду; 29c: новий тип, демо без пазла; 29d: новий тип, демо без відмінностей; 29e, 29f: нові типи, демо без «Мелодії» і «Пам'яті»
+const EXPECTED_TYPES = QUESTION_TYPES.filter((t) => t !== 'poll' && t !== 'wordcloud' && t !== 'timedlist' && t !== 'letterwords' && t !== 'moreless' && t !== 'drawing' && t !== 'sudoku' && t !== 'crossword' && t !== 'jigsaw' && t !== 'spotdiff' && t !== 'memory' && t !== 'melody' && t !== 'think'); // 27c: новий тип, демо без списку; 27d: новий тип, демо без слів з літер; 28a: новий тип, демо без «Більше чи менше»; 28c: новий тип, демо без «Малюнка»; 28d: нові типи, демо без судоку й кросворду; 29c: новий тип, демо без пазла; 29d: новий тип, демо без відмінностей; 29e, 29f: нові типи, демо без «Мелодії» і «Пам'яті»; 35: новий тип, демо без «Думай інакше»
 
 const BANNED = [
   'росі', 'росс', 'русск', 'москв', 'ссср', 'срср', 'урср', 'радянськ', 'совєт', 'совет', 'кремл', 'путін', 'ленін', 'сталін',
@@ -29,7 +29,7 @@ describe('the «Ніч, коли оживають тіні» Halloween quiz', ()
 
   it('uses every round type and every question type except polls and word clouds', () => {
     // «Аукціон» (27b) з'явився після цієї вікторини; сід-скрипти не змінюються.
-    expect(new Set(quiz.rounds.map((r) => r.type))).toEqual(new Set(ROUND_TYPES.filter((type) => type !== 'auction' && type !== 'truth' && type !== 'puzzles' && type !== 'quest'))); // 28b: новий тип раунду, сід-скрипти не змінюються; 28d: так само «Головоломки»; 29g: так само «Квест із кодом»
+    expect(new Set(quiz.rounds.map((r) => r.type))).toEqual(new Set(ROUND_TYPES.filter((type) => type !== 'auction' && type !== 'truth' && type !== 'puzzles' && type !== 'quest' && type !== 'think'))); // 28b: новий тип раунду, сід-скрипти не змінюються; 28d: так само «Головоломки»; 29g: так само «Квест із кодом»; 35: так само «Думай інакше»
     expect(new Set(played(quiz).map((q) => q.type))).toEqual(new Set(EXPECTED_TYPES));
   });
 

@@ -152,6 +152,8 @@ describe('uk golden (22a)', () => {
   const ADDED_TRUTH_RECAP = ['truthHeldNote', 'truthSealed', 'truthClosed', 'truthYourPick', 'truthYouSkipped', 'truthHeldScores', 'truthRecapTitle', 'truthRecapEarly', 'truthRecapMine', 'truthRecapRight', 'truthRecapRightCount', 'truthRecapNobody', 'truthRecapOwn', 'truthHostHeld'];
   /** «Правда про гравця» в командах: у підсумку вибір і вгадане — команди, а не «ваші». */
   const ADDED_TRUTH_TEAM = ['truthTeamPick', 'truthTeamSkipped', 'truthRecapTeamMine', 'truthRecapOwnTeam'];
+  /** 35: «Думай інакше» — назва, пам'ятка, помилки, редактор, історія, автопілот, телефон, сцена й пульт. */
+  const ADDED_THINK = ['roundTypeThink', 'roundHow_think', 'type_think', 'typeShort_think', 'typeHow_think', 'buffWhy_off_think', 'scoreSource_think', 'err_think_no_words', 'err_think_words_closed', 'err_think_out', 'err_think_spectator', 'err_think_word', 'summaryThink', 'thinkLivesLabel', 'thinkPointsLabel', 'thinkSettingsNote', 'thinkWordsLabel', 'thinkWordLabel', 'thinkSynonymsLabel', 'thinkAddWord', 'thinkRemoveWord', 'thinkNoWordsNote', 'thinkMinHint', 'problemThinkWordsDup', 'problemThinkWordEmpty', 'problemThinkWordsLimits', 'problemThinkCount', 'problemThinkNumbers', 'problemThinkType', 'autopilotBlock_think_words', 'thinkHistoryWords', 'thinkHistorySafe', 'thinkHistoryHit', 'thinkHistoryEmpty', 'thinkPrompt', 'thinkInputLabel', 'thinkSend', 'thinkSent', 'thinkHeartsLabel', 'thinkSafe', 'thinkHit', 'thinkEmpty', 'thinkOutNow', 'thinkSpectator', 'thinkSpectatorAuthor', 'thinkOf', 'thinkHostWords', 'thinkHostSave', 'thinkHostLocked', 'thinkHostLate', 'thinkHostAnswers', 'thinkHostHit', 'thinkHostSafe', 'thinkHostNoAnswer', 'thinkHostOverridden', 'thinkHostMarkHit', 'thinkHostMarkSafe', 'thinkAnsweredMark', 'thinkWordsTitle', 'thinkPlacesTitle', 'thinkOutAt', 'thinkPlace', 'thinkRoundCol', 'thinkTotalCol', 'thinkNoAnswer', 'thinkSettingsLegend'];
   /** Судоку: «Стерти все» з перепитуванням. */
   const ADDED_35 = ['sudokuWipe', 'sudokuWipeConfirm'];
   /** «Пам'ять»: ведучий підглядає під картки на пульті. */
@@ -341,9 +343,23 @@ describe('uk golden (22a)', () => {
     }
   });
 
+  it('think keys are in every language', () => {
+    const locales: Record<string, Record<string, string>> = { en, pl, de, es, it: it_, ar };
+    for (const key of ADDED_THINK) expect(ukMessages, key).toHaveProperty(key);
+    for (const [lang, dict] of Object.entries(locales)) expect(ADDED_THINK.filter((key) => !(key in dict)), lang).toEqual([]);
+  });
+
+  it('think help pages are in every language', () => {
+    const pages: Record<string, Record<string, string>> = { en: enHelp, pl: plHelp, de: deHelp, es: esHelp, it: itHelp, ar: arHelp };
+    for (const [lang, dict] of Object.entries(pages)) {
+      for (const suffix of ['title', 'what', 'how.0', 'how.4', 'points.0', 'points.1', 'tip.0', 'limits.0', 'limits.2']) expect(dict, lang).toHaveProperty('round.think.' + suffix);
+      for (const suffix of ['title', 'what', 'how.0', 'how.1', 'points.0', 'tip.0', 'limits.0']) expect(dict, lang).toHaveProperty('question.think.' + suffix);
+    }
+  });
+
   it('adds no uk keys beyond the agreed list', () => {
     const fresh = Object.keys(ukMessages).filter((key) => !(key in golden));
-    expect(fresh.filter((key) => !ADDED.includes(key) && !ADDED_LATER.includes(key) && !ADDED_23A.includes(key) && !ADDED_24A.includes(key) && !ADDED_24B.includes(key) && !ADDED_24C.includes(key) && !ADDED_24D.includes(key) && !ADDED_GRAIL.includes(key) && !ADDED_25C.includes(key) && !ADDED_25D.includes(key) && !ADDED_25E.includes(key) && !ADDED_26A.includes(key) && !ADDED_26B.includes(key) && !ADDED_26C.includes(key) && !ADDED_27A.includes(key) && !ADDED_27B.includes(key) && !ADDED_27C.includes(key) && !ADDED_27D.includes(key) && !ADDED_28A.includes(key) && !ADDED_28B.includes(key) && !ADDED_28C.includes(key) && !ADDED_28D.includes(key) && !ADDED_28D_PLURALS.includes(key) && !ADDED_29C.includes(key) && !ADDED_29C_PLURALS.includes(key) && !ADDED_29D.includes(key) && !ADDED_29D_PLURALS.includes(key) && !ADDED_29F.includes(key) && !ADDED_29F_PLURALS.includes(key) && !ADDED_29E.includes(key) && !ADDED_29E_PLURALS.includes(key) && !ADDED_29I.includes(key) && !ADDED_29H.includes(key) && !ADDED_29G.includes(key) && !ADDED_29G_PLURALS.includes(key) && !ADDED_30A.includes(key) && !ADDED_12J.includes(key) && !ADDED_12K.includes(key) && !ADDED_12K_PLURALS.includes(key) && !ADDED_12L.includes(key) && !ADDED_31.includes(key) && !ADDED_32.includes(key) && !ADDED_33.includes(key) && !ADDED_34.includes(key) && !ADDED_35.includes(key) && !ADDED_THEME.includes(key) && !ADDED_MEMORY_PEEK.includes(key) && !ADDED_TRUTH_RECAP.includes(key) && !ADDED_TRUTH_TEAM.includes(key))).toEqual([]);
+    expect(fresh.filter((key) => !ADDED.includes(key) && !ADDED_LATER.includes(key) && !ADDED_23A.includes(key) && !ADDED_24A.includes(key) && !ADDED_24B.includes(key) && !ADDED_24C.includes(key) && !ADDED_24D.includes(key) && !ADDED_GRAIL.includes(key) && !ADDED_25C.includes(key) && !ADDED_25D.includes(key) && !ADDED_25E.includes(key) && !ADDED_26A.includes(key) && !ADDED_26B.includes(key) && !ADDED_26C.includes(key) && !ADDED_27A.includes(key) && !ADDED_27B.includes(key) && !ADDED_27C.includes(key) && !ADDED_27D.includes(key) && !ADDED_28A.includes(key) && !ADDED_28B.includes(key) && !ADDED_28C.includes(key) && !ADDED_28D.includes(key) && !ADDED_28D_PLURALS.includes(key) && !ADDED_29C.includes(key) && !ADDED_29C_PLURALS.includes(key) && !ADDED_29D.includes(key) && !ADDED_29D_PLURALS.includes(key) && !ADDED_29F.includes(key) && !ADDED_29F_PLURALS.includes(key) && !ADDED_29E.includes(key) && !ADDED_29E_PLURALS.includes(key) && !ADDED_29I.includes(key) && !ADDED_29H.includes(key) && !ADDED_29G.includes(key) && !ADDED_29G_PLURALS.includes(key) && !ADDED_30A.includes(key) && !ADDED_12J.includes(key) && !ADDED_12K.includes(key) && !ADDED_12K_PLURALS.includes(key) && !ADDED_12L.includes(key) && !ADDED_31.includes(key) && !ADDED_32.includes(key) && !ADDED_33.includes(key) && !ADDED_34.includes(key) && !ADDED_35.includes(key) && !ADDED_THEME.includes(key) && !ADDED_MEMORY_PEEK.includes(key) && !ADDED_TRUTH_RECAP.includes(key) && !ADDED_TRUTH_TEAM.includes(key) && !ADDED_THINK.includes(key))).toEqual([]);
   });
 });
 

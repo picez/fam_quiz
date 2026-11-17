@@ -23,6 +23,8 @@ import {
   newLadderRound,
   resizeLadder,
   newSurvivalRound,
+  newThinkQuestion,
+  newThinkRound,
   newClassicRound,
   newQuestion,
   problemsOf,
@@ -123,7 +125,9 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
               ? LIMITS.maxPuzzles
               : round.type === 'quest'
                 ? LIMITS.maxQuestQuestions
-                : LIMITS.maxQuestions) &&
+                : round.type === 'think'
+                  ? LIMITS.maxThinkQuestions
+                  : LIMITS.maxQuestions) &&
     total < LIMITS.maxQuizQuestions;
   const setAwayPenalty = (on: boolean) => {
     const { awayPenalty: _off, ...rest } = settings;
@@ -173,8 +177,8 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
       select(questions.length);
       return;
     }
-    // У «Головоломках» нове запитання — згенероване судоку (інших типів там немає).
-    setQuestions([...questions, round.type === 'wipeout' ? newWipeoutQuestion(questions[last]) : round.type === 'survival' ? { ...newQuestion('single'), points: 100 } : newQuestion(round.type === 'puzzles' ? 'sudoku' : 'single')]);
+    // У «Головоломках» нове запитання — згенероване судоку (інших типів там немає); у «Думай інакше» — лише «Слово на тему».
+    setQuestions([...questions, round.type === 'think' ? newThinkQuestion() : round.type === 'wipeout' ? newWipeoutQuestion(questions[last]) : round.type === 'survival' ? { ...newQuestion('single'), points: 100 } : newQuestion(round.type === 'puzzles' ? 'sudoku' : 'single')]);
     select(questions.length);
   };
 
@@ -203,7 +207,7 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
 
   const addRound = (type: Round['type']) => {
     const fresh =
-      type === 'blitz' ? newBlitzRound() : type === 'board' ? newBoardRound() : type === 'final' ? newFinalRound() : type === 'bets' ? newBetsRound() : type === 'auction' ? newAuctionRound() : type === 'truth' ? newTruthRound() : type === 'puzzles' ? newPuzzlesRound() : type === 'wipeout' ? newWipeoutRound() : type === 'survival' ? newSurvivalRound() : type === 'ladder' ? newLadderRound() : type === 'quest' ? newQuestRound() : newClassicRound();
+      type === 'blitz' ? newBlitzRound() : type === 'board' ? newBoardRound() : type === 'final' ? newFinalRound() : type === 'bets' ? newBetsRound() : type === 'auction' ? newAuctionRound() : type === 'truth' ? newTruthRound() : type === 'puzzles' ? newPuzzlesRound() : type === 'wipeout' ? newWipeoutRound() : type === 'survival' ? newSurvivalRound() : type === 'ladder' ? newLadderRound() : type === 'quest' ? newQuestRound() : type === 'think' ? newThinkRound() : newClassicRound();
     setRounds([...rounds, fresh]);
     selectRound(rounds.length);
   };
@@ -531,7 +535,7 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
             <QuestionEditor
               key={current.id}
               question={current}
-              showPoints={round.type !== 'final' && round.type !== 'bets' && round.type !== 'ladder'}
+              showPoints={round.type !== 'final' && round.type !== 'bets' && round.type !== 'ladder' && round.type !== 'think'}
               showReveal={round.type === 'classic'}
               showTime={round.type !== 'ladder' || round.timer}
               fixedOptions={round.type === 'ladder' ? LIMITS.ladderOptions : undefined}
@@ -568,9 +572,11 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
                 type="button"
                 className="btn btn-small btn-danger"
                 aria-label={t('removeQuestion', { index: selected + 1 })}
-                disabled={questions.length === 1 || (round.type === 'wipeout' && questions.length <= LIMITS.minWipeoutQuestions) || (round.type === 'survival' && questions.length <= LIMITS.minSurvivalQuestions) || (round.type === 'ladder' && questions.length <= LIMITS.minLadderQuestions)}
+                disabled={questions.length === 1 || (round.type === 'think' && questions.length <= LIMITS.minThinkQuestions) || (round.type === 'wipeout' && questions.length <= LIMITS.minWipeoutQuestions) || (round.type === 'survival' && questions.length <= LIMITS.minSurvivalQuestions) || (round.type === 'ladder' && questions.length <= LIMITS.minLadderQuestions)}
                 title={
-                  round.type === 'wipeout' && questions.length <= LIMITS.minWipeoutQuestions
+                  round.type === 'think' && questions.length <= LIMITS.minThinkQuestions
+                    ? t('thinkMinHint', { min: LIMITS.minThinkQuestions })
+                    : round.type === 'wipeout' && questions.length <= LIMITS.minWipeoutQuestions
                     ? t('wipeoutMinHint', { min: LIMITS.minWipeoutQuestions })
                     : round.type === 'survival' && questions.length <= LIMITS.minSurvivalQuestions
                       ? t('survivalMinHint', { min: LIMITS.minSurvivalQuestions })

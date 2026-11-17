@@ -152,7 +152,8 @@ function questionsOf(quiz: Quiz | null, plays: PlayRef[], questionsPlayed: numbe
         roundType: round?.type ?? null,
         question,
         limitMs: factLimitMs(question, round, voice),
-        scored: !isUnscored(question),
+        // «Думай інакше» (35): як наживо — не «відповіді» для досягнень і цікавинок.
+        scored: !isUnscored(question) && question.type !== 'think',
         blitz: round?.type === 'blitz' || cellBlitz,
         cell:
           ref.cell === undefined || found === undefined

@@ -172,6 +172,9 @@ export function correctText(question: Question, presented?: { id: string }[]): s
     case 'melody':
       // Назва — перше написання.
       return question.accepted[0] ?? '—';
+    case 'think':
+      // «Думай інакше» (35): заготовлені слова ведучого (без синонімів); у грі вони можуть змінитися — тоді слова дає зріз.
+      return question.words.length === 0 ? '—' : question.words.map((w) => w.word).join(', ');
     case 'crossword':
       // Ключове слово великими літерами або слова кросворду за порядком.
       return question.mode === 'key' && question.key !== null ? question.key.toLocaleUpperCase('uk') : question.entries.map((entry) => entry.answer).join(', ');
@@ -268,6 +271,8 @@ export function answerText(answer: Answer | null, question: Question | null, pre
       const heard = melodyHeardOf(answer);
       return heard === null ? answer.value : t('melodyAnswerHeard', { answer: answer.value, seconds: melodySeconds(heard) });
     }
+    case 'think':
+      return answer.value === '' ? '—' : answer.value;
     case 'puzzle':
       // Правильність — лише ціла сітка (у кросворді з ключем — ключове слово); заповненість — для статистики.
       return answer.solved ? t('puzzleAnswerSolved') : t('puzzleAnswerPart', { filled: answer.filled, total: answer.total });

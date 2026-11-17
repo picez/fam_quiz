@@ -149,9 +149,9 @@ const quiz = (rounds: object[], settings: object = {}): Quiz =>
 const codes = (q: Quiz) => autopilotCheck(q).changed;
 
 describe('autopilot constants', () => {
-  it('lists the changes in table order and blocks nothing', () => {
+  it('lists the changes in table order and the blocks', () => {
     expect([...AUTOPILOT_CHANGES]).toEqual(['voice', 'manual', 'ladder_pick', 'hint', 'untimed']);
-    expect([...AUTOPILOT_BLOCKS]).toEqual([]);
+    expect([...AUTOPILOT_BLOCKS]).toEqual(['think_words']);
   });
 });
 
@@ -373,5 +373,28 @@ describe('quest round (29g)', () => {
     const round = quest('r0', { questions: Array.from({ length: 4 }, (_, i) => hinted(`h${i}`)) });
     expect(codes(withSpares([round], { buffs: ['hint', 'swap'] }, [single('s1')]))).toEqual([{ code: 'hint', rounds: [0] }]);
     expect(codes(withSpares([round], { buffs: ['hint', 'swap'] }, [hinted('s1')]))).toEqual([]);
+  });
+});
+
+describe('think round (35)', () => {
+  const thinkQ = (id: string, words: object[] = [{ word: 'червоний', synonyms: [] }]) => ({
+    id, type: 'think', text: 'Напишіть колір веселки', imageUrl: null, video: null, timeLimit: 30, points: 0, words,
+  });
+  const think = (id: string, empty: number[] = []) => ({
+    id, type: 'think', title: '', lives: 3, points: 5000,
+    questions: [0, 1, 2].map((i) => thinkQ(`${id}q${i}`, empty.includes(i) ? [] : undefined)),
+  });
+  it('a think question without words blocks the autopilot', () => {
+    const q = quiz([classic('r0', list('a', 2)), think('r1', [1]), think('r2')], { buffs: ['hint'] });
+    const check = autopilotCheck(q);
+    expect(check.blocked).toEqual([{ code: 'think_words', rounds: [1] }]);
+    // Підказка ведучого в раунді think не діє: лише класичний раунд без підказок.
+    expect(check.changed).toEqual([{ code: 'hint', rounds: [0] }]);
+    expect(autopilotQuiz(q).rounds[1]).toEqual(q.rounds[1]);
+    expect(autopilotQuiz(q).rounds[2]).toEqual(q.rounds[2]);
+  });
+  it('every round without words is listed; a round with words blocks nothing', () => {
+    expect(autopilotCheck(quiz([think('r0', [0, 2]), think('r1'), think('r2', [0])])).blocked).toEqual([{ code: 'think_words', rounds: [0, 2] }]);
+    expect(autopilotCheck(quiz([think('r0')]))).toEqual({ blocked: [], changed: [] });
   });
 });

@@ -58,6 +58,8 @@ export function actorOf(state: GameState, memberId: string, act: TeamAct): Actor
     case 'answer': {
       // Опитування й «хмару слів» кожен проходить сам.
       const play = state.plays[state.questionIndex];
+      // «Думай інакше» (35): автор автопілота знає слова — глядач раунду.
+      if (play?.think !== undefined && state.autopilot?.authorId === memberId) return refuse('think_spectator');
       if (play !== undefined && isUnscored(play.question)) return actor(memberId);
       // Спільна відповідь команди — відповідає будь-хто за команду: «Список на час» (27c) і «Слова з літер» (27d) — один список,
       // «Малюнок» (28c) — вгадує будь-хто, «Мелодія за нотами» (29e) — шматки спільні, фіксується перша відповідь, «Головоломки» (28d) — одна сітка.

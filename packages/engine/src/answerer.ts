@@ -56,7 +56,7 @@ export function queueNext(state: GameState, teamId: string): string | null {
  * Бліц, опитування й хмара: відповідача немає (натиснувший чи кожен сам), лишається капітан.
  * «Правда про гравця» (28b): вгадує капітан; команда автора не позначена окремо — інакше сцена видала б автора.
  */
-/** Відповідача немає: бліц, опитування й «хмара», «Правда про гравця» (28b) і головоломки (28d: спільна сітка всієї команди). */
+/** Відповідача немає: бліц, опитування й «хмара», «Правда про гравця» (28b) і головоломки (28d: спільна сітка всієї команди). «Думай інакше» (35) — ні: слово пише відповідач 12g. */
 const freeForAll = (play: Play): boolean => play.blitz !== undefined || isUnscored(play.question) || play.truth !== undefined || isPuzzle(play.question) || play.question.type === 'jigsaw' || play.question.type === 'spotdiff' || play.question.type === 'memory' || play.question.type === 'melody';
 
 /**
@@ -64,6 +64,28 @@ const freeForAll = (play: Play): boolean => play.blitz !== undefined || isUnscor
  * поза зв'язком — капітан; бліц і опитування — капітан.
  */
 export function answererOf(state: GameState, teamId: string): string | null {
+  return thinkStandIn(state, teamId, ruleAnswererOf(state, teamId));
+}
+
+/**
+ * «Думай інакше» (35) в автопілоті: автор знає слова, тож за команду діє наступний присутній учасник після нього за порядком;
+ * нікого — null (команда лише з автора — глядач). Поза запитанням think поточного раунду — id як є.
+ */
+function thinkStandIn(state: GameState, teamId: string, id: string | null): string | null {
+  const authorId = state.autopilot?.authorId;
+  const play = state.plays[state.questionIndex];
+  if (authorId === undefined || id !== authorId || play?.think === undefined || play.roundIndex !== state.roundIndex) return id;
+  const members = teamMembers(state, teamId);
+  const from = members.findIndex((m) => m.id === authorId);
+  for (let k = 1; k < members.length; k++) {
+    const member = members[(from + k) % members.length];
+    // Присутній — як presentPlayers: на зв'язку або щойно відновлений (awaiting).
+    if ((member.connected || state.awaiting.includes(member.id)) && member.id !== authorId) return member.id;
+  }
+  return null;
+}
+
+function ruleAnswererOf(state: GameState, teamId: string): string | null {
   const captain = captainOf(state, teamId);
   const mode = answererMode(state);
   if (mode === 'captain') return captain;

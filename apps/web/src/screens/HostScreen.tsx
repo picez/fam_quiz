@@ -7,6 +7,7 @@ import { AwayLabel } from './AwayLabel';
 import { HostBetsPanel } from './BetsView';
 import { HostAuctionPanel } from './AuctionView';
 import { HostQuestPanel } from './QuestView';
+import { HostThinkAnswers, HostThinkWords, ThinkPlaces } from './ThinkView';
 import { HostTruthFacts, TruthRecapFold, TruthRecapView } from './TruthView';
 import { paceAttrs, usePace } from '../pace';
 import { ClueOpens } from './ClueOpens';
@@ -536,14 +537,21 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
   const liveTrial = liveData?.kind === 'trial';
   const liveDrafts = draftsById(drafts, view.questionIndex, liveTrial);
   // Відкрите випробування «Вибування» йде на leaderboard: таблиці попереднього запитання лишаються на місці.
-  const liveHides = liveOn && !liveTrial;
+  // «Думай інакше» (35): слова ведучого й відповіді зі збігом замість звичайних «Відповідей наживо» і списку відповідей.
+  const thinkHost = view.think !== undefined && view.question?.type === 'think' && (phase === 'question' || phase === 'locked' || phase === 'reveal') ? view.think : null;
+  // «Показати» без жодного слова рушій відхиляє (think_no_words): кнопка неактивна з підказкою чому.
+  const thinkWaits = phase === 'locked' && thinkHost !== null && !thinkHost.canReveal;
+  const liveHides = (liveOn && !liveTrial) || thinkHost !== null;
   const jump = () => {
     const panel = document.getElementById('live-answers');
     panel?.scrollIntoView({ block: 'start' });
     panel?.focus({ preventScroll: true });
   };
   const countText =
-    view.wipeout !== null
+    thinkHost !== null
+      ? // «Думай інакше» (35): з живих на відкритті (у командах — команди), а не з усіх гравців.
+        t('answeredOf', { answered: thinkHost.answers.filter((row) => row.answer !== null).length, total: thinkHost.answers.length })
+      : view.wipeout !== null
       ? t('answeredOf', { answered: view.answeredCount, total: view.wipeout.inCount })
       : view.survival !== null
         ? t('answeredOf', { answered: view.answeredCount, total: view.survival.aliveCount })
@@ -826,7 +834,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
             </div>
           )}
           {/* «Більше чи менше»: правильні варіанти — у таблиці порівнянь нижче, рядок «—» нічого не каже. Головоломки (28d) — у панелі розв'язку, однаково для судоку й кросворду. */}
-          {correct !== null && correct.type !== 'wall' && correct.type !== 'poll' && correct.type !== 'wordcloud' && correct.type !== 'survey' && correct.type !== 'bluff' && correct.type !== 'moreless' && correct.type !== 'sudoku' && correct.type !== 'crossword' && correct.type !== 'jigsaw' && correct.type !== 'spotdiff' && correct.type !== 'memory' && <p className="answer">{t('correctAnswer', { answer: hostCorrectText(correct, view) })}</p>}
+          {correct !== null && correct.type !== 'wall' && correct.type !== 'poll' && correct.type !== 'wordcloud' && correct.type !== 'survey' && correct.type !== 'bluff' && correct.type !== 'moreless' && correct.type !== 'sudoku' && correct.type !== 'crossword' && correct.type !== 'jigsaw' && correct.type !== 'spotdiff' && correct.type !== 'memory' && correct.type !== 'think' && <p className="answer">{t('correctAnswer', { answer: hostCorrectText(correct, view) })}</p>}
           {correct?.hint !== undefined && <p className="meta hint-known">{t('hintKnown', { hint: correct.hint })}</p>}
         </section>
       )}
@@ -844,7 +852,13 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
         </div>
       )}
 
-      {liveOn && !liveTrial && liveData !== null && <LiveAnswers view={view} live={liveData} blitz={liveData.kind === 'blitz' ? blitzLive : undefined} tilts={tilts} drafts={liveDrafts} collapsed={!watch} offsetMs={offsetMs} />}
+      {thinkHost !== null && (
+        <>
+          <HostThinkWords key={`${round?.index ?? 0}:${view.questionIndex}`} think={thinkHost} phase={phase} send={send} onError={setError} />
+          <HostThinkAnswers think={thinkHost} phase={phase} send={send} onError={setError} />
+        </>
+      )}
+      {liveOn && !liveTrial && liveData !== null && thinkHost === null && <LiveAnswers view={view} live={liveData} blitz={liveData.kind === 'blitz' ? blitzLive : undefined} tilts={tilts} drafts={liveDrafts} collapsed={!watch} offsetMs={offsetMs} />}
 
       {clip !== null && (phase === 'question' || phase === 'locked' || phase === 'reveal') && (
         <section className="panel host-audio">
@@ -1497,6 +1511,11 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
           <TruthRecapView recap={view.truth.recap} />
         </section>
       )}
+      {(phase === 'round_end' || phase === 'finished') && view.think?.places != null && view.think.places.length > 0 && (
+        <section className="panel">
+          <ThinkPlaces think={view.think} />
+        </section>
+      )}
       {(phase === 'round_end' || phase === 'finished') && view.truth?.recap !== undefined && <TruthRecapFold recap={view.truth.recap} open={view.truth.recap.early} />}
       {truthFacts && view.truth !== undefined && <HostTruthFacts truth={view.truth} send={send} onError={setError} />}
 
@@ -1576,7 +1595,8 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
             type="button"
             className={mainPace !== null ? 'btn btn-primary is-pacing' : 'btn btn-primary'}
             {...paceAttrs(mainPace)}
-            disabled={mainPace !== null || stepping || (phase === 'lobby' && (view.teams === null ? view.players.length === 0 : !teamStartable || teamDiceRolling)) || (phase === 'lobby' && resumeSend === 'invalid') || diceRolling || wipeoutDeciding || ladderPickFirst || ladderDeciding || appealVoting}
+            disabled={mainPace !== null || stepping || (phase === 'lobby' && (view.teams === null ? view.players.length === 0 : !teamStartable || teamDiceRolling)) || (phase === 'lobby' && resumeSend === 'invalid') || diceRolling || wipeoutDeciding || ladderPickFirst || ladderDeciding || appealVoting || thinkWaits}
+            {...(thinkWaits ? { title: errorText('think_no_words') } : {})}
             onClick={() => step(main.event, phase === 'lobby' && resumeSend !== 'invalid' ? resumeSend : undefined)}
           >
             {appealVoting

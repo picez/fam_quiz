@@ -452,6 +452,19 @@ export function hostLive(state: GameState): HostLive | null {
     aside = asideOf('hall', hall.map((h) => answerRow(state, play, h, false)));
   } else if (play.board !== undefined) {
     who = answerersOf(state, [play.board.chooserId]);
+  } else if (play.think !== undefined) {
+    // «Думай інакше» (35): лише живі на відкритті, без глядачів (watch); вердикт — grade запису: до розкриття його перераховують
+    // поточні слова (withThinkGrades), після — заморожено ('wrong' — збіг, 'correct' — в безпеці).
+    const lives = play.think.lives;
+    const watch = play.think.watch ?? [];
+    const alive = state.players.filter((p) => Object.hasOwn(lives, p.id) && lives[p.id] > 0 && !watch.includes(p.id)).map((p) => p.id);
+    const rows = answerersOf(state, alive).map((w) => {
+      const row = withAway(state, answerRow(state, play, w, false));
+      const record = recordOf(state, state.questionIndex, w.id);
+      if (record === undefined || record.overridden || record.answer?.type !== 'think') return row;
+      return { ...row, verdict: record.grade === 'wrong' ? ('wrong' as const) : ('correct' as const) };
+    });
+    return liveOf('answers', rows, null);
   } else if (play.truth !== undefined) {
     // «Правда про гравця» (28b): чекають лише тих, хто вгадує; автор (ведучий його знає) — не в лічильнику.
     who = answerersOf(state, truthGuessers(state, play));

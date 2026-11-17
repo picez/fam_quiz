@@ -156,7 +156,7 @@ function factsOf(userId: string, inputs: CareerInputs, counts: CareerCounts, wit
     const own = table.players.filter((p) => p.userId === userId || p.memberUserIds.includes(userId)).sort((a, b) => (a.rank ?? Infinity) - (b.rank ?? Infinity));
     return own[0] === undefined ? [] : [{ table, player: own[0] }];
   });
-  // Типи раундів, де є свій рядок-відповідь (голоси й позначки виходу таблиця не містить; штрафи й коригування — не відповідь).
+  // Типи раундів, де є свій рядок-відповідь (голоси й позначки виходу таблиця не містить, крім слів «Думай інакше» — 35; штрафи й коригування — не відповідь).
   const roundTypes = new Set(
     mine.flatMap(({ table, player }) =>
       player.rows.flatMap((row) => {

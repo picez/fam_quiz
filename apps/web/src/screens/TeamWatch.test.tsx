@@ -369,3 +369,12 @@ describe('TeamWatch: code quest (29g)', () => {
     expect(send).toHaveBeenCalledWith('player:quest', { code: 'сова' });
   });
 });
+
+describe('TeamWatch: think round (35)', () => {
+  it("a teammate sees the captain's word read-only", () => {
+    render(<TeamWatch view={watching({ type: 'think', value: 'Зелений' }, { question: { ...publicQuestion, type: 'think', choices: [] } })} />);
+    expect(document.querySelector('.team-draft')?.textContent).toContain('Зелений');
+    expect(screen.queryAllByRole('button')).toHaveLength(0);
+    expect(screen.queryByRole('textbox')).toBeNull();
+  });
+});

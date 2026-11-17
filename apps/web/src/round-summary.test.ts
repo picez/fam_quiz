@@ -21,6 +21,11 @@ describe('roundSummary', () => {
     ]);
   });
 
+  it('think: hearts at the start, the questions and the 1st-place sum', () => {
+    const [line] = roundSummary({ ...emptyBrief('think'), think: { lives: 3, points: 10000, count: 12 } });
+    expect(line).toBe('❤️ 3 на старті · питань: 12 · за 1-ше місце 10000');
+  });
+
   it('quest: the code length with the tries, then the bonus', () => {
     const quest = { length: 4, tries: 3, count: 5, bonus: { kind: 'points' as const, points: 1200 } };
     expect(roundSummary({ ...emptyBrief('quest'), quest })).toEqual(['Код із 4 символів, спроб: 3', 'Бонус до 1200 балів — чим раніше, тим більше']);

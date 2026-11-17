@@ -1,6 +1,8 @@
+// @vitest-environment jsdom
+import { cleanup, render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { answerText } from '../format';
-import { auctionLine, truthLine, carryLine, debuffLines, ladderLines, lettersLines, ladderPrizeLines, survivalBonusLines, survivalLines, wagerLine, wipeoutLines } from './GameHistory';
+import { ThinkHistory, auctionLine, truthLine, carryLine, debuffLines, ladderLines, lettersLines, ladderPrizeLines, survivalBonusLines, survivalLines, wagerLine, wipeoutLines } from './GameHistory';
 
 describe('history: memory (29f)', () => {
   it('history shows pairs of total', () => {
@@ -227,5 +229,54 @@ describe('history: melody (29e)', () => {
   it('history shows the chunk', () => {
     expect(answerText({ type: 'melody', value: 'Щедрик', heard: 2 } as never, null)).toBe('Щедрик · 2 с');
     expect(answerText({ type: 'melody', value: 'Щедрик' } as never, null)).toBe('Щедрик');
+  });
+});
+
+describe('history: think (35)', () => {
+  it('shows the final host words and every row with its verdict and lives', () => {
+    const think = {
+      words: [
+        { word: 'червоний', synonyms: ['багряний', 'алий'] },
+        { word: 'синій', synonyms: [] },
+      ],
+      lives: { Олена: 2, Хосе: 3, Іра: 0 },
+      rows: [
+        { nickname: 'Олена', answer: 'Червона', verdict: 'hit' as const, lost: true },
+        { nickname: 'Хосе', answer: 'Зелений', verdict: 'safe' as const, lost: false, manual: true as const },
+        { nickname: 'Іра', answer: '', verdict: 'empty' as const, lost: true },
+      ],
+    };
+    const { container } = render(<ThinkHistory think={think} />);
+    // Синоніми в дужках; ручний вердикт ведучого — «вручну».
+    expect(screen.getByText('Слова ведучого: червоний (багряний, алий), синій')).toBeTruthy();
+    const rows = [...container.querySelectorAll('li')].map((li) => li.textContent);
+    expect(rows[0]).toContain('збіг');
+    expect(rows[0]).toContain('❤️ 2');
+    expect(rows[1]).toContain('в безпеці');
+    expect(rows[1]).toContain('вручну');
+    expect(rows[0]).not.toContain('вручну');
+    expect(rows[2]).toContain('без відповіді');
+    expect(rows[2]).toContain('—');
+    expect(container.querySelector('.think-history-places')).toBeNull();
+  });
+
+  it('the last question of the round shows the places, zero points too (review M-1)', () => {
+    cleanup();
+    const think = {
+      words: [{ word: 'червоний', synonyms: [] }],
+      lives: { Олена: 1, Тарас: 0 },
+      rows: [],
+      places: [
+        { nickname: 'Олена', place: 1, lives: 1, outAt: null, points: 1000 },
+        { nickname: 'Тарас', place: 2, lives: 0, outAt: 1, points: 0 },
+      ],
+    };
+    render(<ThinkHistory think={think} />);
+    expect(screen.getByText('Місця раунду «Думай інакше»')).toBeTruthy();
+    const taras = screen.getByText('Тарас').closest('tr')!;
+    expect(taras.textContent).toContain('2 місце');
+    expect(taras.textContent).toContain('вибування на питанні 1');
+    expect(taras.textContent).toContain('0');
+    expect(screen.getByText('Олена').closest('tr')!.textContent).toContain('+1000');
   });
 });

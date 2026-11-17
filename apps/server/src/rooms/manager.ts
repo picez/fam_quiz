@@ -132,6 +132,7 @@ import {
   drawStroke,
   submitTruth,
   hideTruth,
+  setThinkWords,
   lettersDue,
   ladderWord,
   ladderBack,
@@ -160,7 +161,7 @@ import {
   type Result,
   type TeamAct,
 } from '@quiz/engine';
-import { ANSWERER_PICKS_PER_SECOND, REACTION_GAP_MS, reactionAllowed, type Reaction, type ReactionItem, APPEAL_VOTES_PER_SECOND, AWAY_EVENTS_PER_SECOND, awayGapMs, draftQuestionType, DRAFTS_PER_SECOND, isAnswerDraft, isUnscored, SORT_TILT_GAP_MS, LIST_WORDS_PER_SECOND, MORELESS_PICKS_PER_SECOND, PUZZLE_BATCHES_PER_SECOND, JIGSAW_MOVES_PER_SECOND, SPOTDIFF_TAPS_PER_SECOND, MEMORY_FLIPS_PER_SECOND, DRAW_GUESSES_PER_SECOND, DRAW_OPS_PER_SECOND, type DrawingEvent, type DrawOp, type AckResult, type Answer, type MoreLessSide, type AnswererScope, type AppealReason, type BuffKind, type DebuffKind, type DraftValue, type ErrorCode, type GameView, type Grade, type HostDrafts, type HostUndoTarget, type LifelineKind, type Phase, type PlayerView, type Question, type Quiz, type ResumeSetup, RESUME_POINTS_MAX, clamp, isObjectLike, type ContinuedView, type PlacedPrize, placedPrizeSchema, type SlotsResponse, type Role, type SortTilt, type SubmittedAnswer, type TeamForm, type ActivePerk, type NickLevel, type StickerExtra, stickerOpen, LIKE_RATE, type LikePayload, LOBBY_VISIBILITIES, lobbyPasswordSchema, type LobbySettings, type LobbyVisibility, type AchievementId } from '@quiz/shared';
+import { ANSWERER_PICKS_PER_SECOND, REACTION_GAP_MS, reactionAllowed, type Reaction, type ReactionItem, APPEAL_VOTES_PER_SECOND, AWAY_EVENTS_PER_SECOND, awayGapMs, draftQuestionType, DRAFTS_PER_SECOND, isAnswerDraft, isUnscored, SORT_TILT_GAP_MS, LIST_WORDS_PER_SECOND, MORELESS_PICKS_PER_SECOND, PUZZLE_BATCHES_PER_SECOND, JIGSAW_MOVES_PER_SECOND, SPOTDIFF_TAPS_PER_SECOND, MEMORY_FLIPS_PER_SECOND, DRAW_GUESSES_PER_SECOND, DRAW_OPS_PER_SECOND, type DrawingEvent, type DrawOp, type AckResult, type Answer, type MoreLessSide, type AnswererScope, type AppealReason, type BuffKind, type DebuffKind, type DraftValue, type ErrorCode, type GameView, type Grade, type HostDrafts, type HostUndoTarget, type LifelineKind, type Phase, type PlayerView, type Question, type Quiz, type ResumeSetup, RESUME_POINTS_MAX, clamp, isObjectLike, type ContinuedView, type PlacedPrize, placedPrizeSchema, type SlotsResponse, type Role, type SortTilt, type SubmittedAnswer, type TeamForm, type ThinkWord, type ActivePerk, type NickLevel, type StickerExtra, stickerOpen, LIKE_RATE, type LikePayload, LOBBY_VISIBILITIES, lobbyPasswordSchema, type LobbySettings, type LobbyVisibility, type AchievementId } from '@quiz/shared';
 import type { LikeChange, LikeKey } from '../like-store';
 import { SAVED_GAME_VERSION, type ContinueResult, type RestartInput, type SavedGameData } from './continuation';
 import { newAchievementsMine, newAchievementsStage } from './achievements';
@@ -176,6 +177,10 @@ export const HOST_ABSENCE_MS = 10 * 60_000;
 export const LOBBY_TTL_MS = 2 * 60 * 60_000;
 /** «Правда про гравця» (28b): понад стільки фактів за секунду від людини — too_soon. */
 export const TRUTH_PER_SECOND = 2;
+/** «Думай інакше» (35): понад стільки замін слів ведучого за секунду — too_soon. */
+export const THINK_WORDS_PER_SECOND = 4;
+/** Ключ вікна частоти ведучого (у ведучого немає id гравця). */
+const HOST_RATE_ID = 'host';
 /** Через скільки після першого збою таймера кроку (дедлайн, автопілот) кімната пробує ще раз (30a); далі пауза подвоюється. */
 export const TIMER_RETRY_MS = 1000;
 /** Найдовша пауза між повторами збійного таймера кроку (30a). */
@@ -393,7 +398,9 @@ export type HostAction =
   | { type: 'team-deal' | 'team-dice' | 'team-roll' }
   | { type: 'captain'; teamId: string; memberId: string }
   /** «Правда про гравця» (28b): сховати чи показати факт людини. Лише ведучий: автор кімнати-автопілота теж вгадує. */
-  | { type: 'truth-hide'; playerId: string; hidden: boolean };
+  | { type: 'truth-hide'; playerId: string; hidden: boolean }
+  /** «Думай інакше» (35): замінити слова ведучого поточного запитання. Лише ведучий: автор кімнати-автопілота — not_allowed. Слова не йдуть ні в події, ні в логи. */
+  | { type: 'think-words'; words: ThinkWord[] };
 
 /** Дії, які автор кімнати-автопілота шле з телефона (11g); решта — not_allowed. */
 // Прості дії лежать у HostAction одним членом з іншими (lock, next, …), тож Extract їх не виділяє.
@@ -414,7 +421,7 @@ const FORBIDDEN: AckResult = { ok: false, error: 'forbidden' };
 const NOT_ALLOWED: AckResult = { ok: false, error: 'not_allowed' };
 
 /** Види вікон частоти (30a): кожен вид — своє вікно на людину, зі своєю межею (RATE_LIMITS). */
-export type RateKind = 'draft' | 'react' | 'away' | 'appeal' | 'pick' | 'like' | 'list' | 'moreLess' | 'truth' | 'draw' | 'drawGuess' | 'puzzle' | 'jigsaw' | 'spotdiff' | 'memory';
+export type RateKind = 'draft' | 'react' | 'away' | 'appeal' | 'pick' | 'like' | 'list' | 'moreLess' | 'truth' | 'draw' | 'drawGuess' | 'puzzle' | 'jigsaw' | 'spotdiff' | 'memory' | 'think';
 /** Вікно частоти: початок і кількість прийнятих подій у ньому. */
 export interface RateWindow {
   from: number;
@@ -442,6 +449,7 @@ const RATE_LIMITS: Record<RateKind, { max: number; windowMs: number }> = {
   jigsaw: { max: JIGSAW_MOVES_PER_SECOND, windowMs: 1000 },
   spotdiff: { max: SPOTDIFF_TAPS_PER_SECOND, windowMs: 1000 },
   memory: { max: MEMORY_FLIPS_PER_SECOND, windowMs: 1000 },
+  think: { max: THINK_WORDS_PER_SECOND, windowMs: 1000 },
 };
 
 /** Вікна, що зникають разом із вилученим гравцем (як і до 30a: лайки, реакції й слова лишаються до кінця вікна). */
@@ -2312,6 +2320,11 @@ export class RoomManager {
         return this.apply(room, setCaptain(state, action.teamId, action.memberId));
       case 'truth-hide':
         return this.apply(room, hideTruth(state, action.playerId, action.hidden));
+      case 'think-words': {
+        const now = this.now();
+        if (!rateAllowed(room, 'think', HOST_RATE_ID, now)) return { ok: false, error: 'too_soon' };
+        return this.apply(room, setThinkWords(state, action.words));
+      }
     }
   }
 

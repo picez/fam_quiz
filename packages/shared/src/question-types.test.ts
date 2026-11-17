@@ -32,7 +32,7 @@ describe('question type registry (30e)', () => {
     expect(typesWhere((t) => t.puzzle)).toEqual(['sudoku', 'crossword']);
     expect(typesWhere((t) => t.proximity)).toEqual(['slider', 'pin', 'wall', 'survey']);
     expect(typesWhere((t) => t.wholeRow)).toEqual(['timedlist', 'letterwords', 'moreless', 'drawing', 'sudoku', 'crossword', 'jigsaw', 'spotdiff', 'memory']);
-    expect(typesWhere((t) => !t.speed)).toEqual(['wordladder', 'timedlist', 'letterwords', 'moreless', 'drawing', 'sudoku', 'crossword', 'jigsaw', 'spotdiff', 'memory']);
+    expect(typesWhere((t) => !t.speed)).toEqual(['wordladder', 'timedlist', 'letterwords', 'moreless', 'drawing', 'sudoku', 'crossword', 'jigsaw', 'spotdiff', 'memory', 'think']);
     // Склад — з live.ts (PROGRESS_TYPES, UNGRADABLE); порядок — QUESTION_TYPES (там списки лише для includes).
     const progress = ['chain', 'wordladder', 'sort', 'wall', 'timedlist', 'letterwords', 'moreless', 'drawing', 'sudoku', 'crossword', 'jigsaw', 'spotdiff', 'memory', 'bluff'];
     expect(typesWhere((t) => t.progress)).toEqual(progress);
@@ -107,6 +107,8 @@ describe('question type registry (30e)', () => {
       survival: ['single', 'boolean', 'text', 'numeric', 'slider'],
       ladder: ['single'],
       quest: ['single', 'multi', 'boolean', 'text', 'numeric', 'order', 'match', 'slider'],
+      // 35: «Думай інакше» приймає лише think, і think живе лише там.
+      think: ['think'],
     };
     expect(Object.fromEntries(ROUND_TYPES.map((r) => [r, typesWhere((t) => t.rounds.includes(r))]))).toEqual(menu);
     const lead: QuestionType[] = ['single', 'boolean', 'numeric'];

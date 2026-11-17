@@ -27,6 +27,7 @@ import {
   type LevelPerk,
   type Round,
   type TeamForm,
+  type ThinkWord,
   type TrialKind,
   type UndoTarget,
   type MoreLessSide,
@@ -90,6 +91,7 @@ import { packMemories, scoreMemory } from './memory';
 import { melodyHeard, melodyPaid } from './melody';
 import { packPuzzles, scorePuzzle } from './puzzles';
 import { dealTruth, dropTruthFacts, nextTruthQuestion, truthGuessers, truthPlayFor, truthPlayOf, withTruthPoints } from './truth';
+import { awardThinkPlaces, openThink, submitThinkAnswer, thinkOver, thinkPlayOf, thinkPresent, withThinkGrades } from './think';
 import { scoreWordLadder } from './wordladder';
 import { scoreSort, shiftSortLocks } from './sort';
 import { scoreWall, wallPresent } from './wall';
@@ -219,6 +221,8 @@ export interface Play {
   moreless?: MoreLessPlay;
   /** Лише в запитанні раунду «Правда про гравця» (28b). */
   truth?: TruthPlay;
+  /** Лише в запитанні раунду «Думай інакше» (35). */
+  think?: ThinkPlay;
   /** Лише в запитанні «Малюнок» (28c). */
   drawing?: DrawingPlay;
   /** Лише на судоку й кросворді раунду «Головоломки» (28d). */
@@ -262,6 +266,21 @@ export interface Play {
   buzzers?: Record<string, string>;
   /** Антигугл (12e): виходи людей (соло — гравець, командна гра — людина) на цьому запитанні; немає ключа — не виходив. */
   away?: Record<string, AwayEntry>;
+}
+
+/** Лише в запитанні раунду think (35). */
+export interface ThinkPlay {
+  /** Слова ведучого: копія question.words на відкритті; ведучий замінює список, поки йде таймер (і один раз після нього, якщо список порожній). */
+  words: ThinkWord[];
+  /** Життя кожного учасника раунду (соло — гравець, командна гра — команда) на мить відкриття; 0 — уже вибув. Немає ключа — не учасник (глядач). */
+  lives: Record<string, number>;
+  /** Розкриття відбулося (next з locked): лише такі запитання забирають життя. Після нього вердикти заморожено (grade записів). */
+  revealed: boolean;
+  /**
+   * Учасники з lives, які на цьому запитанні лише дивляться (команда, де лишився сам автор автопілота): не відповідають і життів
+   * не втрачають, але лишаються в раунді (живі й місця узгоджені). Немає — нікого.
+   */
+  watch?: string[];
 }
 
 /** Вихід людини з гри на одному запитанні (12e): закритий час, скільки інтервалів закрито (≥ 1 мс), відколи поза грою зараз (час сервера) чи null. */
@@ -1490,6 +1509,8 @@ function nextQuestion(state: GameState): Question | undefined {
   if (round.type === 'wipeout' && wipeoutIn(state).length === 0) return undefined;
   // «Вибування»: щойно після вибування живих ≤ N, решта запитань лишається незіграною.
   if (round.type === 'survival' && survivalOver(state)) return undefined;
+  // «Думай інакше» (35): живих не лишилося або (почали ≥ 2) лишився один — решта запитань незіграна.
+  if (round.type === 'think' && thinkOver(state)) return undefined;
   // «Мільйонер»: драбина скінчилася (підсумок на останньому записі раунду) або учасника вже немає — решта незіграна.
   if (round.type === 'ladder') {
     const last = state.plays.filter((p) => p.roundIndex === state.roundIndex).at(-1);
@@ -1558,6 +1579,8 @@ export function openQuestion(state: GameState, question: Question, now: number, 
     ...(round.type === 'ladder' ? { ladder: ladderPlayFor(state, round.levels, round.timer) } : {}),
     // «Правда про гравця» (28b): автор, його учасник рушія і присутні вгадувачі на мить відкриття.
     ...(round.type === 'truth' ? { truth: truthPlayFor(state, question) } : {}),
+    // «Думай інакше» (35): слова ведучого й знімок життів на мить відкриття.
+    ...(round.type === 'think' && question.type === 'think' ? { think: openThink(state, question) } : {}),
   };
   // Таймер стартує після заставки (класика, фінал, клітинка поля); у бліц-раунді заставки немає.
   // Клітинка з ×2/×3 перегортається довше: після перегортання — сюрприз.
@@ -1587,9 +1610,9 @@ export function openQuestion(state: GameState, question: Question, now: number, 
   return fireDebuffs(startAnswerers(opened), at);
 }
 
-/** Чи перемішує раунд варіанти; «Правда про гравця» (28b) варіантів не перемішує — імена за абеткою; у «Головоломках» (28d) варіантів немає. */
+/** Чи перемішує раунд варіанти; «Правда про гравця» (28b) варіантів не перемішує — імена за абеткою; у «Головоломках» (28d) і «Думай інакше» (35) варіантів немає. */
 export function shuffles(round: Round): boolean {
-  return round.type === 'truth' || round.type === 'puzzles' ? false : round.shuffleOptions;
+  return round.type === 'truth' || round.type === 'puzzles' || round.type === 'think' ? false : round.shuffleOptions;
 }
 
 /** Новий LadderPlay для запитання «Мільйонера», що відкривається. */
@@ -1782,7 +1805,8 @@ function finishRound(input: GameState, now?: number): GameState {
   const marked = markWipeoutEnd(ladderStopped);
   // «Вибування»: кожен живий отримує бонус виживання — до зміни фази, поки afterQuestion і roundIndex ще цього раунду.
   // Без now (старі виклики) мить коригування невідома — 0.
-  const state = awardSurvivalBonus(marked === ladderStopped ? ladderStopped : withTotals(marked), now ?? 0);
+  // «Думай інакше» (35): очки місць — так само до зміни фази.
+  const state = awardThinkPlaces(awardSurvivalBonus(marked === ladderStopped ? ladderStopped : withTotals(marked), now ?? 0), now ?? 0);
   const isLastRound = state.roundIndex === state.quiz.rounds.length - 1;
   // «Прихований напад» (29h): гра скінчилася сама — ціни, що ще чекали розкриття, списуються, підсумки чесні.
   // «Квест із кодом» (29g): на кінці раунду код бачать усі.
@@ -1851,7 +1875,8 @@ export function withTotals(input: GameState): GameState {
   // Бали фіналу залежать від усіх записів запитання (спільний банк), тож перераховуються першими;
   // бали «Ва-банк» — з драбини всього раунду.
   // «Правда про гравця» (28b): бали автора — з записів усіх вгадувачів закритих запитань.
-  const state = withWipeoutPoints(withFinalPoints(withTruthPoints(input)));
+  // «Думай інакше» (35): вердикти записів — з поточних слів ведучого (ручна оцінка лишається).
+  const state = withWipeoutPoints(withFinalPoints(withTruthPoints(withThinkGrades(input))));
   // Відкрите запитання завжди останнє в журналі.
   const closedCount = state.phase === 'question' ? state.plays.length - 1 : state.plays.length;
   const plays = state.plays.map((play, index) => {
@@ -1969,6 +1994,12 @@ export function autoLock(state: GameState, now: number | null = null): GameState
   if (state.plays[state.questionIndex]?.question.type === 'drawing') return drawingDone(state) ? lockNow(state) : state;
   // На полі запитання закриває сама відповідь або оцінка ведучого.
   if (currentRound(state)?.type === 'board') return state;
+  // «Думай інакше» (35): з ведучим таймер іде до кінця (ведучий дописує слова); в автопілоті — чекають живих присутніх.
+  const thinkers = thinkPresent(state);
+  if (thinkers !== null) {
+    if (state.autopilot === undefined || thinkers.length === 0) return state;
+    return thinkers.every((id) => recordOf(state, state.questionIndex, id) !== undefined) ? lockNow(state) : state;
+  }
   // «Мільйонер»: чекають учасника й присутній зал; без учасника на зв'язку закриє ведучий чи таймер.
   if (inLadderRound(state)) return ladderAnswered(state) ? lockNow(state) : state;
   // «Ва-банк»: чекають лише тих, хто в грі; без присутніх у грі запитання закриє таймер чи ведучий.
@@ -2065,6 +2096,8 @@ export function submitAnswer(state: GameState, playerId: string, answer: Answer,
   }
   // «Вибування»: привид відповідає «для себе» — поза answers, без балів; живі йдуть класичним шляхом.
   if (currentRound(state)?.type === 'survival' && isGhost(state, playerId)) return submitGhostAnswer(state, playerId, answer, now);
+  // «Думай інакше» (35): одне слово, без балів; глядачі й вибулі не пишуть.
+  if (thinkPlayOf(state) !== null) return submitThinkAnswer(state, playerId, answer, now);
   const play = state.plays[state.questionIndex];
   // Опитування й «хмара слів» — голос без балів.
   if (isUnscored(play.question)) return submitVote(state, playerId, answer, now);
@@ -2486,7 +2519,14 @@ export function next(state: GameState, now: number, rng: Rng = Math.random): Res
       // «Аукціон»: «Продано» — торг закривається достроково.
       if (currentRound(state)?.type === 'auction') return ok(sellAuction(state, now, rng));
       return ok(openFinalQuestion(state, now, rng));
-    case 'locked':
+    case 'locked': {
+      // «Думай інакше» (35): з ведучим «Показати» чекає хоч одного слова; в автопілоті — ні (запуск без слів блокує autopilotCheck).
+      const thinkPlay = thinkPlayOf(state);
+      if (thinkPlay !== null) {
+        if (thinkPlay.think.words.length === 0 && state.autopilot === undefined) return fail('think_no_words');
+        const revealed = withCurrentPlay(state, { ...thinkPlay, think: { ...thinkPlay.think, revealed: true } });
+        return ok(settleCharges(withTotals({ ...revealed, phase: 'reveal' })));
+      }
       if (finalPlayOf(state) !== undefined) {
         const settled = settleCharges(settleFinalWithOrder({ ...state, phase: 'reveal' }));
         // «Ставки» й «Аукціон»: розкриття по одному немає — ставки й виграші кожного видно одразу.
@@ -2495,6 +2535,7 @@ export function next(state: GameState, now: number, rng: Rng = Math.random): Res
       }
       // «Прихований напад» (29h): відкладені ціни списуються разом з балами запитання.
       return ok(settleCharges(currentRound(state)?.type === 'board' ? withTotals(unansweredIsWrong({ ...state, phase: 'reveal' })) : { ...state, phase: 'reveal' }));
+    }
     case 'reveal':
       if (state.final !== null && finalPlayOf(state) !== undefined && currentRound(state)?.type === 'final') {
         // Гравці розкриваються по одному; рейтингу між запитаннями після фіналу немає.
@@ -2773,6 +2814,12 @@ function overrideGrade(state: GameState, playerId: string, grade: Grade, now?: n
   const record = recordOf(state, state.questionIndex, playerId);
   // Мовчання з «Ризиком» (12h) — штраф, а не відповідь: як і мовчання без бафу, оцінювати нічого.
   if (record === undefined || isSilentRisk(play, record)) return fail('not_found');
+  // «Думай інакше» (35): 'wrong' — збіг (−1 життя), 'correct' — не збіг; балів немає, оцінка ведучого не перераховується.
+  if (round.type === 'think') {
+    if (grade === 'partial') return fail('partial_disabled');
+    const graded: AnswerRecord = { ...record, accepted: false, accuracy: 0, grade, basePoints: 0, streakBonus: 0, points: 0, overridden: true };
+    return ok(withTotals(withRecord(state, playerId, graded)));
+  }
   // «Ва-банк»: лише правильно чи неправильно; банк і статус перераховує withTotals (withWipeoutPoints).
   if (round.type === 'wipeout') {
     if (grade === 'partial') return fail('partial_disabled');
@@ -2853,6 +2900,7 @@ function endNow(state: GameState, now?: number): Result {
   };
   // «Вибування»: кожен живий отримує бонус виживання (на finished відкрите запитання вже зараховане).
   // «Прихований напад» (29h): ціни, що ще чекали розкриття, списуються на кінці — підсумки чесні.
-  const closed = settleCharges(closeFinal(awardSurvivalBonus(stopped, now ?? 0)));
+  // «Думай інакше» (35): очки місць (відкрите запитання не розкрите й життів не забирає).
+  const closed = settleCharges(closeFinal(awardThinkPlaces(awardSurvivalBonus(stopped, now ?? 0), now ?? 0)));
   return ok(now === undefined ? closed : withSplash(closed, 'podium', now));
 }

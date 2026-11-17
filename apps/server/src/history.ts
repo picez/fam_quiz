@@ -201,7 +201,8 @@ function factInputOf(
       number,
       text: question.text,
       limitMs: factLimitMs(question, round, voice),
-      scored: !isUnscored(question),
+      // «Думай інакше» (35): записи з 0 балів — не «відповіді» для цікавинок, як і наживо (facts.ts).
+      scored: !isUnscored(question) && question.type !== 'think',
       board: ref?.cell !== undefined,
       blitz: round?.type === 'blitz' || cell?.cell.kind === 'blitz',
       bluff: question.type === 'bluff',
@@ -407,6 +408,37 @@ function survivalResult(quiz: Quiz, plays: PlayRef[], index: number, standings: 
     alive: standings.filter((s) => alive.has(s.participantId)).map((s) => s.nickname),
     end: survival.end === true,
   };
+}
+
+/**
+ * «Думай інакше» (35) на запитанні: слова з журналу гри, вердикти за ref.think.hit (з ручною оцінкою) і рядками answer, життя після.
+ * Немає ref.think (стара гра чи інший тип) — undefined.
+ */
+function thinkResult(
+  ref: PlayRef | undefined,
+  given: { participantId: string; payload: Answer | null }[],
+  standings: { participantId: string; nickname: string }[],
+): GameQuestionResult['think'] {
+  const think = ref?.think;
+  if (think === undefined) return undefined;
+  const lives: Record<string, number> = {};
+  const rows: NonNullable<GameQuestionResult['think']>['rows'] = [];
+  for (const { participantId, nickname } of standings) {
+    if (!Object.hasOwn(think.lives, participantId)) continue;
+    const before = think.lives[participantId];
+    // Вибулий раніше чи глядач (watch) — без рядка, життя ті самі.
+    if (before === 0 || (think.watch ?? []).includes(participantId)) {
+      lives[nickname] = before;
+      continue;
+    }
+    const payload = given.find((a) => a.participantId === participantId)?.payload;
+    const answer = payload?.type === 'think' ? payload.value : '';
+    const verdict = answer === '' ? 'empty' : think.hit.includes(participantId) ? 'hit' : 'safe';
+    const lost = think.revealed && verdict !== 'safe';
+    lives[nickname] = lost ? before - 1 : before;
+    rows.push({ nickname, answer, verdict, lost, ...((think.manual ?? []).includes(participantId) ? { manual: true as const } : {}) });
+  }
+  return { words: think.words, lives, rows, ...(think.places === undefined ? {} : { places: think.places }) };
 }
 
 /**
@@ -711,6 +743,7 @@ export async function hostGameWithFacts(db: Db, hostId: string, id: string): Pro
         bets: round?.type === 'bets',
         auction: round?.type === 'auction',
         ...(ref?.truth === undefined ? {} : { truth: truthResult(ref.truth, given) }),
+        ...(ref?.think === undefined ? {} : { think: thinkResult(ref, given, standings) }),
       },
     ];
   });
@@ -758,7 +791,7 @@ export interface AnswerMark {
 /** Рядок-відповідь для статистики гравця: без штрафів, голосів (опитування, хмара) і рядків лише з позначкою виходу. */
 const isAnswerRow = (attempt: number) => attempt !== PENALTY_ATTEMPT && attempt !== VOTE_ATTEMPT && attempt !== AWAY_ATTEMPT;
 
-/** Скільки з перших questionsPlayed запитань журналу — без балів (опитування, хмара). Старі ігри без журналу — 0. */
+/** Скільки з перших questionsPlayed запитань журналу — без балів (опитування, хмара) чи без правильності («Думай інакше», 35). Старі ігри без журналу — 0. */
 function unscoredPlayed(snapshot: unknown, plays: PlayRef[] | null, questionsPlayed: number): number {
   if (plays === null || typeof snapshot !== 'object' || snapshot === null) return 0;
   const { rounds } = snapshot as { rounds?: unknown };
@@ -768,7 +801,9 @@ function unscoredPlayed(snapshot: unknown, plays: PlayRef[] | null, questionsPla
     const questions = typeof round === 'object' && round !== null ? (round as { questions?: unknown }).questions : undefined;
     if (!Array.isArray(questions)) return false;
     const found: unknown = questions.find((q: unknown) => typeof q === 'object' && q !== null && (q as { id?: unknown }).id === ref.questionId);
-    return typeof found === 'object' && found !== null && isUnscored(found as { type: Question['type'] });
+    if (typeof found !== 'object' || found === null) return false;
+    const typed = found as { type: Question['type'] };
+    return isUnscored(typed) || typed.type === 'think';
   }).length;
 }
 
@@ -1059,8 +1094,9 @@ export async function gameTables(db: Db, gameIds: string[]): Promise<GameTable[]
                 answer.participantId,
                 players.map((p) => p.id),
               ),
-              // Голоси опитувань і хмари не бувають спробами: таблиця рахує лише відповіді й штрафи.
-              ne(answer.attempt, VOTE_ATTEMPT),
+              // Голоси опитувань і хмари не бувають спробами: таблиця рахує лише відповіді й штрафи. Слово «Думай інакше» (35, теж
+              // VOTE_ATTEMPT) лишається: з 0 балів воно ні на що не впливає, а «Усі раунди» бачить, що людина зіграла раунд think.
+              or(ne(answer.attempt, VOTE_ATTEMPT), sql`${answer.payload}->>'type' = 'think'`),
               ne(answer.attempt, AWAY_ATTEMPT),
             ),
           );

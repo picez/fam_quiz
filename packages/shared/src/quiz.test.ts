@@ -3509,6 +3509,7 @@ describe('quest round (29g)', () => {
       },
       melody: { ...b, type: 'melody', text: 'Що це за пісня?', timeLimit: 60, track: { source: 'file', url: `/uploads/${'a'.repeat(32)}.mp3`, start: 5 }, accepted: ['Щедрик'] },
       bluff: { ...b, type: 'bluff', text: 'Ейфелеву вежу спершу пропонували поставити в …', timeLimit: 60, choiceTime: 30, accepted: ['Барселона'], lies: ['Мадрид', 'Лондон', 'Брюссель'] },
+      think: { ...b, points: 0, type: 'think', text: 'Напишіть колір веселки', timeLimit: 30, words: [{ word: 'червоний', synonyms: [] }] },
     };
     const others = ALL_QUESTION_TYPES.filter((type) => !(QUEST_TYPES as readonly string[]).includes(type));
     expect(others.filter((type) => !(type in samples))).toEqual([]);
@@ -3613,5 +3614,91 @@ describe('family game (31)', () => {
     expect(familyExtraMs(60_000)).toBe(30_000);
     expect(familyExtraMs(90_000)).toBe(30_000);
     expect(familyExtraMs(0)).toBe(0);
+  });
+});
+
+describe('think round (35)', () => {
+  const thinkQ = (id: string, words: object[] = []) => ({ id, type: 'think', text: 'Напишіть колір веселки', imageUrl: null, video: null, timeLimit: 30, points: 0, words });
+  const full = [
+    { word: 'червоний', synonyms: ['багряний'] },
+    { word: 'синій', synonyms: ['блакитний', 'лазуровий'] },
+    { word: 'фіолетовий', synonyms: [] },
+  ];
+  const thinkRound = (patch: object = {}, id = 'th') => ({
+    id, type: 'think', title: '', lives: 3, points: 10000,
+    questions: [thinkQ(`${id}1`), thinkQ(`${id}2`, full), thinkQ(`${id}3`, [{ word: 'зелений', synonyms: [] }])], ...patch,
+  });
+  const quizOf = (rounds: object[]) => ({ title: 'T', description: '', settings: DEFAULT_SETTINGS, rounds });
+  const issues = (value: unknown) => {
+    const result = quizSchema.safeParse(value);
+    return result.success ? [] : result.error.issues.map((i) => i.message);
+  };
+
+  it('accepts a think round', () => {
+    expect(ROUND_TYPES.indexOf('think')).toBe(ROUND_TYPES.indexOf('survival') + 1);
+    expect(QUESTION_TYPES.at(-1)).toBe('think');
+    expect(issues(quizOf([thinkRound()]))).toEqual([]);
+    expect(issues(quizOf([round('r', [single]), thinkRound({ description: 'Не думайте як усі' }), thinkRound({}, 'second')]))).toEqual([]);
+    expect(LIMITS.defaultThinkLives).toBe(3);
+    expect(LIMITS.defaultThinkPoints).toBe(5000);
+  });
+
+  it('refuses broken lives, points and words', () => {
+    for (const patch of [{ lives: 0 }, { lives: 11 }, { lives: 2.5 }, { points: 10001 }, { points: -1 }]) {
+      expect(valid(roundSchema, thinkRound(patch))).toBe(false);
+    }
+    expect(valid(roundSchema, thinkRound({ lives: 10, points: 0 }))).toBe(true);
+    const four = [...full, { word: 'зелений', synonyms: [] }];
+    expect(valid(roundSchema, thinkRound({ questions: [thinkQ('a'), thinkQ('b'), thinkQ('c', four)] }))).toBe(false);
+    const longSynonym = [{ word: 'червоний', synonyms: ['а'.repeat(41)] }];
+    expect(valid(roundSchema, thinkRound({ questions: [thinkQ('a'), thinkQ('b'), thinkQ('c', longSynonym)] }))).toBe(false);
+    const sixSynonyms = [{ word: 'червоний', synonyms: ['а1', 'а2', 'а3', 'а4', 'а5', 'а6'] }];
+    expect(valid(roundSchema, thinkRound({ questions: [thinkQ('a'), thinkQ('b'), thinkQ('c', sixSynonyms)] }))).toBe(false);
+    expect(valid(roundSchema, thinkRound({ questions: [thinkQ('a'), thinkQ('b')] }))).toBe(false);
+    expect(valid(roundSchema, thinkRound({ questions: Array.from({ length: 31 }, (_, i) => thinkQ(`x${i}`)) }))).toBe(false);
+  });
+
+  it('think questions live only in a think round', () => {
+    expect(issues(quizOf([thinkRound({ questions: [thinkQ('a'), thinkQ('b'), { ...single, id: 's' }] })]))).toContain('think_type');
+    expect(issues(quizOf([round('r', [single, thinkQ('t')])]))).toContain('think_round');
+    const survival = { id: 'rs', type: 'survival', title: '', speedBonus: false, shuffleOptions: false, rules: DEFAULT_RULES,
+      questions: [thinkQ('s1'), { ...single, id: 's2' }, { ...single, id: 's3' }], trials: [], trial: 'luck', survivors: 1, bonus: 0 };
+    expect(issues(quizOf([survival]))).toContain('think_round');
+    expect(issues({ ...quizOf([round('r', [single])]), spares: [thinkQ('sp')] })).toContain('think_round');
+  });
+
+  it('duplicate words in one question', () => {
+    const dup = [{ word: 'Червоний', synonyms: [] }, { word: 'синій', synonyms: ['червона'] }];
+    expect(issues(quizOf([thinkRound({ questions: [thinkQ('a'), thinkQ('b'), thinkQ('c', dup)] })]))).toContain('think_words_dup');
+    // Те саме слово в різних запитаннях — не повтор.
+    const same = [{ word: 'червоний', synonyms: [] }];
+    expect(issues(quizOf([thinkRound({ questions: [thinkQ('a', same), thinkQ('b', same), thinkQ('c')] })]))).toEqual([]);
+  });
+
+  it('a word needs a letter or a digit; no video, no points', () => {
+    const blank = [{ word: '...', synonyms: [] }];
+    expect(issues(quizOf([thinkRound({ questions: [thinkQ('a'), thinkQ('b'), thinkQ('c', blank)] })]))).toContain('think_word_empty');
+    const blankSynonym = [{ word: 'червоний', synonyms: ['🙂'] }];
+    expect(issues(quizOf([thinkRound({ questions: [thinkQ('a'), thinkQ('b'), thinkQ('c', blankSynonym)] })]))).toContain('think_word_empty');
+    const video = { ...thinkQ('c'), video: { id: 'dQw4w9WgXcQ', start: 0 } };
+    expect(issues(quizOf([thinkRound({ questions: [thinkQ('a'), thinkQ('b'), video] })]))).toContain('think_video');
+    expect(issues(quizOf([thinkRound({ questions: [thinkQ('a'), thinkQ('b'), { ...thinkQ('c'), points: 100 }] })]))).toContain('think_points');
+  });
+
+  it('rules of a think round are the defaults', () => {
+    const parsed = quizSchema.parse(quizOf([thinkRound()]));
+    expect(rulesOf(parsed.rounds[0]!)).toBe(DEFAULT_RULES);
+    expect(roundQuestions(parsed.rounds[0]!)).toHaveLength(3);
+  });
+
+  it('old quizzes still parse', () => {
+    expect(quizSchema.safeParse(quizOf([round('r', [single])])).success).toBe(true);
+  });
+
+  it('roundBrief(think) carries the lives, the points and the count; others have none', () => {
+    expect(emptyBrief('think').think).toBeNull();
+    const parsed = quizSchema.parse(quizOf([thinkRound(), round('r', [{ ...single, id: 'other' }])]));
+    expect(roundBrief(parsed.rounds[0]!)).toEqual({ ...emptyBrief('think'), think: { lives: 3, points: 10000, count: 3 } });
+    expect(roundBrief(parsed.rounds[1]!).think).toBeNull();
   });
 });

@@ -49,6 +49,7 @@ import { MemoryPlay, MemoryReveal } from './MemoryView';
 import { MelodyPlay } from './MelodyView';
 import { DrawingClosed, DrawingPhone, DrawingReveal, drawingTitle, strokesOf } from './DrawingView';
 import type { DrawingModel } from '../live/drawing';
+import { ThinkHearts, ThinkInput, ThinkPhoneVerdict, ThinkPlaces, ThinkReveal } from './ThinkView';
 import { TruthFactForm, TruthHeldPick, TruthOwn, TruthPick, TruthRecapFold, TruthRecapView, TruthReveal, TruthSkipped, type TruthRecapMine } from './TruthView';
 import { SortPlay, SortReveal, SortWatch } from './SortView';
 import { WallGrid } from './WallGrid';
@@ -903,6 +904,14 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
   // «Правда про гравця» (28b): запитання раунду — факт, варіанти — імена людей гри.
   const truthQ = view.truth !== undefined && view.truth.index !== null && question?.type === 'single';
   const truthOwn = truthQ && me.truth?.own === true;
+  // «Думай інакше» (35): одне слово замість поля відповіді; рядки зрізу — учасники рушія (у командах — команда).
+  const thinkQ = view.think !== undefined && me.think !== undefined && question?.type === 'think';
+  const thinkId = team === null ? me.id : (teamOf(view)?.id ?? me.id);
+  const thinkHearts = thinkQ && me.think !== undefined && view.think !== undefined && me.think.status !== 'spectator' && (
+    <p className="think-me">
+      <ThinkHearts lives={me.think.lives} max={view.think.lives} lost={phase === 'reveal' && me.think.verdict !== null && me.think.verdict !== 'safe'} />
+    </p>
+  );
   const lockedTitle = question === null ? '' : drawingTitle(question, view.drawing?.drawerName ?? null);
   // Розкриття: факт моєї команди (у соло — мій) — вердикту «вгадав» у автора немає, лише його частка в розкритті.
   const truthAuthor = view.truth?.reveal != null && (view.truth.reveal.author.id === me.id || (team !== null && (teamOf(view)?.members.some((member) => member.id === view.truth?.reveal?.author.id) ?? false)));
@@ -1115,6 +1124,7 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
             {!chainMine && debuff?.kind === 'noclock' && secondsLeft(myClock ?? view, offsetMs, Date.now()) !== null && <NoClock total={clockTotal} status={timerStatus(view)} />}
             {!chainMine && debuff?.kind !== 'noclock' && <Timer view={myClock ?? view} offsetMs={offsetMs} total={clockTotal} status={timerStatus(view)} leadMs={question.audio && view.bluff?.stage !== 'choice' ? publicWindowMs(question) - (question.timeLimit ?? 0) * 1000 : 0} />}
           </div>
+          {thinkHearts}
           {board !== null && board.cell !== null && (
             <p className="meta">
               {t('cellTitle', { category: board.cell.category, price: board.cell.price })}
@@ -1264,6 +1274,17 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
                   answer={me.answer?.type === 'melody' ? me.answer.value : null}
                 />
               )
+            ) : thinkQ && me.think !== undefined && (me.think.status !== 'alive' || !teamWatching) ? (
+              <ThinkInput
+                key={`${view.round?.index ?? 0}:${view.questionIndex}`}
+                question={question}
+                think={me.think}
+                disabled={locked || buffTimeOver}
+                send={send}
+                answer={me.answer?.type === 'think' ? me.answer.value : null}
+                author={view.author !== null}
+                onDraft={onDraft}
+              />
             ) : truthOwn ? (
               <TruthOwn team={team !== null} />
             ) : teamWatching ? (
@@ -1411,7 +1432,20 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
           {question?.clues != null && <CluesList clues={question.clues} offsetMs={offsetMs} />}
           {auctionWatching && me.auction !== undefined && view.auction !== undefined && <AuctionResult auction={view.auction} mine={me.auction} />}
           {/* У ланцюжку немає однієї правильної відповіді: гравець бачить свій результат і чекає на рейтинг. */}
-          {truthOwn ? (
+          {thinkHearts}
+          {thinkQ && me.think !== undefined ? (
+            <section className="sent think-locked">
+              {me.think.status !== 'alive' ? (
+                <p className="lead think-status">{t(me.think.status === 'out' ? 'thinkOutNow' : view.author !== null ? 'thinkSpectatorAuthor' : 'thinkSpectator')}</p>
+              ) : me.answer?.type === 'think' ? (
+                <h2 dir="auto">{t('thinkSent', { word: me.answer.value })}</h2>
+              ) : (
+                // Живий без відповіді: мовчання теж коштує життя — кажемо це до розкриття.
+                <h2 className="think-no-answer">{t('thinkNoAnswer')}</h2>
+              )}
+              <p className="lead">{t('waitReveal')}</p>
+            </section>
+          ) : truthOwn ? (
             <section className="sent">
               <TruthOwn team={team !== null} />
               <p className="lead">{t(view.truth?.held === true ? 'truthHeldNote' : 'waitReveal')}</p>
@@ -1546,7 +1580,14 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
           {/* Підсумок «Правди про гравця» показує й останній факт: заголовок його лише повторив би. */}
           {!(truthQ && view.truth?.recap !== undefined) && <h1 className={questionClass(question?.text ?? '')} dir="auto" title={question?.text}>{question?.text}</h1>}
           <AwayNote away={view.away} />
-          {view.final !== null ? (
+          {thinkHearts}
+          {thinkQ && me.think !== undefined && view.think !== undefined ? (
+            <>
+              <ThinkPhoneVerdict think={me.think} />
+              {me.think.status === 'spectator' && <p className="lead think-status">{t(view.author !== null ? 'thinkSpectatorAuthor' : 'thinkSpectator')}</p>}
+              <ThinkReveal think={view.think} me={thinkId} />
+            </>
+          ) : view.final !== null ? (
             <FinalResult view={view} />
           ) : betsSkipping && me.bets !== undefined && view.bets !== undefined ? (
             <BetResult bets={view.bets} mine={me.bets} playerId={me.id} />
@@ -1725,6 +1766,8 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
       {phase === 'round_end' && view.standings !== null && (
         <>
           <h1 className="question">{t('roundResults', { index: (view.round?.index ?? 0) + 1 })}</h1>
+          {me.think?.place != null && <p className="lead think-my-place">{`${t('thinkPlace', { place: me.think.place.place })} · ${signed(me.think.place.points)}`}</p>}
+          {view.think !== undefined && <ThinkPlaces think={view.think} me={thinkId} />}
           {me.wipeout !== null && <WipeoutDecision view={view} offsetMs={offsetMs} onDecide={() => undefined} />}
           {survivalStateLine(me.survival) !== null && <p className="lead survival-state">{survivalStateLine(me.survival)}</p>}
           {me.ladder?.won != null && <p className="lead ladder-state">{t('ladderWon', { points: num(me.ladder.won) })}</p>}
@@ -1742,6 +1785,9 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
           {survivalStateLine(me.survival) !== null && <p className="lead survival-state">{survivalStateLine(me.survival)}</p>}
           {me.ladder?.won != null && <p className="lead ladder-state">{t('ladderWon', { points: num(me.ladder.won) })}</p>}
           {place}
+          {/* «Думай інакше» останнім раундом: рушій іде з розкриття одразу на фініш — своє місце й таблиця місць тут. */}
+          {me.think?.place != null && <p className="lead think-my-place">{`${t('thinkPlace', { place: me.think.place.place })} · ${signed(me.think.place.points)}`}</p>}
+          {view.think?.places != null && view.think.places.length > 0 && <ThinkPlaces think={view.think} me={thinkId} />}
           {view.prizes !== undefined &&
             (ceremony !== null ? (
               <Ceremony prizes={view.prizes} size="phone" hold={splashUp} onDone={ceremony} />

@@ -26,6 +26,8 @@ import {
   type RevealMode,
   type Round,
   type SurvivalRound,
+  type ThinkRound,
+  type ThinkWord,
   type TruthRound,
   type Video,
   type WipeoutRound,
@@ -787,6 +789,16 @@ export const survivalTrials: Question[] = [
   { ...bool, id: 't1', timeLimit: 15 },
   { ...single, id: 't2', timeLimit: 15 },
 ];
+
+/** «Думай інакше» (35): запитання think «Напишіть колір веселки», timeLimit 30, points 0; words — слова ведучого (типово жодного). */
+export function think(id: string, words: ThinkWord[] = [], options: Partial<Omit<Extract<Question, { type: 'think' }>, 'id' | 'type' | 'words'>> = {}): Question {
+  return { ...base, id, type: 'think', text: 'Напишіть колір веселки', timeLimit: 30, points: 0, ...options, words };
+}
+
+/** «Думай інакше» (35): типово title '', 3 життя, 3000 за 1-ше місце. */
+export function thinkRound(id: string, questions: Question[], options: Partial<Omit<ThinkRound, 'id' | 'type' | 'questions'>> = {}): ThinkRound {
+  return { id, type: 'think', title: '', lives: 3, points: 3000, ...options, questions };
+}
 
 /** «Квест із кодом» (29g): типово title '', speedBonus false, shuffleOptions false, DEFAULT_RULES, «Нічний птах — символ мудрості», код «СОВА», порядок [0, 1, 2, 3], 3 спроби, 1200 балів. */
 export function questRound(id: string, questions: Question[], options: Partial<Omit<QuestRound, 'id' | 'type' | 'questions'>> = {}): QuestRound {

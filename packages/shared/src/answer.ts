@@ -12,6 +12,8 @@ export const answerSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('numeric'), value: z.number().finite() }),
   z.object({ type: z.literal('slider'), value: z.number().finite() }),
   z.object({ type: z.literal('melody'), value: z.string().max(LIMITS.answerText).refine(isStorable, UNSTORABLE) }),
+  /** «Думай інакше» (35): одне слово; обрізає й міряє (LIMITS.thinkWord) рушій. */
+  z.object({ type: z.literal('think'), value: z.string().max(LIMITS.thinkWord * 2).refine(isStorable, UNSTORABLE) }),
   z.object({ type: z.literal('clues'), value: z.string().max(LIMITS.answerText).refine(isStorable, UNSTORABLE) }),
   z.object({ type: z.literal('pin'), x: z.number().finite().min(0).max(1), y: z.number().finite().min(0).max(1) }),
   z.object({ type: z.literal('poll'), optionId: id }),

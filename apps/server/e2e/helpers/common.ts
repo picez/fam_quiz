@@ -1068,3 +1068,34 @@ export async function slowSocket(page: Page, { delayMs = 0 }: { delayMs?: number
   });
   return control;
 }
+
+// ——— 35: «Думай інакше». ———
+
+/** Пише слово в поле «Думай інакше» на телефоні й тисне «Надіслати» (dict — мова телефона); чекає «Ваше слово: …». */
+export async function writeWord35(page: Page, word: string, dict?: Record<string, string>) {
+  await page.locator('.think-field').fill(word);
+  await page.getByRole('button', { name: dict?.thinkSend ?? 'Надіслати', ...exact }).click();
+  await page.locator('.think-sent').waitFor();
+}
+
+/** Ведучий замінює слова на пульті: рядок «слово, синоніми через кому» для кожного; бракує рядків — «Додати слово»; «Зберегти слова» й чекає, що зміни прийнято. */
+export async function hostWords35(host: Page, words: [string, string?][]) {
+  const panel = host.locator('.think-host-words');
+  for (const [index, [word, synonyms]] of words.entries()) {
+    const input = panel.getByLabel(`Слово ${index + 1}`, exact);
+    if ((await input.count()) === 0) await panel.getByRole('button', { name: 'Додати слово', ...exact }).click();
+    await input.fill(word);
+    await panel.locator('.think-word-row').nth(index).getByLabel('Синоніми через кому', exact).fill(synonyms ?? '');
+  }
+  const save = panel.getByRole('button', { name: 'Зберегти слова', ...exact });
+  // Пульт зберігає й сам (за 600 мс після набору): кнопка могла вже згаснути.
+  if (await save.isEnabled({ timeout: 200 }).catch(() => false)) await save.click({ timeout: 1000 }).catch(() => undefined);
+  // Прийнято: кнопка неактивна (немає змін) або зникла (слова зафіксовано після таймера).
+  await expect.poll(async () => (await save.count()) === 0 || (await save.isDisabled({ timeout: 200 }).catch(() => true)), POLL).toBe(true);
+}
+
+/** Власні ❤️ на телефоні («Життя: N» над полем чи вердиктом). */
+export async function hearts35(page: Page): Promise<number> {
+  const label = await page.locator('.think-me .think-hearts').first().getAttribute('aria-label');
+  return Number(/\d+/.exec(label ?? '')?.[0] ?? NaN);
+}

@@ -1,8 +1,8 @@
 import type { AddressInfo } from 'node:net';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { io as connect, type Socket } from 'socket.io-client';
-import { betsMinimumNow, betsPlaying } from '@quiz/engine';
-import { QUEST_RIGHT, questQuiz, auctionRound, betsRound, classicRound, makeQuiz, makeRoundsQuiz, single, letterwordsRandom, moreless, drawing, text, timedlist, truthRound, withId, wordladder } from '@quiz/engine/testing';
+import { betsMinimumNow, betsPlaying, thinkVerdicts } from '@quiz/engine';
+import { QUEST_RIGHT, questQuiz, auctionRound, betsRound, classicRound, makeQuiz, makeRoundsQuiz, single, letterwordsRandom, moreless, drawing, text, think, thinkRound, timedlist, truthRound, withId, wordladder } from '@quiz/engine/testing';
 import { QUEST_WINDOW_MS, AUCTION_BID_MS, type AckResult, type ClientToServerEvents, type GameView, type ServerToClientEvents, type SocketAuth } from '@quiz/shared';
 import { eq } from 'drizzle-orm';
 import { buildApp } from './app';
@@ -535,6 +535,60 @@ describe('a server restart', () => {
     expect(sealed.truth?.reveal).toBeNull();
     const panel = await until(host, (view) => view.role === 'host' && view.phase === 'reveal');
     expect(panel.truth?.reveal?.author.id).toBe(play.truth?.authorId);
+  }, 30_000);
+
+  it("a restored think question keeps the host's words, lives and overrides", async () => {
+    const red = { word: 'червоний', synonyms: ['багряний'] };
+    const db = await createTestDb();
+    const first = await boot(db, 'a');
+    const quiz = makeRoundsQuiz([thinkRound('r1', [think('t1'), think('t2', [red]), think('t3', [red])], { lives: 2, points: 1000 }), classicRound('r2', [single])]);
+    const { game: started } = await startGame(first.ctx.app, quiz);
+    const olenaJoin = await join(first.ctx, started.code, 'Олена');
+    const tarasJoin = await join(first.ctx, started.code, 'Тарас');
+    const host = client(first.port, { code: started.code, role: 'host', token: started.hostToken });
+    const olena = client(first.port, { code: started.code, role: 'player', token: olenaJoin.token });
+    const taras = client(first.port, { code: started.code, role: 'player', token: tarasJoin.token });
+    await until(host, (view) => view.role === 'host' && view.players.filter((p) => p.connected).length === 2);
+    expect(await send(host, 'host:start')).toEqual({ ok: true });
+    expect(await send(host, 'host:next')).toEqual({ ok: true });
+    await until(olena, inPhase('question'));
+    expect(await send(host, 'host:think-words', { words: [red] })).toEqual({ ok: true });
+    expect(await send(olena, 'player:answer', { type: 'think', value: 'Червона' })).toEqual({ ok: true });
+    expect(await send(taras, 'player:answer', { type: 'think', value: 'ксилофон' })).toEqual({ ok: true });
+    const asked = first.ctx.manager.get(started.code)!.state.plays[0];
+    expect(asked.think?.words).toEqual([red]);
+
+    // збережено на запитанні: дописані слова, життя й записи ті самі
+    await first.ctx.shutdown();
+    host.last = olena.last = taras.last = null;
+    const second = await boot(db, 'b', first.port);
+    await until(host, (view) => view.role === 'host' && view.phase === 'question');
+    expect(second.ctx.manager.get(started.code)!.state.plays[0]).toEqual(asked);
+    expect(await send(host, 'host:resume')).toEqual({ ok: true });
+    expect(await send(host, 'host:lock')).toEqual({ ok: true });
+    expect(await send(host, 'host:next')).toEqual({ ok: true });
+    await until(host, inPhase('reveal'));
+    // ведучий знімає збіг Олени
+    expect(await send(host, 'host:override', { playerId: olenaJoin.playerId, grade: 'correct' })).toEqual({ ok: true });
+    const verdicts = thinkVerdicts(second.ctx.manager.get(started.code)!.state, 0);
+    expect(verdicts).toEqual({ [olenaJoin.playerId]: 'safe', [tarasJoin.playerId]: 'safe' });
+
+    // збережено на розкритті: ті самі вердикти й ручна оцінка
+    await second.ctx.shutdown();
+    host.last = olena.last = taras.last = null;
+    const third = await boot(db, 'c', first.port);
+    await until(host, (view) => view.role === 'host' && view.phase === 'reveal');
+    const room = third.ctx.manager.get(started.code)!;
+    expect(thinkVerdicts(room.state, 0)).toEqual(verdicts);
+    expect(room.state.plays[0].answers[olenaJoin.playerId]?.overridden).toBe(true);
+    expect(await send(host, 'host:resume')).toEqual({ ok: true });
+    // далі обоє мовчать двічі: вибувають на одному питанні й ділять 1-ше місце
+    for (let i = 0; i < 12 && room.state.phase !== 'round_end'; i++) {
+      const step = room.state.phase === 'question' ? 'host:lock' : 'host:next';
+      expect(await send(host, step)).toEqual({ ok: true });
+    }
+    expect(room.state.phase).toBe('round_end');
+    expect(room.state.adjustments.filter((a) => a.source === 'think').map((a) => a.points)).toEqual([1000, 1000]);
   }, 30_000);
 
   it('answers restarting while another instance owns the room, and unauthorized for an unknown code', async () => {
