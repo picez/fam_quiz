@@ -2614,3 +2614,40 @@ describe('37 snapshots', () => {
     expect(must(lock(moved, T0 + 3000 + HOUR)).players[0].score).toBe(1000);
   });
 });
+
+describe('38 snapshots', () => {
+  it('a restored room keeps the spy', () => {
+    expect(GAME_STATE_VERSION).toBe(22);
+    // rng 0.6 → шпигун Петро (p3).
+    let words = openAt(lobbyWith(spyQuiz(), 'Оля', 'Тарас', 'Петро', 'Ганна'), T0, () => 0.6);
+    words = must(writeSpyWord(words, 'p1', 'аромат', T0 + 1000));
+    let vote = words;
+    ['ранок', 'зелений', 'чашка'].forEach((text, i) => (vote = must(writeSpyWord(vote, `p${i + 2}`, text, T0 + 2000))));
+    vote = must(voteSpy(vote, 'p1', 'p3', T0 + 3000));
+    let guess = vote;
+    ['p3', 'p1', 'p3'].forEach((target, i) => (guess = must(voteSpy(guess, `p${i + 2}`, target, T0 + 4000))));
+    // words: 40 с від T0; vote: 30 с від T0 + 2000; guess: 30 с від T0 + 4000; збереження — через 5 с після кожного кроку.
+    const cases: [GameState, number, 'words' | 'vote' | 'guess', number][] = [
+      [words, T0 + 6000, 'words', 34_000],
+      [vote, T0 + 8000, 'vote', 24_000],
+      [guess, T0 + 9000, 'guess', 25_000],
+    ];
+    for (const [s, at, stage, left] of cases) {
+      const back = roundTrip(suspend(roundTrip(s), at));
+      expect(back.plays[0].spy).toEqual(s.plays[0].spy);
+      expect([stage, back.plays[0].spy?.stage, back.plays[0].spy?.spyId, back.remainingMs]).toEqual([stage, stage, 'p3', left]);
+      // Після «Продовжити» tick з іншим rng шпигуна не перевибирає, етап і таймер ідуть далі.
+      const resumed = must(resume(back, at + HOUR));
+      expect(resumed.endsAt).toBe(at + HOUR + left);
+      const ticked = tick(resumed, at + HOUR + 1, () => 0);
+      expect([ticked.plays[0].spy?.spyId, ticked.plays[0].spy?.stage]).toEqual(['p3', stage]);
+      expect(ticked.plays[0].spy?.words).toEqual(s.plays[0].spy?.words);
+      expect(ticked.plays[0].spy?.votes).toEqual(s.plays[0].spy?.votes);
+    }
+    // Відновлений guess дограється: Петро вгадує, бали як без перезапуску.
+    const back = must(resume(roundTrip(suspend(roundTrip(guess), T0 + 9000)), T0 + 9000 + HOUR));
+    const done = must(guessSpy(back, 'p3', 'кава', T0 + 10_000 + HOUR));
+    expect(done.phase).toBe('locked');
+    expect(done.players.map((p) => p.score)).toEqual([1000, 1000, 500, 1000]);
+  });
+});

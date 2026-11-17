@@ -1702,6 +1702,7 @@ export interface HostSpy extends SpyInfo {
 export interface PlayerSpy {
   word: string;
   wrote: string | null;
+  /** id того, за кого гравець голосував (як SpyRow.id); null — ще не голосував. */
   vote: string | null;
   spectator: boolean;
   /** Лише шпигунові на етапі guess. */

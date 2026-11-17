@@ -3,6 +3,7 @@ import { BUFF_KINDS, DEFAULT_RULES, LIMITS, type Question, type RoundRules } fro
 import { buffBlock } from './buffs';
 import { setDebuff } from './debuffs';
 import {
+  addPlayer,
   end,
   endRound,
   lock,
@@ -10,6 +11,7 @@ import {
   override,
   pause,
   recordOf,
+  removePlayer,
   resume,
   setConnected,
   start,
@@ -21,6 +23,7 @@ import { guessSpy, spyCast, spyCaught, spyPlayOf, voteSpy, writeSpyWord } from '
 import { classicRound, makeRoundsQuiz, single, spy, spy2, spyQuiz, thinkalike } from './testing/fixtures';
 import { lobbyWith, must, startRound } from './testing/helpers';
 import { teamGame, teamQuiz } from './testing/teams';
+import { hostView, playerView, stageView } from './views';
 
 /** Мить відкриття першого запитання. */
 const T = 10_000;
@@ -345,5 +348,191 @@ describe('spy (38): the host and the end', () => {
     expect(p.startedAt).toBe(T + 30_000);
     expect(voteSpy(p, 'p1', 'p2', T + 31_000)).toMatchObject({ ok: true });
     expect(spyPlayOf(must(voteSpy(p, 'p1', 'p2', T + 31_000)))?.spy.votes.p1?.timeMs).toBe(1000);
+  });
+});
+
+/** Зрізи «Шпигуна»: сцена, телефон гравця і пульт. */
+const stageSpy = (s: GameState) => stageView(s).spy;
+const phone = (s: GameState, id: string) => playerView(s, id)!;
+const hostSpyOf = (s: GameState) => hostView(s).spy;
+const PAIR = ['кава', 'чай', 'гітара', 'скрипка'];
+/** JSON без слів пари (крім дозволених own), без шпигуна, голосів і підсумку. */
+function secret(json: string, ...own: string[]): void {
+  for (const word of PAIR) if (!own.includes(word)) expect([word, json.includes(word)]).toEqual([word, false]);
+  expect(json).not.toContain('"spyId"');
+  expect(json).not.toMatch(/"voters":\[/);
+  expect(json).not.toMatch(/"spyName":"/);
+  expect(json).not.toMatch(/"spy":(true|false)/);
+  expect(json).not.toMatch(/"caught":(true|false)/);
+  expect(json).not.toMatch(/"guessed":(true|false)/);
+}
+
+describe('spy (38): views', () => {
+  it('views keep the pair secret until reveal', () => {
+    // words: лише лічильники; кожен телефон — своє слово.
+    let s = word(open(), 'p1', 'аромат');
+    secret(JSON.stringify(stageView(s)));
+    secret(JSON.stringify(phone(s, 'p1')), 'кава');
+    secret(JSON.stringify(phone(s, 'p2')), 'кава');
+    secret(JSON.stringify(phone(s, 'p3')), 'чай');
+    expect(stageSpy(s)).toMatchObject({ stage: 'words', written: 1, voted: 0, total: 4, rows: null, playersWord: null, spyWord: null, spyName: null });
+    expect(phone(s, 'p1').me.spy).toEqual({ word: 'кава', wrote: 'аромат', vote: null, spectator: false, guessing: false, guess: null, spy: null });
+    expect(phone(s, 'p3').me.spy).toMatchObject({ word: 'чай', wrote: null, spy: null });
+    expect(hostSpyOf(s)).toMatchObject({ stage: 'words', spyId: 'p3', playersWord: 'кава', spyWord: 'чай', spyName: 'Петро' });
+    expect(hostSpyOf(s)?.rows.map((r) => [r.nickname, r.word, r.spy])).toEqual([['Оля', 'аромат', false], ['Тарас', null, false], ['Петро', null, true], ['Ганна', null, false]]);
+
+    // vote: рядки «ім'я — асоціація», без голосів, позначок і балів.
+    s = vote(toVote(open()), 'p1', 'p3');
+    secret(JSON.stringify(stageView(s)));
+    secret(JSON.stringify(phone(s, 'p2')), 'кава');
+    secret(JSON.stringify(phone(s, 'p3')), 'чай');
+    expect(stageSpy(s)?.rows).toEqual([
+      { id: 'p1', nickname: 'Оля', word: 'аромат', voters: null, spy: null, points: null },
+      { id: 'p2', nickname: 'Тарас', word: 'ранок', voters: null, spy: null, points: null },
+      { id: 'p3', nickname: 'Петро', word: 'зелений', voters: null, spy: null, points: null },
+      { id: 'p4', nickname: 'Ганна', word: 'чашка', voters: null, spy: null, points: null },
+    ]);
+    expect(stageSpy(s)).toMatchObject({ stage: 'vote', written: 4, voted: 1 });
+    expect(phone(s, 'p1').me.spy?.vote).toBe('p3');
+    expect(hostSpyOf(s)?.rows.find((r) => r.id === 'p3')?.voters).toEqual(['Оля']);
+
+    // guess: без імені шпигуна; лише Петро вгадує.
+    s = vote(vote(vote(s, 'p2', 'p3'), 'p4', 'p3'), 'p3', 'p1');
+    expect(stage(s)).toBe('guess');
+    secret(JSON.stringify(stageView(s)));
+    for (const id of ['p1', 'p2', 'p4']) secret(JSON.stringify(phone(s, id)), 'кава');
+    secret(JSON.stringify(phone(s, 'p3')), 'чай');
+    expect(stageSpy(s)?.stage).toBe('guess');
+    expect(['p1', 'p2', 'p3', 'p4'].map((id) => phone(s, id).me.spy?.guessing)).toEqual([false, false, true, false]);
+    expect(hostSpyOf(s)).toMatchObject({ stage: 'guess', caught: true });
+
+    // locked: ще нічого; reveal — усе.
+    s = guess(s, 'p3', 'кава', T + 7000);
+    expect(s.phase).toBe('locked');
+    secret(JSON.stringify(stageView(s)));
+    for (const id of ['p1', 'p2', 'p4']) secret(JSON.stringify(phone(s, id)), 'кава');
+    // Петро бачить своє слово й власну здогадку.
+    secret(JSON.stringify(phone(s, 'p3')), 'чай', 'кава');
+    expect(phone(s, 'p3').me.answer).toBeNull();
+    expect(phone(s, 'p3').me.spy).toMatchObject({ guess: 'кава', guessing: false, spy: null });
+    s = must(next(s, T + 8000));
+    expect(s.phase).toBe('reveal');
+    expect(stageSpy(s)).toMatchObject({ stage: 'reveal', playersWord: 'кава', spyWord: 'чай', spyName: 'Петро', caught: true, guess: 'кава', guessed: true });
+    expect(stageSpy(s)?.rows?.find((r) => r.id === 'p3')).toEqual({ id: 'p3', nickname: 'Петро', word: 'зелений', voters: ['Оля', 'Тарас', 'Ганна'], spy: true, points: 500 });
+    expect(stageSpy(s)?.rows?.find((r) => r.id === 'p1')).toMatchObject({ voters: ['Петро'], spy: false, points: 1000 });
+    expect(phone(s, 'p3').me.spy).toMatchObject({ spy: true, word: 'чай', guess: 'кава', guessing: false });
+    expect(phone(s, 'p1').me.spy?.spy).toBe(false);
+    expect(hostSpyOf(s)).toMatchObject({ stage: 'reveal', spyId: 'p3' });
+  });
+
+  it('the public question has no words', () => {
+    const s = word(open(), 'p1', 'аромат');
+    for (const view of [stageView(s), phone(s, 'p1'), phone(s, 'p3'), hostView(s)]) {
+      expect(view.question).not.toBeNull();
+      expect(Object.keys(view.question!)).not.toContain('accepted');
+      expect(Object.keys(view.question!)).not.toContain('spyWord');
+      expect(JSON.stringify(view.question)).not.toContain('кава');
+      expect(JSON.stringify(view.question)).not.toContain('чай');
+    }
+  });
+
+  it('no spy key outside a spy question', () => {
+    const s = open(makeRoundsQuiz([classicRound('c1', [single, spy])]));
+    expect(s.plays[0].question.type).toBe('single');
+    expect('spy' in stageView(s)).toBe(false);
+    expect('spy' in phone(s, 'p1').me).toBe(false);
+    expect('spy' in hostView(s)).toBe(false);
+  });
+});
+
+describe('spy (38): removals and late joiners', () => {
+  it('a removed spy', () => {
+    // words: Петра вилучено — решта пише, голосує, закриття без балів.
+    let s = must(removePlayer(word(open(), 'p1', 'аромат'), 'p3', T + 1500));
+    expect(stage(s)).toBe('words');
+    s = word(word(s, 'p2', 'ранок', T + 2000), 'p4', 'чашка', T + 3000);
+    expect(stage(s)).toBe('vote');
+    s = vote(vote(vote(s, 'p1', 'p2'), 'p2', 'p1'), 'p4', 'p1');
+    expect(s.phase).toBe('locked');
+    expect(scores(s)).toEqual({ Оля: 0, Тарас: 0, Ганна: 0 });
+    s = must(next(s, T + 9000));
+    expect(stageSpy(s)).toMatchObject({ stage: 'reveal', spyName: null, caught: false, playersWord: 'кава', spyWord: 'чай' });
+    expect(stageSpy(s)?.rows?.map((r) => r.spy)).toEqual([false, false, false]);
+
+    // vote: голоси за Петра знято, голосують знову; балів немає.
+    let v = vote(vote(toVote(), 'p1', 'p3'), 'p2', 'p3');
+    v = must(removePlayer(v, 'p3', T + 5500));
+    expect(stage(v)).toBe('vote');
+    expect(spyPlayOf(v)?.spy.votes).toEqual({});
+    v = voteAll(v, ['p2', 'p1'], T + 6000);
+    v = vote(v, 'p4', 'p1', T + 6000);
+    expect(v.phase).toBe('locked');
+    expect(scores(v)).toEqual({ Оля: 0, Тарас: 0, Ганна: 0 });
+
+    // guess: вилучення шпигуна одразу закриває.
+    const g = voteAll(toVote(), ['p3', 'p3', 'p1', 'p3']);
+    expect(stage(g)).toBe('guess');
+    const closed = must(removePlayer(g, 'p3'));
+    expect(closed.phase).toBe('locked');
+    expect(scores(closed)).toEqual({ Оля: 0, Тарас: 0, Ганна: 0 });
+  });
+
+  it('a removed suspect', () => {
+    let s = vote(toVote(), 'p1', 'p2');
+    s = must(removePlayer(s, 'p2', T + 5500));
+    expect(spyPlayOf(s)?.spy.votes).toEqual({});
+    expect(phone(s, 'p1').me.spy?.vote).toBeNull();
+    expect(stageSpy(s)?.rows?.map((r) => [r.nickname, r.word])).toEqual([['Оля', 'аромат'], ['Петро', 'зелений'], ['Ганна', 'чашка']]);
+    expect(stageSpy(s)?.total).toBe(3);
+    s = vote(s, 'p1', 'p3', T + 6000);
+    expect(spyPlayOf(s)?.spy.votes.p1?.target).toBe('p3');
+  });
+
+  it('a kick that leaves everyone done moves on at once', () => {
+    // words: Ганна не писала, її вилучено — голосування від миті вилучення.
+    let s = word(word(word(open(), 'p1', 'аромат'), 'p2', 'ранок'), 'p3', 'зелений');
+    s = must(removePlayer(s, 'p4', T + 2000));
+    expect(stage(s)).toBe('vote');
+    expect(s.endsAt).toBe(T + 32_000);
+    // vote: Ганна не голосувала; Петра викрито — останній шанс від миті вилучення.
+    let v = voteAll(toVote(), ['p3', 'p3', 'p1']);
+    v = must(removePlayer(v, 'p4', T + 6000));
+    expect(stage(v)).toBe('guess');
+    expect(v.endsAt).toBe(T + 36_000);
+  });
+
+  it('a late joiner', () => {
+    // Рушій додає гравців лише в лобі (addLatePlayer — між запитаннями), тож «після відкриття» — це Ірина, що була поза зв'язком
+    // при відкритті й повернулася на words: вона не могла стати шпигуном, бачить слово гравців, пише й голосує.
+    const lobby = must(setConnected(lobbyWith(spyQuiz(), ...NAMES, 'Ірина'), 'p5', false, T - 1));
+    let s = startRound(lobby, T, rngPicking(2));
+    expect(spyPlayOf(s)?.spy.spyId).toBe('p3');
+    expect(stageSpy(s)?.total).toBe(4);
+    s = must(setConnected(s, 'p5', true, T + 500));
+    expect(phone(s, 'p5').me.spy).toMatchObject({ word: 'кава', spectator: false, spy: null });
+    expect(stageSpy(s)?.total).toBe(5);
+    s = toVote(word(s, 'p5', 'ранок', T + 500));
+    expect(stage(s)).toBe('vote');
+    s = vote(s, 'p5', 'p3', T + 5000);
+    expect(spyPlayOf(s)?.spy.votes.p5?.target).toBe('p3');
+    expect(spyPlayOf(s)?.spy.spyId).toBe('p3');
+  });
+
+  it('the autopilot author watches', () => {
+    const authored = (rng: Rng, names = NAMES) => startRound({ ...lobbyWith(spyQuiz(), ...names), autopilot: { authorId: 'p1', at: null } }, T, rng);
+    for (const i of [0, 1, 2, 3]) expect(spyPlayOf(authored(rngPicking(i)))?.spy.spyId).not.toBe('p1');
+    const s = authored(rngPicking(0));
+    expect(writeSpyWord(s, 'p1', 'ранок', T + 1000)).toEqual({ ok: false, error: 'spy_spectator' });
+    expect(phone(s, 'p1').me.spy).toMatchObject({ spectator: true, word: 'кава' });
+    expect(stageSpy(s)?.total).toBe(3);
+    const v = word(word(word(s, 'p2', 'ранок'), 'p3', 'зелений'), 'p4', 'чашка');
+    expect(stage(v)).toBe('vote');
+    expect(voteSpy(v, 'p2', 'p1', T + 5000)).toEqual({ ok: false, error: 'not_found' });
+    expect(voteSpy(v, 'p1', 'p2', T + 5000)).toEqual({ ok: false, error: 'spy_spectator' });
+    expect(stageSpy(v)?.rows?.map((r) => r.id)).toEqual(['p2', 'p3', 'p4']);
+    // Автор і двоє гравців: учасників менше трьох — обидва spy пропущено.
+    const few = must(next(must(start({ ...lobbyWith(spyQuiz(), 'Оля', 'Тарас', 'Петро'), autopilot: { authorId: 'p1', at: null } })), T, rngPicking(0)));
+    expect(few.plays).toEqual([]);
+    expect(few.phase).not.toBe('question');
   });
 });

@@ -1,7 +1,9 @@
-import { boardCells, LIMITS, memoryLayout, type Answer, type Question } from '@quiz/shared';
+import { boardCells, LIMITS, memoryLayout, thinkStem, type Answer, type Question } from '@quiz/shared';
 import { planAutopilot, pilotStep } from '../autopilot';
 import { attemptsUsed, blitzRulesOf, buzz, isInstant, nextDeadline } from '../blitz';
 import { bluffPlayOf, pickBluff, writeLie } from '../bluff';
+import { guessSpy, playerSpy, spyCast, spyPlayOf, voteSpy, writeSpyWord } from '../spy';
+import { thinkClose } from '../think';
 import { pickCell } from '../board';
 import { rollDie } from '../board-dice';
 import { cellPlayed, chooserOf } from '../board-turns';
@@ -169,6 +171,9 @@ export function wrongAnswer(question: Question): Answer | null {
 
 /** «Думай як усі» (37e): слова ботів за порядком гравців. */
 const ALIKE_WORDS = ['яблуко', 'груша', 'яблуко', 'слива'];
+
+/** «Шпигун» (38): асоціації ботів — перша, не близька до власного слова. */
+const SPY_WORDS = ['аромат', 'ранок', 'чашка', 'гарячий'];
 
 /** Дія людини: вдалася — новий стан; не вдалася — помилка (strict, люди, що відповідають) чи той самий стан. */
 type Act = (state: GameState, result: Result, what: string) => GameState;
@@ -342,6 +347,21 @@ function answerQuestion(state: GameState, playerId: string, wrong: boolean, now:
       if (Object.hasOwn(bluff.bluff.picks, playerId)) return state;
       const truth = bluff.bluff.options.find((o) => o.kind === 'truth' && !o.removed);
       return truth === undefined ? state : act(state, pickBluff(state, playerId, truth.id, now), what);
+    }
+    // «Шпигун» (38): автор автопілота лише дивиться; асоціація зі списку, голос — за першого іншого учасника, шпигун на guess пише слово гравців.
+    case 'spy': {
+      const spy = spyPlayOf(state);
+      const mine = playerSpy(state, playerId);
+      if (spy === null || mine === undefined || mine.spectator) return state;
+      if (spy.spy.stage === 'words') {
+        const word = SPY_WORDS.find((w) => !thinkClose(thinkStem(w), thinkStem(mine.word)));
+        return mine.wrote !== null || word === undefined ? state : act(state, writeSpyWord(state, playerId, word, now), what);
+      }
+      if (spy.spy.stage === 'vote') {
+        const target = spyCast(state).find((p) => p.id !== playerId);
+        return mine.vote !== null || target === undefined ? state : act(state, voteSpy(state, playerId, target.id, now), what);
+      }
+      return spy.spy.spyId !== playerId || mine.guess !== null ? state : act(state, guessSpy(state, playerId, question.accepted[0], now), what);
     }
     default: {
       const answer = wrong ? wrongAnswer(question) : rightAnswer(question);

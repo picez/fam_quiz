@@ -89,6 +89,7 @@ export const GAME_STATE_VERSION = 22;
  * 35 без нової версії: раунд і тип think, необов'язкове Play.think (і в ньому необов'язкове watch), AdjustmentSource 'think'; старий знімок не містить нічого з цього.
  * 36 без нової версії: тип videoclip; його шматки — у наявному необов'язковому Play.melody.
  * 37 без нової версії: тип thinkalike (ручні групи — у необов'язковому Play.alike), numeric.noOvershoot і moreless.step — необов'язкові поля запитань.
+ * 38 без нової версії: тип spy і необов'язкове Play.spy (шпигун вибирається при відкритті й лежить у стані); SpyAnswer — нове значення запису.
  */
 export const READABLE_STATE_VERSIONS: readonly number[] = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, GAME_STATE_VERSION];
 

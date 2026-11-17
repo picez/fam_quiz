@@ -45,6 +45,7 @@ import {
   melodyQuiz,
   videoclipQuiz,
   alikeQuiz,
+  spyQuiz,
   overshootQuiz,
   questQuiz,
 } from './testing/fixtures';
@@ -410,6 +411,32 @@ describe('autopilot: scores and defaults', () => {
       ]);
     }
     expect(state.plays[0].answers.a?.points).toBe(1000);
+  });
+
+  it('spy: the author watches, four bots write, vote and the caught spy guesses, to the podium (38)', () => {
+    for (const people of [answering, silent]) {
+      const quiz = spyQuiz({ leaderboard: 'end' });
+      const { state, now } = play(quiz, people, ['Ігор', 'Олена', 'Тарас', 'Ганна']);
+      expect(state.phase).toBe('finished');
+      expect(now - T).toBeLessThan(bound(quiz));
+      expect(state.plays.map((p) => [p.question.id, p.spy?.spyId === 'a'])).toEqual([['sp1', false], ['sp2', false]]);
+      if (people !== answering) continue;
+      for (const p of state.plays) {
+        // Боти голосують за першого іншого учасника: Ігор (p2) за Олену, решта — за Ігоря.
+        expect(Object.keys(p.spy?.words ?? {}).sort()).toEqual(['p2', 'p3', 'p4', 'p5']);
+        expect(Object.values(p.spy?.votes ?? {}).map((v) => v.target)).toEqual(['p3', 'p2', 'p2', 'p2']);
+        expect(p.answers.a).toBeUndefined();
+        expect(Object.values(p.answers).some((r) => r.grade === 'correct')).toBe(true);
+      }
+    }
+  });
+
+  it('spy: with the author and two bots both spy questions are skipped and the game still finishes (38)', () => {
+    const quiz = spyQuiz({ leaderboard: 'end' });
+    const { state, now } = play(quiz, answering);
+    expect(state.phase).toBe('finished');
+    expect(state.plays).toEqual([]);
+    expect(now - T).toBeLessThan(bound(quiz));
   });
 
   it('videoclip: right bots on the first chunk get the full price, wrong bots after four chunks get zero, every record keeps heard (36)', () => {

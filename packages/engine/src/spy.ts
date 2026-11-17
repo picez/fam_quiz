@@ -1,10 +1,11 @@
-import { familyExtraMs, familyOn, LIMITS, rulesOf, thinkKey, thinkStem, type Question, type SpyAnswer } from '@quiz/shared';
+import { familyExtraMs, familyOn, LIMITS, rulesOf, thinkKey, thinkStem, type HostSpy, type PlayerSpy, type Question, type SpyAnswer, type SpyInfo, type SpyRow } from '@quiz/shared';
 import { textAccepts } from './check';
 // game.ts викликає цей файл, а цей файл — game.ts; обидва звертаються одне до одного лише під час виклику.
 import {
   fail,
   lockNow,
   ok,
+  recordOf,
   withCurrentPlay,
   withRecord,
   type AnswerRecord,
@@ -201,7 +202,7 @@ export function scoreSpy(state: GameState): GameState {
   const price = Math.round(question.points * rulesOf(state.quiz.rounds[play.roundIndex]).multiplier);
   const spyIn = state.players.some((p) => p.id === spy.spyId);
   const caught = spyCaught(state, state.questionIndex);
-  const guessed = caught && spy.guess !== null && textAccepts(question.accepted, spy.guess.text);
+  const guessed = guessedOf(state, play);
   const voteMs = question.voteTime * 1000 + (spy.stage === 'vote' ? play.extraMs : 0);
   const nickname = (id: string) => state.players.find((p) => p.id === id)?.nickname ?? null;
   let scored = state;
@@ -236,4 +237,84 @@ export function scoreSpy(state: GameState): GameState {
     scored = withRecord(scored, id, record);
   }
   return scored;
+}
+
+/** Зріз «Шпигуна» лише на поточному запитанні spy у фазах question, locked і reveal; інакше null. */
+function viewPlay(state: GameState): (Play & { spy: SpyPlay; question: SpyQuestion }) | null {
+  if (state.phase !== 'question' && state.phase !== 'locked' && state.phase !== 'reveal') return null;
+  return spyPlayOf(state);
+}
+
+/** Чи вгадав шпигун слово гравців: викрито, є здогадка, і її приймає textAccepts. */
+function guessedOf(state: GameState, play: Play & { spy: SpyPlay; question: SpyQuestion }): boolean {
+  return spyCaught(state, state.questionIndex) && play.spy.guess !== null && textAccepts(play.question.accepted, play.spy.guess.text);
+}
+
+/** Повний зріз (пульт і reveal): рядки всіх гравців, крім глядача, у порядку state.players. */
+function fullInfo(state: GameState, play: Play & { spy: SpyPlay; question: SpyQuestion }): HostSpy {
+  const { question, spy } = play;
+  const revealed = state.phase === 'reveal';
+  const rows: SpyRow[] = state.players
+    .filter((p) => !spectator(state, p.id))
+    .map((p) => ({
+      id: p.id,
+      nickname: p.nickname,
+      word: Object.hasOwn(spy.words, p.id) ? spy.words[p.id].text : null,
+      voters: state.players.filter((v) => Object.hasOwn(spy.votes, v.id) && spy.votes[v.id].target === p.id).map((v) => v.nickname),
+      spy: p.id === spy.spyId,
+      points: state.phase === 'question' ? null : (recordOf(state, state.questionIndex, p.id)?.points ?? 0),
+    }));
+  return {
+    stage: revealed ? 'reveal' : spy.stage,
+    written: state.players.filter((p) => Object.hasOwn(spy.words, p.id)).length,
+    voted: state.players.filter((p) => Object.hasOwn(spy.votes, p.id)).length,
+    total: spyCast(state).length,
+    rows,
+    spyId: spy.spyId,
+    playersWord: question.accepted[0],
+    spyWord: question.spyWord,
+    spyName: state.players.find((p) => p.id === spy.spyId)?.nickname ?? null,
+    caught: spyCaught(state, state.questionIndex),
+    guess: spy.guess?.text ?? null,
+    guessed: guessedOf(state, play),
+  };
+}
+
+/**
+ * Сцена й телефони: words — лише лічильники; vote і guess (і locked) — рядки «ім'я — асоціація» без голосів, позначки шпигуна й балів;
+ * reveal — усе: шпигун, обидва слова, голоси, здогадка, бали. Шпигуна вилучено — spyName null, caught false. Поза запитанням spy — undefined.
+ */
+export function spyInfo(state: GameState): SpyInfo | undefined {
+  const play = viewPlay(state);
+  if (play === null) return undefined;
+  const { spyId: _spyId, ...full } = fullInfo(state, play);
+  if (state.phase === 'reveal') return full;
+  const rows = play.spy.stage === 'words' ? null : full.rows.map((r) => ({ ...r, voters: null, spy: null, points: null }));
+  return { ...full, rows, playersWord: null, spyWord: null, spyName: null, caught: null, guess: null, guessed: null };
+}
+
+/** Пульт: усе з відкриття — шпигун, обидва слова, асоціації й голоси наживо, здогадка; бали — з locked. */
+export function hostSpy(state: GameState): HostSpy | undefined {
+  const play = viewPlay(state);
+  return play === null ? undefined : fullInfo(state, play);
+}
+
+/**
+ * Власний бік гравця: слово, яке він бачить (шпигун — слово шпигуна, не знаючи цього), свої асоціація й голос (id цілі);
+ * guessing — лише шпигунові на етапі guess; spy — лише reveal. Поза запитанням spy чи для невідомого гравця — undefined.
+ */
+export function playerSpy(state: GameState, playerId: string): PlayerSpy | undefined {
+  const play = viewPlay(state);
+  if (play === null || !state.players.some((p) => p.id === playerId)) return undefined;
+  const { spy } = play;
+  const isSpy = playerId === spy.spyId;
+  return {
+    word: ownWord(play.question, spy, playerId),
+    wrote: Object.hasOwn(spy.words, playerId) ? spy.words[playerId].text : null,
+    vote: Object.hasOwn(spy.votes, playerId) ? spy.votes[playerId].target : null,
+    spectator: spectator(state, playerId),
+    guessing: isSpy && state.phase === 'question' && spy.stage === 'guess',
+    guess: isSpy ? (spy.guess?.text ?? null) : null,
+    spy: state.phase === 'reveal' ? isSpy : null,
+  };
 }

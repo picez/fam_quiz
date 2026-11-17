@@ -1201,10 +1201,11 @@ function removeAnyone(state: GameState, playerId: string, now?: number): Result 
     if (memberOf(state, playerId) !== undefined) return dropMember(state, playerId, now);
     if (state.players.some((p) => p.id === playerId)) return removeFromGame(withoutTeam(state, playerId), playerId);
   }
-  return removeFromGame(state, playerId);
+  return removeFromGame(state, playerId, now);
 }
 
-function removeFromGame(state: GameState, playerId: string): Result {
+/** now (сервер) — лише для «Шпигуна» (38): якщо після вилучення всі вже написали чи проголосували, наступний етап стартує від now. */
+function removeFromGame(state: GameState, playerId: string, now?: number): Result {
   if (!state.players.some((p) => p.id === playerId)) return fail('not_found');
   // «Мільйонер»: учасник, вилучений посеред драбини, зупиняє її без виграшу; запитання, що йде, зал дограє.
   const ladderPlay = ladderPlayOf(state);
@@ -1284,6 +1285,12 @@ function removeFromGame(state: GameState, playerId: string): Result {
       const { [playerId]: _pick, ...picks } = play.bluff.picks;
       const options = play.bluff.options.map((o) => ({ ...o, authors: o.authors.filter((id) => id !== playerId) }));
       kept.bluff = { ...play.bluff, lies, picks, options };
+    }
+    // «Шпигун» (38): лише відкрите запитання; асоціація й голос вилученого і голоси за нього зникають — хто голосував за нього, голосує знову.
+    if (play.spy !== undefined && index === state.questionIndex && state.phase === 'question') {
+      const { [playerId]: _word, ...words } = play.spy.words;
+      const votes = Object.fromEntries(Object.entries(play.spy.votes).filter(([id, v]) => id !== playerId && v.target !== playerId));
+      kept.spy = { ...play.spy, words, votes };
     }
     if (play.wipeout !== undefined) {
       const without = (ids: string[]) => ids.filter((id) => id !== playerId);
@@ -1384,7 +1391,9 @@ function removeFromGame(state: GameState, playerId: string): Result {
   // «Ва-банк»: якщо вилучений був останнім, хто не вирішив, вікно закривається; «Вибування» — так само випробування.
   // «Мільйонер»: якщо вилучений був останнім глядачем, що не відповів, голосування залу закривається.
   // «Квест із кодом» (29g): спроби й видані бафи вилученого зникають; якщо він був останнім, хто ще міг ввести код, вікно закривається.
-  return ok(settleQuestWindow(settleTrial(settleDecision(autoLock(settleAudience(kicked.paused ? kicked : settleQueue(kicked, null)))))));
+  // «Шпигун» (38): вилучений шпигун на етапі guess закриває запитання; «усі вже зробили» перемикає етап від now.
+  const lockAt = spyPlayOf(kicked) === null ? null : (now ?? null);
+  return ok(settleQuestWindow(settleTrial(settleDecision(autoLock(settleAudience(kicked.paused ? kicked : settleQueue(kicked, null)), lockAt)))));
 }
 
 /** Записи «Прихованого нападу» без вилученого учасника. */
