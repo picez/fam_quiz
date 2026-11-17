@@ -453,7 +453,7 @@ function Question({ view, offsetMs, blink, blinking, audioCommand, tilts, drawin
       ) : question.type === 'spy' && view.spy !== undefined ? (
         // «Шпигун» (38): до голосування — нічого, крім лічильника в шапці; далі — асоціації з іменами; на розкритті — пара, шпигун і голоси.
         <div className="stage-fit stage-spy">
-          <SpyBoard info={view.spy} />
+          <SpyBoard info={view.spy} locked={view.phase === 'locked'} />
           {view.phase === 'reveal' && view.facts?.reveal != null && <RevealFactsLine facts={view.facts.reveal} big />}
         </div>
       ) : question.type === 'survey' && view.survey !== null ? (

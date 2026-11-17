@@ -85,7 +85,15 @@ describe('SpyBoard', () => {
 
   it('a missed guess names the guess', () => {
     render(<SpyBoard info={revealInfo({ guess: 'какао', guessed: false })} />);
-    expect(screen.getByText(`${t('spyMissed')} (какао)`)).toBeTruthy();
+    expect(screen.getByText(t('spyMissedGuess', { guess: 'какао' }))).toBeTruthy();
+  });
+
+  it('locked shows the wait line instead of the title and hint, rows stay', () => {
+    render(<SpyBoard info={voteInfo} locked />);
+    expect(screen.getByText(t('waitReveal'))).toBeTruthy();
+    expect(screen.queryByText(t('spyVoteTitle'))).toBeNull();
+    expect(screen.queryByText(t('spyVoteHint'))).toBeNull();
+    expect(document.querySelectorAll('.spy-row')).toHaveLength(3);
   });
 
   it('not caught', () => {

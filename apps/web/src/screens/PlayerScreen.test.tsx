@@ -5376,6 +5376,11 @@ describe('PlayerScreen: spy (38)', () => {
     expect(document.querySelector('.earned')!.textContent).toBe('+1000');
   });
 
+  it('locked shows the own last-chance guess of the caught spy', () => {
+    show(view({ phase: 'locked', questionIndex: 0, question: spyQuestion as never, spy: { ...base, stage: 'guess', written: 3, voted: 3, rows: revealRows.map((row) => ({ ...row, voters: null, spy: null, points: null })) }, me: { ...me, spy: { ...mine, wrote: 'листя', vote: 'p2', guess: 'какао' } } as never }));
+    expect(screen.getByText(t('spyYourGuess', { guess: 'какао' }))).toBeTruthy();
+  });
+
   it('locked shows the own association and no pair', () => {
     show(view({ phase: 'locked', questionIndex: 0, question: spyQuestion as never, spy: { ...base, stage: 'vote', written: 3, voted: 3, rows: revealRows.map((row) => ({ ...row, voters: null, spy: null, points: null })) }, me: { ...me, spy: { ...mine, wrote: 'листя', vote: 'p2' } } as never }));
     expect(screen.getByText('листя')).toBeTruthy();

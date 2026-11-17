@@ -4371,6 +4371,8 @@ const uk = {
   spyHidden: 'Шпигун лишився непоміченим — подвійна ціна',
   spyGuessed: '…і вгадав слово: +{points}',
   spyMissed: '…але не вгадав слова',
+  spyMissedGuess: '…але не вгадав слова: {guess}',
+  spyYourGuess: 'Ваша здогадка: {guess}',
   spyGone: 'Шпигун вийшов з гри — балів немає',
   spyYouWere: 'Ви були шпигуном',
   spyCorrect: 'Шпигун і слово гравців',

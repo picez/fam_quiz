@@ -51,7 +51,7 @@ describe('HostSpy', () => {
     const rows = [row('p1', 'Оля', 'аромат', { points: 1000 }), row('p2', 'Петро', 'листя', { voters: ['Оля', 'Тарас'], points: 0 }), row('p3', 'Тарас', null, { points: 1000 })];
     render(<HostSpy spy={spy({ stage: 'guess', voted: 3, rows, caught: true, guess: 'какао', guessed: false })} />);
     expect(screen.getByText(t('spyCaught'))).toBeTruthy();
-    expect(screen.getByText(`${t('spyMissed')} (какао)`)).toBeTruthy();
+    expect(screen.getByText(t('spyMissedGuess', { guess: 'какао' }))).toBeTruthy();
     expect(lineOf('Оля').querySelector('.spy-points')!.textContent).toBe('+1000');
     expect(screen.queryByText(t('spyGuessStage'))).toBeNull();
   });

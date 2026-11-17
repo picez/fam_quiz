@@ -4478,6 +4478,8 @@
   "spyHidden": "بقي الجاسوس مجهولًا — السعر مضاعف",
   "spyGuessed": "…وخمّن الكلمة: +{points}",
   "spyMissed": "…لكنه لم يخمّن الكلمة",
+  "spyMissedGuess": "…لكنه لم يخمّن الكلمة: {guess}",
+  "spyYourGuess": "تخمينك: {guess}",
   "spyGone": "غادر الجاسوس اللعبة — لا نقاط",
   "spyYouWere": "كنت الجاسوس",
   "spyCorrect": "الجاسوس وكلمة اللاعبين",

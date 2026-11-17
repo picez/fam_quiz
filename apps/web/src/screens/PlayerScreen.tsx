@@ -1524,6 +1524,11 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
                   {me.spy.wrote}
                 </h2>
               )}
+              {me.spy.guess !== null && (
+                <p className="spy-your-guess" dir="auto">
+                  {t('spyYourGuess', { guess: me.spy.guess })}
+                </p>
+              )}
               <p className="lead">{t('waitReveal')}</p>
             </section>
           ) : isBluff ? (

@@ -4310,6 +4310,8 @@
   "spyHidden": "El espía pasó inadvertido: precio doble",
   "spyGuessed": "…y acertó la palabra: +{points}",
   "spyMissed": "…pero no acertó la palabra",
+  "spyMissedGuess": "…pero no acertó la palabra: {guess}",
+  "spyYourGuess": "Tu intento: {guess}",
   "spyGone": "El espía salió de la partida: no hay puntos",
   "spyYouWere": "Eras el espía",
   "spyCorrect": "El espía y la palabra de los jugadores",

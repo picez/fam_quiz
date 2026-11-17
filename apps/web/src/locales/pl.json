@@ -4314,6 +4314,8 @@
   "spyHidden": "Szpieg pozostał niezauważony — podwójna cena",
   "spyGuessed": "…i zgadł słowo: +{points}",
   "spyMissed": "…ale nie zgadł słowa",
+  "spyMissedGuess": "…ale nie zgadł słowa: {guess}",
+  "spyYourGuess": "Twoja odpowiedź: {guess}",
   "spyGone": "Szpieg wyszedł z gry — brak punktów",
   "spyYouWere": "Byłeś(-aś) szpiegiem",
   "spyCorrect": "Szpieg i słowo graczy",

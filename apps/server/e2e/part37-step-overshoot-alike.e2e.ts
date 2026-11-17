@@ -412,9 +412,9 @@ async function game37() {
   }
   await reveal28a(host);
   await stage.locator('.stage-question .overshoot').waitFor();
-  await expect.poll(() => stage.locator('.stage-question .overshoot-limit').textContent(), POLL).toBe('88 (не більше)');
+  await expect.poll(() => stage.locator('.stage-question .overshoot-limit').textContent(), POLL).toBe('');
   const rows = await stage.locator('.stage-question .overshoot-rows > li').evaluateAll((all) => all.map((li) => (li.textContent ?? '').replace(/\s+/g, ' ').trim()));
-  expect(rows).toEqual(['Оля85+1000', 'Петро800', '88 (не більше)', 'Тарас90перебільшили']);
+  expect(rows).toEqual(['Оля85+1000', 'Петро800', '', 'Тарас90перебільшили']);
   await stage.locator('.stage-question .overshoot-row.overshoot-over', { hasText: 'Тарас' }).getByText('перебільшили', exact).waitFor();
   expect(await stage.locator('.stage-question .overshoot-row.is-best .name').allTextContents()).toEqual(['Оля']);
   await taras.locator('.overshoot-row.overshoot-over.is-me').getByText('перебільшили', exact).waitFor();

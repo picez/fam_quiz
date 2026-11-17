@@ -566,7 +566,7 @@ async function restart38() {
   await click(phones[spyAt]!, 'Відповісти');
   await reveal28a(host);
   await stage.locator('.stage-question .spy-caught').waitFor();
-  expect((await stage.locator('.stage-question .spy-guess').textContent())!.trim()).toBe('…але не вгадав слова (зірка)');
+  expect((await stage.locator('.stage-question .spy-guess').textContent())!.trim()).toBe('…але не вгадав слова: зірка');
   await scores38(phones, names.map((name) => (name === spyName ? 0 : name === others[1]!.name ? 0 : 1000)));
   await toWinners27c(host, stage);
 

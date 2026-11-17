@@ -4254,6 +4254,8 @@
   "spyHidden": "Der Spion blieb unbemerkt — doppelter Preis",
   "spyGuessed": "…und hat das Wort erraten: +{points}",
   "spyMissed": "…hat das Wort aber nicht erraten",
+  "spyMissedGuess": "…hat das Wort aber nicht erraten: {guess}",
+  "spyYourGuess": "Dein Tipp: {guess}",
   "spyGone": "Der Spion hat das Spiel verlassen — keine Punkte",
   "spyYouWere": "Du warst der Spion",
   "spyCorrect": "Spion und Wort der Spieler",

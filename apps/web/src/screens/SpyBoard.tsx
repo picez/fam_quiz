@@ -49,7 +49,7 @@ export function SpyVerdict({ info }: { info: SpyInfo }) {
   );
 }
 
-/** Викрито чи ні й останній шанс («…і вгадав слово: +N» чи «…але не вгадав слова (здогадка)»); шпигун вийшов — нічого. */
+/** Викрито чи ні й останній шанс («…і вгадав слово: +N» чи «…але не вгадав слова: здогадка»); шпигун вийшов — нічого. */
 export function SpyOutcome({ info }: { info: SpyInfo }) {
   const spyRow = info.rows?.find((row) => row.spy === true) ?? null;
   return (
@@ -57,7 +57,7 @@ export function SpyOutcome({ info }: { info: SpyInfo }) {
       {info.spyName !== null && info.caught !== null && <p className={info.caught ? 'lead spy-caught' : 'lead spy-hidden'}>{t(info.caught ? 'spyCaught' : 'spyHidden')}</p>}
       {info.spyName !== null && info.caught === true && (
         <p className={info.guessed === true ? 'spy-guess is-guessed' : 'spy-guess'} dir="auto">
-          {info.guessed === true ? t('spyGuessed', { points: spyRow?.points ?? 0 }) : info.guess !== null ? `${t('spyMissed')} (${info.guess})` : t('spyMissed')}
+          {info.guessed === true ? t('spyGuessed', { points: spyRow?.points ?? 0 }) : info.guess !== null ? t('spyMissedGuess', { guess: info.guess }) : t('spyMissed')}
         </p>
       )}
     </>
@@ -66,14 +66,16 @@ export function SpyOutcome({ info }: { info: SpyInfo }) {
 
 /**
  * «Шпигун» (38) на сцені й на телефоні при розкритті. words — нічого (рядків ще немає; лічильник — у шапці сцени);
- * vote — «Хто шпигун?» і рядки «ім'я — асоціація» без голосів; guess — «Останній шанс шпигуна…» без імені; reveal — підсумок і голоси.
+ * vote — «Хто шпигун?» і рядки «ім'я — асоціація» без голосів; guess — «Останній шанс шпигуна…» без імені; reveal — підсумок і голоси. locked (час вийшов, чекаємо розкриття) — замість заголовка й підказки «Чекаємо на правильну відповідь».
  */
-export function SpyBoard({ info }: { info: SpyInfo }) {
+export function SpyBoard({ info, locked = false }: { info: SpyInfo; locked?: boolean }) {
   const rows = info.rows ?? [];
   return (
     <section className="spy-view">
       {info.stage === 'reveal' ? (
         <SpyVerdict info={info} />
+      ) : locked ? (
+        <p className="lead">{t('waitReveal')}</p>
       ) : info.stage === 'guess' ? (
         <p className="lead spy-guess-stage">{t('spyGuessStage')}</p>
       ) : (

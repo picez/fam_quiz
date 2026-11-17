@@ -3429,6 +3429,20 @@ describe('StageScreen: spy (38)', () => {
     expect(document.body.textContent).not.toContain('кава');
   });
 
+  it('locked shows the wait line instead of the vote title and hint', () => {
+    show(view({ phase: 'locked', questionIndex: 0, question: spyQuestion as never, spy: { ...base, stage: 'vote', written: 3, voted: 3, rows: rows(false) } }));
+    expect(screen.getByText(t('waitReveal'))).toBeTruthy();
+    expect(screen.queryByText(t('spyVoteTitle'))).toBeNull();
+    expect(screen.queryByText(t('spyVoteHint'))).toBeNull();
+    expect(screen.getByText('аромат')).toBeTruthy();
+  });
+
+  it('locked after the last chance does not repeat the last-chance line', () => {
+    show(view({ phase: 'locked', questionIndex: 0, question: spyQuestion as never, spy: { ...base, stage: 'guess', written: 3, voted: 3, rows: rows(false) } }));
+    expect(screen.getByText(t('waitReveal'))).toBeTruthy();
+    expect(screen.queryByText(t('spyGuessStage'))).toBeNull();
+  });
+
   it('the reveal shows SpyBoard instead of the correct answer line', () => {
     show(view({ phase: 'reveal', questionIndex: 0, question: spyQuestion as never, reveal: spyFull, spy: { ...base, stage: 'reveal', written: 3, voted: 3, rows: rows(true), playersWord: 'кава', spyWord: 'чай', spyName: 'Петро', caught: true, guess: null, guessed: false } }));
     expect(document.querySelector('.stage-spy .spy-board')).toBeTruthy();

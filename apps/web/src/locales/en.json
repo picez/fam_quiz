@@ -4254,6 +4254,8 @@
   "spyHidden": "The spy went unnoticed — double price",
   "spyGuessed": "…and guessed the word: +{points}",
   "spyMissed": "…but did not guess the word",
+  "spyMissedGuess": "…but did not guess the word: {guess}",
+  "spyYourGuess": "Your guess: {guess}",
   "spyGone": "The spy left the game — no points",
   "spyYouWere": "You were the spy",
   "spyCorrect": "Spy and the players’ word",
