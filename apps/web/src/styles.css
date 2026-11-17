@@ -6615,6 +6615,119 @@ body:has(.duel-banner):has(.debuff-banner) .live-notices {
   flex: 1 1 10rem;
 }
 
+/* Ставки на дуелянтів (39). Смуга з лічильниками — на рядок вища: запас під нею росте разом із нею. */
+body:has(.duel-banner.has-bets) {
+  --duel-banner-room: 8rem;
+}
+
+.stage .duel-banner.has-bets ~ .live-notices {
+  bottom: 7rem;
+}
+
+.duel-banner-bets {
+  display: block;
+  font-size: 0.875em;
+  font-weight: 600;
+}
+
+/* Телефон: два імені в рівних стовпцях (довге ім'я переноситься, не розпирає 320 px), «Без ставки» окремим рядком. */
+.duel-bet {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.duel-bet p {
+  margin: 0;
+}
+
+.duel-bet-sides {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 0.5rem;
+}
+
+.duel-bet .btn {
+  width: 100%;
+  min-width: 0;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.duel-bet-side.is-challenger {
+  border-top: 0.25rem solid var(--duel-challenger);
+}
+
+.duel-bet-side.is-opponent {
+  border-top: 0.25rem solid var(--duel-opponent);
+}
+
+.duel-bet .btn[aria-pressed='true'] {
+  border-color: var(--duel-accent);
+  background: var(--duel-accent-soft);
+}
+
+.duel-bet-result {
+  margin: 0;
+  font-weight: 700;
+}
+
+.duel-bet-result.is-won,
+.duel-stage-bet-outcome.is-won,
+.duel-host-bet-outcome.is-won {
+  color: var(--correct);
+}
+
+.duel-bet-result.is-lost,
+.duel-stage-bet-outcome.is-lost,
+.duel-host-bet-outcome.is-lost {
+  color: var(--wrong);
+}
+
+/* Сцена: під іменем дуелянта — хто на нього поставив; понад 8 — дрібніше у дві колонки (22 ставці на 1280×720). */
+.duel-stage-flank {
+  display: flex;
+  flex-direction: column;
+  gap: 1vh;
+  min-width: 0;
+}
+
+.duel-stage-bets {
+  min-width: 0;
+  text-align: center;
+  font-size: clamp(1rem, 1.6vw, 1.75rem);
+}
+
+.duel-stage-bets p {
+  margin: 0;
+  font-weight: 700;
+}
+
+.duel-stage-bets ul {
+  margin: 0.5vh 0 0;
+  padding: 0;
+  list-style: none;
+  overflow-wrap: anywhere;
+}
+
+.duel-stage-bets.is-many ul {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 0 0.75vw;
+  font-size: clamp(0.75rem, 1vw, 1.125rem);
+  line-height: 1.25;
+}
+
+.duel-stage-bet-outcome {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.duel-host-bets p {
+  margin: 0.25rem 0;
+}
+
 .history-duel {
   margin: 0.25rem 0 0;
   overflow-wrap: anywhere;

@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
-import type { DuelInfo, HostView, Phase, PlayerDuel, PlayerView, StageView } from '@quiz/shared';
+import type { BlitzPlayer, DuelBets, DuelInfo, HostView, Phase, PlayerDuel, PlayerView, StageView } from '@quiz/shared';
 import { num, questionClass } from '../format';
-import { errorText, t, type TextKey } from '../i18n';
+import { countText, errorText, t, type TextKey } from '../i18n';
 import { useSplash } from '../live/Splash';
 import { Timer, timerStatus } from '../live/Timer';
 import type { Send } from '../live/types';
 import { reducedMotion } from '../motion';
+import { DuelBet, DuelBetResult, winnerSide } from './DuelBet';
 import { LiveAnswers } from './LiveAnswers';
 import { memberName } from './TeamBar';
 
@@ -138,9 +139,16 @@ function duelStartText(phase: Phase, autopilot: boolean): TextKey {
 /** Закріплена смуга оголошеної дуелі (stage 'declared'); position: fixed — нічого не зсуває. */
 export function DuelBanner({ duel, phase, autopilot = false }: { duel: DuelInfo | null; phase: Phase; autopilot?: boolean }) {
   if (duel === null || duel.stage !== 'declared') return null;
+  const bets = duel.bets?.open === true ? duel.bets : null;
+  const base = reducedMotion() ? 'duel-banner' : 'duel-banner is-pulsing';
   return (
-    <div className={reducedMotion() ? 'duel-banner' : 'duel-banner is-pulsing'} role="status" aria-live="polite">
+    <div className={bets !== null ? `${base} has-bets` : base} role="status" aria-live="polite">
       {t('duelBanner', { challenger: duel.challenger.nickname, opponent: duel.opponent.nickname, start: t(duelStartText(phase, autopilot)) })}
+      {bets !== null && (
+        <span className="duel-banner-bets">
+          {t('duelBetsBanner', { challenger: duel.challenger.nickname, a: bets.challenger.length, opponent: duel.opponent.nickname, b: bets.opponent.length })}
+        </span>
+      )}
     </div>
   );
 }
@@ -247,6 +255,10 @@ export function DuelPlay({
           <p className="lead">{t('duelChoosing', { name: duel.challenger.nickname })}</p>
         ))}
 
+      {duel.stage === 'category' && mine !== null && mine.bet !== null && (
+        <DuelBet duel={duel} bet={mine.bet} paused={view.paused} send={send} onError={onError} />
+      )}
+
       {(duel.stage === 'question' || duel.stage === 'answer') && (
         <>
           <div className="question-head">
@@ -309,6 +321,7 @@ export function DuelPlay({
               </p>
             </>
           )}
+          <DuelBetResult duel={duel} bet={mine?.bet ?? null} />
         </section>
       )}
     </section>
@@ -327,6 +340,45 @@ export function sideClass(side: 'is-challenger' | 'is-opponent', nickname: strin
   return `duel-stage-side ${side}${size}`;
 }
 
+/** Понад стільки ставців на одного дуелянта — щільний список (дрібніше, у дві колонки): 22 ставці вміщаються на 1280×720. */
+export const MANY_BETS = 8;
+
+/** Хто поставив на одного дуелянта: «Поставили n» і (поки ставки відкриті) імена. */
+function StageBets({ players, names }: { players: BlitzPlayer[]; names: boolean }) {
+  return (
+    <div className={players.length > MANY_BETS ? 'duel-stage-bets is-many' : 'duel-stage-bets'}>
+      <p className="duel-stage-bets-count">{countText('duelBetsCount', players.length, { count: players.length })}</p>
+      {names && players.length > 0 && (
+        <ul>
+          {players.map((player) => (
+            <li key={player.playerId} dir="auto">
+              {player.nickname}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+const nicknames = (players: BlitzPlayer[]) => players.map((player) => player.nickname).join(', ');
+
+/** Підсумок ставок: хто вгадав і хто ні; нічия — без змін; ніхто не ставив — так і сказано. */
+export function DuelBetsOutcome({ duel, bets, className }: { duel: DuelInfo; bets: DuelBets; className: string }) {
+  if (bets.challenger.length === 0 && bets.opponent.length === 0) return <p className={className}>{t('duelBetsNobody')}</p>;
+  const won = winnerSide(duel);
+  if (won === null) return <p className={className}>{t('duelBetsTie')}</p>;
+  const winners = bets[won];
+  const losers = bets[won === 'challenger' ? 'opponent' : 'challenger'];
+  const stake = num(bets.stake);
+  return (
+    <>
+      {winners.length > 0 && <p className={`${className} is-won`}>{t('duelBetsWinners', { names: nicknames(winners), stake })}</p>}
+      {losers.length > 0 && <p className={`${className} is-lost`}>{t('duelBetsLosers', { names: nicknames(losers), stake })}</p>}
+    </>
+  );
+}
+
 /** Дуель на великому екрані: імена один проти одного, рахунок, категорія, запитання, таймер, кількість спроб, розкриття, підсумок. */
 export function DuelStage({ view, offsetMs }: { view: StageView; offsetMs: number }) {
   const duel = view.duel;
@@ -334,9 +386,13 @@ export function DuelStage({ view, offsetMs }: { view: StageView; offsetMs: numbe
   const loser = duel.winner === null ? null : duel.winner.playerId === duel.challenger.playerId ? duel.opponent : duel.challenger;
   const picking = duel.stage === 'category';
   const playing = duel.stage === 'question' || duel.stage === 'answer';
+  const bets = duel.bets;
   return (
     <section className="duel-stage">
-      <p className={sideClass('is-challenger', duel.challenger.nickname)}>{duel.challenger.nickname}</p>
+      <div className="duel-stage-flank">
+        <p className={sideClass('is-challenger', duel.challenger.nickname)}>{duel.challenger.nickname}</p>
+        {bets !== null && <StageBets players={bets.challenger} names={bets.open} />}
+      </div>
       <div className="duel-stage-center">
         <p className="duel-stage-mark" aria-hidden="true">
           ⚔
@@ -394,9 +450,13 @@ export function DuelStage({ view, offsetMs }: { view: StageView; offsetMs: numbe
                 </p>
               </>
             ))}
+          {duel.stage === 'result' && bets !== null && <DuelBetsOutcome duel={duel} bets={bets} className="lead duel-stage-bet-outcome" />}
         </div>
       </div>
-      <p className={sideClass('is-opponent', duel.opponent.nickname)}>{duel.opponent.nickname}</p>
+      <div className="duel-stage-flank">
+        <p className={sideClass('is-opponent', duel.opponent.nickname)}>{duel.opponent.nickname}</p>
+        {bets !== null && <StageBets players={bets.opponent} names={bets.open} />}
+      </div>
     </section>
   );
 }
@@ -467,6 +527,20 @@ export function HostDuelPanel({
             )
           )}
         </>
+      )}
+      {duel.bets !== null && (
+        <div className="duel-host-bets">
+          {[
+            { player: duel.challenger, on: duel.bets.challenger },
+            { player: duel.opponent, on: duel.bets.opponent },
+          ].map(({ player, on }) => (
+            <p key={player.playerId} className="meta">
+              {`${player.nickname}: ${countText('duelBetsCount', on.length, { count: on.length })}`}
+              {on.length > 0 && ` (${nicknames(on)})`}
+            </p>
+          ))}
+          {duel.stage === 'result' && <DuelBetsOutcome duel={duel} bets={duel.bets} className="duel-host-bet-outcome" />}
+        </div>
       )}
       <div className="panel-actions">
         {duel.stage === 'question' && (

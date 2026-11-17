@@ -2307,6 +2307,43 @@ describe('PlayerScreen: sort', () => {
     expect(screen.getByRole('button', { name: /Київ/ })).toBeTruthy();
   });
 
+  it('a bet on a declared duel', () => {
+    const declared = {
+      challenger: { playerId: 'p2', nickname: 'Петро' },
+      opponent: { playerId: 'p3', nickname: 'Іра' },
+      stage: 'declared' as const,
+      categories: [{ id: 'dc1', title: 'Столиці', left: 3 }],
+      category: null,
+      number: 0,
+      total: 3,
+      question: null,
+      accepted: null,
+      wins: { challenger: 0, opponent: 0 },
+      tries: { challenger: 0, opponent: 0 },
+      questionWinner: null,
+      winningAnswer: null,
+      winner: null,
+      stake: 300,
+      bets: { stake: 100, open: true, challenger: [], opponent: [] },
+      ending: false,
+    };
+    const bettor = { ...me, duel: { rights: null, tries: [], canAnswer: false, canPick: false, bet: { side: null, can: true } } };
+    const send = show(onQuestion({ phase: 'reveal', endsAt: null, duel: declared, me: bettor }));
+    expect(screen.getByText('На кого ставите?')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Іра' }));
+    expect(send).toHaveBeenCalledWith('player:duel-bet', { side: 'opponent' });
+    expect(document.querySelector('.duel-banner-bets')?.textContent).toBe('Ставки: Петро — 0, Іра — 0');
+    cleanup();
+    // На запитанні телефон зайнятий відповіддю: кнопок ставки немає, лічильники — у смузі.
+    show(onQuestion({ duel: declared, me: bettor }));
+    expect(screen.queryByText('На кого ставите?')).toBeNull();
+    expect(document.querySelector('.duel-banner-bets')).not.toBeNull();
+    cleanup();
+    // Дуелянт не ставить.
+    show(onQuestion({ phase: 'reveal', endsAt: null, duel: declared, me: { ...bettor, id: 'p2', duel: { ...bettor.duel, bet: null } } }));
+    expect(screen.queryByText('На кого ставите?')).toBeNull();
+  });
+
   it('phase duel shows the duel instead of the game', () => {
     const running = {
       challenger: { playerId: 'p1', nickname: 'Олена' },
