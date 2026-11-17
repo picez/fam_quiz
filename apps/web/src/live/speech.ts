@@ -80,7 +80,7 @@ function chunks(text: string): string[] {
  * Лише PublicQuestion: правильної відповіді в ньому немає ніколи. null — у запитанні є звук чи відео (не заглушуємо).
  */
 export function speechParts(question: PublicQuestion, lang: Locale = speechLanguage(question, currentLocale())): string[] | null {
-  if (question.audio != null || question.video != null || question.melody !== undefined) return null;
+  if (question.audio != null || question.video != null || question.melody !== undefined || question.videoclip !== undefined) return null;
   // Рамкові слова («Варіанти», «пропуск») — мовою голосу; немає її словника в пам'яті — без них.
   const frame = (key: TextKey, vars: Record<string, string | number> = {}) => textIn(lang, key, vars);
   const blank = frame('speechBlank');

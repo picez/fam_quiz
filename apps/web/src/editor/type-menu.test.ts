@@ -32,6 +32,7 @@ describe('editor type menu before the registry (30e)', () => {
         'spotdiff',
         'memory',
         'melody',
+        'videoclip',
         'bluff',
       ],
       blitz: ['single', 'multi', 'boolean', 'text', 'numeric', 'order', 'match', 'sort', 'slider'],
@@ -102,6 +103,7 @@ describe('editor type menu before the registry (30e)', () => {
       spotdiff: [LIMITS.minSpotdiffTime, LIMITS.maxPuzzleTime],
       memory: [LIMITS.minMemoryTime, LIMITS.maxPuzzleTime],
       melody: [LIMITS.minMelodyTime, LIMITS.maxTime],
+      videoclip: [LIMITS.minVideoclipTime, LIMITS.maxTime],
       bluff: plain,
       think: plain,
     });

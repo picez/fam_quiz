@@ -369,6 +369,11 @@ function build(common: Common, type: QuestionType): Question {
       const { hint: _hint, audio: _audio, reveal: _reveal, ...rest } = common;
       return { ...rest, video: null, type, text: rest.text === '' ? t('melodyDefaultText') : rest.text, timeLimit: LIMITS.defaultMelodyTime, points: LIMITS.defaultPoints, track: { source: 'file', url: '', start: 0 }, accepted: [''] };
     }
+    case 'videoclip': {
+      // 36: чернетка — решта редактора (перетворення, перевірки, місце) у задачі 7; власне джерело — clip: без video, звуку, «перевертання» й підказки.
+      const { hint: _hint, audio: _audio, reveal: _reveal, ...rest } = common;
+      return { ...rest, video: null, type, text: rest.text === '' ? t('videoclipDefaultText') : rest.text, timeLimit: LIMITS.defaultVideoclipTime, points: LIMITS.defaultPoints, clip: { id: '', start: 0 }, muted: true, accepted: [''] };
+    }
     case 'bluff':
       return { ...common, video: null, type, timeLimit: LIMITS.defaultBluffTime, choiceTime: LIMITS.defaultChoiceTime, accepted: [''], lies: ['', ''] };
     case 'poll':

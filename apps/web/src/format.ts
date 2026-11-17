@@ -1,4 +1,4 @@
-import { isRtl, melodyHeardOf, melodySeconds, pinDistance, surveyHitsOf, surveyOrder, type Answer, type CellMark, type Choice, type LobbyPlayer, type PublicQuestion, type PublicSlider, type Question, type Round, type RoundInfo, ONLINE_MS } from '@quiz/shared';
+import { isRtl, pinDistance, snippetHeardOf, snippetSeconds, surveyHitsOf, surveyOrder, type Answer, type CellMark, type Choice, type LobbyPlayer, type PublicQuestion, type PublicSlider, type Question, type Round, type RoundInfo, ONLINE_MS } from '@quiz/shared';
 import { countText, t, type TextKey } from './i18n';
 import { currentLocale, intlTag } from './locales/current';
 import { agoText, decimalText, dropYearMark } from './locales/grammar';
@@ -170,6 +170,7 @@ export function correctText(question: Question, presented?: { id: string }[]): s
       // Пари — картки на розкритті, не рядок.
       return '—';
     case 'melody':
+    case 'videoclip':
       // Назва — перше написання.
       return question.accepted[0] ?? '—';
     case 'think':
@@ -266,10 +267,11 @@ export function answerText(answer: Answer | null, question: Question | null, pre
       return t('spotdiffFound', { found: answer.found, total: answer.total });
     case 'memory':
       return answer.done && answer.timeMs !== null ? t('memoryAnswerDone', { time: secondsText(answer.timeMs) }) : t('memoryUndone', { found: answer.pairs, total: answer.total });
-    case 'melody': {
+    case 'melody':
+    case 'videoclip': {
       // Лише значення: шматок («Щедрик · 2 с») показується, коли відомо, скільки було відкрито.
-      const heard = melodyHeardOf(answer);
-      return heard === null ? answer.value : t('melodyAnswerHeard', { answer: answer.value, seconds: melodySeconds(heard) });
+      const heard = snippetHeardOf(answer);
+      return heard === null ? answer.value : t('melodyAnswerHeard', { answer: answer.value, seconds: snippetSeconds(heard) });
     }
     case 'think':
       return answer.value === '' ? '—' : answer.value;

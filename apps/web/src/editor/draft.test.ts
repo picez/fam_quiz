@@ -70,6 +70,8 @@ function filled(question: Question): Question {
       return { ...question, text, photo: '/uploads/0123456789abcdef0123.jpg' };
     case 'melody':
       return { ...question, text, track: { source: 'file', url: '/uploads/0123456789abcdef0123.mp3', start: 0 }, accepted: ['Щедрик'] };
+    case 'videoclip':
+      return { ...question, text, clip: { id: 'dQw4w9WgXcQ', start: 0 }, accepted: ['Take On Me'] };
     case 'memory':
       return { ...question, text, pairs: question.pairs.map((_, i) => ({ a: { text: `Питання ${i + 1}` }, b: { text: `Відповідь ${i + 1}` } })) };
     case 'spotdiff':
@@ -400,7 +402,7 @@ describe('changeType', () => {
   it('keeps the question text, time and points', () => {
     const source = { ...newQuestion('single'), text: 'Скільки?', timeLimit: 45, points: 500 };
     // Сортування, стіна, блеф, опитування й хмара мають власні час чи бали: їх перевіряють окремі тести.
-    for (const type of QUESTION_TYPES.filter((candidate) => !['sort', 'wall', 'poll', 'wordcloud', 'bluff', 'wordladder', 'timedlist', 'letterwords', 'moreless', 'drawing', 'sudoku', 'crossword', 'jigsaw', 'spotdiff', 'memory', 'melody', 'think'].includes(candidate))) {
+    for (const type of QUESTION_TYPES.filter((candidate) => !['sort', 'wall', 'poll', 'wordcloud', 'bluff', 'wordladder', 'timedlist', 'letterwords', 'moreless', 'drawing', 'sudoku', 'crossword', 'jigsaw', 'spotdiff', 'memory', 'melody', 'videoclip', 'think'].includes(candidate))) {
       const changed = changeType(source, type);
       expect(changed.type).toBe(type);
       expect([changed.id, changed.text, changed.timeLimit, changed.points]).toEqual([source.id, 'Скільки?', 45, 500]);

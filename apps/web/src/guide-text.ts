@@ -70,6 +70,7 @@ export const TYPE_ICONS: Record<Question['type'], string> = {
   spotdiff: '🔍',
   memory: '🃏',
   melody: '🎵',
+  videoclip: '🎬',
   think: '💭',
 };
 
