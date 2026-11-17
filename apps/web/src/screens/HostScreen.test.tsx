@@ -3971,6 +3971,12 @@ describe('HostScreen: think round (35)', () => {
     await waitFor(() => expect(send).toHaveBeenCalledWith('host:next', undefined));
   });
 
+  it('the think round last: the finished host shows the places', () => {
+    const places = [{ id: 'p1', nickname: 'Оля', place: 1, lives: 2, outAt: null, points: 10000 }];
+    show(during('finished', think, { think: hostThink({ places, index: null }) }));
+    expect(screen.getByText(t('thinkPlacesTitle'))).toBeTruthy();
+  });
+
   it('the answered count is out of the living participants, not every player', () => {
     const answers = [
       { id: 'p1', nickname: 'Оля', answer: 'Червоний', hit: false, overridden: false },

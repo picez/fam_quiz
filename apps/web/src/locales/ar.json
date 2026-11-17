@@ -4317,6 +4317,7 @@
   "err_think_spectator": "أنت مشاهد في هذا السؤال.",
   "err_think_word": "الكلمة فارغة أو طويلة جدًا: حتى 40 حرفًا.",
   "summaryThink": "❤️ {lives} في البداية · الأسئلة: {count} · المركز 1 يحصل على {points}",
+  "thinkSettingsLegend": "الأرواح والنقاط",
   "thinkLivesLabel": "الأرواح في البداية",
   "thinkPointsLabel": "نقاط المركز 1",
   "thinkSettingsNote": "لا سعر للأسئلة: النقاط تأتي من المراكز في نهاية الجولة — من مجموع المركز 1 حتى 0 للأخير.",

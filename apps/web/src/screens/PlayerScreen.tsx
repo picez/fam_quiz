@@ -1785,6 +1785,9 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
           {survivalStateLine(me.survival) !== null && <p className="lead survival-state">{survivalStateLine(me.survival)}</p>}
           {me.ladder?.won != null && <p className="lead ladder-state">{t('ladderWon', { points: num(me.ladder.won) })}</p>}
           {place}
+          {/* «Думай інакше» останнім раундом: рушій іде з розкриття одразу на фініш — своє місце й таблиця місць тут. */}
+          {me.think?.place != null && <p className="lead think-my-place">{`${t('thinkPlace', { place: me.think.place.place })} · ${signed(me.think.place.points)}`}</p>}
+          {view.think?.places != null && view.think.places.length > 0 && <ThinkPlaces think={view.think} me={thinkId} />}
           {view.prizes !== undefined &&
             (ceremony !== null ? (
               <Ceremony prizes={view.prizes} size="phone" hold={splashUp} onDone={ceremony} />

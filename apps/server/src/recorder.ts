@@ -222,6 +222,7 @@ function drawingRef(state: GameState, drawing: DrawingPlay): NonNullable<PlayRef
  */
 function thinkRef(state: GameState, index: number, think: ThinkPlay): NonNullable<PlayRef['think']> {
   const verdicts = thinkVerdicts(state, index);
+  const manual = Object.keys(think.lives).filter((id) => recordOf(state, index, id)?.overridden === true);
   // Місця раунду (огляд M-1) — на останньому зіграному запитанні раунду, щойно раунд скінчився: історія показує таблицю й місця з 0 балів.
   const { roundIndex } = state.plays[index];
   const lastOfRound = !state.plays.some((play, other) => other > index && play.roundIndex === roundIndex);
@@ -234,6 +235,7 @@ function thinkRef(state: GameState, index: number, think: ThinkPlay): NonNullabl
     revealed: think.revealed,
     hit: Object.keys(verdicts).filter((id) => verdicts[id] === 'hit'),
     ...(think.watch === undefined || think.watch.length === 0 ? {} : { watch: think.watch }),
+    ...(manual.length === 0 ? {} : { manual }),
     ...(places.length === 0 ? {} : { places }),
   };
 }

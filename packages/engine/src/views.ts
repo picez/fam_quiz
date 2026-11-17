@@ -194,7 +194,7 @@ import { lastNotice } from './adjust';
 import { BETS_OPEN_PHASES, betLimit, betsIndex, betsPlaying, stakedPlay, wagerLimitOf, wagerRound } from './bets';
 import { auctionLeader, auctionNextNow, auctionRoundOf } from './auction';
 import { questAfter, questOpened, questRoundOf, questSolved, questWindowOpen, type QuestTry } from './quest';
-import { thinkLivesAfter, thinkPlaces, thinkPlayOf, thinkRoundOf, thinkRoundPlays, thinkVerdicts, thinkWatches } from './think';
+import { thinkHit, thinkLivesAfter, thinkPlaces, thinkPlayOf, thinkRoundOf, thinkRoundPlays, thinkVerdicts, thinkWatches } from './think';
 import { inTruthDeck, nextTruthQuestion, truthCount, truthGuessers, truthHeld, truthOpen, truthPlayOf, truthRoundOf, truthSkipped } from './truth';
 import { presentPlayers } from './present';
 import { appealView, playerAppeal } from './appeal';
@@ -3051,7 +3051,7 @@ function thinkInfo(state: GameState): ThinkInfo | undefined {
   const rows = state.players.flatMap((p): ThinkRow[] => {
     if (last === undefined) {
       if (thinkWatches(state, p.id)) return [];
-      return [{ id: p.id, nickname: p.nickname, lives: round.lives, out: false, answered: false, answer: null, verdict: null, lost: false, overridden: false }];
+      return [{ id: p.id, nickname: p.nickname, lives: round.lives, out: false, answered: false, answer: null, verdict: null, lost: false, overridden: false, matched: null }];
     }
     const opened = state.plays[last].think?.lives;
     if (opened === undefined || !Object.hasOwn(opened, p.id)) return [];
@@ -3071,6 +3071,8 @@ function thinkInfo(state: GameState): ThinkInfo | undefined {
         verdict,
         lost: verdict !== null && after < before,
         overridden: verdict !== null && recordOf(state, last, p.id)?.overridden === true,
+        // Збіг програми: з яким словом ведучого (індекс у words); ручний збіг і порожня відповідь — null.
+        matched: verdict === 'hit' && play !== null && recordOf(state, last, p.id)?.overridden !== true ? thinkHit(play.think.words, thinkText(state, last, p.id)) : null,
       },
     ];
   });

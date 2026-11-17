@@ -3262,8 +3262,8 @@ describe('StageScreen: «Читати вголос» (31)', () => {
 describe('StageScreen: think round (35)', () => {
   const thinkQuestion = { ...question, type: 'think' as const, text: 'Напишіть фрукт', points: 0, choices: [] };
   const rows = [
-    { id: 'p1', nickname: 'Олена', lives: 3, out: false, answered: true, answer: null, verdict: null, lost: false, overridden: false },
-    { id: 'p2', nickname: 'Хосе', lives: 1, out: false, answered: false, answer: null, verdict: null, lost: false, overridden: false },
+    { id: 'p1', nickname: 'Олена', lives: 3, out: false, answered: true, answer: null, verdict: null, lost: false, overridden: false, matched: null },
+    { id: 'p2', nickname: 'Хосе', lives: 1, out: false, answered: false, answer: null, verdict: null, lost: false, overridden: false, matched: null },
   ];
   const think = { lives: 3, points: 10000, index: 1, total: 5, rows, words: null, places: null };
 

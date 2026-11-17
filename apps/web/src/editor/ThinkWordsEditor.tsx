@@ -1,18 +1,10 @@
 import { LIMITS, type ThinkWord } from '@quiz/shared';
 import { useState } from 'react';
 import { t } from '../i18n';
+import { parseSynonyms } from '../think-words';
 
 /** Найдовший рядок синонімів: усі синоніми слова з комою й пробілом між ними. */
 const SYNONYMS_MAX = LIMITS.maxThinkSynonyms * (LIMITS.thinkWord + 2);
-
-/** Синоніми з рядка «через кому»: обрізані, без порожніх, не більше дозволеного. */
-export function parseSynonyms(text: string): string[] {
-  return text
-    .split(/[,;\n]/)
-    .map((s) => s.replace(/\s+/g, ' ').trim())
-    .filter((s) => s !== '')
-    .slice(0, LIMITS.maxThinkSynonyms);
-}
 
 /**
  * «Думай інакше» (35): слова ведучого — до 3 рядків «слово + синоніми через кому», «Додати слово», «Прибрати слово».

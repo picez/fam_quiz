@@ -4101,6 +4101,7 @@
   "err_think_spectator": "Bei dieser Frage schaust du zu.",
   "err_think_word": "Das Wort ist leer oder zu lang: höchstens 40 Zeichen.",
   "summaryThink": "❤️ {lives} zum Start · Fragen: {count} · Platz 1 bekommt {points}",
+  "thinkSettingsLegend": "Leben und Punkte",
   "thinkLivesLabel": "Leben zum Start",
   "thinkPointsLabel": "Punkte für Platz 1",
   "thinkSettingsNote": "Fragen haben keinen Preis: Punkte gibt es am Ende der Runde für die Plätze — von der Summe für Platz 1 bis 0 für den letzten.",

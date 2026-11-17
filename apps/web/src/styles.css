@@ -24116,6 +24116,47 @@ input.sudoku-editor-cell:focus-visible {
   overflow-wrap: anywhere;
 }
 
+/* Вузький телефон: стан («вибування на питанні 3» чи ❤️) — під ніком, а не четвертою колонкою, що ламала б слова по літерах. */
+@media (max-width: 26rem) {
+  .think-places-table tbody tr {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-areas: 'place name points' 'place state points';
+    align-items: center;
+    column-gap: 0.5rem;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .think-places-table tbody td,
+  .think-places-table tbody th {
+    padding: 0.125rem 0.25rem;
+    border-bottom: 0;
+  }
+
+  .think-places-table .think-place {
+    grid-area: place;
+  }
+
+  .think-places-table .name {
+    grid-area: name;
+  }
+
+  .think-places-table .think-place-state {
+    grid-area: state;
+    color: var(--dim);
+    font-size: 0.875em;
+  }
+
+  .think-places-table .think-place-points {
+    grid-area: points;
+  }
+}
+
+/* Нік — break-word, не anywhere: його колонка не стискається нижче найдовшого слова («Тар|ас» на 360 px); тиснеться стан. */
+.think-places-table .name {
+  overflow-wrap: break-word;
+}
+
 .think-places-table tr.is-me {
   background: var(--spot);
 }
@@ -24143,6 +24184,14 @@ input.sudoku-editor-cell:focus-visible {
 
 .think-places-table .think-place-total {
   font-weight: 700;
+}
+
+/* «≈ синій»: з яким словом ведучого збіглася відповідь — дрібно під словом, і в щільному режимі сцени теж. */
+.think-matched {
+  display: block;
+  color: var(--dim);
+  font-size: 0.75em;
+  font-weight: 400;
 }
 
 /* «вручну»: вердикт поставив ведучий — видно всім. */

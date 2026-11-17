@@ -4213,6 +4213,7 @@ const uk = {
   err_think_spectator: 'У цьому питанні ви глядач.',
   err_think_word: 'Слово порожнє або задовге: до 40 символів.',
   summaryThink: '❤️ {lives} на старті · питань: {count} · за 1-ше місце {points}',
+  thinkSettingsLegend: 'Життя й очки',
   thinkLivesLabel: 'Життя на старті',
   thinkPointsLabel: 'Бали за 1-ше місце',
   thinkSettingsNote: 'Питання не мають ціни: бали дають місця наприкінці раунду — від суми за 1-ше місце до 0 за останнє.',

@@ -299,7 +299,7 @@ describe('recorder', () => {
     expect(ctx.manager.host(ctx.room, { type: 'override', playerId: ctx.olena, grade: 'correct' })).toEqual({ ok: true });
     ctx.host('next');
     const { games, answers } = await ctx.saved();
-    expect(games[0].plays[0].think).toEqual({ words: [blue], lives: { [ctx.olena]: 3, [ctx.taras]: 3 }, revealed: true, hit: [ctx.taras] });
+    expect(games[0].plays[0].think).toEqual({ words: [blue], lives: { [ctx.olena]: 3, [ctx.taras]: 3 }, revealed: true, hit: [ctx.taras], manual: [ctx.olena] });
     // Слово — не відповідь для статистики (як голос): 0 балів, без «прийнято».
     expect(answers.filter((a) => a.questionIndex === 0).map((a) => [a.participantId, a.attempt, a.payload, a.points, a.accepted, a.overridden]).sort()).toEqual(
       [

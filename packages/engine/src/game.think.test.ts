@@ -102,35 +102,35 @@ describe('think round flow (35)', () => {
   it('the host edits words only while the timer runs, once after it if empty', () => {
     // t1 на question: будь-який список, той самий — без змін.
     const s1 = opened();
-    const violet = must(setThinkWords(s1, [w('фіолетовий')], t0));
+    const violet = must(setThinkWords(s1, [w('фіолетовий')]));
     expect(play(violet).think?.words).toEqual([w('фіолетовий')]);
-    expect(must(setThinkWords(violet, [w(' фіолетовий ')], t0))).toBe(violet);
-    expect(setThinkWords(s1, [red, blue, green, w('жовтий')], t0)).toEqual({ ok: false, error: 'think_word' });
-    expect(setThinkWords(s1, [red, w('Червона')], t0)).toEqual({ ok: false, error: 'think_word' });
-    expect(setThinkWords(s1, [w('я'.repeat(41))], t0)).toEqual({ ok: false, error: 'think_word' });
+    expect(must(setThinkWords(violet, [w(' фіолетовий ')]))).toBe(violet);
+    expect(setThinkWords(s1, [red, blue, green, w('жовтий')])).toEqual({ ok: false, error: 'think_word' });
+    expect(setThinkWords(s1, [red, w('Червона')])).toEqual({ ok: false, error: 'think_word' });
+    expect(setThinkWords(s1, [w('я'.repeat(41))])).toEqual({ ok: false, error: 'think_word' });
     // Без жодної літери чи цифри — не слово; повтор після розділових — теж повтор.
-    expect(setThinkWords(s1, [w('!!!')], t0)).toEqual({ ok: false, error: 'think_word' });
-    expect(setThinkWords(s1, [w('червоний', '—')], t0)).toEqual({ ok: false, error: 'think_word' });
-    expect(setThinkWords(s1, [w('темно-синій'), w('темно синій')], t0)).toEqual({ ok: false, error: 'think_word' });
-    expect(setThinkWords(s1, [w('червоний', 'a', 'b', 'c', 'd', 'e', 'f')], t0)).toEqual({ ok: false, error: 'think_word' });
+    expect(setThinkWords(s1, [w('!!!')])).toEqual({ ok: false, error: 'think_word' });
+    expect(setThinkWords(s1, [w('червоний', '—')])).toEqual({ ok: false, error: 'think_word' });
+    expect(setThinkWords(s1, [w('темно-синій'), w('темно синій')])).toEqual({ ok: false, error: 'think_word' });
+    expect(setThinkWords(s1, [w('червоний', 'a', 'b', 'c', 'd', 'e', 'f')])).toEqual({ ok: false, error: 'think_word' });
     // Порожні синоніми відкидаються.
-    expect(play(must(setThinkWords(s1, [w('червоний', ' ', 'багряний')], t0))).think?.words).toEqual([w('червоний', 'багряний')]);
+    expect(play(must(setThinkWords(s1, [w('червоний', ' ', 'багряний')]))).think?.words).toEqual([w('червоний', 'багряний')]);
     // t1 на locked зі словами — зафіксовано.
     const locked1 = expire(s1);
-    expect(setThinkWords(locked1, [green], t0)).toEqual({ ok: false, error: 'think_words_closed' });
+    expect(setThinkWords(locked1, [green])).toEqual({ ok: false, error: 'think_words_closed' });
     // t2 без слів після таймера: порожній — ні, непорожній — раз.
     const revealed1 = must(next(locked1, at(locked1, 40_000), rng0));
     const s2 = must(next(revealed1, at(revealed1, 50_000), rng0));
     expect(play(s2).question.id).toBe('t2');
     const locked2 = expire(s2);
-    expect(setThinkWords(locked2, [], t0)).toEqual({ ok: false, error: 'think_words_closed' });
-    const cat = must(setThinkWords(locked2, [w('кіт')], t0));
+    expect(setThinkWords(locked2, [])).toEqual({ ok: false, error: 'think_words_closed' });
+    const cat = must(setThinkWords(locked2, [w('кіт')]));
     expect(play(cat).think?.words).toEqual([w('кіт')]);
-    expect(setThinkWords(cat, [w('пес')], t0)).toEqual({ ok: false, error: 'think_words_closed' });
+    expect(setThinkWords(cat, [w('пес')])).toEqual({ ok: false, error: 'think_words_closed' });
     // На reveal — зафіксовано; поза think — wrong_phase.
-    expect(setThinkWords(revealed1, [green], t0)).toEqual({ ok: false, error: 'think_words_closed' });
+    expect(setThinkWords(revealed1, [green])).toEqual({ ok: false, error: 'think_words_closed' });
     const classic = must(next(must(start(lobby())), 0, rng0));
-    expect(setThinkWords(classic, [green], t0)).toEqual({ ok: false, error: 'wrong_phase' });
+    expect(setThinkWords(classic, [green])).toEqual({ ok: false, error: 'wrong_phase' });
   });
 
   it('reveal waits for a word with a host, not in autopilot', () => {
@@ -143,7 +143,7 @@ describe('think round flow (35)', () => {
     };
     const hosted = toT2Locked(false);
     expect(next(hosted, t0 + 100_000, rng0)).toEqual({ ok: false, error: 'think_no_words' });
-    const shown = must(next(must(setThinkWords(hosted, [w('кіт')], t0)), t0 + 100_000, rng0));
+    const shown = must(next(must(setThinkWords(hosted, [w('кіт')])), t0 + 100_000, rng0));
     expect(shown.phase).toBe('reveal');
     expect(play(shown).think?.revealed).toBe(true);
     const piloted = must(next(toT2Locked(true), t0 + 100_000, rng0));
@@ -184,7 +184,7 @@ describe('think round flow (35)', () => {
     const s = answerAll(opened(), { p1: 'Червона', p2: 'зелений' });
     const verdicts = (state: GameState) => Object.fromEntries((hostLive(state)?.rows ?? []).map((r) => [r.id, r.verdict]));
     expect(verdicts(s)).toEqual({ p1: 'wrong', p2: 'correct', p3: null, p4: null });
-    expect(verdicts(must(setThinkWords(s, [green], t0)))).toEqual({ p1: 'correct', p2: 'wrong', p3: null, p4: null });
+    expect(verdicts(must(setThinkWords(s, [green])))).toEqual({ p1: 'correct', p2: 'wrong', p3: null, p4: null });
   });
 
   it('no speed, no streak, no buffs, no shop', () => {

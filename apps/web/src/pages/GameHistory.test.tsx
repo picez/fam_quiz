@@ -235,20 +235,26 @@ describe('history: melody (29e)', () => {
 describe('history: think (35)', () => {
   it('shows the final host words and every row with its verdict and lives', () => {
     const think = {
-      words: ['червоний', 'синій'],
+      words: [
+        { word: 'червоний', synonyms: ['багряний', 'алий'] },
+        { word: 'синій', synonyms: [] },
+      ],
       lives: { Олена: 2, Хосе: 3, Іра: 0 },
       rows: [
         { nickname: 'Олена', answer: 'Червона', verdict: 'hit' as const, lost: true },
-        { nickname: 'Хосе', answer: 'Зелений', verdict: 'safe' as const, lost: false },
+        { nickname: 'Хосе', answer: 'Зелений', verdict: 'safe' as const, lost: false, manual: true as const },
         { nickname: 'Іра', answer: '', verdict: 'empty' as const, lost: true },
       ],
     };
     const { container } = render(<ThinkHistory think={think} />);
-    expect(screen.getByText('Слова ведучого: червоний, синій')).toBeTruthy();
+    // Синоніми в дужках; ручний вердикт ведучого — «вручну».
+    expect(screen.getByText('Слова ведучого: червоний (багряний, алий), синій')).toBeTruthy();
     const rows = [...container.querySelectorAll('li')].map((li) => li.textContent);
     expect(rows[0]).toContain('збіг');
     expect(rows[0]).toContain('❤️ 2');
     expect(rows[1]).toContain('в безпеці');
+    expect(rows[1]).toContain('вручну');
+    expect(rows[0]).not.toContain('вручну');
     expect(rows[2]).toContain('без відповіді');
     expect(rows[2]).toContain('—');
     expect(container.querySelector('.think-history-places')).toBeNull();
@@ -257,7 +263,7 @@ describe('history: think (35)', () => {
   it('the last question of the round shows the places, zero points too (review M-1)', () => {
     cleanup();
     const think = {
-      words: ['червоний'],
+      words: [{ word: 'червоний', synonyms: [] }],
       lives: { Олена: 1, Тарас: 0 },
       rows: [],
       places: [

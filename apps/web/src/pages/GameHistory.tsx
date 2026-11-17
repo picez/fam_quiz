@@ -210,7 +210,7 @@ export function ThinkHistory({ think }: { think: NonNullable<GameQuestionResult[
     <div className="think-history">
       {think.words.length > 0 && (
         <p className="meta" dir="auto">
-          {t('thinkHistoryWords', { words: think.words.join(', ') })}
+          {t('thinkHistoryWords', { words: think.words.map((w) => (w.synonyms.length === 0 ? w.word : `${w.word} (${w.synonyms.join(', ')})`)).join(', ') })}
         </p>
       )}
       <ul className="think-history-rows">
@@ -221,6 +221,7 @@ export function ThinkHistory({ think }: { think: NonNullable<GameQuestionResult[
               {row.answer === '' ? '—' : row.answer}
             </span>
             <span className="tag">{t(verdictKey[row.verdict])}</span>
+            {row.manual === true && <span className="tag think-overridden">{t('thinkHostOverridden')}</span>}
             {think.lives[row.nickname] !== undefined && <span className="meta think-history-lives">{`❤️ ${think.lives[row.nickname]}`}</span>}
           </li>
         ))}

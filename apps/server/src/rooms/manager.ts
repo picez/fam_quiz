@@ -2323,7 +2323,7 @@ export class RoomManager {
       case 'think-words': {
         const now = this.now();
         if (!rateAllowed(room, 'think', HOST_RATE_ID, now)) return { ok: false, error: 'too_soon' };
-        return this.apply(room, setThinkWords(state, action.words, now));
+        return this.apply(room, setThinkWords(state, action.words));
       }
     }
   }

@@ -4157,6 +4157,7 @@
   "err_think_spectator": "W tym pytaniu tylko oglądasz.",
   "err_think_word": "Słowo jest puste lub za długie: do 40 znaków.",
   "summaryThink": "❤️ {lives} na start · pytań: {count} · za 1. miejsce {points}",
+  "thinkSettingsLegend": "Życia i punkty",
   "thinkLivesLabel": "Życia na start",
   "thinkPointsLabel": "Punkty za 1. miejsce",
   "thinkSettingsNote": "Pytania nie mają ceny: punkty dają miejsca na koniec rundy — od sumy za 1. miejsce do 0 za ostatnie.",

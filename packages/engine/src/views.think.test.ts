@@ -66,7 +66,7 @@ describe('think views (35)', () => {
     expectHidden(locked, ['червоний', 'багряний', 'синій']);
     expectHidden(locked, ['зелений'], ['p1', 'p2', 'p3']);
     // Дописане ведучим слово — так само.
-    const added = must(setThinkWords(opened(intro()), [violet], t0 + 100));
+    const added = must(setThinkWords(opened(intro()), [violet]));
     expectHidden(added, ['фіолетовий']);
     expectHidden(lockOf(added), ['фіолетовий']);
     expect(JSON.stringify(hostView(added))).toContain('фіолетовий');
@@ -102,7 +102,7 @@ describe('think views (35)', () => {
     // Без слів: після таймера «Показати» неактивне, слово можна вписати один раз.
     const bare = lockOf(opened(intro([])));
     expect(hostView(bare).think).toMatchObject({ draft: [], editable: true, canReveal: false });
-    const written = must(setThinkWords(bare, [violet], at(bare, 35_000)));
+    const written = must(setThinkWords(bare, [violet]));
     expect(hostView(written).think).toMatchObject({ draft: [violet], editable: false, canReveal: true });
   });
 
@@ -110,8 +110,16 @@ describe('think views (35)', () => {
     const asked = answer(opened(intro()), { p1: 'Червона' });
     const think = stageView(asked).think;
     expect(think).toMatchObject({ lives: 3, points: 10_000, index: 0, total: 5, words: null, places: null });
-    expect(think?.rows[0]).toEqual({ id: 'p1', nickname: 'Олена', lives: 3, out: false, answered: true, answer: null, verdict: null, lost: false, overridden: false });
+    expect(think?.rows[0]).toEqual({ id: 'p1', nickname: 'Олена', lives: 3, out: false, answered: true, answer: null, verdict: null, lost: false, overridden: false, matched: null });
     expect(think?.rows[1]).toMatchObject({ nickname: 'Тарас', answered: false, answer: null });
+  });
+
+  it('a hit names the host word it matched; a manual hit names none', () => {
+    const shown = revealOf(answer(opened(intro()), { p1: 'Синя', p2: 'ксилофон', p3: 'багряна', p4: 'Зелений' }));
+    const rows = () => stageView(marked).think?.rows ?? [];
+    const marked = must(override(shown, 'p2', 'wrong'));
+    expect(stageView(shown).think?.rows.map((r) => [r.id, r.matched])).toEqual([['p1', 1], ['p2', null], ['p3', 0], ['p4', null]]);
+    expect(rows().find((r) => r.id === 'p2')).toMatchObject({ verdict: 'hit', overridden: true, matched: null });
   });
 
   it('reveal shows words, every answer and lost hearts', () => {
@@ -119,12 +127,12 @@ describe('think views (35)', () => {
     expect(shown.phase).toBe('reveal');
     const think = stageView(shown).think;
     expect(think?.words).toEqual([red, blue]);
-    expect(think?.rows.find((r) => r.id === 'p1')).toMatchObject({ answer: 'Червона', verdict: 'hit', lost: true, lives: 2, answered: false });
-    expect(think?.rows.find((r) => r.id === 'p3')).toMatchObject({ answer: '', verdict: 'empty', lost: true, lives: 2 });
-    expect(think?.rows.find((r) => r.id === 'p4')).toMatchObject({ answer: 'Зелений', verdict: 'safe', lost: false, lives: 3, overridden: false });
+    expect(think?.rows.find((r) => r.id === 'p1')).toMatchObject({ answer: 'Червона', verdict: 'hit', lost: true, lives: 2, answered: false, matched: 0 });
+    expect(think?.rows.find((r) => r.id === 'p3')).toMatchObject({ answer: '', verdict: 'empty', lost: true, lives: 2, matched: null });
+    expect(think?.rows.find((r) => r.id === 'p4')).toMatchObject({ answer: 'Зелений', verdict: 'safe', lost: false, lives: 3, overridden: false, matched: null });
     // Ручна оцінка ведучого видна всім: «вручну» в рядку.
     const marked = must(override(shown, 'p1', 'correct'));
-    expect(stageView(marked).think?.rows.find((r) => r.id === 'p1')).toMatchObject({ verdict: 'safe', lost: false, lives: 3, overridden: true });
+    expect(stageView(marked).think?.rows.find((r) => r.id === 'p1')).toMatchObject({ verdict: 'safe', lost: false, lives: 3, overridden: true, matched: null });
     expect(playerView(marked, 'p2')?.think?.rows.find((r) => r.id === 'p1')?.overridden).toBe(true);
     expect(playerView(shown, 'p2')?.me.think).toEqual({ lives: 3, status: 'alive', verdict: 'safe', place: null });
     expect(playerView(shown, 'p1')?.me.think?.verdict).toBe('hit');
@@ -201,7 +209,7 @@ describe('think views (35)', () => {
   });
 
   it('the public reveal carries the words the host set, not the prepared ones (review I-1)', () => {
-    const changed = must(setThinkWords(opened(intro([red])), [blue], t0 + 100));
+    const changed = must(setThinkWords(opened(intro([red])), [blue]));
     const shown = revealOf(answer(changed, { p1: 'зелений' }));
     expect(shown.phase).toBe('reveal');
     for (const json of publicJson(shown)) {

@@ -3419,6 +3419,9 @@ describe('QuizEditor: think round (35)', () => {
     fireEvent.click(screen.getAllByText('Налаштування раунду')[0]);
     expect((screen.getByLabelText(t('thinkLivesLabel')) as HTMLInputElement).value).toBe('3');
     expect((screen.getByLabelText(t('thinkPointsLabel')) as HTMLInputElement).value).toBe('5000');
+    // Група полів має нейтральну назву: «Думай інакше ⓘ» уже в заголовку налаштувань раунду.
+    expect(document.querySelector('.think-settings legend')?.textContent).toBe(t('thinkSettingsLegend'));
+    expect(document.querySelector('.think-settings legend button')).toBeNull();
     expect(document.querySelectorAll('.question-item')).toHaveLength(3);
     for (const item of document.querySelectorAll('.question-item-type')) expect(item.textContent).toBe(t('typeShort_think'));
     // Меню типу — лише «Слово на тему», ціни немає.

@@ -130,7 +130,7 @@ function cleanWords(words: readonly ThinkWord[]): ThinkWord[] | null {
  * Слова ведучого замінюють увесь список: на question — будь-який (0–3), на locked — лише порожній на непорожній (раз після таймера),
  * далі — think_words_closed; не запитання think — wrong_phase; погані слова — think_word; той самий список — стан без змін.
  */
-export function setThinkWords(state: GameState, words: ThinkWord[], _now: number): Result {
+export function setThinkWords(state: GameState, words: ThinkWord[]): Result {
   const play = thinkPlayOf(state);
   if (play === null) return fail('wrong_phase');
   if (state.phase !== 'question' && state.phase !== 'locked') return fail('think_words_closed');

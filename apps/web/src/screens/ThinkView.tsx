@@ -6,7 +6,7 @@ import { RowReaction } from '../live/Reactions';
 import { Timer, timerStatus } from '../live/Timer';
 import type { Send } from '../live/types';
 import type { DraftInput } from './TeamWatch';
-import { parseSynonyms } from '../editor/ThinkWordsEditor';
+import { parseSynonyms } from '../think-words';
 
 /** Понад стільки сердець ряд стискається до «❤️ N»: 10 сердець у рядку сцени з 24 гравцями — шум. */
 const HEARTS_IN_ROW = 5;
@@ -212,12 +212,13 @@ export function HostThinkWords({ think, phase, send, onError }: { think: HostThi
       });
   };
   useEffect(() => {
-    if (!dirty || locked || !changed) return;
+    // Після таймера без слів рушій приймає лише одну зміну: пауза посеред слова зафіксувала б його половину — тут лише «Зберегти слова».
+    if (!dirty || locked || late || !changed) return;
     const timer = setTimeout(save, THINK_AUTOSAVE_MS);
     return () => clearTimeout(timer);
     // save бере слова з цього ж рендера: перезапуск лише від нового набору чи кінця попереднього збереження.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rows, dirty, locked, changed, saves]);
+  }, [rows, dirty, locked, late, changed, saves]);
   // Зафіксовано: показуємо те, що справді діє, а не недозбережений набір.
   const shown = locked ? rowsOf(think.draft) : rows;
   return (
@@ -284,6 +285,8 @@ export function HostThinkAnswers({ think, phase, send, onError }: { think: HostT
       });
   };
   const answered = think.answers.filter((row) => row.answer !== null).length;
+  // Слів ведучого ще немає — порівнювати нема з чим: без позначки, а не «в безпеці».
+  const judged = think.draft.length > 0;
   return (
     <section className="panel think-host-answers">
       <h2>
@@ -298,7 +301,7 @@ export function HostThinkAnswers({ think, phase, send, onError }: { think: HostT
             <span className="think-answer-word" dir="auto">
               {row.answer === null || row.answer === '' ? t('thinkHostNoAnswer') : row.answer}
             </span>
-            {row.hit !== null && <span className={row.hit ? 'tag is-wrong' : 'tag is-correct'}>{t(row.hit ? 'thinkHostHit' : 'thinkHostSafe')}</span>}
+            {judged && row.hit !== null && <span className={row.hit ? 'tag is-wrong' : 'tag is-correct'}>{t(row.hit ? 'thinkHostHit' : 'thinkHostSafe')}</span>}
             {row.overridden && <span className="tag">{t('thinkHostOverridden')}</span>}
             {phase === 'reveal' && row.hit !== null && (
               <button type="button" className="btn btn-small" aria-label={`${t(row.hit ? 'thinkHostMarkSafe' : 'thinkHostMarkHit')}: ${row.nickname}`} onClick={() => mark(row.id, row.hit ? 'correct' : 'wrong')}>
@@ -364,8 +367,10 @@ export function ThinkStage({ view, offsetMs }: { view: StageView; offsetMs: numb
 }
 
 /** Рядок відповіді на розкритті: нік, слово (порожнє — «—»), ❤️ після; збіг і порожня — підсвічені. */
-function RevealRow({ row, max, me }: { row: ThinkRow; max: number; me?: string }) {
+function RevealRow({ row, max, me, words }: { row: ThinkRow; max: number; me?: string; words: ThinkWord[] }) {
   const hit = row.verdict === 'hit' || row.verdict === 'empty';
+  // З яким словом ведучого збіглася відповідь («Синя» ≈ «синій»): видно й без синонімів, які щільна сцена ховає.
+  const matched = row.matched === null ? null : (words[row.matched]?.word ?? null);
   return (
     <li className={['think-reveal-row', hit ? 'is-hit' : 'is-safe', row.id === me ? 'is-me' : ''].filter(Boolean).join(' ')}>
       <span className="name" dir="auto">
@@ -374,6 +379,11 @@ function RevealRow({ row, max, me }: { row: ThinkRow; max: number; me?: string }
       </span>
       <span className="think-reveal-word" dir="auto">
         {row.answer === null || row.answer === '' ? '—' : row.answer}
+        {matched !== null && (
+          <small className="think-matched" dir="auto">
+            {`≈ ${matched}`}
+          </small>
+        )}
       </span>
       {row.overridden && <span className="tag think-overridden">{t('thinkHostOverridden')}</span>}
       <ThinkHearts lives={row.lives} max={max} lost={row.lost} />
@@ -384,6 +394,7 @@ function RevealRow({ row, max, me }: { row: ThinkRow; max: number; me?: string }
 /** Сцена (і телефони) на reveal: слова ведучого великим (синоніми дрібно), відповіді всіх; втрачені — підсвічені, ❤️ гасне. */
 export function ThinkReveal({ think, me, big = false }: { think: ThinkInfo; me?: string; big?: boolean }) {
   if (think.words === null) return null;
+  const words = think.words;
   const answered = think.rows.filter((row) => row.verdict !== null);
   const many = answered.length > MANY_ROWS;
   return (
@@ -403,7 +414,7 @@ export function ThinkReveal({ think, me, big = false }: { think: ThinkInfo; me?:
       </ul>
       <ul className={many ? 'think-reveal-rows is-many' : 'think-reveal-rows'}>
         {answered.map((row) => (
-          <RevealRow key={row.id} row={row} max={think.lives} me={me} />
+          <RevealRow key={row.id} row={row} max={think.lives} me={me} words={words} />
         ))}
       </ul>
     </section>

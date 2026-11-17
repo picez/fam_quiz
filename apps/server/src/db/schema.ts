@@ -171,6 +171,8 @@ export interface PlayRef {
     revealed: boolean;
     hit: string[];
     watch?: string[];
+    /** Чий вердикт поставив ведучий вручну (id учасників); немає — нічий. */
+    manual?: string[];
     /** Лише на останньому зіграному запитанні раунду, коли раунд скінчився: місця раунду (усі, і з 0 балів), за нікнеймами. */
     places?: { nickname: string; place: number; lives: number; outAt: number | null; points: number }[];
   };

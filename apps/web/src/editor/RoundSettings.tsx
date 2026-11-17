@@ -150,10 +150,8 @@ export function RoundSettings({ round, index, total = 0, onChange, open, onToggl
       )}
       {round.type === 'think' && (
         <fieldset className="think-settings">
-          <legend className="with-help">
-            <span>{t('roundTypeThink')}</span>
-            <HelpButton id="round.think" />
-          </legend>
+          {/* Довідка раунду вже в заголовку налаштувань: тут лише назва групи полів. */}
+          <legend>{t('thinkSettingsLegend')}</legend>
           <label className="field">
             <span>{t('thinkLivesLabel')}</span>
             <input

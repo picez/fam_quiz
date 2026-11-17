@@ -1684,7 +1684,7 @@ function truthAsked(): GameState {
 function thinkAsked(): GameState {
   const quiz = makeRoundsQuiz([thinkRound('r1', [think('t1'), think('t2'), think('t3')])]);
   const open = must(next(must(start(lobbyWith(quiz, 'Оля', 'Петро', 'Іра'))), T0));
-  const worded = must(setThinkWords(open, [{ word: 'червоний', synonyms: ['багряний'] }], T0 + 500));
+  const worded = must(setThinkWords(open, [{ word: 'червоний', synonyms: ['багряний'] }]));
   const red = must(submitAnswer(worded, 'p1', { type: 'think', value: 'Червона' }, T0 + 1000));
   return must(submitAnswer(red, 'p2', { type: 'think', value: 'синій' }, T0 + 1200));
 }

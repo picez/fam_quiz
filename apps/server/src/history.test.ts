@@ -2673,7 +2673,7 @@ describe('history: think (35)', () => {
     const { host, gameId } = await thinkGame();
     const detail = (await get(`/api/games/${gameId}`, host.cookie)).json() as GameDetail;
     expect(detail.questions[0].think).toEqual({
-      words: ['червоний', 'синій'],
+      words: [red, blue],
       lives: { Олена: 1, Тарас: 0 },
       rows: [
         { nickname: 'Олена', answer: 'ксилофон', verdict: 'safe', lost: false },

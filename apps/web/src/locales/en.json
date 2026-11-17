@@ -4101,6 +4101,7 @@
   "err_think_spectator": "You are watching this question.",
   "err_think_word": "The word is empty or too long: up to 40 characters.",
   "summaryThink": "❤️ {lives} at the start · questions: {count} · 1st place gets {points}",
+  "thinkSettingsLegend": "Lives and points",
   "thinkLivesLabel": "Lives at the start",
   "thinkPointsLabel": "Points for 1st place",
   "thinkSettingsNote": "Questions have no price: points come from the places at the end of the round — from the 1st-place sum down to 0 for the last.",

@@ -196,6 +196,10 @@ async function thinkGame35() {
   await stage.locator('.think-reveal.is-big .think-word strong').getByText('фіолетовий', exact).waitFor();
   expect(await stage.locator('.think-reveal.is-big .think-word strong').allTextContents()).toEqual(['червоний', 'фіолетовий']);
   await expect.poll(() => revealRow35(stage, 'Оля').getAttribute('class'), POLL).toContain('is-hit');
+  // Збіг названо: «Фіолетова» ≈ «фіолетовий» — на сцені й на телефоні Олі.
+  expect(await revealRow35(stage, 'Оля').locator('.think-matched').textContent()).toBe('≈ фіолетовий');
+  await expect.poll(() => revealRow35(olya, 'Оля').locator('.think-matched').textContent(), POLL).toBe('≈ фіолетовий');
+  expect(await revealRow35(stage, 'Хосе').locator('.think-matched').count(), 'an empty answer names no word').toBe(0);
   expect(await revealRow35(stage, 'Тарас').getAttribute('class')).toContain('is-safe');
   expect(await revealRow35(stage, 'Хосе').getAttribute('class')).toContain('is-hit');
   expect(await revealRow35(stage, 'Хосе').locator('.think-reveal-word').textContent(), 'an empty answer on the stage').toBe('—');
@@ -310,10 +314,10 @@ async function thinkGame35() {
   await host.goto(`${base}/history`);
   await host.getByRole('link', { name: /Думай інакше 35/ }).click();
   const fruit = host.locator('.rows.stacked > li', { hasText: 'Напишіть фрукт' });
-  await fruit.locator('.think-history').getByText('Слова ведучого: яблуко, банан', exact).waitFor();
+  await fruit.locator('.think-history').getByText('Слова ведучого: яблуко (яблучко), банан', exact).waitFor();
   const lines = (await fruit.locator('.think-history-rows li').allInnerTexts()).map((text) => text.replace(/\s+/g, ' ').trim());
   // Рядки — у порядку відповідей; ручне «Зняти збіг» біля Тараса збережено.
-  expect([...lines].sort()).toEqual(['Оля груша в безпеці ❤️ 1', 'Тарас Яблука в безпеці ❤️ 2', 'Хосе манго в безпеці ❤️ 1']);
+  expect([...lines].sort()).toEqual(['Оля груша в безпеці ❤️ 1', 'Тарас Яблука в безпеці вручну ❤️ 2', 'Хосе манго в безпеці ❤️ 1']);
   const animal = host.locator('.rows.stacked > li', { hasText: 'Напишіть тварину з зоопарку' });
   await animal.locator('.think-history').getByText('Слова ведучого: лев', exact).waitFor();
   expect(await animal.locator('.think-history-rows li', { hasText: 'Хосе' }).innerText()).toContain('збіг');
@@ -510,7 +514,7 @@ async function expectThinkStageFits35(stage: Page, name: string) {
 async function thinkCrowd35(sockets: Socket[]) {
   const host = await open('host35c', 1280, 900);
   await register(host, 'host', 'Леся Ведуча', 'host35c@example.com');
-  const round = thinkRound('th35c', [think('c1', words35(['червоний', 'багряний', 'алий'], ['синій', 'блакитний'], ['зелений', 'смарагдовий'])), think('c2', words35(['яблуко'])), think('c3', words35(['лев']))], { lives: 3, points: 5000 });
+  const round = thinkRound('th35c', [think('c1', words35(['червоний', 'багряний', 'алий'], ['синій', 'синенький'], ['зелений', 'смарагдовий'])), think('c2', words35(['яблуко'])), think('c3', words35(['лев']))], { lives: 3, points: 5000 });
   const data = { ...makeRoundsQuiz([round], { leaderboard: 'end' }), title: 'Думай інакше натовп 35' };
   const saved = await host.request.post(`${base}/api/quizzes`, { data });
   expect(saved.ok(), await saved.text()).toBe(true);

@@ -10,7 +10,7 @@ afterEach(cleanup);
 
 const question = { type: 'think', text: 'Напишіть колір веселки', imageUrl: null, video: null, timeLimit: 30, points: 0, choices: [] } as unknown as PublicQuestion;
 const alive: PlayerThink = { lives: 3, status: 'alive', verdict: null, place: null };
-const row = (over: Partial<ThinkRow> = {}): ThinkRow => ({ id: 'p1', nickname: 'Олена', lives: 3, out: false, answered: false, answer: null, verdict: null, lost: false, overridden: false, ...over });
+const row = (over: Partial<ThinkRow> = {}): ThinkRow => ({ id: 'p1', nickname: 'Олена', lives: 3, out: false, answered: false, answer: null, verdict: null, lost: false, overridden: false, matched: null, ...over });
 const info = (over: Partial<ThinkInfo> = {}): ThinkInfo => ({ lives: 3, points: 10000, index: 0, total: 5, rows: [row(), row({ id: 'p2', nickname: 'Хосе' })], words: null, places: null, ...over });
 const host = (over: Partial<HostThink> = {}): HostThink => ({ ...info(), draft: [], editable: true, canReveal: false, answers: [], ...over });
 const okSend = () => vi.fn<Send>(async () => ({ ok: true as const }));
@@ -149,6 +149,24 @@ describe('HostThinkWords', () => {
     }
   });
 
+  it('after the timer with no words typing never saves by itself — only the button commits the one change', async () => {
+    vi.useFakeTimers();
+    try {
+      const send = okSend();
+      render(<HostThinkWords think={host({ draft: [], editable: true })} phase="locked" send={send} />);
+      fireEvent.change(screen.getByLabelText(t('thinkWordLabel', { index: 1 })), { target: { value: 'чер' } });
+      await vi.advanceTimersByTimeAsync(5000);
+      expect(send).not.toHaveBeenCalled();
+      fireEvent.change(screen.getByLabelText(t('thinkWordLabel', { index: 1 })), { target: { value: 'червоний' } });
+      fireEvent.click(screen.getByRole('button', { name: t('thinkHostSave') }));
+      await vi.advanceTimersByTimeAsync(0);
+      expect(send).toHaveBeenCalledTimes(1);
+      expect(send).toHaveBeenCalledWith('host:think-words', { words: [{ word: 'червоний', synonyms: [] }] });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('after the timer with no words the host still can write one', () => {
     render(<HostThinkWords think={host({ draft: [], editable: true })} phase="locked" send={okSend()} />);
     expect(screen.getByText(t('thinkHostLate'))).toBeTruthy();
@@ -176,6 +194,15 @@ describe('HostThinkAnswers', () => {
     await waitFor(() => expect(send).toHaveBeenCalledWith('host:override', { playerId: 'p2', grade: 'wrong' }));
     // Без відповіді — без кнопок: 2 рядки з кнопками.
     expect(screen.getAllByRole('button')).toHaveLength(2);
+  });
+
+  it('no verdict tag while the host has no words yet', () => {
+    const { rerender } = render(<HostThinkAnswers think={host({ answers, draft: [] })} phase="question" send={okSend()} />);
+    expect(screen.queryByText(t('thinkHostSafe'))).toBeNull();
+    expect(screen.queryByText(t('thinkHostHit'))).toBeNull();
+    rerender(<HostThinkAnswers think={host({ answers, draft: [{ word: 'червоний', synonyms: [] }] })} phase="question" send={okSend()} />);
+    expect(screen.getByText(t('thinkHostSafe'))).toBeTruthy();
+    expect(screen.getByText(t('thinkHostHit'))).toBeTruthy();
   });
 });
 
@@ -206,6 +233,17 @@ describe('ThinkStage and ThinkReveal', () => {
     expect(screen.getByText('Хосе').closest('li')!.textContent).toContain('—');
     expect(container.querySelectorAll('.think-heart.is-lost')).toHaveLength(2);
     expect(container.querySelector('.think-overridden')).toBeNull();
+  });
+
+  it('a hit names the host word it matched', () => {
+    const think = info({
+      words: [{ word: 'червоний', synonyms: [] }, { word: 'синій', synonyms: ['блакитний'] }],
+      rows: [row({ answer: 'Синя', verdict: 'hit', lives: 2, lost: true, matched: 1 }), row({ id: 'p2', nickname: 'Хосе', answer: 'Червінь', verdict: 'hit', lives: 2, lost: true, overridden: true })],
+    });
+    const { container } = render(<ThinkReveal think={think} big />);
+    expect(screen.getByText('Синя').closest('li')!.querySelector('.think-matched')?.textContent).toBe('≈ синій');
+    // Ручний збіг — без «≈»: програма ні з чим не збіглася.
+    expect(container.querySelectorAll('.think-matched')).toHaveLength(1);
   });
 
   it('a manual verdict is marked for everyone', () => {

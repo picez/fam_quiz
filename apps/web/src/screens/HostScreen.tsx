@@ -1511,7 +1511,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
           <TruthRecapView recap={view.truth.recap} />
         </section>
       )}
-      {phase === 'round_end' && view.think?.places != null && (
+      {(phase === 'round_end' || phase === 'finished') && view.think?.places != null && view.think.places.length > 0 && (
         <section className="panel">
           <ThinkPlaces think={view.think} />
         </section>

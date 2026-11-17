@@ -436,9 +436,9 @@ function thinkResult(
     const verdict = answer === '' ? 'empty' : think.hit.includes(participantId) ? 'hit' : 'safe';
     const lost = think.revealed && verdict !== 'safe';
     lives[nickname] = lost ? before - 1 : before;
-    rows.push({ nickname, answer, verdict, lost });
+    rows.push({ nickname, answer, verdict, lost, ...((think.manual ?? []).includes(participantId) ? { manual: true as const } : {}) });
   }
-  return { words: think.words.map((w) => w.word), lives, rows, ...(think.places === undefined ? {} : { places: think.places }) };
+  return { words: think.words, lives, rows, ...(think.places === undefined ? {} : { places: think.places }) };
 }
 
 /**

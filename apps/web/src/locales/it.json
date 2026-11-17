@@ -4155,6 +4155,7 @@
   "err_think_spectator": "In questa domanda guardi soltanto.",
   "err_think_word": "La parola è vuota o troppo lunga: fino a 40 caratteri.",
   "summaryThink": "❤️ {lives} all’inizio · domande: {count} · al 1º posto {points}",
+  "thinkSettingsLegend": "Vite e punti",
   "thinkLivesLabel": "Vite all’inizio",
   "thinkPointsLabel": "Punti per il 1º posto",
   "thinkSettingsNote": "Le domande non hanno un prezzo: i punti li danno i posti a fine round, dalla somma per il 1º posto fino a 0 per l’ultimo.",
