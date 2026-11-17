@@ -2738,7 +2738,11 @@ function playerDuel(state: GameState, playerId: string): PlayerDuel | null {
     tries: duelist ? duelTries(state, playerId) : [],
     canAnswer: duelist && state.phase === 'duel' && duel.stage === 'question' && !state.paused && currentDuelPlay(state)?.winnerId === null,
     canPick: state.phase === 'duel' && duel?.stage === 'category' && duel.challengerId === playerId && !state.paused,
-    bet: duelBets(state) !== null && duelBettors(state).includes(playerId) ? { side: duel?.bets?.[playerId] ?? null, can: betsOpen(state) && !state.paused } : null,
+    // Ставка (39): лише ставцеві; у командній грі playerId — команда, can лише капітанові ставить playerViewOf.
+    bet:
+      duel !== null && duelBetStake(state.quiz) > 0 && duelBettors(state).includes(playerId)
+        ? { side: duel.bets !== undefined && Object.hasOwn(duel.bets, playerId) ? duel.bets[playerId] : null, can: betsOpen(state) && !state.paused }
+        : null,
   };
 }
 
@@ -3731,7 +3735,7 @@ function playerViewOf(state: GameState, playerId: string, now?: number): PlayerV
   return {
     ...withDrawerText(state, member.id, view),
     teams: ownAnswerers(state, view.teams, teamId),
-    me: { ...view.me, ...(view.me.moreless === undefined ? {} : { moreless: { ...view.me.moreless, canPick: view.me.moreless.canPick && answererOf(state, teamId) === member.id } }), answer: vote, vote: votePrompt(state, member.id), appeal: playerAppeal(state, member.id, teamId), ...optional('truth', playerTruth(state, member.id)), ...optional('quest', playerQuest(state, teamId)), ...optional('drawing', playerDrawing(state, member.id)), ...optional('jigsaw', playerJigsaw(state, teamId, member.id, now)), ...optional('spotdiff', playerSpotdiff(state, teamId)), ...optional('memory', playerMemory(state, teamId, member.id, now)), ...optional('melody', playerSnippets(state, teamId, now, 'melody')), ...optional('videoclip', playerSnippets(state, teamId, now, 'videoclip')) },
+    me: { ...view.me, ...(view.me.moreless === undefined ? {} : { moreless: { ...view.me.moreless, canPick: view.me.moreless.canPick && answererOf(state, teamId) === member.id } }), ...(view.me.duel?.bet == null ? {} : { duel: { ...view.me.duel, bet: { ...view.me.duel.bet, can: view.me.duel.bet.can && captainOf(state, teamId) === member.id } } }), answer: vote, vote: votePrompt(state, member.id), appeal: playerAppeal(state, member.id, teamId), ...optional('truth', playerTruth(state, member.id)), ...optional('quest', playerQuest(state, teamId)), ...optional('drawing', playerDrawing(state, member.id)), ...optional('jigsaw', playerJigsaw(state, teamId, member.id, now)), ...optional('spotdiff', playerSpotdiff(state, teamId)), ...optional('memory', playerMemory(state, teamId, member.id, now)), ...optional('melody', playerSnippets(state, teamId, now, 'melody')), ...optional('videoclip', playerSnippets(state, teamId, now, 'videoclip')) },
     away: ownAway(state, member.id),
     lastAway: lastAway(state, member.id),
     team,

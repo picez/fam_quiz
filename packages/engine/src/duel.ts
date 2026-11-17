@@ -225,6 +225,7 @@ function settleBets(state: GameState, duel: DuelState, winnerId: string, now: nu
   return state.players.reduce((s, p) => {
     if (!Object.hasOwn(bets, p.id)) return s;
     const target = bets[p.id] === 'challenger' ? duel.challengerId : duel.opponentId;
+    // Без перевірки adjustScore: betStake ≤ LIMITS.maxDuelStake 5000 < LIMITS.maxAdjust 10_000, тож межа коригування не порушується.
     return addAdjustment(s, p.id, target === winnerId ? stake : -stake, now, 'duelbet', { target });
   }, state);
 }
