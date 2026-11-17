@@ -238,6 +238,21 @@ function reviveMelody(base: Extract<Question, { type: 'melody' }>): Question {
 }
 
 /**
+ * «Відео за фрагментами» з чернетки (36): clip.id — лише за YOUTUBE_ID (інакше ''), start — ціле 0…maxVideoStart (інакше 0), muted — boolean (інакше true),
+ * написання — як у мелодії. Без відео, звуку, «перевертання» й підказки.
+ */
+function reviveVideoclip(base: Extract<Question, { type: 'videoclip' }>): Question {
+  const { hint: _hint, audio: _audio, reveal: _reveal, ...rest } = base;
+  const raw: unknown = base.clip;
+  const clip = isObjectLike(raw) ? raw : {};
+  const id = typeof clip.id === 'string' && YOUTUBE_ID.test(clip.id) ? clip.id : '';
+  const start = typeof clip.start === 'number' && Number.isInteger(clip.start) && clip.start >= 0 && clip.start <= LIMITS.maxVideoStart ? clip.start : 0;
+  const muted: unknown = base.muted;
+  const accepted = Array.isArray(base.accepted) ? (base.accepted as unknown[]).map((item) => (typeof item === 'string' ? item.slice(0, LIMITS.answerText) : '')) : [];
+  return { ...rest, video: null, clip: { id, start }, muted: typeof muted === 'boolean' ? muted : true, accepted: accepted.length === 0 ? [''] : accepted.slice(0, LIMITS.maxAccepted) };
+}
+
+/**
  * Судоку з чернетки: сітка — 36 цифр 0–6 (інакше порожня сітка ведучого), рівень і seed — з переліку й цілі (інакше «свої», без seed);
  * без відео, звуку, «перевертання» й підказки.
  */
@@ -403,6 +418,7 @@ function revive(stored: Question): Question {
   if (base.type === 'spotdiff') return reviveSpotdiff(base);
   if (base.type === 'memory') return reviveMemory(base);
   if (base.type === 'melody') return reviveMelody(base);
+  if (base.type === 'videoclip') return reviveVideoclip(base);
   if (base.type === 'think') return reviveThink(base);
   if (base.type === 'poll') {
     const options = Array.isArray(base.options)

@@ -141,6 +141,7 @@ export type JigsawQuestion = Extract<Question, { type: 'jigsaw' }>;
 export type SpotdiffQuestion = Extract<Question, { type: 'spotdiff' }>;
 export type MemoryQuestion = Extract<Question, { type: 'memory' }>;
 export type MelodyQuestion = Extract<Question, { type: 'melody' }>;
+export type VideoclipQuestion = Extract<Question, { type: 'videoclip' }>;
 
 /** Порожня половина пари «Пам’яті»: текст без картинки. */
 export const blankMemoryCard = (): MemoryCard => ({ text: '' });
@@ -370,7 +371,7 @@ function build(common: Common, type: QuestionType): Question {
       return { ...rest, video: null, type, text: rest.text === '' ? t('melodyDefaultText') : rest.text, timeLimit: LIMITS.defaultMelodyTime, points: LIMITS.defaultPoints, track: { source: 'file', url: '', start: 0 }, accepted: [''] };
     }
     case 'videoclip': {
-      // 36: чернетка — решта редактора (перетворення, перевірки, місце) у задачі 7; власне джерело — clip: без video, звуку, «перевертання» й підказки.
+      // Власне джерело — clip: без video, загального звуку, «перевертання» й підказки (бафів немає). Порожній clip.id — чернетка (problemVideoclipLink).
       const { hint: _hint, audio: _audio, reveal: _reveal, ...rest } = common;
       return { ...rest, video: null, type, text: rest.text === '' ? t('videoclipDefaultText') : rest.text, timeLimit: LIMITS.defaultVideoclipTime, points: LIMITS.defaultPoints, clip: { id: '', start: 0 }, muted: true, accepted: [''] };
     }
@@ -433,7 +434,10 @@ export function newSpare(type: QuestionType = 'single'): Question {
 /** Змінює тип, зберігаючи текст, підказку, час і бали; між single і multi зберігаються й варіанти. */
 export function changeType(question: Question, type: QuestionType): Question {
   if (question.type === type) return question;
-  const { id, text, imageUrl, video, timeLimit, points, hint, audio, reveal, betsCut } = question;
+  const { id, imageUrl, video, timeLimit, points, hint, audio, reveal, betsCut } = question;
+  // Типовий текст «Відео за фрагментами» не переживає свого типу (build нового типу підставить свій); так само типовий текст мелодії, що стає відео.
+  const staleText = (question.type === 'videoclip' && question.text === t('videoclipDefaultText')) || (question.type === 'melody' && type === 'videoclip' && question.text === t('melodyDefaultText'));
+  const text = staleText ? '' : question.text;
   const keepsReveal = reveal !== undefined && (REVEAL_TYPES as readonly string[]).includes(type);
   const unscored = (value: QuestionType) => value === 'poll' || value === 'wordcloud';
   // Опитування й хмара без балів; з них в інший тип повертається типова ціна.
@@ -476,6 +480,9 @@ export function changeType(question: Question, type: QuestionType): Question {
   // Текст, «Хто я?» і мелодія: написання ті самі.
   if ((question.type === 'text' || question.type === 'clues') && type === 'melody') return { ...build(common, type), accepted: [...question.accepted] } as Question;
   if (question.type === 'melody' && type === 'text') return { ...build(common, type), accepted: [...question.accepted] } as Question;
+  // Відео за фрагментами: написання ті самі, що в тексті, «Хто я?» і мелодії (36).
+  if ((question.type === 'text' || question.type === 'clues' || question.type === 'melody') && type === 'videoclip') return { ...build(common, type), accepted: [...question.accepted] } as Question;
+  if (question.type === 'videoclip' && (type === 'text' || type === 'clues' || type === 'melody')) return { ...build(common, type), accepted: [...question.accepted] } as Question;
   // Текст і малюнок: написання ті самі, перше — слово художника.
   if ((question.type === 'text' || question.type === 'drawing') && (type === 'text' || type === 'drawing')) return { ...build(common, type), accepted: [...question.accepted] } as Question;
   return build(common, type);
@@ -526,6 +533,8 @@ export function duplicateQuestion(question: Question): Question {
       return { ...question, id, accepted: [...question.accepted] };
     case 'melody':
       return { ...question, id, track: { ...question.track }, accepted: [...question.accepted] };
+    case 'videoclip':
+      return { ...question, id, clip: { ...question.clip }, accepted: [...question.accepted] };
     case 'clues':
       return { ...question, id, clues: [...question.clues], accepted: [...question.accepted] };
     case 'pin':
@@ -1011,6 +1020,12 @@ const cleanBody = (question: Question): Question => {
       const [title = '', ...others] = question.accepted.map((s) => s.trim());
       return { ...rest, text, video: null, accepted: [title, ...others.filter((s) => s !== '')] };
     }
+    case 'videoclip': {
+      // Як мелодія: відповідь — перше написання (порожнє лишається для перевірки), порожні додаткові відкидаються. Без відео, звуку, «перевертання» й підказки.
+      const { hint: _hint, audio: _audio, reveal: _reveal, ...rest } = question;
+      const [answer = '', ...others] = question.accepted.map((s) => s.trim());
+      return { ...rest, text, video: null, accepted: [answer, ...others.filter((s) => s !== '')] };
+    }
     case 'memory': {
       // Картки лише в парах: текст без пробілів по краях, не довший за поле; без відео, звуку, «перевертання» й підказки.
       const { hint: _hint, audio: _audio, reveal: _reveal, ...rest } = question;
@@ -1182,19 +1197,21 @@ interface Place {
   memory: boolean;
   /** «Мелодія за нотами»: лише класика (правило melody_place схеми). */
   melody: boolean;
+  /** «Відео за фрагментами»: лише класика (правило videoclip_place схеми). */
+  videoclip: boolean;
 }
 
-const ANYWHERE: Place = { reveal: true, clues: true, pin: true, wall: true, vote: true, bluff: true, survey: true, clouds: [], voice: false, sort: true, chain: true, wordladder: true, timedlist: true, letterwords: true, moreless: true, drawing: true, puzzle: false, onlyPuzzles: false, jigsaw: true, spotdiff: true, memory: true, melody: true };
+const ANYWHERE: Place = { reveal: true, clues: true, pin: true, wall: true, vote: true, bluff: true, survey: true, clouds: [], voice: false, sort: true, chain: true, wordladder: true, timedlist: true, letterwords: true, moreless: true, drawing: true, puzzle: false, onlyPuzzles: false, jigsaw: true, spotdiff: true, memory: true, melody: true, videoclip: true };
 /** Бліц і фінал: нічого з нового. Класика — усе, а хмари для «100 до 1» — ті, що вище. */
 const roundPlace = (quiz: Quiz, roundIndex: number, questionIndex: number): Place =>
   quiz.rounds[roundIndex].type === 'classic'
     ? { ...ANYWHERE, clouds: cloudSources(quiz, roundIndex, questionIndex).map((cloud) => cloud.id) }
-    : { reveal: false, clues: false, pin: false, wall: false, vote: false, bluff: false, survey: false, clouds: null, voice: false, sort: true, chain: quiz.rounds[roundIndex].type !== 'blitz', wordladder: quiz.rounds[roundIndex].type === 'final' || quiz.rounds[roundIndex].type === 'bets' || quiz.rounds[roundIndex].type === 'auction', timedlist: false, letterwords: false, moreless: false, drawing: false, puzzle: quiz.rounds[roundIndex].type === 'puzzles', onlyPuzzles: quiz.rounds[roundIndex].type === 'puzzles', jigsaw: quiz.rounds[roundIndex].type === 'puzzles', spotdiff: quiz.rounds[roundIndex].type === 'puzzles', memory: quiz.rounds[roundIndex].type === 'puzzles', melody: false };
+    : { reveal: false, clues: false, pin: false, wall: false, vote: false, bluff: false, survey: false, clouds: null, voice: false, sort: true, chain: quiz.rounds[roundIndex].type !== 'blitz', wordladder: quiz.rounds[roundIndex].type === 'final' || quiz.rounds[roundIndex].type === 'bets' || quiz.rounds[roundIndex].type === 'auction', timedlist: false, letterwords: false, moreless: false, drawing: false, puzzle: quiz.rounds[roundIndex].type === 'puzzles', onlyPuzzles: quiz.rounds[roundIndex].type === 'puzzles', jigsaw: quiz.rounds[roundIndex].type === 'puzzles', spotdiff: quiz.rounds[roundIndex].type === 'puzzles', memory: quiz.rounds[roundIndex].type === 'puzzles', melody: false, videoclip: false };
 /** Клітинка поля: усе — на звичайній з телефона; «Хто я?» — ще й на усній; бліц-клітинка — нічого. */
 const cellPlace = (round: BoardRound, cell: BoardCell): Place => {
   const normal = cell.kind === 'normal';
   const phone = normal && cellAnswerMode(round, cell) === 'phone';
-  return { reveal: phone, clues: normal, pin: phone, wall: phone, vote: false, bluff: false, survey: phone, clouds: null, voice: normal && !phone, sort: phone, chain: false, wordladder: false, timedlist: phone, letterwords: phone, moreless: phone, drawing: false, puzzle: false, onlyPuzzles: false, jigsaw: false, spotdiff: false, memory: false, melody: false };
+  return { reveal: phone, clues: normal, pin: phone, wall: phone, vote: false, bluff: false, survey: phone, clouds: null, voice: normal && !phone, sort: phone, chain: false, wordladder: false, timedlist: phone, letterwords: phone, moreless: phone, drawing: false, puzzle: false, onlyPuzzles: false, jigsaw: false, spotdiff: false, memory: false, melody: false, videoclip: false };
 };
 
 /** Що заважає зберегти клітинку (уже почищену); null — клітинка готова. Одне джерело для problemsOf, firstProblem і cellState. */
@@ -1278,6 +1295,7 @@ function problemKey(question: Question, place: Place = ANYWHERE): TextKey | null
   if (question.type === 'spotdiff' && !place.spotdiff) return 'problemSpotdiffPlace';
   if (question.type === 'memory' && !place.memory) return 'problemMemoryPlace';
   if (question.type === 'melody' && !place.melody) return 'problemMelodyPlace';
+  if (question.type === 'videoclip' && !place.videoclip) return 'problemVideoclipPlace';
   if (!fitsPuzzlesRound(question) && place.onlyPuzzles) return 'problemPuzzlesType';
   const { timeLimit, points } = question;
   const inLimits =
@@ -1287,7 +1305,7 @@ function problemKey(question: Question, place: Place = ANYWHERE): TextKey | null
     // У «Більше чи менше» ціна — сума балів порівнянь: вона й межа за неї мають власні тексти нижче.
     (question.type === 'moreless' || (Number.isInteger(points) && points >= 0 && points <= LIMITS.maxPoints));
   // У «Словах з літер» поле балів зветься «Сума» (за одиницю).
-  if (!inLimits) return question.type === 'letterwords' ? 'problemLettersLimits' : question.type === 'jigsaw' ? 'problemJigsawLimits' : question.type === 'spotdiff' ? 'problemSpotdiffLimits' : question.type === 'memory' ? 'problemMemoryLimits' : question.type === 'melody' ? 'problemMelodyLimits' : isPuzzle(question) ? 'problemPuzzleLimits' : 'problemLimits';
+  if (!inLimits) return question.type === 'letterwords' ? 'problemLettersLimits' : question.type === 'jigsaw' ? 'problemJigsawLimits' : question.type === 'spotdiff' ? 'problemSpotdiffLimits' : question.type === 'memory' ? 'problemMemoryLimits' : question.type === 'melody' ? 'problemMelodyLimits' : question.type === 'videoclip' ? 'problemVideoclipLimits' : isPuzzle(question) ? 'problemPuzzleLimits' : 'problemLimits';
 
   switch (question.type) {
     case 'single':
@@ -1480,6 +1498,12 @@ function problemKey(question: Question, place: Place = ANYWHERE): TextKey | null
       const valid = track.source === 'file' ? AUDIO_URL.test(track.url) : YOUTUBE_ID.test(track.id);
       if (!valid || !Number.isInteger(track.start) || track.start < 0 || track.start > LIMITS.maxVideoStart) return 'problemMelodyTrack';
       if (question.accepted.length === 0 || question.accepted.some((s) => s.trim() === '')) return 'problemMelodyAccepted';
+      break;
+    }
+    case 'videoclip': {
+      const { clip } = question;
+      if (!YOUTUBE_ID.test(clip.id) || !Number.isInteger(clip.start) || clip.start < 0 || clip.start > LIMITS.maxVideoStart) return 'problemVideoclipLink';
+      if (question.accepted.length === 0 || question.accepted.some((s) => s.trim() === '')) return 'problemVideoclipAccepted';
       break;
     }
     case 'drawing':
@@ -1713,7 +1737,7 @@ const crosswordMissing = (question: Crossword): string[] => {
 const problemText = (key: TextKey, index: number, question?: Question) =>
   t(key, {
     index,
-    min: key === 'problemCrosswordWord' ? LIMITS.minCrosswordWord : key === 'problemCrosswordKey' ? LIMITS.minCrosswordKey : key === 'problemCrosswordCount' ? LIMITS.minCrosswordWords : key === 'problemPuzzleLimits' ? LIMITS.minTime : key === 'problemJigsawLimits' ? LIMITS.minJigsawTime : key === 'problemSpotdiffLimits' ? LIMITS.minSpotdiffTime : key === 'problemMemoryLimits' ? LIMITS.minMemoryTime : key === 'problemMelodyLimits' ? LIMITS.minMelodyTime : key === 'problemBluffSpares' ? LIMITS.minBluffSpares : key === 'problemBluffChoiceTime' ? LIMITS.minTime : key === 'problemListItems' ? LIMITS.minListItems : key === 'problemLettersSet' ? LIMITS.minLetterSet : key === 'problemMoreLessPairs' ? LIMITS.minMoreLessPairs : LIMITS.minAudioSeconds,
+    min: key === 'problemCrosswordWord' ? LIMITS.minCrosswordWord : key === 'problemCrosswordKey' ? LIMITS.minCrosswordKey : key === 'problemCrosswordCount' ? LIMITS.minCrosswordWords : key === 'problemPuzzleLimits' ? LIMITS.minTime : key === 'problemJigsawLimits' ? LIMITS.minJigsawTime : key === 'problemSpotdiffLimits' ? LIMITS.minSpotdiffTime : key === 'problemMemoryLimits' ? LIMITS.minMemoryTime : key === 'problemMelodyLimits' ? LIMITS.minMelodyTime : key === 'problemVideoclipLimits' ? LIMITS.minVideoclipTime : key === 'problemBluffSpares' ? LIMITS.minBluffSpares : key === 'problemBluffChoiceTime' ? LIMITS.minTime : key === 'problemListItems' ? LIMITS.minListItems : key === 'problemLettersSet' ? LIMITS.minLetterSet : key === 'problemMoreLessPairs' ? LIMITS.minMoreLessPairs : LIMITS.minAudioSeconds,
     max:
       key === 'problemCrosswordWord'
         ? LIMITS.maxCrosswordWord
