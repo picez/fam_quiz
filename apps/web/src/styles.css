@@ -24603,7 +24603,7 @@ input.sudoku-editor-cell:focus-visible {
 }
 
 /* Сцена: слова більші. */
-.stage-board .alike-words {
+.stage-question .alike-words {
   font-size: 1.75rem;
 }
 
@@ -24713,6 +24713,30 @@ input.sudoku-editor-cell:focus-visible {
 .stage .overshoot-rows.is-many .overshoot-limit {
   grid-column: 1 / -1;
   padding: 0 0.375rem;
+}
+
+/* Сцена, розкриття «Думай як усі» й «Не перебільш»: запитання не розтягується (групи й рядки одразу під ним),
+   а знизу — запас під «Читати вголос», щоб кут не накривав останні картки й рядки. */
+.stage-question:has(.alike-reveal) .stage-main,
+.stage-question:has(.overshoot) .stage-main {
+  flex: 0 0 auto;
+}
+
+.stage-question:has(.alike-reveal),
+.stage-question:has(.overshoot) {
+  gap: 2vh;
+  padding-bottom: 3.25rem;
+}
+
+/* Понад 12 груп чи рядків: тема нижча й проміжки менші — 24 гравці вміщуються на 1280×720. */
+.stage-question:has(.alike-groups.is-many),
+.stage-question:has(.overshoot-rows.is-many) {
+  gap: 1vh;
+}
+
+.stage-question:has(.alike-groups.is-many) .question,
+.stage-question:has(.overshoot-rows.is-many) .question {
+  font-size: clamp(1.5rem, 3vw, 3rem);
 }
 
 /* ---------- Світла тема ----------
