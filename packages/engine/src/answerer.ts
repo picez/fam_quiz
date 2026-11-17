@@ -56,7 +56,7 @@ export function queueNext(state: GameState, teamId: string): string | null {
  * Бліц, опитування й хмара: відповідача немає (натиснувший чи кожен сам), лишається капітан.
  * «Правда про гравця» (28b): вгадує капітан; команда автора не позначена окремо — інакше сцена видала б автора.
  */
-/** Відповідача немає: бліц, опитування й «хмара», «Правда про гравця» (28b) і головоломки (28d: спільна сітка всієї команди). */
+/** Відповідача немає: бліц, опитування й «хмара», «Правда про гравця» (28b) і головоломки (28d: спільна сітка всієї команди). «Думай інакше» (35) — ні: слово пише відповідач 12g. */
 const freeForAll = (play: Play): boolean => play.blitz !== undefined || isUnscored(play.question) || play.truth !== undefined || isPuzzle(play.question) || play.question.type === 'jigsaw' || play.question.type === 'spotdiff' || play.question.type === 'memory' || play.question.type === 'melody';
 
 /**

@@ -31,6 +31,8 @@ import {
   timedlist,
   truthRound,
   puzzlesRound,
+  think,
+  thinkRound,
   sudoku,
   crosswordFull,
   letterwords,
@@ -207,6 +209,15 @@ describe('buffs', () => {
     expect(takeBuff(s, 'p1', 'double', T0, rng0)).toEqual({ ok: false, error: 'wrong_phase' });
     expect(buffBlock(s, 'p1', 'double')).toBe('off_puzzles');
     expect(buffQuestions(makeRoundsQuiz([puzzlesRound('pz', [sudoku])]))).toEqual([]);
+  });
+
+  it('buffs are off in the think round', () => {
+    const words = [{ word: 'червоний', synonyms: [] }];
+    const quiz = makeRoundsQuiz([thinkRound('th', [think('t1', words), think('t2', words), think('t3', words)])], { buffs });
+    const s = startRound(lobbyWith(quiz, 'Оля', 'Тарас'), T0, rng0);
+    expect(takeBuff(s, 'p1', 'double', T0, rng0)).toEqual({ ok: false, error: 'wrong_phase' });
+    expect(buffBlock(s, 'p1', 'double')).toBe('off_think');
+    expect(buffQuestions(quiz)).toEqual([]);
   });
 
   it('an auction round has no buffs and no debuff shop (27b)', () => {

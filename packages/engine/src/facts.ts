@@ -42,7 +42,8 @@ export function factInput(state: GameState): FactInput {
     const play = state.plays[index];
     const { roundIndex } = play;
     number = index > 0 && state.plays[index - 1].roundIndex === roundIndex ? number + 1 : 1;
-    const scored = !isUnscored(play.question);
+    // «Думай інакше» (35): записи без балів — «в безпеці» чи «збіг», не правильність; у цікавинки не йдуть.
+    const scored = !isUnscored(play.question) && play.think === undefined;
     questions.push({
       index,
       roundIndex,
