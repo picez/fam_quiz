@@ -2011,7 +2011,10 @@ export function problemsOf(quiz: Quiz): string[] {
   else if (teams && teamNames.length !== teams.count) problems.push(t('problemTeamCount'));
   else if (new Set(teamNames.map(answerKey)).size < teamNames.length) problems.push(t('problemTeamNames'));
   // «Шпигун» не грається командами (spy_teams схеми): запуск недоступний, поки є команди й хоч одне таке запитання.
-  if (teams && draft.rounds.some((round) => [...roundQuestions(round), ...(round.type === 'survival' ? round.trials : [])].some((question) => question.type === 'spy'))) problems.push(t('problemSpyTeams'));
+  if (teams) {
+    const spyAt = draft.rounds.flatMap((round) => [...roundQuestions(round), ...(round.type === 'survival' ? round.trials : [])]).findIndex((question) => question.type === 'spy');
+    if (spyAt >= 0) problems.push(t('problemSpyTeams', { index: spyAt + 1 }));
+  }
   const prices = Object.values(draft.settings.debuffPrices ?? {});
   if (prices.some((price) => !Number.isInteger(price) || price < LIMITS.minDebuffPrice || price > LIMITS.maxDebuffPrice)) {
     problems.push(t('problemDebuffPrice', { min: LIMITS.minDebuffPrice, max: LIMITS.maxDebuffPrice }));

@@ -39,8 +39,8 @@ describe('SpyEditor', () => {
 
   it('same words warn', () => {
     const { rerender } = render(<SpyEditor question={spy({ accepted: ['Потяг'], spyWord: 'автобус' })} onChange={vi.fn()} />);
-    expect(screen.queryByText(t('problemSpySame'))).toBeNull();
+    expect(screen.queryByText(t('problemSpySame', { index: 1 }).replace(/^[^:]*:\s*/, ''))).toBeNull();
     rerender(<SpyEditor question={spy({ accepted: ['Потяг'], spyWord: 'потяг' })} onChange={vi.fn()} />);
-    screen.getByText(t('problemSpySame'));
+    screen.getByText(t('problemSpySame', { index: 1 }).replace(/^[^:]*:\s*/, ''));
   });
 });

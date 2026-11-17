@@ -42,7 +42,7 @@ export function SpyEditor({ question, onChange }: { question: Spy; onChange: (q:
       <p className="meta">{t('spySpyWordHint')}</p>
       {same && (
         <p className="meta" role="alert">
-          {t('problemSpySame')}
+          {t('problemSpySame', { index: 1 }).replace(/^[^:]*:\s*/, '')}
         </p>
       )}
 

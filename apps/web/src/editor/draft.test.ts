@@ -3591,30 +3591,30 @@ describe('plan 38 editors: spy', () => {
 
   it('a filled spy is fine in classic, a problem in blitz and on a board cell', () => {
     expect(problemsOf(quizWith(spy()))).toEqual([]);
-    expect(problemsOf(blitz(spy()))).toEqual([t('problemSpyPlace')]);
+    expect(problemsOf(blitz(spy()))).toEqual([t('problemSpyPlace', { index: 1 })]);
     const board = { ...newBoardRound(), categories: [{ ...newBoardRound().categories[0], title: 'К', cells: [{ ...newBoardRound().categories[0].cells[0], question: spy() }] }] };
-    expect(problemsOf({ ...quizWith(), rounds: [board as BoardRound] })).toContain(t('problemCell', { category: 1, problem: t('problemSpyPlace').charAt(0).toLowerCase() + t('problemSpyPlace').slice(1) }));
+    expect(problemsOf({ ...quizWith(), rounds: [board as BoardRound] })).toContain(t('problemCell', { category: 1, problem: t('problemSpyPlace', { index: 1 }).charAt(0).toLowerCase() + t('problemSpyPlace', { index: 1 }).slice(1) }));
   });
 
   it('a spy used as a spare is a problem', () => {
     const problems = problemsOf({ ...quizWith(filled(newQuestion('single'))), spares: [spy()] });
-    expect(problems).toEqual([t('problemSpare', { index: 1, problem: t('problemSpyPlace') })]);
+    expect(problems).toEqual([t('problemSpare', { index: 1, problem: t('problemSpyPlace', { index: 1 }).replace(/^[^:]*:\s*/, '') })]);
   });
 
   it('teams with a spy question is a problem, without teams or without a spy it is not', () => {
-    expect(problemsOf(withTeams(quizWith(spy())))).toEqual([t('problemSpyTeams')]);
+    expect(problemsOf(withTeams(quizWith(spy())))).toEqual([t('problemSpyTeams', { index: 1 })]);
     expect(problemsOf(quizWith(spy()))).toEqual([]);
     expect(problemsOf(withTeams(quizWith(filled(newQuestion('single')))))).toEqual([]);
   });
 
   it('the same words, a leaking text, empty words and a bad vote time are problems', () => {
-    expect(problemsOf(quizWith(spy({ spyWord: 'Потяг' })))).toEqual([t('problemSpySame')]);
-    expect(problemsOf(quizWith(spy({ accepted: ['потяг', 'поїзд'], spyWord: 'Поїзд' })))).toEqual([t('problemSpySame')]);
-    expect(problemsOf(quizWith(spy({ text: 'Тема: потяг' })))).toEqual([t('problemSpyLeak')]);
+    expect(problemsOf(quizWith(spy({ spyWord: 'Потяг' })))).toEqual([t('problemSpySame', { index: 1 })]);
+    expect(problemsOf(quizWith(spy({ accepted: ['потяг', 'поїзд'], spyWord: 'Поїзд' })))).toEqual([t('problemSpySame', { index: 1 })]);
+    expect(problemsOf(quizWith(spy({ text: 'Тема: потяг' })))).toEqual([t('problemSpyLeak', { index: 1 })]);
     expect(problemsOf(quizWith(spy({ text: 'Тема: автобуси' })))).toEqual([]);
     expect(problemsOf(quizWith(spy({ accepted: [''] })))).toEqual([t('problemSpyWordEmpty', { index: 1 })]);
     expect(problemsOf(quizWith(spy({ spyWord: ' ' })))).toEqual([t('problemSpyWordEmpty', { index: 1 })]);
-    expect(problemsOf(quizWith(spy({ accepted: ['а'.repeat(LIMITS.thinkWord + 1)] })))).toEqual([t('problemSpyWordLong')]);
+    expect(problemsOf(quizWith(spy({ accepted: ['а'.repeat(LIMITS.thinkWord + 1)] })))).toEqual([t('problemSpyWordLong', { index: 1 })]);
     expect(problemsOf(quizWith(spy({ voteTime: 1 })))).toEqual([t('problemSpyVoteTime', { index: 1, min: LIMITS.minTime, max: LIMITS.maxTime })]);
     expect(problemsOf(quizWith(spy({ voteTime: Number.NaN })))).toEqual([t('problemSpyVoteTime', { index: 1, min: LIMITS.minTime, max: LIMITS.maxTime })]);
   });
