@@ -1,6 +1,11 @@
 import { answerKey, autopilotCheck, quizSchema, type Question } from '@quiz/shared';
+import { readdirSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { alikeQuiz } from './alike-quiz';
+
+/** Слова порівняння: пару ловимо лише в рядку, що теж порівнює, а не в переліку варіантів. */
+const COMPARING = /довш|більш|більше|менше|вищ|раніш|давніш|глибш|важч|старш/;
 
 const quiz = alikeQuiz();
 const rounds = quiz.rounds.flatMap((r) => ('questions' in r ? [r.questions as Question[]] : []));
@@ -59,6 +64,26 @@ describe('the «Думай як усі» seed', () => {
     }
     const texts = questions.map((q) => answerKey(q.text));
     expect(new Set(texts).size).toBe(texts.length);
+  });
+
+  it('repeats no question of the other seeds', () => {
+    const dir = import.meta.dirname;
+    const files = (folder: string): string[] =>
+      readdirSync(folder, { withFileTypes: true }).flatMap((entry) =>
+        entry.isDirectory() ? files(join(folder, entry.name)) : entry.name.endsWith('.ts') && !entry.name.startsWith('alike-quiz') ? [join(folder, entry.name)] : [],
+      );
+    const others = files(dir).map((file) => readFileSync(file, 'utf8').toLowerCase());
+    expect(others.length).toBeGreaterThan(20);
+    const probes = [
+      ...questions.map((q) => q.text),
+      ...questions.flatMap((q) => (q.type === 'moreless' ? q.pairs.map((p) => `${p.a.text}|${p.b.text}`) : [])),
+    ];
+    const repeated = probes.filter((probe) => {
+      // Тема — дослівно; пара — обидва предмети (≥ 4 літер) разом у рядку іншого сіда, що порівнює.
+      const words = probe.toLowerCase().split(/[^\p{L}\p{N}]+/u).filter((w) => w.length >= 4 && !['головне', 'перебільшити'].includes(w));
+      return others.some((source) => source.split(/\r?\n/).some((line) => line.includes(probe.toLowerCase()) || (probe.includes('|') && words.every((w) => line.includes(w.slice(0, 5))) && COMPARING.test(line))));
+    });
+    expect(repeated).toEqual([]);
   });
 
   it('nothing about russia', () => {
