@@ -34,11 +34,12 @@ const duelInfo = (patch: Partial<DuelInfo> = {}): DuelInfo => ({
   winningAnswer: null,
   winner: null,
   stake: 300,
+  bets: null,
   ending: false,
   ...patch,
 });
 
-const playerDuel = (patch: Partial<PlayerDuel> = {}): PlayerDuel => ({ rights: null, tries: [], canAnswer: false, canPick: false, ...patch });
+const playerDuel = (patch: Partial<PlayerDuel> = {}): PlayerDuel => ({ rights: null, tries: [], canAnswer: false, canPick: false, bet: null, ...patch });
 
 const me = { id: 'p1', nickname: 'Оля', score: 0, rank: null, answer: null, result: null, blitz: null, final: null, wipeout: null, survival: null, ladder: null, chain: null, sort: null, survey: null, bluff: null, debuff: null, shop: null, duel: playerDuel(), buffs: null, perks: null, peekedBy: null, overtime: null, tip: null, vote: null, appeal: null, wall: null };
 

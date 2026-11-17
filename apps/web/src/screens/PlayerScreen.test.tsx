@@ -1104,7 +1104,7 @@ describe('PlayerScreen: blitz', () => {
         const rights = { canDeclare: true, opponents: [anna] };
         const splashing = intro(diceOf([], true), {
           splash: { kind: 'round', at: now, until: now + 2500 },
-          me: { ...view().me, duel: { rights, tries: [], canAnswer: false, canPick: false } },
+          me: { ...view().me, duel: { rights, tries: [], canAnswer: false, canPick: false, bet: null } },
         });
         render(<PlayerScreen view={splashing} hostOnline offsetMs={0} send={send} />);
         expect(rollButton()!.disabled).toBe(true);
@@ -2269,7 +2269,7 @@ describe('PlayerScreen: sort', () => {
 
   it('the duel button sits in the header and moves nothing', () => {
     const rights = { canDeclare: true, opponents: [{ playerId: 'p2', nickname: 'Петро' }] };
-    const duel = { rights: null, tries: [], canAnswer: false, canPick: false };
+    const duel = { rights: null, tries: [], canAnswer: false, canPick: false, bet: null };
     const classes = () => [...document.querySelector('.app.player')!.children].map((el) => el.className);
     show(onQuestion({ me: { ...me, duel } }));
     const without = classes();
@@ -2299,6 +2299,7 @@ describe('PlayerScreen: sort', () => {
       winningAnswer: null,
       winner: null,
       stake: 300,
+      bets: null,
       ending: false,
     };
     show(onQuestion({ duel: declared }));
@@ -2323,6 +2324,7 @@ describe('PlayerScreen: sort', () => {
       winningAnswer: null,
       winner: null,
       stake: 300,
+      bets: null,
       ending: false,
     };
     show(
@@ -2332,7 +2334,7 @@ describe('PlayerScreen: sort', () => {
         endsAt: Date.now() + 20_000,
         limitMs: 30_000,
         notice: { seq: 1, at: Date.now(), nickname: 'Тарас', points: 100 },
-        me: { ...me, score: 700, duel: { rights: null, tries: [], canAnswer: true, canPick: false } },
+        me: { ...me, score: 700, duel: { rights: null, tries: [], canAnswer: true, canPick: false, bet: null } },
       }),
     );
     expect(screen.getByRole('heading', { name: 'Дуель' })).toBeTruthy();
@@ -2689,6 +2691,7 @@ describe('PlayerScreen: splashes', () => {
       winningAnswer: null,
       winner: null,
       stake: 300,
+      bets: null,
       ending: false,
     };
     show(view({ phase: 'duel', duel, splash: at('duel', 2000) }));

@@ -137,6 +137,14 @@ export function duelLines(adjustments: GameAdjustment[]): string[] {
   return lines;
 }
 
+/** Ставки на дуель (39): одним рядком «Іра +100 (на Оля), Тарас −100 (на Петро)»; без ставок — []. */
+export function duelBetLines(adjustments: GameAdjustment[]): string[] {
+  const bets = adjustments.filter((adjustment) => adjustment.source === 'duelbet').sort((a, b) => a.seq - b.seq);
+  if (bets.length === 0) return [];
+  const list = bets.map((bet) => (bet.target ? t('historyDuelBet', { name: bet.nickname, points: signed(bet.points), target: bet.target }) : `${bet.nickname} ${signed(bet.points)}`));
+  return [t('historyDuelBets', { list: list.join(', ') })];
+}
+
 /** Перенесені з попередньої гри бали раунду (12r): «Перенесено з попередньої гри: Оля +42434, Петро +1200»; без них — null. */
 export function carryLine(adjustments: GameAdjustment[]): string | null {
   const carry = adjustments.filter((adjustment) => adjustment.source === 'carry');
@@ -438,7 +446,7 @@ export function GameHistory() {
             // Раунд без запитань показується, якщо в ньому ведучий нараховував бали.
             const roundAdjustments = game.adjustments.filter((adjustment) => adjustment.roundIndex === roundIndex);
             const adjustments = roundAdjustments.filter((adjustment) => adjustment.source === 'host');
-            const duels = duelLines(roundAdjustments);
+            const duels = [...duelLines(roundAdjustments), ...duelBetLines(roundAdjustments)];
             const purchases = debuffLines(roundAdjustments);
             const undoLines = historyUndoLines(game, roundIndex);
             const bonuses = [...survivalBonusLines(roundAdjustments), ...ladderPrizeLines(roundAdjustments)];

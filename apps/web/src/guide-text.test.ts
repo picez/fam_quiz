@@ -61,12 +61,14 @@ describe('guide texts', () => {
     const phone = guidePageText({ kind: 'phone' });
     expect(phone.lead).toHaveLength(3);
     expect(phone.items).toEqual([]);
-    const duel = (stake: number): GuidePage => ({ kind: 'duels', after: 4, questions: 3, stake, final: true });
+    const duel = (stake: number, bets = 0): GuidePage => ({ kind: 'duels', after: 4, questions: 3, stake, bets, final: true });
     expect(guidePageText(duel(300)).lead).toContain('Переможець забирає в суперника 300 балів.');
     expect(guidePageText(duel(0)).lead.join(' ')).not.toContain('забирає');
     expect(guidePageText(duel(0)).lead[0]).toBe('Після 4 запитань у шапці телефона з’явиться кнопка «⚔ Дуель». Викликати можна до фіналу.');
     expect(guidePageText(duel(0)).lead[2]).toContain('3');
-    expect(guidePageText({ kind: 'duels', after: 1, questions: 3, stake: 2, final: false }).lead).toEqual(
+    expect(guidePageText(duel(0, 100)).lead).toContain('Інші гравці можуть поставити на дуелянта: вгадав — +100, ні — −100.');
+    expect(guidePageText(duel(300, 0)).lead.join(' ')).not.toContain('поставити');
+    expect(guidePageText({ kind: 'duels', after: 1, questions: 3, stake: 2, bets: 0, final: false }).lead).toEqual(
       expect.arrayContaining(['Після 1 запитання у шапці телефона з’явиться кнопка «⚔ Дуель». Викликати можна до останнього раунду.', 'Переможець забирає в суперника 2 бали.']),
     );
   });

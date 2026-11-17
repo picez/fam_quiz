@@ -11,6 +11,7 @@ const LIMIT_KEYS = [
   'clueTailSeconds',
   'clueText',
   'defaultDebuffPrice',
+  'defaultDuelBetStake',
   'defaultTime',
   'defaultSurveyAnswers',
   'defaultWallMistakes',

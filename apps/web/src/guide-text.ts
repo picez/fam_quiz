@@ -170,6 +170,7 @@ export function guidePageText(page: GuidePage, autopilot = false): GuideText {
       const when = `${countText('guideDuelsWhen', page.after, { count: page.after })} ${t(page.final ? 'guideDuelsCutoffFinal' : 'guideDuelsCutoffLast')}`;
       const lead = [when, t('guideDuelsHow'), t('guideDuelsWin', { count: page.questions })];
       if (page.stake > 0) lead.push(countText('guideDuelsStake', page.stake, { stake: page.stake }));
+      if (page.bets > 0) lead.push(t('guideDuelsBets', { stake: page.bets }));
       return { title: t('guideDuelsTitle'), lead, items: [] };
     }
   }
