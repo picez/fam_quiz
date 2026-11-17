@@ -30,6 +30,8 @@ export const AUTOPILOT_MS = {
   diceShown: 4000,
   teamDice: 15_000,
   duelCategory: 15_000,
+  /** Вибір категорії дуелі, коли відкриті ставки (39). */
+  duelBets: 25_000,
   duelAnswer: 4000,
   duelResult: 5000,
   /** «Мільйонер»: без рішення — «Забираю». */

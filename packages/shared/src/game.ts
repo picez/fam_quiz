@@ -2,12 +2,17 @@
 export type Phase = 'lobby' | 'guide' | 'intro' | 'wager' | 'question' | 'locked' | 'reveal' | 'board' | 'leaderboard' | 'round_end' | 'finished' | 'duel';
 
 /** declared — оголошена, чекає кінця поточного запитання; далі етапи самої дуелі. */
+export type DuelSide = 'challenger' | 'opponent';
+
 export type DuelStage = 'declared' | 'category' | 'question' | 'answer' | 'result';
 
 export type Grade = 'correct' | 'partial' | 'wrong';
 
 /** Звідки коригування рахунку поза відповідями: бали від ведучого, дуель або купівля дебафу (9c). */
-export type AdjustmentSource = 'host' | 'duel' | 'debuff' | 'survival'
+export type AdjustmentSource = 'host' | 'duel'
+  /** Ставка на дуелянта (39): ±betStake на підсумку дуелі; target — на кого ставили. */
+  | 'duelbet'
+  | 'debuff' | 'survival'
   /** Виграш драбини (10i). */
   | 'ladder'
   /** Бонус за код квесту (29g). */
@@ -140,6 +145,12 @@ export const SORT_TILT_GAP_MS = 80;
 export type ShopBlock = 'phase' | 'paused' | 'bought';
 
 export type ErrorCode =
+  /** Ставок на дуелі немає: betStake 0 (39). */
+  | 'duel_bets_off'
+  /** Перше запитання дуелі вже відкрито — ставки закрито (39). */
+  | 'duel_bets_closed'
+  /** Дуелянт (чи команда-дуелянт) не ставить на свою дуель (39). */
+  | 'duel_bet_self'
   /** Гість не може лайкати (17a). */
   | 'like_guest'
   /** Себе, своє запитання чи вікторину лайкати не можна (17a). */

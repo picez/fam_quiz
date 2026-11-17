@@ -3,7 +3,7 @@ import type { AchievementId } from './achievements';
 import type { AppealOutcome, AppealReason } from './appeal';
 import type { AwayMark, OwnAway } from './away';
 import type { ScoreBreakdown } from './breakdown';
-import type { BuffBlock, BuffKind, DebuffKind, DuelStage, Grade, Phase, RetryStage, ShopBlock, SplashKind } from './game';
+import type { BuffBlock, BuffKind, DebuffKind, DuelSide, DuelStage, Grade, Phase, RetryStage, ShopBlock, SplashKind } from './game';
 import type { HostUndoTarget } from './events';
 import type { AnswerMode, AuctionBidMode, MoreLessSide, AuctionLoss, LadderPick, LifelineKind, CellKind, CellMark, CellPenalty, PinMap, Question, QuestionAudio, RevealMode, Round, RoundType, ThinkWord, TrialKind, Video, WagerMode } from './quiz';
 import type { FactCard, GameCard, OwnRevealFact, RevealFacts, RoundCard, RoundShare } from './facts';
@@ -1435,6 +1435,16 @@ export interface UndoRow {
   undoneBy: number | null;
 }
 
+/** Ставки інших гравців на дуелянтів (39). */
+export interface DuelBets {
+  stake: number;
+  /** Етап declared чи category: ще можна ставити. */
+  open: boolean;
+  /** Хто поставив на того, хто викликав; порядок state.players. */
+  challenger: BlitzPlayer[];
+  opponent: BlitzPlayer[];
+}
+
 /** Дуель для всіх ролей: без прийнятних відповідей до етапу answer і без текстів спроб. */
 export interface DuelInfo {
   challenger: BlitzPlayer;
@@ -1461,6 +1471,8 @@ export interface DuelInfo {
   /** result: переможець; null — нічия. */
   winner: BlitzPlayer | null;
   stake: number;
+  /** Ставки на дуелянтів (39): null — ставки вимкнено або ставців немає. */
+  bets: DuelBets | null;
   /** answer: наступне «Далі» веде до підсумку. */
   ending: boolean;
 }
@@ -1480,6 +1492,8 @@ export interface PlayerDuel {
   canAnswer: boolean;
   /** Цей гравець оголосив дуель, зараз етап category і не пауза. */
   canPick: boolean;
+  /** Ставка на дуелянта (39): null — не ставець; side — свій (у команді — команди) вибір; can — вікно відкрите, не пауза, і (у команді) це капітан. */
+  bet: { side: DuelSide | null; can: boolean } | null;
 }
 
 /** Хто який баф узяв на поточне запитання — значок біля імені. */

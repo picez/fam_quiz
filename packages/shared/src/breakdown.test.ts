@@ -3,7 +3,7 @@ import { SCORE_SOURCES, adjustmentSource, answerSource, breakdownOf, roundTotals
 
 describe('score sources', () => {
   it('lists the sources in breakdown order', () => {
-    expect([...SCORE_SOURCES]).toEqual(['carry', 'answers', 'final', 'duel', 'debuff', 'host', 'undo', 'away', 'appeal', 'wipeout', 'survival', 'ladder', 'bets', 'auction', 'truth', 'quest', 'think']);
+    expect([...SCORE_SOURCES]).toEqual(['carry', 'answers', 'final', 'duel', 'duelbet', 'debuff', 'host', 'undo', 'away', 'appeal', 'wipeout', 'survival', 'ladder', 'bets', 'auction', 'truth', 'quest', 'think']);
   });
 
   it('classifies answer rows by round type', () => {
@@ -48,6 +48,12 @@ describe('carried points (12r)', () => {
 });
 
 describe('breakdownOf', () => {
+  it('a duel bet is its own source, after the duel', () => {
+    expect(adjustmentSource('duelbet')).toBe('duelbet');
+    const line = (points: number) => ({ roundIndex: 0, source: 'duelbet' as const, points });
+    expect(breakdownOf([line(100), line(-100)]).parts).toEqual([{ source: 'duelbet', plus: 100, minus: -100 }]);
+  });
+
   it('splits plus and minus per source in SCORE_SOURCES order', () => {
     const line = (source: (typeof SCORE_SOURCES)[number], points: number) => ({ roundIndex: 0, source, points });
     const lines = [

@@ -205,7 +205,7 @@ export interface GameAdjustment {
   nickname: string;
   points: number;
   source: AdjustmentSource;
-  /** Лише для source 'debuff': куплений вид і ціль (null — ціль вилучили до запису). */
+  /** debuff — ціль; duelbet — на кого ставили (null — вилучено). Для 'debuff' ще куплений вид (debuff). */
   debuff?: DebuffKind;
   target?: string | null;
   /** Лише для source 'undo' (12a): що скасовано. */

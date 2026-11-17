@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { alikeJoinSchema, alikeSplitSchema, spyTextSchema, spyVoteSchema } from './events';
+import { duelBetSchema, alikeJoinSchema, alikeSplitSchema, spyTextSchema, spyVoteSchema } from './events';
 import {
   DEFAULT_ANSWER_WINDOW,
   DEFAULT_RULES,
@@ -37,6 +37,7 @@ import {
   declareSchema,
   duelAnswerSchema,
   duelPickSchema,
+  duelBetStake,
   duelsSchema,
   LIMITS,
   REVEAL_MIN_SHARE,
@@ -1096,6 +1097,26 @@ describe('duels', () => {
     const sameQuestionId = { ...chemistry, questions: [{ ...chemistry.questions[0], id: 'd1' }, chemistry.questions[1]] };
     expect(issues(withDuels({ categories: [capitals, sameQuestionId] }))).toContain('duplicate_duel_ids');
     expect(issues(withDuels())).not.toContain('duplicate_duel_ids');
+  });
+
+  it('duels accept a bet stake', () => {
+    for (const betStake of [0, 100, 5000]) expect(issues(withDuels({ betStake }))).toEqual([]);
+    for (const betStake of [5001, -1, 1.5]) expect(issues(withDuels({ betStake })).length).toBeGreaterThan(0);
+    expect(issues(withDuels())).toEqual([]);
+  });
+
+  it('duelBetStake: no duels 0, no field 100, else the field', () => {
+    expect(duelBetStake(baseQuiz as never)).toBe(0);
+    expect(duelBetStake(withDuels() as never)).toBe(100);
+    expect(duelBetStake(withDuels({ betStake: 0 }) as never)).toBe(0);
+    expect(duelBetStake(withDuels({ betStake: 250 }) as never)).toBe(250);
+  });
+
+  it('the duel bet event checks its payload', () => {
+    expect(valid(duelBetSchema, { side: 'opponent' })).toBe(true);
+    expect(valid(duelBetSchema, { side: null })).toBe(true);
+    expect(valid(duelBetSchema, { side: 'both' })).toBe(false);
+    expect(valid(duelBetSchema, {})).toBe(false);
   });
 
   it('duel events check their payloads', () => {

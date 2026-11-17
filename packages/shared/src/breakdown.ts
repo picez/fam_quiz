@@ -2,7 +2,7 @@ import type { AdjustmentSource } from './game';
 import type { Round } from './quiz';
 
 /** Джерела балів у порядку розбивки (11f). */
-export const SCORE_SOURCES = ['carry', 'answers', 'final', 'duel', 'debuff', 'host', 'undo', 'away', 'appeal', 'wipeout', 'survival', 'ladder', 'bets', 'auction', 'truth', 'quest', 'think'] as const;
+export const SCORE_SOURCES = ['carry', 'answers', 'final', 'duel', 'duelbet', 'debuff', 'host', 'undo', 'away', 'appeal', 'wipeout', 'survival', 'ladder', 'bets', 'auction', 'truth', 'quest', 'think'] as const;
 export type ScoreSource = (typeof SCORE_SOURCES)[number];
 
 /** Один рядок балів (11f): відповідь, спроба бліцу, штраф чи коригування. */
@@ -44,6 +44,7 @@ const ADJUSTMENT_SOURCES: Record<AdjustmentSource, ScoreSource> = {
   away: 'away',
   appeal: 'appeal',
   duel: 'duel',
+  duelbet: 'duelbet',
   debuff: 'debuff',
   survival: 'survival',
   ladder: 'ladder',
