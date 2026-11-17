@@ -1668,6 +1668,15 @@ export interface ThinkRow {
   matched: number | null;
 }
 
+/** «Не перебільш» (37d): рядок відповіді на reveal. */
+export interface OvershootRow {
+  playerId: string;
+  nickname: string;
+  value: number;
+  over: boolean;
+  points: number;
+}
+
 /** «Думай інакше» (35): для сцени й телефонів слова ведучого й чужі відповіді — лише з reveal. */
 export interface ThinkInfo {
   lives: number;
@@ -1959,6 +1968,8 @@ interface BaseView {
   survival: SurvivalInfo | null;
   /** «Думай інакше» (35): від intro до round_end свого раунду (і finished, якщо він останній); поза ним ключа немає. */
   think?: ThinkInfo;
+  /** Лише reveal запитання numeric з noOvershoot (37d). */
+  overshoot?: OvershootRow[];
   /** «Мільйонер»: від intro до round_end свого раунду (і finished, якщо він останній); інакше null. */
   ladder: LadderInfo | null;
   /** Поступ ланцюжка; null поза запитанням-ланцюжком, а для сцени й гравців і у фіналі. */

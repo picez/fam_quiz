@@ -462,6 +462,8 @@ export const questionSchema = z
       type: z.literal('numeric'),
       correct: z.number().finite(),
       tolerance: z.number().finite().min(0),
+      /** 37d: «Не перебільш» — перемагає найближче знизу; tolerance при цьому не діє. */
+      noOvershoot: z.boolean().optional(),
     }),
     z.object({
       ...base,
@@ -658,6 +660,8 @@ export const questionSchema = z
         )
         .min(LIMITS.minMoreLessPairs)
         .max(LIMITS.maxMoreLessPairs),
+      /** 37b: крок балів редактора; рушій не читає. */
+      step: z.number().int().min(0).max(LIMITS.maxPoints).optional(),
     }),
     z.object({
       ...base,
@@ -1347,6 +1351,11 @@ export const truthRoundSchema = z.object({
 
 export type TruthRound = z.infer<typeof truthRoundSchema>;
 
+/** «Не перебільш» (37d): числове запитання з перемикачем. */
+export function overshootOn(question: Question): boolean {
+  return question.type === 'numeric' && question.noOvershoot === true;
+}
+
 export function isPuzzle(question: { type: Question['type'] }): boolean {
   return (PUZZLE_TYPES as readonly string[]).includes(question.type);
 }
@@ -1713,6 +1722,12 @@ export const quizSchema = z
           ? boardCells(round).some(({ cell }) => cell.question.type === 'videoclip')
           : round.type !== 'classic' && [...roundQuestions(round), ...roundTrials(round)].some((q) => q.type === 'videoclip');
       if (videoclipPlace) ctx.addIssue({ code: 'custom', message: 'videoclip_place' });
+      // «Не перебільш» (37d): лише класичні раунди; жодної клітинки поля, жодного питання на виживання.
+      const overshootPlace =
+        round.type === 'board'
+          ? boardCells(round).some(({ cell }) => overshootOn(cell.question))
+          : round.type !== 'classic' && [...roundQuestions(round), ...roundTrials(round)].some(overshootOn);
+      if (overshootPlace) ctx.addIssue({ code: 'custom', message: 'numeric_overshoot_place' });
       // Блеф: лише класика.
       const bluffPlace =
         round.type === 'board'
@@ -1807,7 +1822,7 @@ export const quizSchema = z
     if (pools.some((s) => s.betsCut !== undefined)) ctx.addIssue({ code: 'custom', message: 'bets_cut_place' });
     if (pools.length > 0) {
       const types: readonly string[] = SIMPLE_TYPES;
-      if (pools.some((s) => !types.includes(s.type))) ctx.addIssue({ code: 'custom', message: 'spare_type' });
+      if (pools.some((s) => !types.includes(s.type) || overshootOn(s))) ctx.addIssue({ code: 'custom', message: 'spare_type' });
       if (pools.some((s) => s.video !== null || s.audio !== undefined || s.reveal !== undefined)) ctx.addIssue({ code: 'custom', message: 'spare_video' });
       if (hasDuplicates([...questions.map((x) => x.id), ...pools.map((s) => s.id)].filter(Boolean))) {
         ctx.addIssue({ code: 'custom', message: 'duplicate_spare_ids' });
