@@ -88,7 +88,7 @@ describe('host undo', () => {
   });
 
   it('duels, debuffs and format bonuses are not undone', () => {
-    for (const source of ['duel', 'debuff', 'survival', 'ladder'] satisfies AdjustmentSource[]) {
+    for (const source of ['duel', 'duelbet', 'debuff', 'survival', 'ladder'] satisfies AdjustmentSource[]) {
       const s = must(adjustScore(after1(), 'p1', 300, T0, source));
       expect(undoScore(s, { seq: 1 }, T0 + 3000)).toEqual({ ok: false, error: 'not_allowed' });
     }

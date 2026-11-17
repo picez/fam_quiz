@@ -34,7 +34,12 @@ export function revealOf(state: GameState, now: number): GameState {
 
 /** Оля p1, Петро p2, Іра p3; q1 і q2 зіграно (усі відповіли правильно), етап reveal q2, T0 = 1_000_000. */
 export function toDeclarable(patch: Partial<Duels> = {}, quiz: Quiz = duelQuiz(patch)): GameState {
-  let s = startRound(lobbyWith(quiz, 'Оля', 'Петро', 'Іра'), T0, rng0);
+  return toDeclarableWith(['Оля', 'Петро', 'Іра'], patch, quiz);
+}
+
+/** Як toDeclarable, але з гравцями names (p1, p2, … у порядку names). */
+export function toDeclarableWith(names: string[], patch: Partial<Duels> = {}, quiz: Quiz = duelQuiz(patch)): GameState {
+  let s = startRound(lobbyWith(quiz, ...names), T0, rng0);
   s = revealOf(s, T0 + 1000);
   s = must(next(s, T0 + 2000, rng0));
   return revealOf(s, T0 + 3000);

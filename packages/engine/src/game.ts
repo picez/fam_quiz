@@ -11,6 +11,7 @@ import {
   type AppealReason,
   type BuffKind,
   type DebuffKind,
+  type DuelSide,
   type DuelStage,
   type ErrorCode,
   type Grade,
@@ -100,7 +101,7 @@ import { scoreSort, shiftSortLocks } from './sort';
 import { scoreWall, wallPresent } from './wall';
 import { submitVote } from './votes';
 import { fireDebuffs, settleCharges, shiftDebuffClocks, spendDebuffs } from './debuffs';
-import { advanceDuel, beginDuel, dropDuel, duelDue, tickDuel } from './duel';
+import { advanceDuel, beginDuel, dropDuel, duelDue, tickDuel, withoutBet } from './duel';
 import { checkAnswer, gradeOf, paceFactor, paysForTime, verdictOf } from './check';
 import { scoreSurvey, stepSurvey, surveyBoard, surveyPlayOf } from './survey';
 import { bluffAuto, bluffOrder, bluffPlayOf, scoreBluff, startChoice, stepBluff } from './bluff';
@@ -866,7 +867,7 @@ export interface ScoreAdjustment {
   afterQuestion: number;
   source: AdjustmentSource;
   at: number;
-  /** Лише для source 'debuff': кому куплено дебаф. */
+  /** Лише для source 'debuff' і 'duelbet': debuff — кому куплено; duelbet — на кого ставили. */
   target?: string;
   /** Лише для source 'debuff': який дебаф куплено. */
   debuff?: DebuffKind;
@@ -924,6 +925,8 @@ export interface DuelState {
   questions: DuelQuestionPlay[];
   /** Переможець дуелі на етапі result; null — нічия або ще не result. */
   winnerId: string | null;
+  /** Ставки (39): ставець (гравець чи команда) → бік; немає поля — ставок немає. */
+  bets?: Record<string, DuelSide>;
 }
 
 export interface GameState {
@@ -1374,7 +1377,8 @@ function removeFromGame(state: GameState, playerId: string, now?: number): Resul
   const inDuel = duel !== null && (duel.challengerId === playerId || duel.opponentId === playerId);
   const regained = inDuel && duel.opponentId === playerId && duel.stage !== 'result' ? duel.challengerId : null;
   const duelsDeclared = state.duelsDeclared.filter((id) => id !== playerId && id !== regained);
-  const undueled = inDuel ? dropDuel(state) : state;
+  // Ставка вилученого ставця (39) знімається.
+  const undueled = inDuel ? dropDuel(state) : duel === null ? state : { ...state, duel: withoutBet(duel, playerId) };
   // «Мільйонер»: учасника вилучили на заставці раунду — вибирають заново.
   const unpicked: GameState =
     state.phase === 'intro' && state.ladder?.contestantId === playerId ? { ...undueled, ladder: { contestantId: null, drawn: false } } : undueled;

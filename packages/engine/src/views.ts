@@ -1,5 +1,7 @@
 import {
   undoLedger,
+  duelBetStake,
+  type DuelSide,
   allowedBuffs,
   isPuzzle,
   crosswordNumbers,
@@ -53,6 +55,7 @@ import {
   type BoardInfo,
   type ClueOpen,
   type DiceInfo,
+  type DuelBets,
   type DuelInfo,
   type HostDuel,
   type PlayerDuel,
@@ -249,7 +252,7 @@ import { cloudTally, cloudVoters } from './votes';
 import { bluffOrder, bluffPlayOf, bluffShown, bluffShownText } from './bluff';
 import { hostSpy, playerSpy, spyInfo, spyPlayOf } from './spy';
 import { skippedSurveys, surveyShown } from './survey';
-import { duelCategoriesLeft, duelEnds, duelQuestionOf, duelWindowOpen } from './duel';
+import { betsOpen, duelBettors, duelCategoriesLeft, duelEnds, duelQuestionOf, duelWindowOpen } from './duel';
 import { BOARD_AWAY_MS, cellPlayed, chooserOf, turnSchedule } from './board-turns';
 import { cluesByHost, cluesBySelf, cluesOpen, cluesOpenBy, cluesSeenBy, nextClueAt } from './clues';
 import { pendingOf } from './hold';
@@ -2698,8 +2701,19 @@ function duelInfo(state: GameState, withAnswers: boolean): DuelInfo | null {
     winningAnswer: answered ? play.answer : null,
     winner: stage === 'result' && duel.winnerId !== null ? blitzPlayer(state, duel.winnerId) : null,
     stake: duels.stake,
+    bets: duelBets(state),
     ending: duelEnds(state),
   };
+}
+
+/** Хто на кого поставив (39); null — ставки вимкнено або ставців немає. */
+function duelBets(state: GameState): DuelBets | null {
+  const duel = state.duel;
+  const stake = duelBetStake(state.quiz);
+  const bettors = duelBettors(state);
+  if (duel === null || stake === 0 || bettors.length === 0) return null;
+  const on = (side: DuelSide) => bettors.filter((id) => duel.bets?.[id] === side).map((id) => blitzPlayer(state, id));
+  return { stake, open: betsOpen(state), challenger: on('challenger'), opponent: on('opponent') };
 }
 
 function hostDuel(state: GameState): HostDuel | null {
@@ -2724,6 +2738,7 @@ function playerDuel(state: GameState, playerId: string): PlayerDuel | null {
     tries: duelist ? duelTries(state, playerId) : [],
     canAnswer: duelist && state.phase === 'duel' && duel.stage === 'question' && !state.paused && currentDuelPlay(state)?.winnerId === null,
     canPick: state.phase === 'duel' && duel?.stage === 'category' && duel.challengerId === playerId && !state.paused,
+    bet: duelBets(state) !== null && duelBettors(state).includes(playerId) ? { side: duel?.bets?.[playerId] ?? null, can: betsOpen(state) && !state.paused } : null,
   };
 }
 

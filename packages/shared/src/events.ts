@@ -235,6 +235,7 @@ export const hintSchema = z.object({
 export const declareSchema = z.object({ opponentId: playerId });
 /** Категорія дуелі. */
 export const duelPickSchema = z.object({ categoryId: id64 });
+/** Ставка на дуелянта (39): бік або null — зняти ставку. */
 export const duelBetSchema = z.object({ side: z.enum(['challenger', 'opponent']).nullable() });
 /** Відповідь дуелянта; перевіряє рушій, як у типі text. */
 export const duelAnswerSchema = z.object({
@@ -362,9 +363,9 @@ export interface ClientToServerEvents {
   'player:wager': (payload: z.infer<typeof wagerSchema>, ack: Ack) => void;
   /** Оголосити дуель суперникові: раз за гру, суперник не відмовляється. */
   'player:duel': (payload: z.infer<typeof declareSchema>, ack: Ack) => void;
-  /** Вибір категорії тим, хто оголосив дуель. */
   /** Ставка на дуелянта (39): бік або null — зняти; лише на етапах declared і category. */
   'player:duel-bet': (payload: z.infer<typeof duelBetSchema>, ack: Ack) => void;
+  /** Вибір категорії тим, хто оголосив дуель. */
   'player:duel-category': (payload: z.infer<typeof duelPickSchema>, ack: Ack) => void;
   'player:duel-answer': (payload: z.infer<typeof duelAnswerSchema>, ack: Ack) => void;
   /** «Правда про гравця»: написати чи змінити свій факт ('' — прибрати). */

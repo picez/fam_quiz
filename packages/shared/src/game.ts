@@ -2,9 +2,10 @@
 export type Phase = 'lobby' | 'guide' | 'intro' | 'wager' | 'question' | 'locked' | 'reveal' | 'board' | 'leaderboard' | 'round_end' | 'finished' | 'duel';
 
 /** declared — оголошена, чекає кінця поточного запитання; далі етапи самої дуелі. */
-export type DuelSide = 'challenger' | 'opponent';
-
 export type DuelStage = 'declared' | 'category' | 'question' | 'answer' | 'result';
+
+/** Бік дуелі, на який ставлять (39): той, хто викликав, чи суперник. */
+export type DuelSide = 'challenger' | 'opponent';
 
 export type Grade = 'correct' | 'partial' | 'wrong';
 
