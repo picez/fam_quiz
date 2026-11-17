@@ -1,13 +1,13 @@
 import type { OvershootRow } from '@quiz/shared';
 import { num, signed } from '../format';
 import { t } from '../i18n';
-import { MANY_ROWS } from './ThinkView';
+import { MANY_ROWS } from './dense';
 
 /**
  * «Не перебільш» (37d): рядки відповідей на розкритті в порядку рушія — спершу ті, хто не перебільшив (від найближчого знизу),
- * далі межа «88 (не більше)», під нею ті, хто перебільшив, з позначкою «перебільшили» замість балів.
+ * далі нейтральна межа (число — у рядку правильної відповіді), під нею ті, хто перебільшив, з позначкою «перебільшили» замість балів.
  */
-export function OvershootRows({ rows, correct, mine }: { rows: readonly OvershootRow[]; correct: number; mine?: string }) {
+export function OvershootRows({ rows, mine }: { rows: readonly OvershootRow[]; mine?: string }) {
   const under = rows.filter((row) => !row.over);
   const over = rows.filter((row) => row.over);
   const line = (row: OvershootRow) => (
@@ -28,9 +28,7 @@ export function OvershootRows({ rows, correct, mine }: { rows: readonly Overshoo
       <ol className={rows.length > MANY_ROWS ? 'overshoot-rows is-many' : 'overshoot-rows'}>
         {under.map(line)}
         {over.length > 0 && (
-          <li className="overshoot-limit" aria-hidden="true">
-            {t('overshootCorrect', { correct: num(correct) })}
-          </li>
+          <li className="overshoot-limit" aria-hidden="true" />
         )}
         {over.map(line)}
       </ol>

@@ -69,6 +69,7 @@ import {
   generateSudoku,
   countSudoku,
   isSudokuGrid,
+  overshootOn,
   sudokuConflicts,
   EMPTY_SUDOKU,
   crosswordLetters,
@@ -1840,11 +1841,16 @@ function duelProblems(duels: Duels): string[] {
   return problems;
 }
 
+/** Запасне «Не перебільш» схема відхиляє (spare_type): редактор каже це наперед. */
+function spareKey(spare: Question): TextKey | null {
+  return problemKey(spare) ?? (overshootOn(spare) ? 'problemOvershootPlace' : null);
+}
+
 /** Проблеми розділу «Запасні запитання»: кожне запасне перевіряється так само, як запитання. */
 function spareProblems(spares: Question[]): string[] {
   const problems: string[] = [];
   spares.forEach((spare, index) => {
-    const key = problemKey(spare);
+    const key = spareKey(spare);
     if (key === null) return;
     // «Запитання N: текст» → «Запасне N: текст».
     const problem = problemText(key, index + 1, spare).replace(/^[^:]*:\s*/, '');
@@ -1868,7 +1874,7 @@ export function problemsOf(quiz: Quiz): string[] {
         if (category.title === '') problems.push(where(t('problemCategoryNoTitle', { category: categoryIndex + 1 })));
         const name = category.title === '' ? t('boardCategoryPlaceholder', { index: categoryIndex + 1 }) : category.title;
         (category.spares ?? []).forEach((spare, index) => {
-          const key = problemKey(spare);
+          const key = spareKey(spare);
           if (key === null) return;
           const problem = problemText(key, index + 1, spare).replace(/^[^:]*:\s*/, '');
           problems.push(where(t('problemCategorySpare', { category: name, index: index + 1, problem })));

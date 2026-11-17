@@ -634,7 +634,7 @@ function Question({ view, offsetMs, blink, blinking, audioCommand, tilts, drawin
         </>
       )}
       {/* «Не перебільш» (37d): хто ближче знизу й хто перебільшив — під правильною відповіддю. */}
-      {reveal?.type === 'numeric' && view.overshoot !== undefined && <OvershootRows rows={view.overshoot} correct={reveal.correct} />}
+      {reveal?.type === 'numeric' && view.overshoot !== undefined && <OvershootRows rows={view.overshoot} />}
       {/* «Думай як усі» (37e): групи слів замість рядка правильної відповіді; до розкриття view.alike немає. */}
       {reveal !== null && view.alike !== undefined && (
         <>

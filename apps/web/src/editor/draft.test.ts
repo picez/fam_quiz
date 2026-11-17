@@ -1445,6 +1445,12 @@ describe('hints and the spare pool in the draft', () => {
     expect(problemsOf({ ...quiz, spares: [filled(newQuestion('order'))] })).toEqual([t('problemSpareType')]);
   });
 
+  it('a no-overshoot spare is a problem', () => {
+    const quiz = quizWith(filled(newQuestion('boolean')));
+    const spare = { ...(newQuestion('numeric') as Extract<Question, { type: 'numeric' }>), text: 'Скільки?', noOvershoot: true as const };
+    expect(problemsOf({ ...quiz, spares: [spare] })).toEqual([t('problemSpare', { index: 1, problem: t('problemOvershootPlace', { index: 1 }).replace(/^[^:]*:\s*/, '') })]);
+  });
+
   it('newSpare is a plain question without a hint', () => {
     const spare = newSpare('text');
     expect(spare).toMatchObject({ type: 'text', video: null });

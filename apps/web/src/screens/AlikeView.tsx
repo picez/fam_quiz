@@ -1,7 +1,7 @@
 import type { AlikeGroupView, AlikeInfo } from '@quiz/shared';
 import { signed } from '../format';
 import { t } from '../i18n';
-import { MANY_ROWS } from './ThinkView';
+import { MANY_ROWS } from './dense';
 
 /** Правки ведучого на розкритті: editable — reveal і не автопілот. */
 interface HostEdits {

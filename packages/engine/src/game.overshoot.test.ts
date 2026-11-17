@@ -136,6 +136,9 @@ describe('numeric: no overshoot (37d)', () => {
       expect(JSON.stringify(stageView(phase))).not.toContain('"overshoot"');
       expect(JSON.stringify(playerView(phase, 'p1'))).not.toContain('"overshoot"');
       expect(JSON.stringify(hostView(phase))).not.toContain('"overshoot"');
+      // Чужі числа не видно до розкриття: p2 назвав 90, p1 його бачити не повинен.
+      expect(JSON.stringify(stageView(phase))).not.toContain('"value":90');
+      expect(JSON.stringify(playerView(phase, 'p1'))).not.toContain('"value":90');
     }
     const revealed = toReveal(s);
     const rows = [

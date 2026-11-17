@@ -20,7 +20,7 @@ const textOf = (el: HTMLElement) => [...el.children].map((child) => child.textCo
 
 describe('OvershootRows (37d)', () => {
   it('marks who overshot', () => {
-    render(<OvershootRows rows={rows} correct={88} />);
+    render(<OvershootRows rows={rows} />);
     expect(screen.getByText(t('overshootRowsTitle'))).toBeTruthy();
     expect(textOf(rowOf('Оля'))).toBe('Оля 85 +1000');
     expect(textOf(rowOf('Петро'))).toBe('Петро 80 0');
@@ -29,21 +29,21 @@ describe('OvershootRows (37d)', () => {
     expect(rowOf('Оля').className).not.toContain('overshoot-over');
     // Межа стоїть між тими, хто знизу, і тими, хто перебільшив.
     const items = [...document.querySelectorAll('.overshoot-rows > li')].map((li) => li.textContent);
-    expect(items[2]).toBe(t('overshootCorrect', { correct: 88 }));
+    expect(items[2]).toBe('');
   });
 
   it('no limit line when nobody overshot; the own row stands out', () => {
-    render(<OvershootRows rows={rows.slice(0, 2)} correct={88} mine="p2" />);
+    render(<OvershootRows rows={rows.slice(0, 2)} mine="p2" />);
     expect(document.querySelector('.overshoot-limit')).toBeNull();
     expect(rowOf('Петро').className).toContain('is-me');
   });
 
   it('more than 12 rows go into columns on the stage', () => {
     const many = (n: number): OvershootRow[] => Array.from({ length: n }, (_, i) => ({ playerId: `p${i}`, nickname: `n${i}`, value: 80 + i, over: 80 + i > 88, points: 0 }));
-    const { unmount } = render(<OvershootRows rows={many(12)} correct={88} />);
+    const { unmount } = render(<OvershootRows rows={many(12)} />);
     expect(document.querySelector('.overshoot-rows')!.className).not.toContain('is-many');
     unmount();
-    render(<OvershootRows rows={many(13)} correct={88} />);
+    render(<OvershootRows rows={many(13)} />);
     expect(document.querySelector('.overshoot-rows')!.className).toContain('is-many');
     const cssPath = ['apps/web/src/styles.css', 'src/styles.css'].find((path) => existsSync(path) as boolean)!;
     const css = (readFileSync(cssPath, 'utf8') as string).replace(/\r\n/g, '\n');

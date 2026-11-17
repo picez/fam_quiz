@@ -45,6 +45,7 @@ import {
   melodyQuiz,
   videoclipQuiz,
   alikeQuiz,
+  overshootQuiz,
   questQuiz,
 } from './testing/fixtures';
 import { must } from './testing/helpers';
@@ -181,6 +182,7 @@ const QUIZZES: [string, Quiz, ((lobby: GameState) => GameState)?][] = [
   ['a file and a YouTube melody in a classic round', melodyQuiz({ leaderboard: 'end' })],
   ['a muted and a loud videoclip in a classic round', videoclipQuiz({ leaderboard: 'end' })],
   ['two thinkalike questions in a classic round', alikeQuiz({ leaderboard: 'end' })],
+  ['a no-overshoot numeric in a classic round', overshootQuiz({ leaderboard: 'end' })],
   ['a quest round after a classic one', questQuiz({ leaderboard: 'end' })],
   ['puzzles in a team game', teamQuiz(puzzlesQuiz().rounds), (s) => must(authorTeamForm(s, 'random'))],
   ['a voice board in a team game', teamBoardQuiz, (s) => must(authorTeamForm(s, 'random'))],

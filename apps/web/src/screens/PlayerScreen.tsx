@@ -437,7 +437,7 @@ function Result({ view, strokes = [] }: { view: PlayerView; strokes?: Stroke[] }
           <p>{t('correctAnswer', { answer: correctText(view.reveal, view.question?.choices) })}</p>
         ))}
       {/* «Не перебільш» (37d): лише власний рядок — бали чи «перебільшили». */}
-      {view.reveal?.type === 'numeric' && ownOvershoot !== undefined && <OvershootRows rows={[ownOvershoot]} correct={view.reveal.correct} mine={view.me.id} />}
+      {view.reveal?.type === 'numeric' && ownOvershoot !== undefined && <OvershootRows rows={[ownOvershoot]} mine={view.me.id} />}
       {view.blitz !== null && (
         <p className="winner">
           {view.blitz.winner === null ? t('blitzNoWinner') : t('blitzWinner', { name: view.blitz.winner.nickname })}

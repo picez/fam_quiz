@@ -849,7 +849,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
           )}
           {/* «Більше чи менше»: правильні варіанти — у таблиці порівнянь нижче, рядок «—» нічого не каже. Головоломки (28d) — у панелі розв'язку, однаково для судоку й кросворду. */}
           {correct !== null && correct.type !== 'wall' && correct.type !== 'poll' && correct.type !== 'wordcloud' && correct.type !== 'survey' && correct.type !== 'bluff' && correct.type !== 'moreless' && correct.type !== 'sudoku' && correct.type !== 'crossword' && correct.type !== 'jigsaw' && correct.type !== 'spotdiff' && correct.type !== 'memory' && correct.type !== 'think' && correct.type !== 'thinkalike' && <p className="answer">{t('correctAnswer', { answer: hostCorrectText(correct, view) })}</p>}
-          {correct?.type === 'numeric' && view.overshoot !== undefined && <OvershootRows rows={view.overshoot} correct={correct.correct} />}
+          {correct?.type === 'numeric' && view.overshoot !== undefined && <OvershootRows rows={view.overshoot} />}
           {correct?.hint !== undefined && <p className="meta hint-known">{t('hintKnown', { hint: correct.hint })}</p>}
         </section>
       )}
