@@ -13996,6 +13996,11 @@ button.wall-tile:disabled {
   bottom: calc(max(1rem, env(safe-area-inset-bottom)) + var(--reaction-strip-h));
 }
 
+/* Зі смугою оголошеної дуелі сповіщення про бали стоїть над нею й над смугою реакцій (правило вище інакше перемагає «body:has(.duel-banner)»). */
+.app.player.has-reactions:has(> .duel-banner) .live-notices {
+  bottom: calc(var(--banner-base) + var(--duel-banner-room) + var(--reaction-strip-h));
+}
+
 /* Пульт: липка панель дій стоїть над смугою, а не під нею. */
 .app.host.has-reactions .actions {
   bottom: var(--reaction-strip-h);
@@ -14058,11 +14063,28 @@ button.wall-tile:disabled {
     gap: 0.375rem;
   }
 
-  .bar:has(.reaction-button) > .duel-button {
+  .bar:has(.reaction-button, .shop-button, .quest-button) > .duel-button {
     flex-shrink: 1;
     min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
+  }
+
+  /* «⚔ Дуель» + «😈»/квест + «Таблиця» + рахунок у 360 px не лишають місця для ніка (нік стискався до нуля, а шапка ширшала за екран):
+     нік тримає мінімум, значок теми в такій шапці ховається (тема лишається в лобі й меню), решту віддає «⚔ Дуель» трикрапкою. */
+  .bar:has(.duel-button):has(.reaction-button, .shop-button, .quest-button) > span:first-child {
+    min-width: 3rem;
+  }
+
+  .bar:has(.duel-button):has(.shop-button, .quest-button) > .bar-theme {
+    display: none;
+  }
+}
+
+/* На 320 px місця для мінімуму ніка немає взагалі: там усе стискається, як і було. */
+@media (max-width: 340px) {
+  .bar:has(.duel-button):has(.reaction-button, .shop-button, .quest-button) > span:first-child {
+    min-width: 0;
   }
 }
 

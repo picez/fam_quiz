@@ -421,7 +421,7 @@ describe('uk golden (22a)', () => {
   it('duel bet help lines are in every language', () => {
     const pages: Record<string, Record<string, string>> = { en: enHelp, pl: plHelp, de: deHelp, es: esHelp, it: itHelp, ar: arHelp };
     for (const [lang, dict] of Object.entries(pages)) {
-      for (const key of ['setting.duels.how.3', 'setting.duels.points.1', 'setting.duels.limits.4']) expect(dict, lang).toHaveProperty(key);
+      for (const key of ['setting.duels.how.3', 'setting.duels.points.1', 'setting.duels.limits.4', 'setting.duels.limits.5']) expect(dict, lang).toHaveProperty(key);
       expect(dict['setting.duels.points.1'], lang).toContain('{defaultDuelBetStake}');
     }
   });

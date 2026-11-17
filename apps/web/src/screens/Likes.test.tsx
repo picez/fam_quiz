@@ -91,10 +91,15 @@ describe('the phone header with a heart', () => {
   });
 
   it('«⚔ Дуель» stays the only text pill that ellipsizes; «Таблиця» is never squeezed', () => {
-    const duel = rule(narrow, '.bar:has(.reaction-button) > .duel-button');
+    const duel = rule(narrow, '.bar:has(.reaction-button, .shop-button, .quest-button) > .duel-button');
     expect(duel).toMatch(/flex-shrink:\s*1;/);
     expect(duel).toMatch(/text-overflow:\s*ellipsis;/);
     const squeezed = [...narrow.matchAll(/([^{}\n][^{}]*)\{([^}]*)\}/g)].filter((m) => /flex-shrink:\s*[1-9]/.test(m[2]!) || /text-overflow/.test(m[2]!)).map((m) => m[1]!.trim());
     expect(squeezed.filter((selector) => selector.includes('table-button'))).toEqual([]);
+  });
+
+  it('a crowded duel header keeps a readable nickname: minimum width, theme icon hidden next to the shop', () => {
+    expect(rule(narrow, '.bar:has(.duel-button):has(.reaction-button, .shop-button, .quest-button) > span:first-child')).toMatch(/min-width:\s*3rem;/);
+    expect(rule(narrow, '.bar:has(.duel-button):has(.shop-button, .quest-button) > .bar-theme')).toMatch(/display:\s*none;/);
   });
 });
