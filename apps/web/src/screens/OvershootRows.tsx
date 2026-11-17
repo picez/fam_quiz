@@ -1,6 +1,7 @@
 import type { OvershootRow } from '@quiz/shared';
 import { num, signed } from '../format';
 import { t } from '../i18n';
+import { MANY_ROWS } from './ThinkView';
 
 /**
  * «Не перебільш» (37d): рядки відповідей на розкритті в порядку рушія — спершу ті, хто не перебільшив (від найближчого знизу),
@@ -23,7 +24,8 @@ export function OvershootRows({ rows, correct, mine }: { rows: readonly Overshoo
   return (
     <section className="overshoot">
       <h2 className="meta overshoot-title">{t('overshootRowsTitle')}</h2>
-      <ol className="overshoot-rows">
+      {/* Понад MANY_ROWS рядків (як у «Думай інакше») сцена ставить їх у кілька колонок дрібніше: 24 рядки вміщуються на 720 px. */}
+      <ol className={rows.length > MANY_ROWS ? 'overshoot-rows is-many' : 'overshoot-rows'}>
         {under.map(line)}
         {over.length > 0 && (
           <li className="overshoot-limit" aria-hidden="true">

@@ -1,6 +1,7 @@
 import type { AlikeGroupView, AlikeInfo } from '@quiz/shared';
 import { signed } from '../format';
 import { t } from '../i18n';
+import { MANY_ROWS } from './ThinkView';
 
 /** Правки ведучого на розкритті: editable — reveal і не автопілот. */
 interface HostEdits {
@@ -10,6 +11,8 @@ interface HostEdits {
 }
 
 const wordsOf = (group: AlikeGroupView) => group.words.join(', ');
+/** Пункт «Об'єднати з…»: слова й перший учасник — винесений одинак і його колишня група з тим самим словом різняться. */
+const optionOf = (group: AlikeGroupView) => (group.members[0] === undefined ? wordsOf(group) : `${wordsOf(group)} · ${group.members[0].nickname}`);
 
 /**
  * «Думай як усі» (37e): картки груп слів від більших до менших (порядок дає рушій). Найбільші — `alike-top` з «Найбільша» й «+бали»;
@@ -19,11 +22,13 @@ const wordsOf = (group: AlikeGroupView) => group.words.join(', ');
 export function AlikeGroups({ info, mine, host }: { info: AlikeInfo; mine?: string; host?: HostEdits }) {
   const edits = host?.editable === true ? host : null;
   const anyTop = info.groups.some((group) => group.top);
+  // Понад MANY_ROWS груп (як у «Думай інакше») сцена ущільнює картки: 24 групи вміщуються на 1280×720.
+  const many = info.groups.length > MANY_ROWS;
   return (
     <section className="alike-reveal">
       <h2 className="alike-title">{t('alikeGroupsTitle')}</h2>
       {!anyTop && <p className="lead alike-nobody">{t('alikeNobody')}</p>}
-      <ul className="alike-groups">
+      <ul className={many ? 'alike-groups is-many' : 'alike-groups'}>
         {info.groups.map((group) => {
           const own = mine !== undefined && group.members.some((member) => member.id === mine);
           const others = info.groups.filter((other) => other.key !== group.key);
@@ -63,7 +68,7 @@ export function AlikeGroups({ info, mine, host }: { info: AlikeInfo; mine?: stri
                   <option value="">{t('alikeJoin')}</option>
                   {others.map((other) => (
                     <option key={other.key} value={other.key}>
-                      {wordsOf(other)}
+                      {optionOf(other)}
                     </option>
                   ))}
                 </select>

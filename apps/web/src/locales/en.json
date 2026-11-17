@@ -4215,7 +4215,6 @@
   "alikeNobody": "All words are different — no points",
   "alikeJoin": "Merge with…",
   "alikeSplit": "Separate",
-  "alikeManual": "Groups changed by the host",
   "summaryAlikes_one": "{count} “Think like everyone”: points go to the biggest group of matching words",
   "summaryAlikes_other": "{count} “Think like everyone”: points go to the biggest group of matching words"
 }

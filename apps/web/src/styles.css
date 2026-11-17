@@ -24606,6 +24606,28 @@ input.sudoku-editor-cell:focus-visible {
 .stage-board .alike-words {
   font-size: 1.75rem;
 }
+
+/* Сцена, понад 12 груп (MANY_ROWS, як у «Думай інакше»): вужчі картки, менші слова, імена в рядок — 24 групи вміщуються на 1280×720. */
+.stage .alike-groups.is-many {
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 10rem), 1fr));
+  gap: 0.375rem;
+}
+
+.stage .alike-groups.is-many .alike-group {
+  gap: 0.125rem;
+  padding: 0.25rem 0.5rem;
+}
+
+.stage .alike-groups.is-many .alike-words {
+  font-size: 1.125rem;
+  line-height: 1.2;
+}
+
+.stage .alike-groups.is-many .alike-members {
+  gap: 0 0.5rem;
+  font-size: 0.875rem;
+  line-height: 1.2;
+}
 /* «Думай як усі»: кінець */
 
 /* «Не перебільш» (37d): хто ближче знизу, межа й ті, хто перебільшив. */
@@ -24673,6 +24695,24 @@ input.sudoku-editor-cell:focus-visible {
   border-top: 2px dashed var(--wrong);
   color: var(--dim);
   font-size: 0.875rem;
+}
+
+/* Сцена, понад 12 рядків (MANY_ROWS): три колонки нижчих рядків — 24 відповіді з питанням і правильною вміщуються на 720 px.
+   Межа «88 (не більше)» — на всю ширину між тими, хто знизу, і тими, хто перебільшив. */
+.stage .overshoot-rows.is-many {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.125rem 0.5rem;
+}
+
+.stage .overshoot-rows.is-many .overshoot-row {
+  padding: 0.0625rem 0.375rem;
+  font-size: 1rem;
+  line-height: 1.25;
+}
+
+.stage .overshoot-rows.is-many .overshoot-limit {
+  grid-column: 1 / -1;
+  padding: 0 0.375rem;
 }
 
 /* ---------- Світла тема ----------

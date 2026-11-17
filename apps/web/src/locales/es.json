@@ -4270,7 +4270,6 @@
   "alikeNobody": "Todas las palabras son distintas — no hay puntos",
   "alikeJoin": "Unir con…",
   "alikeSplit": "Por separado",
-  "alikeManual": "Grupos cambiados por el anfitrión",
   "summaryAlikes_one": "{count} «Piensa como todos»: los puntos son para el grupo más grande de palabras iguales",
   "summaryAlikes_many": "{count} de «Piensa como todos»: los puntos son para el grupo más grande de palabras iguales",
   "summaryAlikes_other": "{count} «Piensa como todos»: los puntos son para el grupo más grande de palabras iguales"

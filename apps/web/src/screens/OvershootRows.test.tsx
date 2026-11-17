@@ -1,5 +1,7 @@
 // @vitest-environment jsdom
 import { cleanup, render, screen } from '@testing-library/react';
+// @ts-expect-error node:fs без @types/node
+import { existsSync, readFileSync } from 'node:fs';
 import { afterEach, describe, expect, it } from 'vitest';
 import type { OvershootRow } from '@quiz/shared';
 import { t } from '../i18n';
@@ -34,5 +36,18 @@ describe('OvershootRows (37d)', () => {
     render(<OvershootRows rows={rows.slice(0, 2)} correct={88} mine="p2" />);
     expect(document.querySelector('.overshoot-limit')).toBeNull();
     expect(rowOf('Петро').className).toContain('is-me');
+  });
+
+  it('more than 12 rows go into columns on the stage', () => {
+    const many = (n: number): OvershootRow[] => Array.from({ length: n }, (_, i) => ({ playerId: `p${i}`, nickname: `n${i}`, value: 80 + i, over: 80 + i > 88, points: 0 }));
+    const { unmount } = render(<OvershootRows rows={many(12)} correct={88} />);
+    expect(document.querySelector('.overshoot-rows')!.className).not.toContain('is-many');
+    unmount();
+    render(<OvershootRows rows={many(13)} correct={88} />);
+    expect(document.querySelector('.overshoot-rows')!.className).toContain('is-many');
+    const cssPath = ['apps/web/src/styles.css', 'src/styles.css'].find((path) => existsSync(path) as boolean)!;
+    const css = (readFileSync(cssPath, 'utf8') as string).replace(/\r\n/g, '\n');
+    expect(css).toMatch(/\.stage \.overshoot-rows\.is-many \{[^}]*grid-template-columns:\s*repeat\(3, minmax\(0, 1fr\)\)/);
+    expect(css).toMatch(/\.stage \.overshoot-rows\.is-many \.overshoot-limit \{[^}]*grid-column:\s*1 \/ -1/);
   });
 });

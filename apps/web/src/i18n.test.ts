@@ -181,7 +181,7 @@ describe('uk golden (22a)', () => {
   const ADDED_VIDEOCLIP_PLURALS = ['summaryVideoclips_few', 'summaryVideoclips_many'];
   const ADDED_MORELESS_STEP = ['morelessStep', 'morelessStepHint'];
   const ADDED_OVERSHOOT = ['overshootLabel', 'overshootHint', 'overshootCorrect', 'overshootOver', 'overshootRowsTitle', 'buffWhy_off_overshoot', 'problemOvershootPlace'];
-  const ADDED_THINKALIKE = ['type_thinkalike', 'typeShort_thinkalike', 'typeHow_thinkalike', 'buffWhy_off_thinkalike', 'err_alike_group', 'problemAlikePlace', 'alikeDefaultText', 'alikeEditorHint', 'alikePhoneHint', 'alikeCorrect', 'alikeGroupsTitle', 'alikeTop', 'alikeSilent', 'alikeNobody', 'alikeJoin', 'alikeSplit', 'alikeManual', 'summaryAlikes_one'];
+  const ADDED_THINKALIKE = ['type_thinkalike', 'typeShort_thinkalike', 'typeHow_thinkalike', 'buffWhy_off_thinkalike', 'err_alike_group', 'problemAlikePlace', 'alikeDefaultText', 'alikeEditorHint', 'alikePhoneHint', 'alikeCorrect', 'alikeGroupsTitle', 'alikeTop', 'alikeSilent', 'alikeNobody', 'alikeJoin', 'alikeSplit', 'summaryAlikes_one'];
   const ADDED_THINKALIKE_PLURALS = ['summaryAlikes_few', 'summaryAlikes_many'];
   const ADDED_29E_PLURALS = ['summaryMelodies_few', 'summaryMelodies_many'];
   /** 27a: раунд «Ставки» — назва, пояснення, помилки, редактор, обріз, історія. */

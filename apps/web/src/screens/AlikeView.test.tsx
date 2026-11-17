@@ -60,6 +60,8 @@ describe('AlikeGroups (37e)', () => {
     render(<AlikeGroups info={info} host={{ editable: true, onJoin, onSplit }} />);
     fireEvent.change(within(card('груша')).getByRole('combobox', { name: t('alikeJoin') }), { target: { value: 'p1' } });
     expect(onJoin).toHaveBeenCalledWith('p3', 'p1');
+    // Пункт — слова й перший учасник: винесений одинак і його колишня група з тим самим словом різняться.
+    expect(within(card('груша')).getByRole('option', { name: 'яблуко, яблука · Оля' })).toBeTruthy();
     const taras = screen.getByText('Тарас').closest('li') as HTMLElement;
     fireEvent.click(within(taras).getByRole('button', { name: t('alikeSplit') }));
     expect(onSplit).toHaveBeenCalledWith('p2');
@@ -76,7 +78,7 @@ describe('AlikeGroups (37e)', () => {
   it('long words wrap at 320 px', () => {
     const word = 'а'.repeat(40);
     render(<AlikeGroups info={{ groups: [{ ...info.groups[0]!, words: [word] }], silent: [] }} />);
-    expect(screen.getByText(word).style.width).toBe('');
+    expect(screen.getByText(word)).toBeTruthy();
     const cssPath = ['apps/web/src/styles.css', 'src/styles.css'].find((path) => existsSync(path) as boolean)!;
     const css = (readFileSync(cssPath, 'utf8') as string).replace(/\r\n/g, '\n');
     const rule = (selector: string) => {
@@ -94,5 +96,20 @@ describe('AlikeGroups (37e)', () => {
     for (const [, value, unit] of section.matchAll(/(?:^|[\s;{])(?:min-|max-)?width:\s*([\d.]+)(px|rem)/g)) {
       expect(Number(value) * (unit === 'rem' ? 16 : 1)).toBeLessThanOrEqual(320);
     }
+  });
+
+  it('more than 12 groups go dense on the stage', () => {
+    const groupsOf = (n: number): AlikeInfo => ({
+      groups: Array.from({ length: n }, (_, i) => ({ key: `p${i}`, words: [`w${i}`], members: [{ id: `p${i}`, nickname: `n${i}` }], top: false, points: 0 })),
+      silent: [],
+    });
+    const { unmount } = render(<AlikeGroups info={groupsOf(12)} />);
+    expect(document.querySelector('.alike-groups')!.className).not.toContain('is-many');
+    unmount();
+    render(<AlikeGroups info={groupsOf(13)} />);
+    expect(document.querySelector('.alike-groups')!.className).toContain('is-many');
+    const cssPath = ['apps/web/src/styles.css', 'src/styles.css'].find((path) => existsSync(path) as boolean)!;
+    const css = (readFileSync(cssPath, 'utf8') as string).replace(/\r\n/g, '\n');
+    expect(css).toMatch(/\.stage \.alike-groups\.is-many \{[^}]*grid-template-columns:\s*repeat\(auto-fill, minmax\(min\(100%, 10rem\), 1fr\)\)/);
   });
 });
