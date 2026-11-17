@@ -107,6 +107,67 @@ describe('useStageSounds (40)', () => {
     expect(play.mock.calls.map(([sound]) => sound)).toEqual(['gong', 'wrong']);
   });
 
+  const sounds = () => play.mock.calls.map(([sound]) => sound);
+  const countdown = ['tick', 'tick', 'tick', 'tick', 'tick', 'gong'];
+
+  it('a bluff-like question gongs at the end of each stage', () => {
+    const { rerender } = mount(view({ endsAt: Date.now() + 7000 }));
+    act(() => vi.advanceTimersByTime(7000));
+    expect(sounds()).toEqual(countdown);
+    const endsAt = Date.now() + 6000;
+    rerender({ v: view({ endsAt }) });
+    act(() => vi.advanceTimersByTime(6500));
+    rerender({ v: view({ phase: 'locked', endsAt }) });
+    rerender({ v: reveal(1) });
+    expect(sounds()).toEqual([...countdown, ...countdown, 'correct']);
+  });
+
+  it('a spy-like question gongs at the end of each of three stages', () => {
+    const { rerender } = mount(view({ endsAt: Date.now() + 6000 }));
+    act(() => vi.advanceTimersByTime(6000));
+    for (let stage = 0; stage < 2; stage++) {
+      rerender({ v: view({ endsAt: Date.now() + 6000 }) });
+      act(() => vi.advanceTimersByTime(6000));
+    }
+    rerender({ v: view({ phase: 'locked' }) });
+    act(() => vi.advanceTimersByTime(2000));
+    expect(sounds()).toEqual([...countdown, ...countdown, ...countdown]);
+  });
+
+  it('a fast hop after a stage timeout still gongs once', () => {
+    const { rerender } = mount(view({ endsAt: Date.now() + 7000 }));
+    act(() => vi.advanceTimersByTime(7000));
+    const endsAt = Date.now() + 6000;
+    rerender({ v: view({ endsAt }) });
+    act(() => vi.advanceTimersByTime(5500));
+    rerender({ v: view({ phase: 'locked', endsAt }) });
+    rerender({ v: reveal(0) });
+    expect(sounds()).toEqual([...countdown, ...countdown, 'wrong']);
+  });
+
+  it('a pause and a resume tick by the new timer, one gong', () => {
+    const { rerender } = mount(view({ endsAt: Date.now() + 10_000 }));
+    act(() => vi.advanceTimersByTime(6500));
+    expect(sounds()).toEqual(['tick', 'tick']);
+    rerender({ v: view({ paused: true, endsAt: null, remainingMs: 3500 }) });
+    act(() => vi.advanceTimersByTime(10_000));
+    expect(sounds()).toEqual(['tick', 'tick']);
+    rerender({ v: view({ endsAt: Date.now() + 3500 }) });
+    act(() => vi.advanceTimersByTime(4000));
+    // Відновлення на 3,5 с: таймер показує 4 — цокання 4, 3, 2, 1 і гонг за новим endsAt.
+    expect(sounds()).toEqual(['tick', 'tick', 'tick', 'tick', 'tick', 'tick', 'gong']);
+  });
+
+  it('+15 s mid-countdown: no gong at the old end, honest ticks and one gong at the new one', () => {
+    const start = Date.now();
+    const { rerender } = mount(view({ endsAt: start + 7000 }));
+    act(() => vi.advanceTimersByTime(3500));
+    expect(sounds()).toEqual(['tick', 'tick']);
+    rerender({ v: view({ endsAt: start + 22_000 }) });
+    act(() => vi.advanceTimersByTime(20_000));
+    expect(sounds()).toEqual(['tick', 'tick', ...countdown]);
+  });
+
   it('an early lock has no gong', () => {
     const endsAt = Date.now() + 20_000;
     const { rerender } = mount(view({ endsAt }));

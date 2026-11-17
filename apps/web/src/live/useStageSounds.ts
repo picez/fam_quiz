@@ -1,5 +1,5 @@
 import type { StageView } from '@quiz/shared';
-import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { audioReady, audioSupported, subscribeAudio, unlockAudio } from '../audio';
 import { playStageSound } from '../stage-sound';
 import { loadStageSounds, saveStageSounds } from '../storage';
@@ -31,7 +31,10 @@ export function useStageSounds(view: StageView, offsetMs: number): StageSoundsCo
   const heard = useRef(new Set<string>());
   const prev = useRef<StageView | null>(null);
   const latest = useRef({ view, offsetMs, device });
-  latest.current = { view, offsetMs, device };
+  // Лише зафіксований рендер: відкинутий паралельний рендер не потрапить в оцінку з інтервалу.
+  useLayoutEffect(() => {
+    latest.current = { view, offsetMs, device };
+  }, [view, offsetMs, device]);
 
   const evaluate = useCallback(() => {
     const { view: shown, offsetMs: offset, device: on } = latest.current;

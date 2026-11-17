@@ -49,18 +49,32 @@ describe('stageCues (40)', () => {
   });
 
   it('a gong when time runs out', () => {
-    expect(stageCues(null, counting(), 10_000)).toEqual([{ sound: 'gong', key: 'gong:0:1' }]);
-    expect(stageCues(null, counting(), 12_000)).toEqual([{ sound: 'gong', key: 'gong:0:1' }]);
+    expect(stageCues(null, counting(), 10_000)).toEqual([{ sound: 'gong', key: 'gong:0:1:10000' }]);
+    expect(stageCues(null, counting(), 12_000)).toEqual([{ sound: 'gong', key: 'gong:0:1:10000' }]);
     expect(stageCues(null, counting({ paused: true }), 12_000)).toEqual([]);
   });
 
   it('a gong on a lock the stage did not see coming', () => {
     const locked = stageView({ phase: 'locked' });
-    expect(stageCues(counting(), locked, 9_200)).toEqual([{ sound: 'gong', key: 'gong:0:1' }]);
+    expect(stageCues(counting(), locked, 9_200)).toEqual([{ sound: 'gong', key: 'gong:0:1:10000' }]);
     expect(stageCues(counting(), locked, 8_000)).toEqual([]);
     expect(stageCues(counting({ questionIndex: 0 }), locked, 9_200)).toEqual([]);
     expect(stageCues(counting({ paused: true }), locked, 9_200)).toEqual([]);
     expect(stageCues(null, locked, 9_200)).toEqual([]);
+  });
+
+  it('a gong at the end of each stage timer of one question', () => {
+    // Блеф: «вигадки» до 10 000, далі вибір до 30 000 — той самий q, новий endsAt.
+    expect(stageCues(null, counting(), 10_000)).toEqual([{ sound: 'gong', key: 'gong:0:1:10000' }]);
+    expect(stageCues(counting(), counting({ endsAt: 30_000 }), 10_100)).toEqual([]);
+    expect(stageCues(null, counting({ endsAt: 30_000 }), 30_000)).toEqual([{ sound: 'gong', key: 'gong:0:1:30000' }]);
+    // Швидкий перехід з другого етапу на locked — гонг за таймером prev.
+    expect(stageCues(counting({ endsAt: 30_000 }), stageView({ phase: 'locked' }), 29_500)).toEqual([{ sound: 'gong', key: 'gong:0:1:30000' }]);
+  });
+
+  it('a pause or +15 s moves the countdown to the new timer', () => {
+    expect(stageCues(null, counting({ endsAt: 25_000 }), 21_000)).toEqual([{ sound: 'tick', key: 'tick:0:1:25000:4' }]);
+    expect(stageCues(null, counting({ endsAt: 25_000 }), 25_000)).toEqual([{ sound: 'gong', key: 'gong:0:1:25000' }]);
   });
 
   it('an accent on a round splash', () => {

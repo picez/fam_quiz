@@ -34,10 +34,12 @@ export function stageCues(prev: StageView | null, view: StageView, serverNow: nu
   }
   if (counting(view)) {
     const left = secondsLeft(view, 0, serverNow) ?? 0;
-    if (serverNow >= view.endsAt) cues.push({ sound: 'gong', key: `gong:${q}` });
+    // Гонг — на кінці кожного таймера: багатоетапні запитання (блеф, шпигун) лишаються на question з тим самим q
+    // і новим endsAt на кожен етап, тож ключ гонгу — за таймером, а не за запитанням.
+    if (serverNow >= view.endsAt) cues.push({ sound: 'gong', key: `gong:${q}:${view.endsAt}` });
     else if (left >= 1 && left <= TICK_FROM_S) cues.push({ sound: 'tick', key: `tick:${q}:${view.endsAt}:${left}` });
   } else if (prev !== null && view.phase !== 'question' && counting(prev) && questionKey(prev) === q && serverNow >= prev.endsAt - GONG_GRACE_MS) {
-    cues.push({ sound: 'gong', key: `gong:${q}` });
+    cues.push({ sound: 'gong', key: `gong:${q}:${prev.endsAt}` });
   }
   if (view.phase === 'reveal' && view.stats !== null && view.stats.accepted !== null) {
     cues.push({ sound: view.stats.accepted > 0 ? 'correct' : 'wrong', key: `reveal:${q}` });
