@@ -41,6 +41,8 @@ import {
   truthFactSchema,
   truthHideSchema,
   thinkWordsEventSchema,
+  alikeJoinSchema,
+  alikeSplitSchema,
   duelistSchema,
   pickAnswererSchema,
   draftSchema,
@@ -1036,6 +1038,19 @@ export function attachSockets(
       if (!hostSide) return FORBIDDEN;
       const payload = thinkWordsEventSchema.safeParse(payloadOf(args));
       return payload.success ? run({ type: 'think-words', words: payload.data.words }) : INVALID;
+    });
+
+    // «Думай як усі» (37e): правки груп на reveal; ack — лише ok чи помилка.
+    on('host:alike-join', (args) => {
+      if (!hostSide) return FORBIDDEN;
+      const payload = alikeJoinSchema.safeParse(payloadOf(args));
+      return payload.success ? run({ type: 'alike-join', ...payload.data }) : INVALID;
+    });
+
+    on('host:alike-split', (args) => {
+      if (!hostSide) return FORBIDDEN;
+      const payload = alikeSplitSchema.safeParse(payloadOf(args));
+      return payload.success ? run({ type: 'alike-split', ...payload.data }) : INVALID;
     });
 
     on('host:captain', (args) => {

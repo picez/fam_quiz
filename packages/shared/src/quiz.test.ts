@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { alikeJoinSchema, alikeSplitSchema } from './events';
 import {
   DEFAULT_ANSWER_WINDOW,
   DEFAULT_RULES,
@@ -121,6 +122,7 @@ import {
   SPOT_MAX_ASPECT,
   QUESTION_TYPES as ALL_QUESTION_TYPES,
   QUEST_TYPES,
+  overshootOn,
 } from './index';
 
 const single = {
@@ -3623,6 +3625,7 @@ describe('quest round (29g)', () => {
       melody: { ...b, type: 'melody', text: 'Що це за пісня?', timeLimit: 60, track: { source: 'file', url: `/uploads/${'a'.repeat(32)}.mp3`, start: 5 }, accepted: ['Щедрик'] },
       videoclip: { ...b, type: 'videoclip', text: 'Що це за відео?', timeLimit: 60, clip: { id: 'E2Evideo001', start: 12 }, muted: true, accepted: ['Take On Me'] },
       bluff: { ...b, type: 'bluff', text: 'Ейфелеву вежу спершу пропонували поставити в …', timeLimit: 60, choiceTime: 30, accepted: ['Барселона'], lies: ['Мадрид', 'Лондон', 'Брюссель'] },
+      thinkalike: { ...b, type: 'thinkalike', text: 'Назвіть фрукт, який першим спадає на думку', timeLimit: 30 },
       think: { ...b, points: 0, type: 'think', text: 'Напишіть колір веселки', timeLimit: 30, words: [{ word: 'червоний', synonyms: [] }] },
     };
     const others = ALL_QUESTION_TYPES.filter((type) => !(QUEST_TYPES as readonly string[]).includes(type));
@@ -3814,5 +3817,159 @@ describe('think round (35)', () => {
     const parsed = quizSchema.parse(quizOf([thinkRound(), round('r', [{ ...single, id: 'other' }])]));
     expect(roundBrief(parsed.rounds[0]!)).toEqual({ ...emptyBrief('think'), think: { lives: 3, points: 10000, count: 3 } });
     expect(roundBrief(parsed.rounds[1]!).think).toBeNull();
+  });
+});
+
+describe('plan 37: moreless step and numeric no-overshoot', () => {
+  const quizOf = (rounds: object[], patch: object = {}) => ({ title: 'T', description: '', settings: DEFAULT_SETTINGS, rounds, ...patch });
+  const issues = (value: unknown) => {
+    const parsed = quizSchema.safeParse(value);
+    return parsed.success ? [] : parsed.error.issues.map((i) => i.message);
+  };
+  const pair = (id: string, points: number) => ({ id, prompt: 'Що вище?', a: { text: 'Говерла', value: '2061 м' }, b: { text: 'Ейфелева вежа', value: '330 м' }, correct: 'a', points });
+  const moreLessQ = (patch: object = {}) => ({ id: 'ml', type: 'moreless', text: 'Порівняйте', imageUrl: null, video: null,
+    timeLimit: 60, points: 200, pairs: [pair('p1', 100), pair('p2', 100)], ...patch });
+  const numQ = (patch: object = {}) => ({ id: 'nq', type: 'numeric', text: 'Скільки днів у тижні?', imageUrl: null, video: null, timeLimit: 30, points: 1000,
+    correct: 7, tolerance: 0, ...patch });
+
+  it('moreless keeps an optional step', () => {
+    expect(questionSchema.parse(moreLessQ({ step: 50 }))).toMatchObject({ step: 50 });
+    expect(questionSchema.parse(moreLessQ({ step: 0 }))).toMatchObject({ step: 0 });
+    expect(questionSchema.parse(moreLessQ())).not.toHaveProperty('step');
+    for (const step of [-1, 2001, 12.5]) expect(valid(questionSchema, moreLessQ({ step })), String(step)).toBe(false);
+  });
+
+  it('numeric keeps the no-overshoot switch', () => {
+    const on = questionSchema.parse(numQ({ noOvershoot: true, tolerance: 5 }));
+    expect(on).toMatchObject({ noOvershoot: true, tolerance: 5 });
+    expect(questionSchema.parse(numQ())).not.toHaveProperty('noOvershoot');
+    expect(overshootOn(on)).toBe(true);
+    expect(overshootOn(questionSchema.parse(numQ({ noOvershoot: false })))).toBe(false);
+    expect(overshootOn(questionSchema.parse(numQ()))).toBe(false);
+    expect(overshootOn(questionSchema.parse({ id: 't', type: 'text', text: 'Хто?', imageUrl: null, video: null, timeLimit: 30, points: 1000, accepted: ['а'] }))).toBe(false);
+  });
+
+  it('no overshoot plays only in classic rounds', () => {
+    const over = (id: string) => numQ({ id, noOvershoot: true });
+    expect(issues(quizOf([round('r', [over('n1')])]))).toEqual([]);
+    const blitz = { id: 'bl', type: 'blitz', title: '', shuffleOptions: false, answerWindow: 15, attempts: 1, check: 'auto',
+      rules: { ...DEFAULT_RULES, partial: null }, questions: [over('n2')] };
+    const final = { id: 'f', type: 'final', title: '', shuffleOptions: false, check: 'auto', questions: [over('n3')] };
+    const bets = { id: 'bt', type: 'bets', title: '', shuffleOptions: false, check: 'auto', betStart: 200, betStep: 100, betMax: 600,
+      questions: [{ ...over('n4'), betsCut: 2 }] };
+    const auction = { id: 'au', type: 'auction', title: '', shuffleOptions: false, check: 'auto', bidMode: 'step', bidStep: 50, loss: 'bid',
+      questions: [{ ...over('n5'), betsCut: 2 }] };
+    const wipeout = { id: 'rw', type: 'wipeout', title: '', shuffleOptions: false,
+      questions: [over('n6'), ...[1, 2, 3, 4].map((n) => ({ ...single, id: `w${n}` }))] };
+    const survival = { id: 'rs', type: 'survival', title: '', speedBonus: false, shuffleOptions: false, rules: DEFAULT_RULES,
+      questions: [over('n7'), { ...single, id: 's2' }, { ...single, id: 's3' }], trials: [], trial: 'luck', survivors: 1, bonus: 500 };
+    const q30 = (id: string) => ({ ...single, id, timeLimit: 30 });
+    const quest = { id: 'rq', type: 'quest', title: '', speedBonus: false, shuffleOptions: false, rules: DEFAULT_RULES,
+      prompt: 'Нічний птах — символ мудрості (4 літери)', code: 'СОВА', order: [0, 1, 2, 3], tries: 3, bonus: { kind: 'points', points: 1200 },
+      questions: [q30('q-1'), q30('q-2'), q30('q-3'), { ...over('n8'), timeLimit: 30 }] };
+    for (const bad of [blitz, final, bets, auction, wipeout, survival, quest]) {
+      expect(issues(quizOf([round('r', [single]), bad])), bad.type).toContain('numeric_overshoot_place');
+    }
+    const trial = { ...survival, questions: [single, { ...single, id: 's2' }, { ...single, id: 's3' }], trial: 'question', trials: [over('n9')] };
+    expect(issues(quizOf([round('r', [single]), trial]))).toContain('numeric_overshoot_place');
+    const board = (cell: object) => ({ id: 'b', type: 'board', title: '', shuffleOptions: false, answerMode: 'phone', check: 'auto', rules: DEFAULT_RULES,
+      categories: [1, 2, 3].map((n) => ({ id: `c${n}`, title: `К${n}`, cells: [1, 2, 3].map((m) => ({ mark: 'none',
+        question: n === 1 && m === 1 ? cell : { ...single, id: `q${n}${m}` } })) })) });
+    expect(issues(quizOf([board(over('n10'))]))).toContain('numeric_overshoot_place');
+    // Той самий numeric без перемикача — без цієї проблеми.
+    for (const ok of [blitz, final, bets, auction, wipeout, survival, quest, board(numQ({ id: 'n11' }))]) {
+      const plain = JSON.parse(JSON.stringify(ok).replace(/"noOvershoot":true/g, '"noOvershoot":false'));
+      expect(issues(quizOf([round('r', [single]), plain])), ok.type).not.toContain('numeric_overshoot_place');
+    }
+    expect(issues(quizOf([round('r', [single]), trial].map((r) => (r === trial ? { ...trial, trials: [numQ({ id: 'n12' })] } : r))))).not.toContain('numeric_overshoot_place');
+    // Запасне з перемикачем не годиться.
+    expect(issues(quizOf([round('r', [single])], { spares: [over('sp')] }))).toContain('spare_type');
+    expect(issues(quizOf([round('r', [single])], { spares: [numQ({ id: 'sp2' })] }))).not.toContain('spare_type');
+  });
+
+  it('old quizzes still parse', () => {
+    expect(quizSchema.safeParse(quizOf([round('r', [single, numQ(), moreLessQ()])])).success).toBe(true);
+  });
+});
+
+describe('plan 37e: thinkalike question', () => {
+  const quizOf = (rounds: object[], patch: object = {}) => ({ title: 'T', description: '', settings: DEFAULT_SETTINGS, rounds, ...patch });
+  const issues = (value: unknown) => {
+    const parsed = quizSchema.safeParse(value);
+    return parsed.success ? [] : parsed.error.issues.map((i) => i.message);
+  };
+  const qIssues = (value: unknown) => {
+    const parsed = questionSchema.safeParse(value);
+    return parsed.success ? [] : parsed.error.issues.map((i) => i.message);
+  };
+  const alikeQ = (patch: object = {}) => ({ id: 'al', type: 'thinkalike', text: 'Назвіть фрукт, який першим спадає на думку', imageUrl: null, video: null,
+    timeLimit: 30, points: 1000, ...patch });
+
+  it('accepts a thinkalike', () => {
+    expect(questionSchema.parse(alikeQ())).toMatchObject({ type: 'thinkalike', timeLimit: 30 });
+    expect(valid(questionSchema, alikeQ({ imageUrl: '/uploads/' + 'c'.repeat(32) + '.jpg' }))).toBe(true);
+    expect(valid(questionSchema, alikeQ({ timeLimit: 25 }))).toBe(true);
+  });
+
+  it('refuses a broken thinkalike', () => {
+    expect(qIssues(alikeQ({ imageUrl: '/uploads/' + 'c'.repeat(32) + '.jpg', reveal: 'blur' }))).toContain('thinkalike_reveal');
+    expect(qIssues(alikeQ({ hint: 'Подумайте' }))).toContain('thinkalike_hint');
+  });
+
+  it('a thinkalike plays only in classic rounds', () => {
+    const blitz = { id: 'bl', type: 'blitz', title: '', shuffleOptions: false, answerWindow: 15, attempts: 1, check: 'auto',
+      rules: { ...DEFAULT_RULES, partial: null }, questions: [alikeQ({ id: 'a1' })] };
+    const final = { id: 'f', type: 'final', title: '', shuffleOptions: false, check: 'auto', questions: [alikeQ({ id: 'a2' })] };
+    const bets = { id: 'bt', type: 'bets', title: '', shuffleOptions: false, check: 'auto', betStart: 200, betStep: 100, betMax: 600,
+      questions: [{ ...alikeQ({ id: 'a3' }), betsCut: 2 }] };
+    const auction = { id: 'au', type: 'auction', title: '', shuffleOptions: false, check: 'auto', bidMode: 'step', bidStep: 50, loss: 'bid',
+      questions: [{ ...alikeQ({ id: 'a4' }), betsCut: 2 }] };
+    const wipeout = { id: 'rw', type: 'wipeout', title: '', shuffleOptions: false,
+      questions: [alikeQ({ id: 'a5' }), ...[1, 2, 3, 4].map((n) => ({ ...single, id: `w${n}` }))] };
+    const survival = { id: 'rs', type: 'survival', title: '', speedBonus: false, shuffleOptions: false, rules: DEFAULT_RULES,
+      questions: [alikeQ({ id: 'a6' }), { ...single, id: 's2' }, { ...single, id: 's3' }], trials: [], trial: 'luck', survivors: 1, bonus: 500 };
+    const four = (id: string) => ({ ...single, id, options: ['a', 'b', 'c', 'd'].map((o) => ({ id: o, text: o.toUpperCase() })), correctId: 'b' });
+    const ladder = { id: 'rl', type: 'ladder', title: '', shuffleOptions: false, questions: [alikeQ({ id: 'a7' }), ...[2, 3, 4, 5].map((n) => four(`l${n}`))],
+      levels: [100, 300, 1000, 3000, 10000], safe: [2], pick: 'host', lifelines: ['fifty'], timer: false };
+    const puzzles = { id: 'pz', type: 'puzzles', title: 'Головоломки', questions: [alikeQ({ id: 'a8' })] };
+    const q30 = (id: string) => ({ ...single, id, timeLimit: 30 });
+    const quest = { id: 'rq', type: 'quest', title: '', speedBonus: false, shuffleOptions: false, rules: DEFAULT_RULES,
+      prompt: 'Нічний птах — символ мудрості (4 літери)', code: 'СОВА', order: [0, 1, 2, 3], tries: 3, bonus: { kind: 'points', points: 1200 },
+      questions: [q30('q-1'), q30('q-2'), q30('q-3'), alikeQ({ id: 'a9', timeLimit: 30 })] };
+    for (const bad of [blitz, final, bets, auction, wipeout, survival, ladder, puzzles, quest]) {
+      expect(issues(quizOf([round('r', [single]), bad])), bad.type).toContain('thinkalike_place');
+    }
+    const board = { id: 'b', type: 'board', title: '', shuffleOptions: false, answerMode: 'phone', check: 'auto', rules: DEFAULT_RULES,
+      categories: [1, 2, 3].map((n) => ({ id: `c${n}`, title: `К${n}`, cells: [1, 2, 3].map((m) => ({ mark: 'none',
+        question: n === 1 && m === 1 ? alikeQ({ id: 'a10' }) : { ...single, id: `q${n}${m}` } })) })) };
+    expect(issues(quizOf([board]))).toContain('thinkalike_place');
+    const trial = { ...survival, questions: [single, { ...single, id: 's2' }, { ...single, id: 's3' }], trial: 'question', trials: [alikeQ({ id: 'a11' })] };
+    expect(issues(quizOf([round('r', [single]), trial]))).toContain('thinkalike_place');
+    const thinkQ = (id: string) => ({ id, type: 'think', text: 'Напишіть колір веселки', imageUrl: null, video: null, timeLimit: 30, points: 0, words: [] });
+    const think = { id: 'th', type: 'think', title: '', lives: 3, points: 10000, questions: [thinkQ('t1'), thinkQ('t2'), alikeQ({ id: 'a12' })] };
+    expect(issues(quizOf([think]))).toContain('think_type');
+    expect(issues(quizOf([round('r', [single])], { spares: [alikeQ({ id: 'sp' })] }))).toContain('spare_type');
+    expect(issues(quizOf([round('c', [alikeQ({ id: 'a13' })])]))).toEqual([]);
+  });
+
+  it('a thinkalike answer is one short word', () => {
+    expect(answerSchema.parse({ type: 'thinkalike', value: 'яблуко' })).toEqual({ type: 'thinkalike', value: 'яблуко' });
+    expect(valid(answerSchema, { type: 'thinkalike', value: 'я'.repeat(LIMITS.thinkWord) })).toBe(true);
+    expect(valid(answerSchema, { type: 'thinkalike', value: 'я'.repeat(LIMITS.thinkWord + 1) })).toBe(false);
+  });
+
+  it('keeps the type order and counts thinkalikes in the classic brief', () => {
+    expect(QUESTION_TYPES.indexOf('thinkalike')).toBe(QUESTION_TYPES.indexOf('bluff') + 1);
+    const plain = quizSchema.parse(quizOf([round('r1', [single])]));
+    expect(roundBrief(plain.rounds[0]!)).not.toHaveProperty('thinkalikes');
+    const mixed = quizSchema.parse(quizOf([round('r1', [single, alikeQ({ id: 'x1' }), alikeQ({ id: 'x2' })])]));
+    expect(roundBrief(mixed.rounds[0]!).thinkalikes).toBe(2);
+  });
+
+  it('the host edit events carry non-empty keys', () => {
+    expect(alikeJoinSchema.safeParse({ from: 'p1', to: 'solo:p2' }).success).toBe(true);
+    expect(alikeJoinSchema.safeParse({ from: '', to: 'p2' }).success).toBe(false);
+    expect(alikeSplitSchema.safeParse({ playerId: 'p2' }).success).toBe(true);
+    expect(alikeSplitSchema.safeParse({ playerId: '' }).success).toBe(false);
   });
 });

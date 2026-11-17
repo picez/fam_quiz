@@ -133,6 +133,8 @@ import {
   submitTruth,
   hideTruth,
   setThinkWords,
+  alikeJoin,
+  alikeSplit,
   lettersDue,
   ladderWord,
   ladderBack,
@@ -400,7 +402,10 @@ export type HostAction =
   /** «Правда про гравця» (28b): сховати чи показати факт людини. Лише ведучий: автор кімнати-автопілота теж вгадує. */
   | { type: 'truth-hide'; playerId: string; hidden: boolean }
   /** «Думай інакше» (35): замінити слова ведучого поточного запитання. Лише ведучий: автор кімнати-автопілота — not_allowed. Слова не йдуть ні в події, ні в логи. */
-  | { type: 'think-words'; words: ThinkWord[] };
+  | { type: 'think-words'; words: ThinkWord[] }
+  /** «Думай як усі» (37e): ведучий об'єднує групи слів чи виносить гравця окремо на reveal. Автор кімнати-автопілота — not_allowed. */
+  | { type: 'alike-join'; from: string; to: string }
+  | { type: 'alike-split'; playerId: string };
 
 /** Дії, які автор кімнати-автопілота шле з телефона (11g); решта — not_allowed. */
 // Прості дії лежать у HostAction одним членом з іншими (lock, next, …), тож Extract їх не виділяє.
@@ -2326,6 +2331,10 @@ export class RoomManager {
         if (!rateAllowed(room, 'think', HOST_RATE_ID, now)) return { ok: false, error: 'too_soon' };
         return this.apply(room, setThinkWords(state, action.words));
       }
+      case 'alike-join':
+        return this.apply(room, alikeJoin(state, action.from, action.to));
+      case 'alike-split':
+        return this.apply(room, alikeSplit(state, action.playerId));
     }
   }
 

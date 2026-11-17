@@ -69,6 +69,7 @@ import {
   generateSudoku,
   countSudoku,
   isSudokuGrid,
+  overshootOn,
   sudokuConflicts,
   EMPTY_SUDOKU,
   crosswordLetters,
@@ -128,6 +129,11 @@ const NEW_MORELESS_PAIRS = 3;
 /** Порожнє порівняння «Більше чи менше»: лівий варіант правильний, бали задано. */
 export function blankMoreLessPair(points: number, prompt = ''): MoreLessPair {
   return { id: newId(), prompt, a: { text: '', value: '' }, b: { text: '', value: '' }, correct: 'a', points };
+}
+
+/** Лад балів «Більше чи менше»: кожне `min(maxPoints, first + i × step)`. */
+export function steppedPoints(first: number, step: number, count: number): number[] {
+  return Array.from({ length: count }, (_, i) => Math.min(LIMITS.maxPoints, first + i * step));
 }
 
 /** Випадковий seed генератора судоку (ціле 0…2³² − 1). */
@@ -374,6 +380,11 @@ function build(common: Common, type: QuestionType): Question {
       // Власне джерело — clip: без video, загального звуку, «перевертання» й підказки (бафів немає). Порожній clip.id — чернетка (problemVideoclipLink).
       const { hint: _hint, audio: _audio, reveal: _reveal, ...rest } = common;
       return { ...rest, video: null, type, text: rest.text === '' ? t('videoclipDefaultText') : rest.text, timeLimit: LIMITS.defaultVideoclipTime, points: LIMITS.defaultPoints, clip: { id: '', start: 0 }, muted: true, accepted: [''] };
+    }
+    case 'thinkalike': {
+      // 37: «Думай як усі» — без «перевертання» й підказки (бафів немає); тема в тексті, час і бали типові.
+      const { hint: _hint, reveal: _reveal, ...rest } = common;
+      return { ...rest, type, text: rest.text === '' ? t('alikeDefaultText') : rest.text };
     }
     case 'bluff':
       return { ...common, video: null, type, timeLimit: LIMITS.defaultBluffTime, choiceTime: LIMITS.defaultChoiceTime, accepted: [''], lies: ['', ''] };
@@ -1050,6 +1061,11 @@ const cleanBody = (question: Question): Question => {
         lies: filledSpares.length >= LIMITS.minBluffSpares ? filledSpares : spares,
       };
     }
+    case 'thinkalike': {
+      // Без «перевертання» й підказки (бафів немає); тема — в тексті.
+      const { hint: _hint, reveal: _reveal, ...rest } = question;
+      return { ...rest, text };
+    }
     case 'think': {
       // Без відео, звуку, «перевертання» й підказки; ціна 0 (think_points), слова почищені.
       const { hint: _hint, audio: _audio, reveal: _reveal, ...rest } = question;
@@ -1199,19 +1215,21 @@ interface Place {
   melody: boolean;
   /** «Відео за фрагментами»: лише класика (правило videoclip_place схеми). */
   videoclip: boolean;
+  /** «Думай як усі» і числове «Не перебільш»: лише класика (правила thinkalike_place й numeric_overshoot_place схеми). */
+  thinkalike: boolean;
 }
 
-const ANYWHERE: Place = { reveal: true, clues: true, pin: true, wall: true, vote: true, bluff: true, survey: true, clouds: [], voice: false, sort: true, chain: true, wordladder: true, timedlist: true, letterwords: true, moreless: true, drawing: true, puzzle: false, onlyPuzzles: false, jigsaw: true, spotdiff: true, memory: true, melody: true, videoclip: true };
+const ANYWHERE: Place = { reveal: true, clues: true, pin: true, wall: true, vote: true, bluff: true, survey: true, clouds: [], voice: false, sort: true, chain: true, wordladder: true, timedlist: true, letterwords: true, moreless: true, drawing: true, puzzle: false, onlyPuzzles: false, jigsaw: true, spotdiff: true, memory: true, melody: true, videoclip: true, thinkalike: true };
 /** Бліц і фінал: нічого з нового. Класика — усе, а хмари для «100 до 1» — ті, що вище. */
 const roundPlace = (quiz: Quiz, roundIndex: number, questionIndex: number): Place =>
   quiz.rounds[roundIndex].type === 'classic'
     ? { ...ANYWHERE, clouds: cloudSources(quiz, roundIndex, questionIndex).map((cloud) => cloud.id) }
-    : { reveal: false, clues: false, pin: false, wall: false, vote: false, bluff: false, survey: false, clouds: null, voice: false, sort: true, chain: quiz.rounds[roundIndex].type !== 'blitz', wordladder: quiz.rounds[roundIndex].type === 'final' || quiz.rounds[roundIndex].type === 'bets' || quiz.rounds[roundIndex].type === 'auction', timedlist: false, letterwords: false, moreless: false, drawing: false, puzzle: quiz.rounds[roundIndex].type === 'puzzles', onlyPuzzles: quiz.rounds[roundIndex].type === 'puzzles', jigsaw: quiz.rounds[roundIndex].type === 'puzzles', spotdiff: quiz.rounds[roundIndex].type === 'puzzles', memory: quiz.rounds[roundIndex].type === 'puzzles', melody: false, videoclip: false };
+    : { reveal: false, clues: false, pin: false, wall: false, vote: false, bluff: false, survey: false, clouds: null, voice: false, sort: true, chain: quiz.rounds[roundIndex].type !== 'blitz', wordladder: quiz.rounds[roundIndex].type === 'final' || quiz.rounds[roundIndex].type === 'bets' || quiz.rounds[roundIndex].type === 'auction', timedlist: false, letterwords: false, moreless: false, drawing: false, puzzle: quiz.rounds[roundIndex].type === 'puzzles', onlyPuzzles: quiz.rounds[roundIndex].type === 'puzzles', jigsaw: quiz.rounds[roundIndex].type === 'puzzles', spotdiff: quiz.rounds[roundIndex].type === 'puzzles', memory: quiz.rounds[roundIndex].type === 'puzzles', melody: false, videoclip: false, thinkalike: false };
 /** Клітинка поля: усе — на звичайній з телефона; «Хто я?» — ще й на усній; бліц-клітинка — нічого. */
 const cellPlace = (round: BoardRound, cell: BoardCell): Place => {
   const normal = cell.kind === 'normal';
   const phone = normal && cellAnswerMode(round, cell) === 'phone';
-  return { reveal: phone, clues: normal, pin: phone, wall: phone, vote: false, bluff: false, survey: phone, clouds: null, voice: normal && !phone, sort: phone, chain: false, wordladder: false, timedlist: phone, letterwords: phone, moreless: phone, drawing: false, puzzle: false, onlyPuzzles: false, jigsaw: false, spotdiff: false, memory: false, melody: false, videoclip: false };
+  return { reveal: phone, clues: normal, pin: phone, wall: phone, vote: false, bluff: false, survey: phone, clouds: null, voice: normal && !phone, sort: phone, chain: false, wordladder: false, timedlist: phone, letterwords: phone, moreless: phone, drawing: false, puzzle: false, onlyPuzzles: false, jigsaw: false, spotdiff: false, memory: false, melody: false, videoclip: false, thinkalike: false };
 };
 
 /** Що заважає зберегти клітинку (уже почищену); null — клітинка готова. Одне джерело для problemsOf, firstProblem і cellState. */
@@ -1296,6 +1314,8 @@ function problemKey(question: Question, place: Place = ANYWHERE): TextKey | null
   if (question.type === 'memory' && !place.memory) return 'problemMemoryPlace';
   if (question.type === 'melody' && !place.melody) return 'problemMelodyPlace';
   if (question.type === 'videoclip' && !place.videoclip) return 'problemVideoclipPlace';
+  if (question.type === 'thinkalike' && !place.thinkalike) return 'problemAlikePlace';
+  if (question.type === 'numeric' && question.noOvershoot === true && !place.thinkalike) return 'problemOvershootPlace';
   if (!fitsPuzzlesRound(question) && place.onlyPuzzles) return 'problemPuzzlesType';
   const { timeLimit, points } = question;
   const inLimits =
@@ -1821,11 +1841,16 @@ function duelProblems(duels: Duels): string[] {
   return problems;
 }
 
+/** Запасне «Не перебільш» схема відхиляє (spare_type): редактор каже це наперед. */
+function spareKey(spare: Question): TextKey | null {
+  return problemKey(spare) ?? (overshootOn(spare) ? 'problemOvershootPlace' : null);
+}
+
 /** Проблеми розділу «Запасні запитання»: кожне запасне перевіряється так само, як запитання. */
 function spareProblems(spares: Question[]): string[] {
   const problems: string[] = [];
   spares.forEach((spare, index) => {
-    const key = problemKey(spare);
+    const key = spareKey(spare);
     if (key === null) return;
     // «Запитання N: текст» → «Запасне N: текст».
     const problem = problemText(key, index + 1, spare).replace(/^[^:]*:\s*/, '');
@@ -1849,7 +1874,7 @@ export function problemsOf(quiz: Quiz): string[] {
         if (category.title === '') problems.push(where(t('problemCategoryNoTitle', { category: categoryIndex + 1 })));
         const name = category.title === '' ? t('boardCategoryPlaceholder', { index: categoryIndex + 1 }) : category.title;
         (category.spares ?? []).forEach((spare, index) => {
-          const key = problemKey(spare);
+          const key = spareKey(spare);
           if (key === null) return;
           const problem = problemText(key, index + 1, spare).replace(/^[^:]*:\s*/, '');
           problems.push(where(t('problemCategorySpare', { category: name, index: index + 1, problem })));

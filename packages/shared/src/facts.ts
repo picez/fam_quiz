@@ -1,6 +1,6 @@
 import type { Answer } from './answer';
 import type { BuffKind } from './game';
-import { answerWindowMs, type Question, type Round } from './quiz';
+import { answerWindowMs, overshootOn, type Question, type Round } from './quiz';
 import { SPEEDLESS_TYPES, WHOLE_ROW_TYPES } from './question-types';
 
 /** Пороги цікавинок (12d). */
@@ -191,7 +191,8 @@ export function factLimitMs(question: Question, round: Round | undefined, voice:
   if (round?.type === 'ladder' && round.timer === false) return null;
   // Швидкість не рахується: драбина рахує кроки, список і слова — знахідки, «Більше чи менше» — ряд, малюнок і головоломки — ціна без швидкості;
   // їхній час не дає ні «Блискавки», ні «найшвидшої», ні швидкісних ачівок.
-  if (SPEEDLESS_TYPES.includes(question.type)) return null;
+  // «Не перебільш» теж без швидкості: рахується лише близькість знизу.
+  if (SPEEDLESS_TYPES.includes(question.type) || overshootOn(question)) return null;
   // Ставки (27a) і «Аукціон» (27b): швидкості немає, тож час відповіді не дає ні «Блискавки», ні швидкісних ачівок.
   if (round?.type === 'bets' || round?.type === 'auction' || round?.type === 'truth' || round?.type === 'puzzles' || round?.type === 'think') return null;
   if (question.type === 'bluff') return question.choiceTime * 1000;

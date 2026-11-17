@@ -26,6 +26,11 @@ function closeStems(host: string, typed: string): boolean {
   return Math.abs([...host].length - [...typed].length) <= budget && typoDistance(host, typed) <= budget;
 }
 
+/** «Думай як усі» (37e): два стебла близькі в будь-який бік (бюджет одруківок — від будь-якого з двох). */
+export function thinkClose(a: string, b: string): boolean {
+  return closeStems(a, b) || closeStems(b, a);
+}
+
 /**
  * Індекс першого слова ведучого, з яким збігається відповідь; порожня — null.
  * Збіг — стебло всієї відповіді близьке (closeStems) до стебла слова чи синоніма; а для однослівного слова ведучого — ще й

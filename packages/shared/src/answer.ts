@@ -14,6 +14,8 @@ export const answerSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('melody'), value: z.string().max(LIMITS.answerText).refine(isStorable, UNSTORABLE) }),
   /** «Відео за фрагментами» (36): текст з телефона; heard дописує рушій. */
   z.object({ type: z.literal('videoclip'), value: z.string().max(LIMITS.answerText).refine(isStorable, UNSTORABLE) }),
+  /** «Думай як усі» (37e): одне слово; зводить і міряє рушій. */
+  z.object({ type: z.literal('thinkalike'), value: z.string().max(LIMITS.thinkWord).refine(isStorable, UNSTORABLE) }),
   /** «Думай інакше» (35): одне слово; обрізає й міряє (LIMITS.thinkWord) рушій. */
   z.object({ type: z.literal('think'), value: z.string().max(LIMITS.thinkWord * 2).refine(isStorable, UNSTORABLE) }),
   z.object({ type: z.literal('clues'), value: z.string().max(LIMITS.answerText).refine(isStorable, UNSTORABLE) }),

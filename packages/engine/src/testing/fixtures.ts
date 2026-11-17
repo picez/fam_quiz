@@ -93,6 +93,19 @@ export const numeric = {
   tolerance: 100,
 } satisfies Question;
 
+/** «Не перебільш» (37d): числове запитання, де перемагає найближче знизу; tolerance при цьому не діє. */
+export const overshoot = {
+  ...base,
+  id: 'ov1',
+  type: 'numeric',
+  text: 'Скільки клавіш у стандартного фортепіано?',
+  timeLimit: 30,
+  points: 1000,
+  correct: 88,
+  tolerance: 5,
+  noOvershoot: true,
+} satisfies Question;
+
 export const order = {
   ...base,
   id: 'q6',
@@ -629,6 +642,36 @@ export const videoclipLoud = {
  */
 export function videoclipQuiz(settings: Partial<QuizSettings> = {}): Quiz {
   return makeRoundsQuiz([classicRound('c1', [{ ...single, timeLimit: 30 }]), classicRound('c2', [videoclip, videoclipLoud])], settings);
+}
+
+/** «Думай як усі» (37e): тема — фрукт, 30 с, 1000. */
+export const thinkalike = {
+  ...base,
+  id: 'ta1',
+  type: 'thinkalike',
+  text: 'Назвіть фрукт, який першим спадає на думку',
+  timeLimit: 30,
+  points: 1000,
+} satisfies Question;
+
+/** «Думай як усі» (37e): тема — колір, 25 с, 500. */
+export const thinkalike2 = {
+  ...base,
+  id: 'ta2',
+  type: 'thinkalike',
+  text: 'Назвіть колір, який першим спадає на думку',
+  timeLimit: 25,
+  points: 500,
+} satisfies Question;
+
+/** Вікторина «Думай як усі» (37e): класика [thinkalike, thinkalike2]. */
+export function alikeQuiz(settings: Partial<QuizSettings> = {}): Quiz {
+  return makeRoundsQuiz([classicRound('c1', [thinkalike, thinkalike2])], settings);
+}
+
+/** Вікторина «Не перебільш» (37d): класика з одним запитанням overshoot. */
+export function overshootQuiz(settings: Partial<QuizSettings> = {}): Quiz {
+  return makeRoundsQuiz([classicRound('c1', [overshoot])], settings);
 }
 
 /** Адреса картинки для запитань, що проявляються. */

@@ -462,6 +462,8 @@ export const questionSchema = z
       type: z.literal('numeric'),
       correct: z.number().finite(),
       tolerance: z.number().finite().min(0),
+      /** 37d: «Не перебільш» — перемагає найближче знизу; tolerance при цьому не діє. */
+      noOvershoot: z.boolean().optional(),
     }),
     z.object({
       ...base,
@@ -658,6 +660,8 @@ export const questionSchema = z
         )
         .min(LIMITS.minMoreLessPairs)
         .max(LIMITS.maxMoreLessPairs),
+      /** 37b: крок балів редактора; рушій не читає. */
+      step: z.number().int().min(0).max(LIMITS.maxPoints).optional(),
     }),
     z.object({
       ...base,
@@ -774,6 +778,11 @@ export const questionSchema = z
         .max(LIMITS.maxBluffSpares),
       /** Час фази вибору, с. */
       choiceTime: z.number().int().min(LIMITS.minTime).max(LIMITS.maxTime),
+    }),
+    z.object({
+      ...base,
+      /** «Думай як усі» (37e): тема в text, кожен пише одне слово; бали — найбільшій групі схожих. */
+      type: z.literal('thinkalike'),
     }),
     z.object({
       ...base,
@@ -953,6 +962,11 @@ export const questionSchema = z
       const truthKeys = q.accepted.map(answerKey);
       if (spareKeys.some((k) => truthKeys.includes(k))) ctx.addIssue({ code: 'custom', message: 'bluff_spare_truth' });
       if (q.video !== null) ctx.addIssue({ code: 'custom', message: 'bluff_video' });
+    }
+    if (q.type === 'thinkalike') {
+      // Картинка, що проявляється, платила б за час, а підказка недосяжна: бафи вимкнено (off_thinkalike).
+      if (q.reveal !== undefined) ctx.addIssue({ code: 'custom', message: 'thinkalike_reveal' });
+      if (q.hint !== undefined) ctx.addIssue({ code: 'custom', message: 'thinkalike_hint' });
     }
     if (q.type === 'think') {
       // Слово має хоч одну літеру чи цифру; одна відповідь не веде у два слова: стебла слів і синонімів запитання не повторюються.
@@ -1347,6 +1361,11 @@ export const truthRoundSchema = z.object({
 
 export type TruthRound = z.infer<typeof truthRoundSchema>;
 
+/** «Не перебільш» (37d): числове запитання з перемикачем. */
+export function overshootOn(question: Question): boolean {
+  return question.type === 'numeric' && question.noOvershoot === true;
+}
+
 export function isPuzzle(question: { type: Question['type'] }): boolean {
   return (PUZZLE_TYPES as readonly string[]).includes(question.type);
 }
@@ -1713,6 +1732,18 @@ export const quizSchema = z
           ? boardCells(round).some(({ cell }) => cell.question.type === 'videoclip')
           : round.type !== 'classic' && [...roundQuestions(round), ...roundTrials(round)].some((q) => q.type === 'videoclip');
       if (videoclipPlace) ctx.addIssue({ code: 'custom', message: 'videoclip_place' });
+      // «Не перебільш» (37d): лише класичні раунди; жодної клітинки поля, жодного питання на виживання.
+      const overshootPlace =
+        round.type === 'board'
+          ? boardCells(round).some(({ cell }) => overshootOn(cell.question))
+          : round.type !== 'classic' && [...roundQuestions(round), ...roundTrials(round)].some(overshootOn);
+      if (overshootPlace) ctx.addIssue({ code: 'custom', message: 'numeric_overshoot_place' });
+      // «Думай як усі» (37e): лише класичні раунди; на клітинці поля відповідає один, групи не буде.
+      const thinkalikePlace =
+        round.type === 'board'
+          ? boardCells(round).some(({ cell }) => cell.question.type === 'thinkalike')
+          : round.type !== 'classic' && round.type !== 'think' && [...roundQuestions(round), ...roundTrials(round)].some((q) => q.type === 'thinkalike');
+      if (thinkalikePlace) ctx.addIssue({ code: 'custom', message: 'thinkalike_place' });
       // Блеф: лише класика.
       const bluffPlace =
         round.type === 'board'
@@ -1807,7 +1838,7 @@ export const quizSchema = z
     if (pools.some((s) => s.betsCut !== undefined)) ctx.addIssue({ code: 'custom', message: 'bets_cut_place' });
     if (pools.length > 0) {
       const types: readonly string[] = SIMPLE_TYPES;
-      if (pools.some((s) => !types.includes(s.type))) ctx.addIssue({ code: 'custom', message: 'spare_type' });
+      if (pools.some((s) => !types.includes(s.type) || overshootOn(s))) ctx.addIssue({ code: 'custom', message: 'spare_type' });
       if (pools.some((s) => s.video !== null || s.audio !== undefined || s.reveal !== undefined)) ctx.addIssue({ code: 'custom', message: 'spare_video' });
       if (hasDuplicates([...questions.map((x) => x.id), ...pools.map((s) => s.id)].filter(Boolean))) {
         ctx.addIssue({ code: 'custom', message: 'duplicate_spare_ids' });

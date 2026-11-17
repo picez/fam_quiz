@@ -24,6 +24,9 @@ describe('correctText', () => {
     expect(correctText(text)).toBe('Одеса');
     expect(correctText(numeric)).toBe('2061 (± 100)');
     expect(correctText({ ...numeric, tolerance: 0 })).toBe('2061');
+    expect(correctText({ ...numeric, correct: 88, tolerance: 5 })).toBe('88 (± 5)');
+    expect(correctText({ ...numeric, correct: 88, tolerance: 5, noOvershoot: true })).toBe('88 (не більше)');
+    expect(correctText({ ...base, type: 'thinkalike' })).toBe('Найбільша група');
     expect(correctText(order)).toBe('Львів → Київ → Одеса');
   });
 });
@@ -35,6 +38,7 @@ describe('survey texts (10e)', () => {
     expect(correctText(survey)).toBe('Яблуко (32); Банан (25); Полуниця (15); Кавун (10); Груша (8)');
   });
   it('answerText marks hits and misses, or lists the values without hits', () => {
+    expect(answerText({ type: 'thinkalike', value: 'яблуко' }, null)).toBe('яблуко');
     expect(answerText({ type: 'survey', values: ['яблучко', 'ананас'], rows: ['a', null] }, survey)).toBe('яблучко ✓, ананас ✗');
     expect(answerText({ type: 'survey', values: ['яблучко', 'ананас'] } as unknown as Answer, survey)).toBe('яблучко, ананас');
   });

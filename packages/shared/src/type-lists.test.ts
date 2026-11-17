@@ -69,6 +69,8 @@ describe('question type lists before the registry (30e)', () => {
       'jigsaw',
       'spotdiff',
       'memory',
+      // 37e: бали «Думай як усі» дає група, не швидкість.
+      'thinkalike',
       // 35: бали «Думай інакше» дають місця, не швидкість.
       'think',
     ]);

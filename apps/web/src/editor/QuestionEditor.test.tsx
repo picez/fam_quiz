@@ -79,3 +79,32 @@ describe('QuestionEditor: a question drafted from a group (12l)', () => {
     expect(notes.compareDocumentPosition(text) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 });
+
+describe('QuestionEditor 37 editors', () => {
+  type Num = Extract<Question, { type: 'numeric' }>;
+
+  it('no overshoot hides tolerance', () => {
+    const onChange = vi.fn();
+    const question: Num = { ...(newQuestion('numeric') as Num), text: 'Скільки?', correct: 10, tolerance: 5 };
+    const { rerender } = render(<QuestionEditor question={question} onChange={onChange} types={questionTypesFor('classic')} />);
+    expect(screen.getByLabelText(t('tolerance'))).toBeTruthy();
+    fireEvent.click(screen.getByRole('checkbox', { name: t('overshootLabel') }));
+    const on = onChange.mock.calls.at(-1)?.[0] as Num;
+    expect(on.noOvershoot).toBe(true);
+    rerender(<QuestionEditor question={on} onChange={onChange} types={questionTypesFor('classic')} />);
+    expect(screen.queryByLabelText(t('tolerance'))).toBeNull();
+    expect(screen.getByText(t('overshootHint'))).toBeTruthy();
+    fireEvent.click(screen.getByRole('checkbox', { name: t('overshootLabel') }));
+    const off = onChange.mock.calls.at(-1)?.[0] as Num;
+    expect('noOvershoot' in off).toBe(false);
+    rerender(<QuestionEditor question={off} onChange={onChange} types={questionTypesFor('classic')} />);
+    expect((screen.getByLabelText(t('tolerance')) as HTMLInputElement).value).toBe('5');
+  });
+
+  it('thinkalike shows only the theme hint', () => {
+    render(<QuestionEditor question={newQuestion('thinkalike')} onChange={vi.fn()} types={questionTypesFor('classic')} />);
+    expect(screen.getByText(t('alikeEditorHint'))).toBeTruthy();
+    expect(screen.queryByLabelText(t('hintLabel'))).toBeNull();
+    expect(screen.queryByRole('group', { name: t('revealLabel') })).toBeNull();
+  });
+});

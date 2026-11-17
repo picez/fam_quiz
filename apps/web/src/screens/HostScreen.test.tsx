@@ -4042,3 +4042,46 @@ describe('HostScreen: think round (35)', () => {
     expect(screen.getAllByText(t('answeredOf', { answered: 1, total: 2 })).length).toBeGreaterThan(0);
   });
 });
+
+describe('HostScreen: thinkalike and no overshoot (37)', () => {
+  const alikeQ = { id: 'q9', type: 'thinkalike', text: 'Назвіть фрукт', imageUrl: null, video: null, timeLimit: 30, points: 1000 } as Question;
+  const groups = [
+    { key: 'p1', words: ['яблуко'], members: [{ id: 'p1', nickname: 'Оля' }, { id: 'p2', nickname: 'Тарас' }], top: true, points: 1000 },
+    { key: 'p3', words: ['груша'], members: [{ id: 'p3', nickname: 'Петро' }], top: false, points: 0 },
+  ];
+
+  it('the host edits groups', async () => {
+    const send = show(during('reveal', alikeQ, { alike: { groups, silent: [], editable: true } }));
+    const taras = within(document.querySelector('.alike-groups') as HTMLElement).getByText('Тарас').closest('li') as HTMLElement;
+    fireEvent.click(within(taras).getByRole('button', { name: t('alikeSplit') }));
+    await waitFor(() => expect(send).toHaveBeenCalledWith('host:alike-split', { playerId: 'p2' }));
+    const pear = [...document.querySelectorAll<HTMLElement>('.alike-group')].find((li) => li.querySelector('.alike-words')?.textContent === 'груша')!;
+    fireEvent.change(within(pear).getByRole('combobox', { name: t('alikeJoin') }), { target: { value: 'p1' } });
+    await waitFor(() => expect(send).toHaveBeenCalledWith('host:alike-join', { from: 'p3', to: 'p1' }));
+  });
+
+  it('a refused edit shows the error', async () => {
+    const send = vi.fn(async () => ({ ok: false as const, error: 'alike_group' }));
+    show(during('reveal', alikeQ, { alike: { groups, silent: [], editable: true } }), send as unknown as Send);
+    fireEvent.click(within(within(document.querySelector('.alike-groups') as HTMLElement).getByText('Тарас').closest('li') as HTMLElement).getByRole('button', { name: t('alikeSplit') }));
+    expect(await screen.findByText(t('err_alike_group'))).toBeTruthy();
+  });
+
+  it('on locked the groups are seen without controls', () => {
+    show(during('locked', alikeQ, { alike: { groups, silent: [], editable: false } }));
+    expect(document.querySelector('.alike-groups')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: t('alikeSplit') })).toBeNull();
+    expect(screen.queryByRole('combobox', { name: t('alikeJoin') })).toBeNull();
+  });
+
+  it('a no-overshoot numeric reveal lists who overshot', () => {
+    const numericQ = { id: 'q8', type: 'numeric', text: 'Скільки клавіш у піаніно?', imageUrl: null, video: null, timeLimit: 30, points: 1000, correct: 88, tolerance: 0, noOvershoot: true } as Question;
+    const overshoot = [
+      { playerId: 'p1', nickname: 'Оля', value: 85, over: false, points: 1000 },
+      { playerId: 'p3', nickname: 'Тарас', value: 90, over: true, points: 0 },
+    ];
+    show(during('reveal', numericQ, { overshoot }));
+    const rows = document.querySelector('.overshoot') as HTMLElement;
+    expect(within(rows).getByText('Тарас').closest('li')!.className).toContain('overshoot-over');
+  });
+});

@@ -7,11 +7,10 @@ import { Timer, timerStatus } from '../live/Timer';
 import type { Send } from '../live/types';
 import type { DraftInput } from './TeamWatch';
 import { parseSynonyms } from '../think-words';
+import { MANY_ROWS } from './dense';
 
 /** Понад стільки сердець ряд стискається до «❤️ N»: 10 сердець у рядку сцени з 24 гравцями — шум. */
 const HEARTS_IN_ROW = 5;
-/** Понад стільки учасників сцена ущільнює ряд і таблицю відповідей: 20+ уміщаються на 1280×720. */
-const MANY_ROWS = 12;
 
 /** Слово як його надсилає телефон: пробіли зведено, обрізано. */
 const tidy = (value: string) => value.replace(/\s+/g, ' ').trim();

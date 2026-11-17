@@ -8,6 +8,8 @@ import { HostBetsPanel } from './BetsView';
 import { HostAuctionPanel } from './AuctionView';
 import { HostQuestPanel } from './QuestView';
 import { HostThinkAnswers, HostThinkWords, ThinkPlaces } from './ThinkView';
+import { AlikeGroups } from './AlikeView';
+import { OvershootRows } from './OvershootRows';
 import { HostTruthFacts, TruthRecapFold, TruthRecapView } from './TruthView';
 import { paceAttrs, usePace } from '../pace';
 import { ClueOpens } from './ClueOpens';
@@ -846,7 +848,8 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
             </div>
           )}
           {/* «Більше чи менше»: правильні варіанти — у таблиці порівнянь нижче, рядок «—» нічого не каже. Головоломки (28d) — у панелі розв'язку, однаково для судоку й кросворду. */}
-          {correct !== null && correct.type !== 'wall' && correct.type !== 'poll' && correct.type !== 'wordcloud' && correct.type !== 'survey' && correct.type !== 'bluff' && correct.type !== 'moreless' && correct.type !== 'sudoku' && correct.type !== 'crossword' && correct.type !== 'jigsaw' && correct.type !== 'spotdiff' && correct.type !== 'memory' && correct.type !== 'think' && <p className="answer">{t('correctAnswer', { answer: hostCorrectText(correct, view) })}</p>}
+          {correct !== null && correct.type !== 'wall' && correct.type !== 'poll' && correct.type !== 'wordcloud' && correct.type !== 'survey' && correct.type !== 'bluff' && correct.type !== 'moreless' && correct.type !== 'sudoku' && correct.type !== 'crossword' && correct.type !== 'jigsaw' && correct.type !== 'spotdiff' && correct.type !== 'memory' && correct.type !== 'think' && correct.type !== 'thinkalike' && <p className="answer">{t('correctAnswer', { answer: hostCorrectText(correct, view) })}</p>}
+          {correct?.type === 'numeric' && view.overshoot !== undefined && <OvershootRows rows={view.overshoot} />}
           {correct?.hint !== undefined && <p className="meta hint-known">{t('hintKnown', { hint: correct.hint })}</p>}
         </section>
       )}
@@ -869,6 +872,19 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
           <HostThinkWords key={`${round?.index ?? 0}:${view.questionIndex}`} think={thinkHost} phase={phase} send={send} onError={setError} />
           <HostThinkAnswers think={thinkHost} phase={phase} send={send} onError={setError} />
         </>
+      )}
+      {/* «Думай як усі» (37e): групи з locked; на reveal (не автопілот) — «Об'єднати з…» і «Окремо», відмову видно в рядку помилки. */}
+      {view.alike !== undefined && (
+        <section className="panel host-alike">
+          <AlikeGroups
+            info={view.alike}
+            host={{
+              editable: view.alike.editable,
+              onJoin: (from, to) => void act('host:alike-join', { from, to }),
+              onSplit: (playerId) => void act('host:alike-split', { playerId }),
+            }}
+          />
+        </section>
       )}
       {liveOn && !liveTrial && liveData !== null && thinkHost === null && <LiveAnswers view={view} live={liveData} blitz={liveData.kind === 'blitz' ? blitzLive : undefined} tilts={tilts} drafts={liveDrafts} collapsed={!watch} offsetMs={offsetMs} />}
 

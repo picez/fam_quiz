@@ -51,6 +51,8 @@ import { VideoclipPlay, VideoclipReveal } from './VideoclipView';
 import { DrawingClosed, DrawingPhone, DrawingReveal, drawingTitle, strokesOf } from './DrawingView';
 import type { DrawingModel } from '../live/drawing';
 import { ThinkHearts, ThinkInput, ThinkPhoneVerdict, ThinkPlaces, ThinkReveal } from './ThinkView';
+import { AlikeGroups } from './AlikeView';
+import { OvershootRows } from './OvershootRows';
 import { TruthFactForm, TruthHeldPick, TruthOwn, TruthPick, TruthRecapFold, TruthRecapView, TruthReveal, TruthSkipped, type TruthRecapMine } from './TruthView';
 import { SortPlay, SortReveal, SortWatch } from './SortView';
 import { WallGrid } from './WallGrid';
@@ -315,6 +317,7 @@ function BluffResult({ view }: { view: PlayerView }) {
 function Result({ view, strokes = [] }: { view: PlayerView; strokes?: Stroke[] }) {
   if (view.question !== null && isUnscored(view.question)) return <VoteResult view={view} />;
   const { result } = view.me;
+  const ownOvershoot = view.overshoot?.find((row) => row.playerId === view.me.id);
   // «Ва-банк»: хто вибув раніше, цього запитання не грав — вердикту йому не показуємо.
   const wipeout = view.wipeout;
   const mineRow = wipeout?.rows.find((row) => row.playerId === view.me.id);
@@ -403,12 +406,14 @@ function Result({ view, strokes = [] }: { view: PlayerView; strokes?: Stroke[] }
       {view.phase === 'reveal' && view.question?.spotdiff !== undefined && <SpotdiffReveal mine={view.me.spotdiff} question={view.question} />}
       {/* Пам'ять (29f): уся власна сітка з усіма картками; рядка правильної відповіді немає. */}
       {view.phase === 'reveal' && view.question?.memory !== undefined && <MemoryReveal mine={view.me.memory} question={view.question} />}
+      {/* «Думай як усі» (37e): усі групи слів, своя виділена; рядок «Правильна відповідь» нижче їх лише повторив би. */}
+      {view.phase === 'reveal' && view.alike !== undefined && <AlikeGroups info={view.alike} mine={view.me.id} />}
       {view.me.survival?.status === 'edge' && <p className="lead survival-edge">{t('survivalEdge')}</p>}
       <RevealDetail view={view} answer={view.me.answer} player={view.me} />
       {/* «Правда про гравця» (28b): автора вже названо поруч (TruthReveal) — рядок правильної відповіді його лише повторив би. */}
       {view.reveal !== null &&
         view.truth?.index == null &&
-        (view.reveal.type === 'wall' || view.reveal.type === 'survey' || view.reveal.type === 'timedlist' || view.reveal.type === 'letterwords' || view.reveal.type === 'moreless' || view.reveal.type === 'drawing' || view.reveal.type === 'sudoku' || view.reveal.type === 'jigsaw' || view.reveal.type === 'spotdiff' || view.reveal.type === 'memory' ? null : view.reveal.type === 'pin' ? (
+        (view.reveal.type === 'wall' || view.reveal.type === 'survey' || view.reveal.type === 'timedlist' || view.reveal.type === 'letterwords' || view.reveal.type === 'moreless' || view.reveal.type === 'drawing' || view.reveal.type === 'sudoku' || view.reveal.type === 'jigsaw' || view.reveal.type === 'spotdiff' || view.reveal.type === 'memory' || view.reveal.type === 'thinkalike' ? null : view.reveal.type === 'pin' ? (
           // Точка: мапа вище; словами — лише відстань власної точки.
           view.me.answer?.type === 'pin' && <p>{answerText(view.me.answer, view.reveal)}</p>
         ) : view.reveal.type === 'slider' && view.me.answer?.type === 'slider' && view.question?.slider != null ? (
@@ -431,6 +436,8 @@ function Result({ view, strokes = [] }: { view: PlayerView; strokes?: Stroke[] }
         ) : (
           <p>{t('correctAnswer', { answer: correctText(view.reveal, view.question?.choices) })}</p>
         ))}
+      {/* «Не перебільш» (37d): лише власний рядок — бали чи «перебільшили». */}
+      {view.reveal?.type === 'numeric' && ownOvershoot !== undefined && <OvershootRows rows={[ownOvershoot]} mine={view.me.id} />}
       {view.blitz !== null && (
         <p className="winner">
           {view.blitz.winner === null ? t('blitzNoWinner') : t('blitzWinner', { name: view.blitz.winner.nickname })}

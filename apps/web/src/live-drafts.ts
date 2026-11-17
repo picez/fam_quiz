@@ -38,6 +38,7 @@ export function draftText(draft: DraftValue, correct: Question | null, question:
     case 'clues':
     case 'melody':
     case 'videoclip':
+    case 'thinkalike':
     case 'think':
       return say('draftTypes', team, { text: draft.value });
     case 'numeric':

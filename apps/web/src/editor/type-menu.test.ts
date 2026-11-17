@@ -34,6 +34,7 @@ describe('editor type menu before the registry (30e)', () => {
         'melody',
         'videoclip',
         'bluff',
+        'thinkalike',
       ],
       blitz: ['single', 'multi', 'boolean', 'text', 'numeric', 'order', 'match', 'sort', 'slider'],
       board: ['single', 'multi', 'boolean', 'text', 'numeric', 'order', 'match', 'sort', 'slider', 'clues', 'pin', 'wall', 'survey', 'timedlist', 'letterwords', 'moreless'],
@@ -105,6 +106,7 @@ describe('editor type menu before the registry (30e)', () => {
       melody: [LIMITS.minMelodyTime, LIMITS.maxTime],
       videoclip: [LIMITS.minVideoclipTime, LIMITS.maxTime],
       bluff: plain,
+      thinkalike: plain,
       think: plain,
     });
   });

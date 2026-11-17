@@ -3361,3 +3361,44 @@ describe('StageScreen: think round (35)', () => {
     expect(screen.getByText('Яблука').closest('li')!.textContent).toContain(t('thinkHostOverridden'));
   });
 });
+
+describe('StageScreen: thinkalike and no overshoot (37)', () => {
+  const alikeQuestion = { ...question, type: 'thinkalike' as const, text: 'Назвіть фрукт', choices: [] };
+  const alikeFull = { id: 'q1', type: 'thinkalike' as const, text: 'Назвіть фрукт', imageUrl: null, video: null, timeLimit: 30, points: 1000 } as Question;
+  const alike = {
+    groups: [
+      { key: 'p1', words: ['яблуко'], members: [{ id: 'p1', nickname: 'Оля' }, { id: 'p2', nickname: 'Тарас' }], top: true, points: 1000 },
+      { key: 'p3', words: ['груша'], members: [{ id: 'p3', nickname: 'Петро' }], top: false, points: 0 },
+    ],
+    silent: [],
+  };
+
+  it('the reveal shows the word groups; the question shows no words', () => {
+    const { unmount } = show(view({ phase: 'question', questionIndex: 0, question: alikeQuestion as never, endsAt: Date.now() + 20_000, limitMs: 30_000 }));
+    expect(document.querySelector('.alike-groups')).toBeNull();
+    expect(screen.queryByText('яблуко')).toBeNull();
+    unmount();
+    show(view({ phase: 'reveal', questionIndex: 0, question: alikeQuestion as never, reveal: alikeFull, alike }));
+    expect(document.querySelector('.alike-groups')).toBeTruthy();
+    expect(screen.getByText('яблуко').closest('li')!.className).toContain('alike-top');
+    expect(screen.getByText('+1000')).toBeTruthy();
+    // Групи замість рядка «Правильна відповідь: Найбільша група».
+    expect(screen.queryByText(t('correctAnswer', { answer: t('alikeCorrect') }))).toBeNull();
+  });
+
+  it('a no-overshoot numeric reveal lists who overshot under the correct answer', () => {
+    const numericQuestion = { ...question, type: 'numeric' as const, text: 'Скільки клавіш у піаніно?', choices: [] };
+    const numericFull = { id: 'q1', type: 'numeric' as const, text: 'Скільки клавіш у піаніно?', imageUrl: null, video: null, timeLimit: 30, points: 1000, correct: 88, tolerance: 0, noOvershoot: true } as Question;
+    const overshoot = [
+      { playerId: 'p1', nickname: 'Оля', value: 85, over: false, points: 1000 },
+      { playerId: 'p3', nickname: 'Тарас', value: 90, over: true, points: 0 },
+    ];
+    show(view({ phase: 'reveal', questionIndex: 0, question: numericQuestion as never, reveal: numericFull, overshoot }));
+    const answer = screen.getByText(t('correctAnswer', { answer: '88 (не більше)' }));
+    const rows = document.querySelector('.overshoot') as HTMLElement;
+    expect(rows).toBeTruthy();
+    expect(answer.compareDocumentPosition(rows) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.getByText('Тарас').closest('li')!.className).toContain('overshoot-over');
+    expect(within(rows).getByText(t('overshootOver'))).toBeTruthy();
+  });
+});

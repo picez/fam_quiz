@@ -91,6 +91,7 @@ import {
   type MemoryPlay,
   type MemoryBoard,
   type MelodyPlay,
+  type AlikePlay,
 } from './game';
 import { stamp } from './pacing';
 import { GAME_STATE_VERSION, READABLE_STATE_VERSIONS, suspend } from './restore';
@@ -112,6 +113,8 @@ import {
   ladderRound,
   makeQuiz,
   makeRoundsQuiz,
+  overshoot,
+  alikeQuiz,
   pin,
   single,
   single4,
@@ -157,6 +160,7 @@ import { jigsawHold, jigsawPlace } from './jigsaw';
 import { spotdiffTap, type SpotTap } from './spotdiff';
 import { memoryFlip, type MemoryFlip } from './memory';
 import { melodyOpen } from './melody';
+import { alikeGroups, alikeSplit } from './alike';
 import { acceptAll, lobbyWith, lobbyWithSplash, must, openAt, sendBlitz } from './testing/helpers';
 import { head, right, toSort, wrong } from './testing/sort';
 import { hostView, playerView, stageView } from './views';
@@ -365,7 +369,7 @@ const STATE_SHAPE: Record<string, string> = {
   Quiz: keysOf<Quiz>()(['title', 'description', 'settings', 'rounds', 'duels', 'spares'], true),
   QuizSettings: keysOf<QuizSettings>()(['leaderboard', 'debuffs', 'buffs', 'newcomers', 'family', 'debuffPrices', 'debuffShop', 'teams', 'awayPenalty', 'levelBonuses'], true),
   PlayerState: keysOf<PlayerState>()(['id', 'nickname', 'connected', 'score', 'totalTimeMs', 'streak'], true),
-  Play: keysOf<Play>()(['roundIndex', 'question', 'answers', 'blitz', 'extraMs', 'board', 'final', 'chain', 'wordladder', 'sort', 'buffs', 'overtime', 'clues', 'wall', 'cloudHidden', 'survey', 'bluff', 'wipeout', 'survival', 'ladder', 'buzzers', 'clueOpens', 'away', 'timedlist', 'letterwords', 'moreless', 'truth', 'drawing', 'puzzle', 'jigsaw', 'spotdiff', 'memory', 'melody', 'think'], true),
+  Play: keysOf<Play>()(['roundIndex', 'question', 'answers', 'blitz', 'extraMs', 'board', 'final', 'chain', 'wordladder', 'sort', 'buffs', 'overtime', 'clues', 'wall', 'cloudHidden', 'survey', 'bluff', 'wipeout', 'survival', 'ladder', 'buzzers', 'clueOpens', 'away', 'timedlist', 'letterwords', 'moreless', 'truth', 'drawing', 'puzzle', 'jigsaw', 'spotdiff', 'memory', 'melody', 'think', 'alike'], true),
   AnswerRecord: keysOf<AnswerRecord>()(
     ['answer', 'timeMs', 'accepted', 'accuracy', 'grade', 'basePoints', 'streakBonus', 'points', 'overridden', 'buff', 'spare'],
     true,
@@ -417,6 +421,7 @@ const STATE_SHAPE: Record<string, string> = {
   TruthFact: keysOf<TruthFact>()(['text', 'hidden', 'at', 'revised'], true),
   TruthPlay: keysOf<TruthPlay>()(['authorId', 'actorId', 'guessers', 'right'], true),
   ThinkPlay: keysOf<ThinkPlay>()(['words', 'lives', 'revealed', 'watch'], true),
+  AlikePlay: keysOf<AlikePlay>()(['labels'], true),
   DrawingPlay: keysOf<DrawingPlay>()(['drawerId', 'side', 'strokes', 'packed', 'rev', 'guessed', 'scored'], true),
   DrawingScored: keysOf<NonNullable<DrawingPlay['scored']>>()(['guessed', 'could'], true),
   Stroke: keysOf<Stroke>()(['c', 'w', 'p'], true),
@@ -1240,7 +1245,7 @@ const KEYS: Record<number, Record<string, string>> = {
     Quiz: 'description,duels,rounds,settings,spares,title',
     QuizSettings: 'awayPenalty,buffs,debuffPrices,debuffShop,debuffs,family,leaderboard,levelBonuses,newcomers,teams',
     PlayerState: 'connected,id,nickname,score,streak,totalTimeMs',
-    Play: 'answers,away,blitz,bluff,board,buffs,buzzers,chain,cloudHidden,clueOpens,clues,drawing,extraMs,final,jigsaw,ladder,letterwords,melody,memory,moreless,overtime,puzzle,question,roundIndex,sort,spotdiff,survey,survival,think,timedlist,truth,wall,wipeout,wordladder',
+    Play: 'alike,answers,away,blitz,bluff,board,buffs,buzzers,chain,cloudHidden,clueOpens,clues,drawing,extraMs,final,jigsaw,ladder,letterwords,melody,memory,moreless,overtime,puzzle,question,roundIndex,sort,spotdiff,survey,survival,think,timedlist,truth,wall,wipeout,wordladder',
     AnswerRecord: 'accepted,accuracy,answer,basePoints,buff,grade,overridden,points,spare,streakBonus,timeMs',
     BoardState: 'awaySince,circle,circleNo,dice,done',
     DiceState: 'throws,tour,tourNo,waiting',
@@ -1286,6 +1291,7 @@ const KEYS: Record<number, Record<string, string>> = {
     TruthFact: 'at,hidden,revised,text',
     TruthPlay: 'actorId,authorId,guessers,right',
     ThinkPlay: 'lives,revealed,watch,words',
+    AlikePlay: 'labels',
     DrawingPlay: 'drawerId,guessed,packed,rev,scored,side,strokes',
     DrawingScored: 'could,guessed',
     Stroke: 'c,p,w',
@@ -1653,7 +1659,15 @@ function representative(): GameState[] {
     hintPerked(),
     ...questing(),
     thinkAsked(),
+    alikeSplitOut(),
   ];
+}
+
+/** 37e: «Думай як усі» (Оля, Петро, Іра) — усі написали «яблуко», на reveal ведучий виніс Іру окремо (Play.alike). */
+function alikeSplitOut(): GameState {
+  let s = openAt(lobbyWith(alikeQuiz(), 'Оля', 'Петро', 'Іра'), T0);
+  for (const id of ['p1', 'p2', 'p3']) s = must(submitAnswer(s, id, { type: 'thinkalike', value: 'яблуко' }, T0 + 1000));
+  return must(alikeSplit(must(next(s, T0 + 2000, () => 0)), 'p3'));
 }
 
 /** 29g: «Квест із кодом» — команди з виданим бафом і спробами (by) на intro, соло з відкритим вікном коду. */
@@ -2520,6 +2534,7 @@ describe('the saved state', () => {
       add('TruthFact', Object.values(s.truth?.facts ?? {}));
       add('TruthPlay', s.plays.map((p) => p.truth));
       add('ThinkPlay', s.plays.map((p) => p.think));
+      add('AlikePlay', s.plays.map((p) => p.alike));
       add('DrawingPlay', s.plays.map((p) => p.drawing));
       add('DrawingScored', s.plays.map((p) => p.drawing?.scored));
       add('Stroke', s.plays.flatMap((p) => p.drawing?.strokes ?? []));
@@ -2554,5 +2569,27 @@ describe('the saved state', () => {
     // кожен вкладений тип справді трапився (крім ланцюжка, що потребує окремого раунду; кубики — з лобі команд)
     const missing = Object.keys(STATE_SHAPE).filter((name) => (seen[name]?.length ?? 0) === 0);
     expect(missing.sort()).toEqual(['ChainProgress']);
+  });
+});
+
+describe('37 snapshots', () => {
+  it('a restored reveal keeps the host thinkalike groups', () => {
+    expect(GAME_STATE_VERSION).toBe(22);
+    const s = alikeSplitOut();
+    expect(s.phase).toBe('reveal');
+    const back = roundTrip(suspend(roundTrip(s), T0 + 3000));
+    expect(back.plays[0].alike).toEqual({ labels: { p1: 'p1', p2: 'p1', p3: 'solo:p3' } });
+    expect(alikeGroups(back, 0).map((g) => g.ids)).toEqual([['p1', 'p2'], ['p3']]);
+    expect(back.players.map((p) => p.score)).toEqual([1000, 1000, 0]);
+  });
+
+  it('a restored room keeps a no-overshoot question', () => {
+    expect(GAME_STATE_VERSION).toBe(22);
+    const open = openAt(lobbyWith(makeRoundsQuiz([classicRound('r1', [overshoot])]), 'Оля', 'Петро'), T0);
+    const back = roundTrip(suspend(roundTrip(open), T0 + 1000));
+    expect(back.plays[0].question).toMatchObject({ type: 'numeric', noOvershoot: true, correct: 88 });
+    const resumed = must(resume(back, T0 + 1000 + HOUR));
+    const moved = must(submitAnswer(resumed, 'p1', { type: 'numeric', value: 85 }, T0 + 2000 + HOUR));
+    expect(must(lock(moved, T0 + 3000 + HOUR)).players[0].score).toBe(1000);
   });
 });

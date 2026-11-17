@@ -51,6 +51,8 @@ export interface RoundBrief {
   melodies?: number;
   /** Класичний раунд: скільки в ньому «Відео за фрагментами» (36); відсутнє, коли їх немає. */
   videoclips?: number;
+  /** Класичний раунд: скільки в ньому «Думай як усі» (37e); відсутнє, коли їх немає. */
+  thinkalikes?: number;
 }
 
 /** Зведення без жодної опції: усі прапорці (і instant) false, streak null, multiplier 1, attempts, answerWindow, series, wagerMode, survival, ladder, bets, auction, truth, think і puzzles null, answerModes []. */
@@ -115,7 +117,8 @@ export function roundBrief(round: Round, family = false): RoundBrief {
   if (round.type === 'classic') {
     const melodies = round.questions.filter((q) => q.type === 'melody').length;
     const videoclips = round.questions.filter((q) => q.type === 'videoclip').length;
-    return { ...withRules, speedBonus: round.speedBonus, ...(melodies > 0 ? { melodies } : {}), ...(videoclips > 0 ? { videoclips } : {}) };
+    const thinkalikes = round.questions.filter((q) => q.type === 'thinkalike').length;
+    return { ...withRules, speedBonus: round.speedBonus, ...(melodies > 0 ? { melodies } : {}), ...(videoclips > 0 ? { videoclips } : {}), ...(thinkalikes > 0 ? { thinkalikes } : {}) };
   }
   if (round.type === 'quest') {
     const bonus: QuestBonusView = round.bonus.kind === 'points' ? { kind: 'points', points: round.bonus.points } : { kind: 'buff', buff: round.bonus.buff, first: round.bonus.first };

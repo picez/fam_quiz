@@ -616,3 +616,19 @@ describe('videoclip facts (36)', () => {
     expect(wholeRowQuestion(q)).toBe(false);
   });
 });
+
+describe('thinkalike facts (37e)', () => {
+  it('a thinkalike has no speed window', () => {
+    const q = { id: 'al', type: 'thinkalike', text: 'Фрукт', imageUrl: null, video: null, timeLimit: 30, points: 1000 } as unknown as Question;
+    expect(factLimitMs(q, { type: 'classic' } as Round, false)).toBeNull();
+    expect(wholeRowQuestion(q)).toBe(false);
+  });
+});
+
+describe('no-overshoot facts (37d)', () => {
+  it('a no-overshoot numeric has no speed window; a plain numeric keeps it', () => {
+    const num = { id: 'ov', type: 'numeric', text: 'Скільки?', imageUrl: null, video: null, timeLimit: 30, points: 1000, correct: 88, tolerance: 0 };
+    expect(factLimitMs({ ...num, noOvershoot: true } as unknown as Question, { type: 'classic' } as Round, false)).toBeNull();
+    expect(factLimitMs(num as unknown as Question, { type: 'classic' } as Round, false)).toBe(30_000);
+  });
+});

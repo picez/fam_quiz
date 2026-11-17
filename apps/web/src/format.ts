@@ -1,4 +1,4 @@
-import { isRtl, pinDistance, snippetHeardOf, snippetSeconds, surveyHitsOf, surveyOrder, type Answer, type CellMark, type Choice, type LobbyPlayer, type PublicQuestion, type PublicSlider, type Question, type Round, type RoundInfo, ONLINE_MS } from '@quiz/shared';
+import { isRtl, overshootOn, pinDistance, snippetHeardOf, snippetSeconds, surveyHitsOf, surveyOrder, type Answer, type CellMark, type Choice, type LobbyPlayer, type PublicQuestion, type PublicSlider, type Question, type Round, type RoundInfo, ONLINE_MS } from '@quiz/shared';
 import { countText, t, type TextKey } from './i18n';
 import { currentLocale, intlTag } from './locales/current';
 import { agoText, decimalText, dropYearMark } from './locales/grammar';
@@ -122,6 +122,8 @@ export function correctText(question: Question, presented?: { id: string }[]): s
       return t('wallCorrect', { groups: question.groups.map((group) => group.name).join('; ') });
     case 'bluff':
       return question.accepted[0] ?? '';
+    case 'thinkalike':
+      return t('alikeCorrect');
     case 'drawing':
       // Слово, яке бачив художник.
       return question.accepted[0] ?? '';
@@ -133,6 +135,7 @@ export function correctText(question: Question, presented?: { id: string }[]): s
     case 'pin':
       return t(question.map === null ? 'pinCorrectImage' : (`pinCorrect_${question.map}` as TextKey));
     case 'numeric':
+      if (overshootOn(question)) return t('overshootCorrect', { correct: question.correct });
       return question.tolerance > 0 ? `${question.correct} (± ${question.tolerance})` : String(question.correct);
     case 'slider': {
       const unit = question.unit === undefined ? '' : ` ${question.unit}`;
@@ -274,6 +277,7 @@ export function answerText(answer: Answer | null, question: Question | null, pre
       return heard === null ? answer.value : t('melodyAnswerHeard', { answer: answer.value, seconds: snippetSeconds(heard) });
     }
     case 'think':
+    case 'thinkalike':
       return answer.value === '' ? '—' : answer.value;
     case 'puzzle':
       // Правильність — лише ціла сітка (у кросворді з ключем — ключове слово); заповненість — для статистики.

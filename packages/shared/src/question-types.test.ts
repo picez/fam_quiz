@@ -32,11 +32,11 @@ describe('question type registry (30e)', () => {
     expect(typesWhere((t) => t.puzzle)).toEqual(['sudoku', 'crossword']);
     expect(typesWhere((t) => t.proximity)).toEqual(['slider', 'pin', 'wall', 'survey']);
     expect(typesWhere((t) => t.wholeRow)).toEqual(['timedlist', 'letterwords', 'moreless', 'drawing', 'sudoku', 'crossword', 'jigsaw', 'spotdiff', 'memory']);
-    expect(typesWhere((t) => !t.speed)).toEqual(['wordladder', 'timedlist', 'letterwords', 'moreless', 'drawing', 'sudoku', 'crossword', 'jigsaw', 'spotdiff', 'memory', 'think']);
+    expect(typesWhere((t) => !t.speed)).toEqual(['wordladder', 'timedlist', 'letterwords', 'moreless', 'drawing', 'sudoku', 'crossword', 'jigsaw', 'spotdiff', 'memory', 'thinkalike', 'think']);
     // Склад — з live.ts (PROGRESS_TYPES, UNGRADABLE); порядок — QUESTION_TYPES (там списки лише для includes).
     const progress = ['chain', 'wordladder', 'sort', 'wall', 'timedlist', 'letterwords', 'moreless', 'drawing', 'sudoku', 'crossword', 'jigsaw', 'spotdiff', 'memory', 'bluff'];
     expect(typesWhere((t) => t.progress)).toEqual(progress);
-    expect(typesWhere((t) => !t.hostGraded)).toEqual(['chain', 'wordladder', 'sort', 'wall', 'survey', 'timedlist', 'letterwords', 'moreless', 'drawing', 'sudoku', 'crossword', 'jigsaw', 'spotdiff', 'memory', 'bluff']);
+    expect(typesWhere((t) => !t.hostGraded)).toEqual(['chain', 'wordladder', 'sort', 'wall', 'survey', 'timedlist', 'letterwords', 'moreless', 'drawing', 'sudoku', 'crossword', 'jigsaw', 'spotdiff', 'memory', 'bluff', 'thinkalike']);
     expect(typesWhere((t) => t.teamWide)).toEqual(['timedlist', 'letterwords', 'drawing', 'sudoku', 'crossword', 'jigsaw', 'spotdiff', 'memory', 'melody', 'videoclip']);
     expect(typesWhere((t) => t.buffs.risk)).toEqual(['single', 'multi', 'boolean', 'text', 'numeric', 'slider', 'clues', 'pin']);
     expect(typesWhere((t) => t.buffs.letter)).toEqual(['text', 'clues']);
@@ -75,6 +75,8 @@ describe('question type registry (30e)', () => {
         // 36: «Відео за фрагментами» — одразу за «Мелодією».
         'videoclip',
         'bluff',
+        // 37e: «Думай як усі» — одразу за блефом.
+        'thinkalike',
       ],
       blitz: ['single', 'multi', 'boolean', 'text', 'numeric', 'order', 'match', 'sort', 'slider'],
       board: ['single', 'multi', 'boolean', 'text', 'numeric', 'order', 'match', 'sort', 'slider', 'clues', 'pin', 'wall', 'survey', 'timedlist', 'letterwords', 'moreless'],
