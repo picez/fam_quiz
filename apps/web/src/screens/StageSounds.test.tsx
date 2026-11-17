@@ -49,4 +49,16 @@ describe('StageSoundsButton', () => {
     expect(screen.getByRole('button', { name: '🔔 Звуки' }).getAttribute('aria-pressed')).toBe('false');
     expect(screen.queryByRole('button', { name: '🔊 Увімкнути звуки' })).toBeNull();
   });
+  it('the unlock button never becomes the toggle: a click that wakes the sound mid-event does not turn the device off', () => {
+    // Клік будить контекст ще в фазі перехоплення (жест на сторінці); якби React перевикористав ту саму кнопку з новим
+    // onClick, той самий клік дійшов би до перемикача й вимкнув звук пристрою.
+    const toggle = vi.fn();
+    const { rerender } = render(<StageSoundsButton control={control({ toggle })} />);
+    const unlock = screen.getByRole('button', { name: '🔊 Увімкнути звуки' });
+    rerender(<StageSoundsButton control={control({ ready: true, toggle })} />);
+    const next = screen.getByRole('button', { name: '🔔 Звуки' });
+    expect(next).not.toBe(unlock);
+    fireEvent.click(unlock);
+    expect(toggle).not.toHaveBeenCalled();
+  });
 });

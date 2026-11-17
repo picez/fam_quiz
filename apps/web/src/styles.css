@@ -12744,6 +12744,20 @@ button.wall-tile:disabled {
   /* Сам значок: дотикова зона й надалі щонайменше 44 px завширшки (з ::after). */
   .live-toggle {
     min-width: 2.75rem;
+    padding-inline: 0.25rem;
+  }
+
+  /* 40: з 🔔 «Звуки на сцені» шапка пульта на 360 px тісніша — 👁, 🔔, «↶ Бали», тема, реакція й код в один рядок без бокового скролу. */
+  .bar:has(.live-toggle) {
+    gap: 0.25rem;
+  }
+
+  .bar:has(.live-toggle) .undo-button {
+    padding-inline: 0.5rem;
+  }
+
+  .bar:has(.live-toggle) .code {
+    font-size: 1rem;
   }
 }
 

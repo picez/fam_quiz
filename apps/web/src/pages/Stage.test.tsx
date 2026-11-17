@@ -38,6 +38,40 @@ const open = () =>
   );
 
 describe('Stage', () => {
+  it('any gesture on the stage page unlocks the sound (40): a key of a TV remote, not only the corner button', async () => {
+    const created = vi.fn();
+    const resume = vi.fn(async () => undefined);
+    class FakeContext {
+      state = 'suspended';
+      destination = {};
+      onstatechange: (() => void) | null = null;
+      constructor() {
+        created();
+      }
+      resume = resume;
+      createBuffer() {
+        return {};
+      }
+      createBufferSource() {
+        return { buffer: null, onended: null, connect() {}, disconnect() {}, start() {} };
+      }
+    }
+    vi.stubGlobal('AudioContext', FakeContext);
+    try {
+      game.current = live('question');
+      open();
+      await act(async () => {});
+      expect(created).not.toHaveBeenCalled();
+      await act(async () => {
+        document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab' }));
+      });
+      expect(created).toHaveBeenCalledTimes(1);
+      expect(resume).toHaveBeenCalled();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it('the stage sits on the game background with the faint moon', async () => {
     game.current = { ...live('lobby'), view: null, status: 'connecting' };
     open();

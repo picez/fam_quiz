@@ -10,13 +10,14 @@ export function StageSoundsButton({ control }: { control: StageSoundsControl }) 
   if (!control.hostOn) return <span className="meta stage-sounds-off">{t('stageSoundsOffByHost')}</span>;
   if (control.device && !control.ready) {
     return (
-      <button type="button" className="btn btn-small stage-sounds-unlock" onClick={control.unlock}>
+      // Різні key: клік, що будить звук ще в фазі перехоплення, не дістанеться перемикача на місці тієї самої кнопки.
+      <button key="unlock" type="button" className="btn btn-small stage-sounds-unlock" onClick={control.unlock}>
         {t('stageSoundsUnlock')}
       </button>
     );
   }
   return (
-    <button type="button" className="btn btn-small stage-sounds-toggle" aria-pressed={control.device} onClick={control.toggle}>
+    <button key="toggle" type="button" className="btn btn-small stage-sounds-toggle" aria-pressed={control.device} onClick={control.toggle}>
       {t('stageSoundsToggle')}
     </button>
   );

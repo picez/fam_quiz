@@ -72,6 +72,18 @@ describe('stageCues (40)', () => {
     expect(stageCues(counting({ endsAt: 30_000 }), stageView({ phase: 'locked' }), 29_500)).toEqual([{ sound: 'gong', key: 'gong:0:1:30000' }]);
   });
 
+  it('a gong when the next stage of the same question arrives before the stage saw zero (bluff, spy)', () => {
+    // Сервер перемкнув етап за часом (строго після endsAt), а сцена ще не бачила нуля: новий таймер того самого запитання.
+    const lies = counting({ bluff: { stage: 'lies' } });
+    const choice = counting({ endsAt: 35_000, bluff: { stage: 'choice' } });
+    expect(stageCues(lies, choice, 10_050)).toEqual([{ sound: 'gong', key: 'gong:0:1:10000' }]);
+    expect(stageCues(counting({ spy: { stage: 'words' } }), counting({ endsAt: 35_000, spy: { stage: 'vote' } }), 9_500)).toEqual([{ sound: 'gong', key: 'gong:0:1:10000' }]);
+    // Ведучий перемкнув етап задовго до кінця — без гонгу.
+    expect(stageCues(lies, choice, 4_000)).toEqual([]);
+    // «+15 с» в останню секунду: той самий етап, новий endsAt — без гонгу (і без цокання, бо до кінця ще 15 с).
+    expect(stageCues(lies, counting({ endsAt: 25_000, bluff: { stage: 'lies' } }), 9_500)).toEqual([]);
+  });
+
   it('a pause or +15 s moves the countdown to the new timer', () => {
     expect(stageCues(null, counting({ endsAt: 25_000 }), 21_000)).toEqual([{ sound: 'tick', key: 'tick:0:1:25000:4' }]);
     expect(stageCues(null, counting({ endsAt: 25_000 }), 25_000)).toEqual([{ sound: 'gong', key: 'gong:0:1:25000' }]);

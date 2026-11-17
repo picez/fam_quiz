@@ -21,6 +21,9 @@ const questionKey = (view: StageView) => `${view.round?.index ?? -1}:${view.ques
 const counting = (view: StageView): view is StageView & { endsAt: number } =>
   view.phase === 'question' && !view.paused && !view.held && view.remainingMs === null && view.endsAt !== null;
 
+/** Етап багатоетапного запитання (блеф, шпигун): новий етап — новий таймер того самого q. */
+const timerStage = (view: StageView) => `${view.bluff?.stage ?? ''}:${view.spy?.stage ?? ''}`;
+
 /**
  * Звуки, що належать показаному зрізу в мить serverNow (час сервера). prev — попередній оцінений зріз:
  * з нього видно, що сервер закрив запитання за часом раніше, ніж сцена встигла побачити нуль.
@@ -32,14 +35,17 @@ export function stageCues(prev: StageView | null, view: StageView, serverNow: nu
   if (splash !== null && ACCENT_SPLASHES.includes(splash.kind) && serverNow < splash.until && !view.paused) {
     cues.push({ sound: 'accent', key: `splash:${splash.kind}:${splash.at}` });
   }
+  // Сервер закрив таймер за часом (запитання чи етап блефу й шпигуна), а сцена не встигла побачити нуля: гонг рівно раз за prev.endsAt.
+  // «±15 с» лишає той самий етап, тож гонгу не дає.
+  if (prev !== null && counting(prev) && questionKey(prev) === q && (view.phase !== 'question' || timerStage(view) !== timerStage(prev)) && serverNow >= prev.endsAt - GONG_GRACE_MS) {
+    cues.push({ sound: 'gong', key: `gong:${q}:${prev.endsAt}` });
+  }
   if (counting(view)) {
     const left = secondsLeft(view, 0, serverNow) ?? 0;
     // Гонг — на кінці кожного таймера: багатоетапні запитання (блеф, шпигун) лишаються на question з тим самим q
     // і новим endsAt на кожен етап, тож ключ гонгу — за таймером, а не за запитанням.
     if (serverNow >= view.endsAt) cues.push({ sound: 'gong', key: `gong:${q}:${view.endsAt}` });
     else if (left >= 1 && left <= TICK_FROM_S) cues.push({ sound: 'tick', key: `tick:${q}:${view.endsAt}:${left}` });
-  } else if (prev !== null && view.phase !== 'question' && counting(prev) && questionKey(prev) === q && serverNow >= prev.endsAt - GONG_GRACE_MS) {
-    cues.push({ sound: 'gong', key: `gong:${q}:${prev.endsAt}` });
   }
   if (view.phase === 'reveal' && view.stats !== null && view.stats.accepted !== null) {
     cues.push({ sound: view.stats.accepted > 0 ? 'correct' : 'wrong', key: `reveal:${q}` });
