@@ -4230,6 +4230,8 @@
   "problemSpyLeak": "The question text gives away a word of the pair",
   "problemSpyMedia": "“Spy” takes only a picture — no video or audio",
   "problemSpyWordLong": "The players’ word — up to 40 characters",
+  "problemSpyWordEmpty": "Question {index}: enter both the players’ word and the spy’s word.",
+  "problemSpyVoteTime": "Question {index}: the vote time is a whole number of seconds from {min} to {max}.",
   "spyDefaultText": "Write one word that you associate with your word",
   "spyPlayersWord": "Players’ word",
   "spyPlayersWordHint": "Other spellings count for the spy if they are caught and guess right.",

@@ -4347,6 +4347,8 @@ const uk = {
   problemSpyLeak: 'Текст запитання видає слово пари',
   problemSpyMedia: 'У «Шпигуні» — лише картинка, без відео й аудіо',
   problemSpyWordLong: 'Слово гравців — до 40 символів',
+  problemSpyWordEmpty: 'Запитання {index}: впишіть слово гравців і слово шпигуна.',
+  problemSpyVoteTime: 'Запитання {index}: час голосування — ціле число секунд від {min} до {max}.',
   spyDefaultText: 'Напишіть одне слово-асоціацію до свого слова',
   spyPlayersWord: 'Слово гравців',
   spyPlayersWordHint: 'Інші написання зарахуються шпигунові, якщо його викриють і він вгадає.',

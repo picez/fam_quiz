@@ -4290,6 +4290,8 @@
   "problemSpyLeak": "Tekst pytania zdradza słowo z pary",
   "problemSpyMedia": "W „Szpiegu” dozwolony jest tylko obraz, bez wideo i dźwięku",
   "problemSpyWordLong": "Słowo graczy — do 40 znaków",
+  "problemSpyWordEmpty": "Pytanie {index}: wpisz słowo graczy i słowo szpiega.",
+  "problemSpyVoteTime": "Pytanie {index}: czas głosowania — całkowita liczba sekund od {min} do {max}.",
   "spyDefaultText": "Napisz jedno słowo kojarzące się z twoim słowem",
   "spyPlayersWord": "Słowo graczy",
   "spyPlayersWordHint": "Inne zapisy zaliczą się szpiegowi, jeśli zostanie zdemaskowany i zgadnie.",

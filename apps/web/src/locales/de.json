@@ -4230,6 +4230,8 @@
   "problemSpyLeak": "Der Fragetext verrät ein Wort des Paares",
   "problemSpyMedia": "Beim „Spion“ ist nur ein Bild erlaubt, kein Video und kein Audio",
   "problemSpyWordLong": "Das Wort der Spieler — bis zu 40 Zeichen",
+  "problemSpyWordEmpty": "Frage {index}: Trage das Wort der Spieler und das Wort des Spions ein.",
+  "problemSpyVoteTime": "Frage {index}: Die Abstimmungszeit ist eine ganze Zahl von {min} bis {max} Sekunden.",
   "spyDefaultText": "Schreibe ein Wort, das du mit deinem Wort verbindest",
   "spyPlayersWord": "Wort der Spieler",
   "spyPlayersWordHint": "Andere Schreibweisen zählen für den Spion, wenn er enttarnt wird und richtig rät.",

@@ -563,6 +563,8 @@ export function duplicateQuestion(question: Question): Question {
       };
     case 'bluff':
       return { ...question, id, accepted: [...question.accepted], lies: [...question.lies] };
+    case 'spy':
+      return { ...question, id, accepted: [...question.accepted] };
     case 'survey':
       return { ...question, id, rows: question.rows.map((row) => ({ ...row, id: newId(), accepted: [...row.accepted] })) };
     case 'timedlist':
@@ -1071,6 +1073,12 @@ const cleanBody = (question: Question): Question => {
       const { hint: _hint, reveal: _reveal, ...rest } = question;
       return { ...rest, text };
     }
+    case 'spy': {
+      // Слово гравців — перше написання: порожнє лишається для перевірки, порожні додаткові відкидаються; без відео, звуку, «перевертання» й підказки.
+      const { hint: _hint, audio: _audio, reveal: _reveal, ...rest } = question;
+      const [playersWord = '', ...others] = question.accepted.map((s) => s.trim());
+      return { ...rest, text, video: null, accepted: [playersWord, ...others.filter((s) => s !== '')], spyWord: question.spyWord.trim() };
+    }
     case 'think': {
       // Без відео, звуку, «перевертання» й підказки; ціна 0 (think_points), слова почищені.
       const { hint: _hint, audio: _audio, reveal: _reveal, ...rest } = question;
@@ -1222,19 +1230,21 @@ interface Place {
   videoclip: boolean;
   /** «Думай як усі» і числове «Не перебільш»: лише класика (правила thinkalike_place й numeric_overshoot_place схеми). */
   thinkalike: boolean;
+  /** «Шпигун»: лише класика (spy_place схеми); на клітинці поля й у запасних — ні. */
+  spy: boolean;
 }
 
-const ANYWHERE: Place = { reveal: true, clues: true, pin: true, wall: true, vote: true, bluff: true, survey: true, clouds: [], voice: false, sort: true, chain: true, wordladder: true, timedlist: true, letterwords: true, moreless: true, drawing: true, puzzle: false, onlyPuzzles: false, jigsaw: true, spotdiff: true, memory: true, melody: true, videoclip: true, thinkalike: true };
+const ANYWHERE: Place = { reveal: true, clues: true, pin: true, wall: true, vote: true, bluff: true, survey: true, clouds: [], voice: false, sort: true, chain: true, wordladder: true, timedlist: true, letterwords: true, moreless: true, drawing: true, puzzle: false, onlyPuzzles: false, jigsaw: true, spotdiff: true, memory: true, melody: true, videoclip: true, thinkalike: true, spy: true };
 /** Бліц і фінал: нічого з нового. Класика — усе, а хмари для «100 до 1» — ті, що вище. */
 const roundPlace = (quiz: Quiz, roundIndex: number, questionIndex: number): Place =>
   quiz.rounds[roundIndex].type === 'classic'
     ? { ...ANYWHERE, clouds: cloudSources(quiz, roundIndex, questionIndex).map((cloud) => cloud.id) }
-    : { reveal: false, clues: false, pin: false, wall: false, vote: false, bluff: false, survey: false, clouds: null, voice: false, sort: true, chain: quiz.rounds[roundIndex].type !== 'blitz', wordladder: quiz.rounds[roundIndex].type === 'final' || quiz.rounds[roundIndex].type === 'bets' || quiz.rounds[roundIndex].type === 'auction', timedlist: false, letterwords: false, moreless: false, drawing: false, puzzle: quiz.rounds[roundIndex].type === 'puzzles', onlyPuzzles: quiz.rounds[roundIndex].type === 'puzzles', jigsaw: quiz.rounds[roundIndex].type === 'puzzles', spotdiff: quiz.rounds[roundIndex].type === 'puzzles', memory: quiz.rounds[roundIndex].type === 'puzzles', melody: false, videoclip: false, thinkalike: false };
+    : { reveal: false, clues: false, pin: false, wall: false, vote: false, bluff: false, survey: false, clouds: null, voice: false, sort: true, chain: quiz.rounds[roundIndex].type !== 'blitz', wordladder: quiz.rounds[roundIndex].type === 'final' || quiz.rounds[roundIndex].type === 'bets' || quiz.rounds[roundIndex].type === 'auction', timedlist: false, letterwords: false, moreless: false, drawing: false, puzzle: quiz.rounds[roundIndex].type === 'puzzles', onlyPuzzles: quiz.rounds[roundIndex].type === 'puzzles', jigsaw: quiz.rounds[roundIndex].type === 'puzzles', spotdiff: quiz.rounds[roundIndex].type === 'puzzles', memory: quiz.rounds[roundIndex].type === 'puzzles', melody: false, videoclip: false, thinkalike: false, spy: false };
 /** Клітинка поля: усе — на звичайній з телефона; «Хто я?» — ще й на усній; бліц-клітинка — нічого. */
 const cellPlace = (round: BoardRound, cell: BoardCell): Place => {
   const normal = cell.kind === 'normal';
   const phone = normal && cellAnswerMode(round, cell) === 'phone';
-  return { reveal: phone, clues: normal, pin: phone, wall: phone, vote: false, bluff: false, survey: phone, clouds: null, voice: normal && !phone, sort: phone, chain: false, wordladder: false, timedlist: phone, letterwords: phone, moreless: phone, drawing: false, puzzle: false, onlyPuzzles: false, jigsaw: false, spotdiff: false, memory: false, melody: false, videoclip: false, thinkalike: false };
+  return { reveal: phone, clues: normal, pin: phone, wall: phone, vote: false, bluff: false, survey: phone, clouds: null, voice: normal && !phone, sort: phone, chain: false, wordladder: false, timedlist: phone, letterwords: phone, moreless: phone, drawing: false, puzzle: false, onlyPuzzles: false, jigsaw: false, spotdiff: false, memory: false, melody: false, videoclip: false, thinkalike: false, spy: false };
 };
 
 /** Що заважає зберегти клітинку (уже почищену); null — клітинка готова. Одне джерело для problemsOf, firstProblem і cellState. */
@@ -1310,6 +1320,16 @@ const CROSSWORD_PROBLEMS = {
   crossword_key_letters: 'problemCrosswordKeyLetters',
 } as const satisfies Record<string, TextKey>;
 
+/** Текст видно всім: жодного з двох слів пари цілим словом (те саме правило, що spy_leak схеми). */
+function spyLeaks(question: Extract<Question, { type: 'spy' }>): boolean {
+  const wordsOf = (value: string) => answerKey(value).split(/[^\p{L}\p{N}']+/u).filter(Boolean).join(' ');
+  const textKey = ' ' + wordsOf(question.text) + ' ';
+  return [question.accepted[0] ?? '', question.spyWord].some((word) => {
+    const key = wordsOf(word);
+    return key !== '' && textKey.includes(' ' + key + ' ');
+  });
+}
+
 function problemKey(question: Question, place: Place = ANYWHERE): TextKey | null {
   if (question.text === '') return 'problemNoText';
   // Місце головоломок — раніше за їхні поля: судоку поза «Головоломками» не виправити цифрами.
@@ -1320,6 +1340,7 @@ function problemKey(question: Question, place: Place = ANYWHERE): TextKey | null
   if (question.type === 'melody' && !place.melody) return 'problemMelodyPlace';
   if (question.type === 'videoclip' && !place.videoclip) return 'problemVideoclipPlace';
   if (question.type === 'thinkalike' && !place.thinkalike) return 'problemAlikePlace';
+  if (question.type === 'spy' && !place.spy) return 'problemSpyPlace';
   if (question.type === 'numeric' && question.noOvershoot === true && !place.thinkalike) return 'problemOvershootPlace';
   if (!fitsPuzzlesRound(question) && place.onlyPuzzles) return 'problemPuzzlesType';
   const { timeLimit, points } = question;
@@ -1547,6 +1568,16 @@ function problemKey(question: Question, place: Place = ANYWHERE): TextKey | null
       if (!Number.isInteger(question.choiceTime) || question.choiceTime < LIMITS.minTime || question.choiceTime > LIMITS.maxTime) return 'problemBluffChoiceTime';
       break;
     }
+    case 'spy': {
+      const [playersWord = ''] = question.accepted;
+      if (answerKey(playersWord) === '' || answerKey(question.spyWord) === '') return 'problemSpyWordEmpty';
+      if (playersWord.trim().length > LIMITS.thinkWord) return 'problemSpyWordLong';
+      if (question.accepted.map(answerKey).includes(answerKey(question.spyWord))) return 'problemSpySame';
+      if (spyLeaks(question)) return 'problemSpyLeak';
+      if (question.video !== null || question.audio !== undefined) return 'problemSpyMedia';
+      if (!Number.isInteger(question.voteTime) || question.voteTime < LIMITS.minTime || question.voteTime > LIMITS.maxTime) return 'problemSpyVoteTime';
+      break;
+    }
     case 'think': {
       if (question.words.length > LIMITS.maxThinkWords || question.words.some((w) => w.synonyms.length > LIMITS.maxThinkSynonyms)) return 'problemThinkWordsLimits';
       const issue = thinkWordsIssue(question.words);
@@ -1762,7 +1793,7 @@ const crosswordMissing = (question: Crossword): string[] => {
 const problemText = (key: TextKey, index: number, question?: Question) =>
   t(key, {
     index,
-    min: key === 'problemCrosswordWord' ? LIMITS.minCrosswordWord : key === 'problemCrosswordKey' ? LIMITS.minCrosswordKey : key === 'problemCrosswordCount' ? LIMITS.minCrosswordWords : key === 'problemPuzzleLimits' ? LIMITS.minTime : key === 'problemJigsawLimits' ? LIMITS.minJigsawTime : key === 'problemSpotdiffLimits' ? LIMITS.minSpotdiffTime : key === 'problemMemoryLimits' ? LIMITS.minMemoryTime : key === 'problemMelodyLimits' ? LIMITS.minMelodyTime : key === 'problemVideoclipLimits' ? LIMITS.minVideoclipTime : key === 'problemBluffSpares' ? LIMITS.minBluffSpares : key === 'problemBluffChoiceTime' ? LIMITS.minTime : key === 'problemListItems' ? LIMITS.minListItems : key === 'problemLettersSet' ? LIMITS.minLetterSet : key === 'problemMoreLessPairs' ? LIMITS.minMoreLessPairs : LIMITS.minAudioSeconds,
+    min: key === 'problemCrosswordWord' ? LIMITS.minCrosswordWord : key === 'problemCrosswordKey' ? LIMITS.minCrosswordKey : key === 'problemCrosswordCount' ? LIMITS.minCrosswordWords : key === 'problemPuzzleLimits' ? LIMITS.minTime : key === 'problemJigsawLimits' ? LIMITS.minJigsawTime : key === 'problemSpotdiffLimits' ? LIMITS.minSpotdiffTime : key === 'problemMemoryLimits' ? LIMITS.minMemoryTime : key === 'problemMelodyLimits' ? LIMITS.minMelodyTime : key === 'problemVideoclipLimits' ? LIMITS.minVideoclipTime : key === 'problemBluffSpares' ? LIMITS.minBluffSpares : (key === 'problemBluffChoiceTime' || key === 'problemSpyVoteTime') ? LIMITS.minTime : key === 'problemListItems' ? LIMITS.minListItems : key === 'problemLettersSet' ? LIMITS.minLetterSet : key === 'problemMoreLessPairs' ? LIMITS.minMoreLessPairs : LIMITS.minAudioSeconds,
     max:
       key === 'problemCrosswordWord'
         ? LIMITS.maxCrosswordWord
@@ -1774,7 +1805,7 @@ const problemText = (key: TextKey, index: number, question?: Question) =>
         ? LIMITS.maxPuzzleTime
         : key === 'problemBluffTruthLong'
         ? LIMITS.bluffLie
-        : key === 'problemBluffChoiceTime'
+        : key === 'problemBluffChoiceTime' || key === 'problemSpyVoteTime'
           ? LIMITS.maxTime
           : key === 'problemListItems'
             ? LIMITS.maxListItems
@@ -1848,7 +1879,7 @@ function duelProblems(duels: Duels): string[] {
 
 /** Запасне «Не перебільш» схема відхиляє (spare_type): редактор каже це наперед. */
 function spareKey(spare: Question): TextKey | null {
-  return problemKey(spare) ?? (overshootOn(spare) ? 'problemOvershootPlace' : null);
+  return problemKey(spare) ?? (overshootOn(spare) ? 'problemOvershootPlace' : spare.type === 'spy' ? 'problemSpyPlace' : null);
 }
 
 /** Проблеми розділу «Запасні запитання»: кожне запасне перевіряється так само, як запитання. */
@@ -1979,6 +2010,8 @@ export function problemsOf(quiz: Quiz): string[] {
   else if (teamNames.some((name) => !isStorable(name))) problems.push(t('problemTeamUnstorable'));
   else if (teams && teamNames.length !== teams.count) problems.push(t('problemTeamCount'));
   else if (new Set(teamNames.map(answerKey)).size < teamNames.length) problems.push(t('problemTeamNames'));
+  // «Шпигун» не грається командами (spy_teams схеми): запуск недоступний, поки є команди й хоч одне таке запитання.
+  if (teams && draft.rounds.some((round) => [...roundQuestions(round), ...(round.type === 'survival' ? round.trials : [])].some((question) => question.type === 'spy'))) problems.push(t('problemSpyTeams'));
   const prices = Object.values(draft.settings.debuffPrices ?? {});
   if (prices.some((price) => !Number.isInteger(price) || price < LIMITS.minDebuffPrice || price > LIMITS.maxDebuffPrice)) {
     problems.push(t('problemDebuffPrice', { min: LIMITS.minDebuffPrice, max: LIMITS.maxDebuffPrice }));

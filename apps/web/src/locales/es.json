@@ -4286,6 +4286,8 @@
   "problemSpyLeak": "El texto de la pregunta revela una palabra del par",
   "problemSpyMedia": "«Espía» admite solo una imagen, sin vídeo ni audio",
   "problemSpyWordLong": "La palabra de los jugadores: hasta 40 caracteres",
+  "problemSpyWordEmpty": "Pregunta {index}: escribe la palabra de los jugadores y la del espía.",
+  "problemSpyVoteTime": "Pregunta {index}: el tiempo de votación es un número entero de segundos de {min} a {max}.",
   "spyDefaultText": "Escribe una palabra que asocies con la tuya",
   "spyPlayersWord": "Palabra de los jugadores",
   "spyPlayersWordHint": "Otras grafías cuentan para el espía si lo descubren y acierta.",

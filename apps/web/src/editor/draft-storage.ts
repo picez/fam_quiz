@@ -214,6 +214,24 @@ function reviveThink(base: Extract<Question, { type: 'think' }>): Question {
   return { ...rest, video: null, points: 0, words };
 }
 
+/**
+ * «Шпигун» (38) з чернетки: слова — рядки (написання — список рядків, інакше одне порожнє), voteTime — ціле minTime…maxTime (інакше 30);
+ * без відео, звуку, «перевертання» й підказки.
+ */
+function reviveSpy(base: Extract<Question, { type: 'spy' }>): Question {
+  const { hint: _hint, audio: _audio, reveal: _reveal, ...rest } = base;
+  const accepted = Array.isArray(base.accepted) ? (base.accepted as unknown[]).map((item) => (typeof item === 'string' ? item : '')) : [];
+  const vote: unknown = base.voteTime;
+  const voteOk = typeof vote === 'number' && Number.isInteger(vote) && vote >= LIMITS.minTime && vote <= LIMITS.maxTime;
+  return {
+    ...rest,
+    video: null,
+    accepted: accepted.length === 0 ? [''] : accepted.slice(0, LIMITS.maxAccepted),
+    spyWord: typeof base.spyWord === 'string' ? base.spyWord : '',
+    voteTime: voteOk ? vote : 30,
+  };
+}
+
 /** «Думай як усі» (37) з чернетки: лише основа — без «перевертання» й підказки. */
 function reviveThinkalike(base: Extract<Question, { type: 'thinkalike' }>): Question {
   const { hint: _hint, reveal: _reveal, ...rest } = base;
@@ -433,6 +451,7 @@ function revive(stored: Question): Question {
   if (base.type === 'videoclip') return reviveVideoclip(base);
   if (base.type === 'think') return reviveThink(base);
   if (base.type === 'thinkalike') return reviveThinkalike(base);
+  if (base.type === 'spy') return reviveSpy(base);
   if (base.type === 'poll') {
     const options = Array.isArray(base.options)
       ? (base.options as unknown[]).filter(isObjectLike).map((option) => ({
