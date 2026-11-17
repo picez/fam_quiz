@@ -1,10 +1,10 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { DuelInfo, GameAdjustment, Phase, PlayerDuel, PlayerView } from '@quiz/shared';
+import type { DuelBets, DuelInfo, GameAdjustment, HostView, Phase, PlayerDuel, PlayerView, StageView } from '@quiz/shared';
 import { duelLines } from '../pages/GameHistory';
 import type { Send, SendResult } from '../live/types';
-import { DuelBanner, DuelButton, DuelPlay, duelScoreText, sideClass } from './DuelView';
+import { DuelBanner, DuelButton, DuelPlay, DuelStage, HostDuelPanel, duelScoreText, sideClass } from './DuelView';
 
 afterEach(() => {
   cleanup();
@@ -34,11 +34,12 @@ const duelInfo = (patch: Partial<DuelInfo> = {}): DuelInfo => ({
   winningAnswer: null,
   winner: null,
   stake: 300,
+  bets: null,
   ending: false,
   ...patch,
 });
 
-const playerDuel = (patch: Partial<PlayerDuel> = {}): PlayerDuel => ({ rights: null, tries: [], canAnswer: false, canPick: false, ...patch });
+const playerDuel = (patch: Partial<PlayerDuel> = {}): PlayerDuel => ({ rights: null, tries: [], canAnswer: false, canPick: false, bet: null, ...patch });
 
 const me = { id: 'p1', nickname: 'Оля', score: 0, rank: null, answer: null, result: null, blitz: null, final: null, wipeout: null, survival: null, ladder: null, chain: null, sort: null, survey: null, bluff: null, debuff: null, shop: null, duel: playerDuel(), buffs: null, perks: null, peekedBy: null, overtime: null, tip: null, vote: null, appeal: null, wall: null };
 
@@ -383,5 +384,122 @@ describe('DuelBanner without a host', () => {
     };
     expect(text(true)).toBe('⚔ Дуель: Оля — Петро. Почнеться після цього екрана.');
     expect(text(false)).toBe('⚔ Дуель: Оля — Петро. Почнеться, щойно ведучий продовжить гру.');
+  });
+});
+
+describe('duel bets', () => {
+  const taras = { playerId: 'p4', nickname: 'Тарас' };
+  const hanna = { playerId: 'p5', nickname: 'Ганна' };
+  const bets = (patch: Partial<DuelBets> = {}): DuelBets => ({ stake: 100, open: true, challenger: [ira], opponent: [taras, hanna], ...patch });
+  const stageView = (duel: DuelInfo) => ({ duel, limitMs: null, endsAt: null, remainingMs: null, paused: false }) as unknown as StageView;
+  const hostView = (duel: DuelInfo) => ({ duel: { ...duel, tryTexts: { challenger: [], opponent: [] } }, live: null, limitMs: null, endsAt: null, remainingMs: null, paused: false }) as unknown as HostView;
+  const result = { stage: 'result' as const, question: null, wins: { challenger: 2, opponent: 1 }, winner: olya };
+
+  it('the banner counts bets', () => {
+    const { container, rerender } = render(<DuelBanner duel={duelInfo({ stage: 'declared', bets: bets() })} phase="reveal" />);
+    const banner = container.querySelector('.duel-banner')!;
+    expect(banner.querySelector('.duel-banner-bets')?.textContent).toBe('Ставки: Оля — 1, Петро — 2');
+    expect(banner.classList.contains('has-bets')).toBe(true);
+    rerender(<DuelBanner duel={duelInfo({ stage: 'declared', bets: null })} phase="reveal" />);
+    expect(container.querySelector('.duel-banner-bets')).toBeNull();
+    expect(container.querySelector('.duel-banner')?.classList.contains('has-bets')).toBe(false);
+  });
+
+  it('the stage lists bettors', () => {
+    const { container, unmount } = render(<DuelStage view={stageView(duelInfo({ stage: 'category', bets: bets() }))} offsetMs={0} />);
+    const [left, right] = [...container.querySelectorAll('.duel-stage-bets')];
+    expect(left!.querySelector('p')?.textContent).toBe('Поставив 1');
+    expect([...left!.querySelectorAll('li')].map((li) => li.textContent)).toEqual(['Іра']);
+    expect(right!.querySelector('p')?.textContent).toBe('Поставили 2');
+    expect([...right!.querySelectorAll('li')].map((li) => li.textContent)).toEqual(['Тарас', 'Ганна']);
+    expect(left!.classList.contains('is-many')).toBe(false);
+    unmount();
+
+    const ten = Array.from({ length: 10 }, (_, i) => ({ playerId: `b${i}`, nickname: `Гравець ${i}` }));
+    const many = render(<DuelStage view={stageView(duelInfo({ stage: 'category', bets: bets({ challenger: ten }) }))} offsetMs={0} />);
+    const [crowded, few] = [...many.container.querySelectorAll('.duel-stage-bets')];
+    expect(crowded!.classList.contains('is-many')).toBe(true);
+    expect(crowded!.querySelectorAll('li')).toHaveLength(10);
+    expect(few!.classList.contains('is-many')).toBe(false);
+    many.unmount();
+
+    // Ставки закрито (answer): лише лічильники.
+    const closed = render(<DuelStage view={stageView(duelInfo({ stage: 'answer', bets: bets({ open: false }) }))} offsetMs={0} />);
+    expect(closed.container.querySelectorAll('.duel-stage-bets')).toHaveLength(2);
+    expect(closed.container.querySelectorAll('.duel-stage-bets li')).toHaveLength(0);
+    closed.unmount();
+
+    const none = render(<DuelStage view={stageView(duelInfo({ stage: 'category' }))} offsetMs={0} />);
+    expect(none.container.querySelector('.duel-stage-bets')).toBeNull();
+  });
+
+  it('the stage result', () => {
+    const outcome = (duel: DuelInfo) => {
+      const { container, unmount } = render(<DuelStage view={stageView(duel)} offsetMs={0} />);
+      const lines = [...container.querySelectorAll('.duel-stage-bet-outcome')].map((p) => p.textContent);
+      unmount();
+      return lines;
+    };
+    expect(outcome(duelInfo({ ...result, bets: bets({ open: false }) }))).toEqual(['Вгадали: Іра +100', 'Не вгадали: Тарас, Ганна −100']);
+    expect(outcome(duelInfo({ ...result, winner: petro, bets: bets({ open: false }) }))).toEqual(['Вгадали: Тарас, Ганна +100', 'Не вгадали: Іра −100']);
+    expect(outcome(duelInfo({ ...result, winner: null, bets: bets({ open: false }) }))).toEqual(['Нічия — ставки без змін']);
+    expect(outcome(duelInfo({ ...result, bets: bets({ open: false, challenger: [], opponent: [] }) }))).toEqual(['Ніхто не ставив']);
+    expect(outcome(duelInfo({ ...result, bets: bets({ open: false, opponent: [] }) }))).toEqual(['Вгадали: Іра +100']);
+    expect(outcome(duelInfo({ ...result, bets: null }))).toEqual([]);
+  });
+
+  it('the stage result with many bettors is dense: 22 names fit 1280×720', () => {
+    const classes = (duel: DuelInfo) => {
+      const { container, unmount } = render(<DuelStage view={stageView(duel)} offsetMs={0} />);
+      const lines = [...container.querySelectorAll('.duel-stage-bet-outcome')].map((p) => p.classList.contains('is-many'));
+      unmount();
+      return lines;
+    };
+    const people = (n: number, from: number) => Array.from({ length: n }, (_, i) => ({ playerId: `b${from + i}`, nickname: `Гравець ${from + i}` }));
+    // Понад MANY_BETS ставців разом (5 + 4) — щільно, хоч на кожен бік менше за 8.
+    expect(classes(duelInfo({ ...result, bets: bets({ open: false, challenger: people(5, 0), opponent: people(4, 5) }) }))).toEqual([true, true]);
+    expect(classes(duelInfo({ ...result, bets: bets({ open: false, challenger: people(12, 0), opponent: people(10, 12) }) }))).toEqual([true, true]);
+    expect(classes(duelInfo({ ...result, bets: bets({ open: false, challenger: people(4, 0), opponent: people(4, 4) }) }))).toEqual([false, false]);
+    expect(classes(duelInfo({ ...result, bets: bets({ open: false }) }))).toEqual([false, false]);
+  });
+
+  it('the phone result', () => {
+    const line = (duel: DuelInfo, bet: PlayerDuel['bet'], id: string) => {
+      const { container, unmount } = play(view(duel, { bet }, id));
+      const found = container.querySelector('.duel-bet-result');
+      const out = found === null ? null : { text: found.textContent, className: found.className };
+      unmount();
+      return out;
+    };
+    const closed = bets({ open: false });
+    expect(line(duelInfo({ ...result, bets: closed }), { side: 'challenger', can: false }, 'p3')).toEqual({ text: 'Ставка зіграла: +100', className: 'duel-bet-result is-won' });
+    expect(line(duelInfo({ ...result, bets: closed }), { side: 'opponent', can: false }, 'p4')).toEqual({ text: 'Ставка не зіграла: −100', className: 'duel-bet-result is-lost' });
+    expect(line(duelInfo({ ...result, winner: null, bets: closed }), { side: 'opponent', can: false }, 'p4')?.text).toBe('Нічия — ставка без змін');
+    // Не ставив і дуелянт — без рядка.
+    expect(line(duelInfo({ ...result, bets: closed }), { side: null, can: false }, 'p5')).toBeNull();
+    expect(line(duelInfo({ ...result, bets: closed }), null, 'p1')).toBeNull();
+  });
+
+  it('the phone bets on category; the challenger picks without bet buttons', () => {
+    play(view(duelInfo({ stage: 'category', bets: bets() }), { bet: { side: 'challenger', can: true } }, 'p3'));
+    expect(screen.getByText('На кого ставите?')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Оля' }).getAttribute('aria-pressed')).toBe('true');
+    cleanup();
+    play(view(duelInfo({ stage: 'category', bets: bets() }), { canPick: true, bet: null }, 'p1'));
+    expect(screen.queryByText('На кого ставите?')).toBeNull();
+    cleanup();
+    play(view(duelInfo({ stage: 'question', bets: bets({ open: false }) }), { bet: { side: 'challenger', can: false } }, 'p3'));
+    expect(screen.queryByText('На кого ставите?')).toBeNull();
+  });
+
+  it('the host sees both lists', () => {
+    const { container, unmount } = render(<HostDuelPanel view={hostView(duelInfo({ stage: 'category', bets: bets() }))} offsetMs={0} send={okSend()} onError={vi.fn()} />);
+    expect([...container.querySelectorAll('.duel-host-bets p')].map((p) => p.textContent)).toEqual(['Оля: Поставив 1 (Іра)', 'Петро: Поставили 2 (Тарас, Ганна)']);
+    unmount();
+    const done = render(<HostDuelPanel view={hostView(duelInfo({ ...result, bets: bets({ open: false }) }))} offsetMs={0} send={okSend()} onError={vi.fn()} />);
+    expect([...done.container.querySelectorAll('.duel-host-bet-outcome')].map((p) => p.textContent)).toEqual(['Вгадали: Іра +100', 'Не вгадали: Тарас, Ганна −100']);
+    done.unmount();
+    const off = render(<HostDuelPanel view={hostView(duelInfo({ stage: 'category' }))} offsetMs={0} send={okSend()} onError={vi.fn()} />);
+    expect(off.container.querySelector('.duel-host-bets')).toBeNull();
   });
 });

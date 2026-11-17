@@ -97,7 +97,7 @@ const guidePages: GuidePage[] = [
   { kind: 'questions', types: [{ type: 'single', top: '' }, { type: 'order', top: 'Найбільший' }] },
   { kind: 'buffs', buffs: [...BUFF_KINDS] },
   { kind: 'debuffs', debuffs: [...DEBUFF_KINDS] },
-  { kind: 'duels', after: 3, questions: 3, stake: 300, final: false },
+  { kind: 'duels', after: 3, questions: 3, stake: 300, bets: 100, final: false },
 ];
 
 const board = (dice: BoardInfo['dice']): BoardInfo => ({

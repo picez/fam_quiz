@@ -1896,6 +1896,7 @@ const hostDuel = (patch: Partial<HostDuel> = {}): HostDuel => ({
   winningAnswer: null,
   winner: null,
   stake: 300,
+  bets: null,
   ending: false,
   ...patch,
 });

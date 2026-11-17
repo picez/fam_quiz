@@ -122,6 +122,8 @@ export const LIMITS = {
   defaultDuelTime: 30,
   maxDuelStake: 5000,
   defaultDuelStake: 300,
+  /** Ставка інших гравців на дуелянта, коли в налаштуваннях немає betStake (39). */
+  defaultDuelBetStake: 100,
   /** Спроб одного дуелянта на одне запитання. */
   maxDuelTries: 30,
   /** Підказка до запитання (редактор) і від ведучого в грі, символів. */
@@ -1591,11 +1593,18 @@ export const duelsSchema = z.object({
   timeLimit: z.number().int().min(LIMITS.minTime).max(LIMITS.maxTime),
   /** Скільки програвший віддає переможцю; 0 — без втрат. */
   stake: z.number().int().min(0).max(LIMITS.maxDuelStake),
+  /** Ставка інших гравців на дуелянта (39); 0 — ставок немає; немає поля — LIMITS.defaultDuelBetStake. */
+  betStake: z.number().int().min(0).max(LIMITS.maxDuelStake).optional(),
 });
 
 export type DuelQuestion = z.infer<typeof duelQuestionSchema>;
 export type DuelCategory = z.infer<typeof duelCategorySchema>;
 export type Duels = z.infer<typeof duelsSchema>;
+
+/** Ставка інших гравців на дуелянта (39): немає дуелей — 0, немає betStake — 100. */
+export function duelBetStake(quiz: Quiz): number {
+  return quiz.duels === undefined ? 0 : (quiz.duels.betStake ?? LIMITS.defaultDuelBetStake);
+}
 
 /** Командна гра (10j): кількість і назви; немає поля — соло. Спосіб формування вибирає ведучий у лобі. */
 export const teamsSettingsSchema = z.object({

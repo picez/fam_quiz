@@ -172,7 +172,7 @@ describe('«😀 Реакція» fits a 360 px header (e2e 7g regression)', () 
     expect(narrow).toContain('\n  .bar .reaction-button-label {\n    display: none;');
     expect(narrow).toContain('\n  .bar:has(.reaction-button) {\n    gap: 0.375rem;');
     // 17a: «Таблиця» більше не стискається трикрапкою (місце віддає нік) — трикрапкою стискається лише «⚔ Дуель».
-    expect(narrow).toContain('.bar:has(.reaction-button) > .duel-button {\n    flex-shrink: 1;');
+    expect(narrow).toContain('.bar:has(.reaction-button, .shop-button, .quest-button) > .duel-button {\n    flex-shrink: 1;');
   });
 
   it('the word is a separate hideable span, the accessible name stays whole', () => {

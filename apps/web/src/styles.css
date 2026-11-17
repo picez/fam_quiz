@@ -6615,6 +6615,137 @@ body:has(.duel-banner):has(.debuff-banner) .live-notices {
   flex: 1 1 10rem;
 }
 
+/* Ставки на дуелянтів (39). Смуга з лічильниками вища (з довгими іменами на 375 px — до 132 px): запас під нею росте разом із нею. */
+body:has(.duel-banner.has-bets) {
+  --duel-banner-room: 9rem;
+}
+
+.stage .duel-banner.has-bets ~ .live-notices {
+  bottom: 7rem;
+}
+
+.duel-banner-bets {
+  display: block;
+  font-size: 0.875em;
+  font-weight: 600;
+}
+
+/* Телефон: два імені в рівних стовпцях (довге ім'я переноситься, не розпирає 320 px), «Без ставки» окремим рядком. */
+.duel-bet {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.duel-bet p {
+  margin: 0;
+}
+
+.duel-bet-sides {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 0.5rem;
+}
+
+.duel-bet .btn {
+  width: 100%;
+  min-width: 0;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+/* Вужчі поля збоку: на 320 px прізвище до 10 літер («Литвиненко») стоїть у кнопці цілим, а не рветься посеред слова. */
+.duel-bet-sides .btn {
+  padding-inline: 0.5rem;
+}
+
+.duel-bet-side.is-challenger {
+  border-top: 0.25rem solid var(--duel-challenger);
+}
+
+.duel-bet-side.is-opponent {
+  border-top: 0.25rem solid var(--duel-opponent);
+}
+
+.duel-bet .btn[aria-pressed='true'] {
+  border-color: var(--duel-accent);
+  background: var(--duel-accent-soft);
+}
+
+.duel-bet-result {
+  margin: 0;
+  font-weight: 700;
+}
+
+.duel-bet-result.is-won,
+.duel-stage-bet-outcome.is-won,
+.duel-host-bet-outcome.is-won {
+  color: var(--correct);
+}
+
+.duel-bet-result.is-lost,
+.duel-stage-bet-outcome.is-lost,
+.duel-host-bet-outcome.is-lost {
+  color: var(--wrong);
+}
+
+/* Сцена: під іменем дуелянта — хто на нього поставив; понад 8 — дрібніше у дві колонки (22 ставці на 1280×720). */
+.duel-stage-flank {
+  display: flex;
+  flex-direction: column;
+  gap: 1vh;
+  min-width: 0;
+}
+
+.duel-stage-bets {
+  min-width: 0;
+  text-align: center;
+  font-size: clamp(1rem, 1.6vw, 1.75rem);
+}
+
+.duel-stage-bets p {
+  margin: 0;
+  font-weight: 700;
+}
+
+.duel-stage-bets ul {
+  margin: 0.5vh 0 0;
+  padding: 0;
+  list-style: none;
+  overflow-wrap: anywhere;
+}
+
+.duel-stage-bets.is-many ul {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 0 0.75vw;
+  font-size: clamp(0.75rem, 1vw, 1.125rem);
+  line-height: 1.25;
+}
+
+.duel-stage-bet-outcome {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+/*
+ * Понад 8 ставців разом: підсумок дрібніше (на .stage .lead — 2,4vw), а заголовок переможця — менший (довге ім'я дає три рядки),
+ * щоб 22 імені у двох рядках підсумку вмістилися на 1280×720.
+ */
+.stage .duel-stage-bet-outcome.is-many {
+  font-size: clamp(0.875rem, 1.3vw, 1.625rem);
+  line-height: 1.35;
+}
+
+.stage .duel-stage-body:has(.duel-stage-bet-outcome.is-many) > .question {
+  font-size: clamp(1.5rem, 3vw, 3rem);
+}
+
+.duel-host-bets p {
+  margin: 0.25rem 0;
+}
+
 .history-duel {
   margin: 0.25rem 0 0;
   overflow-wrap: anywhere;
@@ -13865,6 +13996,11 @@ button.wall-tile:disabled {
   bottom: calc(max(1rem, env(safe-area-inset-bottom)) + var(--reaction-strip-h));
 }
 
+/* Зі смугою оголошеної дуелі сповіщення про бали стоїть над нею й над смугою реакцій (правило вище інакше перемагає «body:has(.duel-banner)»). */
+.app.player.has-reactions:has(> .duel-banner) .live-notices {
+  bottom: calc(var(--banner-base) + var(--duel-banner-room) + var(--reaction-strip-h));
+}
+
 /* Пульт: липка панель дій стоїть над смугою, а не під нею. */
 .app.host.has-reactions .actions {
   bottom: var(--reaction-strip-h);
@@ -13927,11 +14063,28 @@ button.wall-tile:disabled {
     gap: 0.375rem;
   }
 
-  .bar:has(.reaction-button) > .duel-button {
+  .bar:has(.reaction-button, .shop-button, .quest-button) > .duel-button {
     flex-shrink: 1;
     min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
+  }
+
+  /* «⚔ Дуель» + «😈»/квест + «Таблиця» + рахунок у 360 px не лишають місця для ніка (нік стискався до нуля, а шапка ширшала за екран):
+     нік тримає мінімум, значок теми в такій шапці ховається (тема лишається в лобі й меню), решту віддає «⚔ Дуель» трикрапкою. */
+  .bar:has(.duel-button):has(.reaction-button, .shop-button, .quest-button) > span:first-child {
+    min-width: 3rem;
+  }
+
+  .bar:has(.duel-button):has(.shop-button, .quest-button) > .bar-theme {
+    display: none;
+  }
+}
+
+/* На 320 px місця для мінімуму ніка немає взагалі: там усе стискається, як і було. */
+@media (max-width: 340px) {
+  .bar:has(.duel-button):has(.reaction-button, .shop-button, .quest-button) > span:first-child {
+    min-width: 0;
   }
 }
 

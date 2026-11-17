@@ -71,7 +71,14 @@ describe('guidePages', () => {
 
   it('duels when the quiz has a pool: after a third of the questions, questions per duel and the stake', () => {
     const quiz = { ...makeRoundsQuiz([classicRound('r1', [single, withId(single, 'q2'), withId(single, 'q3'), withId(single, 'q4')])], { debuffs: [] }), duels };
-    expect(guidePages(quiz).at(-1)).toEqual({ kind: 'duels', after: 2, questions: duels.questionsPerDuel, stake: duels.stake, final: false });
+    expect(guidePages(quiz).at(-1)).toEqual({ kind: 'duels', after: 2, questions: duels.questionsPerDuel, stake: duels.stake, bets: 100, final: false });
+  });
+
+  it('duels page carries the bet stake of the quiz: 100 by default, 0 when bets are off', () => {
+    const base = makeRoundsQuiz([classicRound('r1', [single, withId(single, 'q2'), withId(single, 'q3'), withId(single, 'q4')])], { debuffs: [] });
+    const bets = (patch: object) => guidePages({ ...base, duels: { ...duels, ...patch } }).at(-1);
+    expect(bets({ betStake: undefined })).toMatchObject({ kind: 'duels', bets: 100 });
+    expect(bets({ betStake: 0 })).toMatchObject({ kind: 'duels', bets: 0 });
   });
 
   it('newcomersOn reads the flag; absent is off', () => {

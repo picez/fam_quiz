@@ -63,6 +63,8 @@ function Pool({ duels, picked, onPick, onChange }: { duels: Duels; picked: numbe
       </div>
       <NumberField label={t('duelsStake')} value={duels.stake} onChange={(value) => onChange({ ...duels, stake: value })} />
       <p className="meta">{t('duelsStakeHint')}</p>
+      <NumberField label={t('duelsBetStake')} value={duels.betStake ?? LIMITS.defaultDuelBetStake} onChange={(value) => onChange({ ...duels, betStake: value })} />
+      <p className="meta">{t('duelsBetStakeHint')}</p>
 
       <div className="type-chips">
         {categories.map((c, index) => (

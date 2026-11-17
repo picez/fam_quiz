@@ -1596,6 +1596,30 @@ describe('host presence', () => {
     expect(await send(host, 'host:duel-cancel')).toEqual({ ok: true });
   });
 
+  it('player:duel-bet is player-only, validated, and refuses the duellists', async () => {
+    const quiz = {
+      ...makeRoundsQuiz([classicRound('r1', [withId(single, 'q1'), withId(single, 'q2')]), finalRound('rf', withId(single, 'qf'))]),
+      duels,
+    };
+    const created = (await startGame(ctx.app, quiz)).game;
+    const { host, stage, olena, taras, tarasJoin } = await lobby(created);
+    expect(await send(host, 'host:start')).toEqual({ ok: true });
+    expect(await send(host, 'host:next')).toEqual({ ok: true });
+    await until(olena, inPhase('question'));
+    expect(await send(olena, 'player:answer', correct)).toEqual({ ok: true });
+    expect(await send(taras, 'player:answer', correct)).toEqual({ ok: true });
+    expect(await send(host, 'host:next')).toEqual({ ok: true });
+    await until(olena, inPhase('reveal'));
+    for (const who of [host, stage]) expect(await send(who, 'player:duel-bet', { side: 'challenger' })).toEqual({ ok: false, error: 'forbidden' });
+    expect(await send(taras, 'player:duel-bet', { side: 'challenger' })).toEqual({ ok: false, error: 'wrong_phase' });
+    expect(await send(olena, 'player:duel', { opponentId: tarasJoin.playerId })).toEqual({ ok: true });
+    for (const body of [{ side: 'x' }, {}, { side: 5 }]) {
+      expect(await send(taras, 'player:duel-bet', body)).toEqual({ ok: false, error: 'invalid_payload' });
+    }
+    expect(await send(taras, 'player:duel-bet', { side: 'challenger' })).toEqual({ ok: false, error: 'duel_bet_self' });
+    expect(await send(olena, 'player:duel-bet', { side: null })).toEqual({ ok: false, error: 'duel_bet_self' });
+  });
+
   it('player:sort on a question of another type is a type mismatch', async () => {
     const created = (await startGame(ctx.app, makeQuiz([single]))).game;
     const { host, olena } = await lobby(created);

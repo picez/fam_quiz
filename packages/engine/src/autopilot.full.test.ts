@@ -348,6 +348,21 @@ describe('autopilot: scores and defaults', () => {
     ]);
   });
 
+  it('duel bets: four bots, the two others bet on different duellists, the right one wins the stake, the wrong one loses it (39)', () => {
+    const { state } = play(duelQuiz(), answering, ['Ігор', 'Олена', 'Тарас']);
+    expect(state.phase).toBe('finished');
+    const bets = state.adjustments.filter((x) => x.source === 'duelbet');
+    expect(bets.map((x) => [x.playerId, x.points, x.target])).toEqual([
+      ['p3', 100, 'a'],
+      ['p4', -100, 'p2'],
+    ]);
+    expect(bets.reduce((sum, x) => sum + x.points, 0)).toBe(0);
+    // Ставки вимкнено — боти не ставлять.
+    const off = play(duelQuiz({ betStake: 0 }), answering, ['Ігор', 'Олена', 'Тарас']).state;
+    expect(off.phase).toBe('finished');
+    expect(off.adjustments.filter((x) => x.source === 'duelbet')).toEqual([]);
+  });
+
   it('puzzles: every bot fills the solution and presses done, every grid is right (28d)', () => {
     const { state } = play(puzzlesQuiz(), answering);
     expect(state.plays.map((p) => p.question.id)).toEqual(['z1', 'z2', 'z3']);
@@ -493,13 +508,22 @@ describe('autopilot: scores and defaults', () => {
   });
 
   it('a declared duel whose players stay silent gets its category by lot 15 s after the «Duel!» splash', () => {
-    const { state, changes } = play(duelQuiz(), answerAs({ onlyDuel: true }));
+    // Двоє: ставців немає, тож автопілот не чекає ставок.
+    const { state, changes } = play(duelQuiz(), answerAs({ onlyDuel: true }), ['Ігор']);
     const picked = changes.find((c) => c.prev.duel?.stage === 'category' && c.next.duel?.stage !== 'category');
     expect(picked).toBeDefined();
     const splashEnd = picked!.prev.splash?.kind === 'duel' ? picked!.prev.splash.until : null;
     expect(splashEnd).not.toBeNull();
     expect(picked!.now).toBe(splashEnd! + 15_000);
     expect(state.duelsDeclared).toEqual(['a']);
+  });
+
+  it('a declared duel with others who may bet gets its category by lot 25 s after the «Duel!» splash', () => {
+    const { changes } = play(duelQuiz(), answerAs({ onlyDuel: true }));
+    const picked = changes.find((c) => c.prev.duel?.stage === 'category' && c.next.duel?.stage !== 'category');
+    const splashEnd = picked!.prev.splash?.kind === 'duel' ? picked!.prev.splash.until : null;
+    expect(splashEnd).not.toBeNull();
+    expect(picked!.now).toBe(splashEnd! + 25_000);
   });
 });
 

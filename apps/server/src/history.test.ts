@@ -1522,6 +1522,25 @@ describe('history: score adjustments', () => {
     ]);
   });
 
+  it('a duel bet row carries the duellist it was placed on; duel rows keep their keys', async () => {
+    const host = await hostAccount();
+    const { gameId } = await seedGame(db, {
+      hostId: host.id,
+      startedAt: new Date(2026, 2, 5),
+      players: [
+        { userId: null, nickname: 'Оля', score: 300, rank: 1, adjustments: [{ seq: 1, points: 300, source: 'duel' }] },
+        { userId: null, nickname: 'Петро', score: -300, rank: 4, adjustments: [{ seq: 2, points: -300, source: 'duel' }] },
+        { userId: null, nickname: 'Іра', score: 100, rank: 2, adjustments: [{ seq: 3, points: 100, source: 'duelbet', targetNickname: 'Оля' }] },
+        { userId: null, nickname: 'Тарас', score: -100, rank: 3, adjustments: [{ seq: 4, points: -100, source: 'duelbet', targetNickname: 'Петро' }] },
+      ],
+    });
+    const detail = await hostGame(db, host.id, gameId);
+    const rows = detail?.adjustments ?? [];
+    expect(rows.find((a) => a.nickname === 'Іра')).toEqual(expect.objectContaining({ source: 'duelbet', points: 100, target: 'Оля' }));
+    expect(rows.find((a) => a.nickname === 'Тарас')).toEqual(expect.objectContaining({ source: 'duelbet', points: -100, target: 'Петро' }));
+    for (const duel of rows.filter((a) => a.source === 'duel')) expect(duel).not.toHaveProperty('target');
+  });
+
   it('the game detail orders adjustments of several players by seq', async () => {
     const host = await hostAccount();
     const { gameId } = await seedGame(db, {

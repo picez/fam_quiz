@@ -66,6 +66,7 @@ import { SpyBoard } from './SpyBoard';
 import { SpyPhone } from './SpyPhone';
 import { DebuffStrip, DebuffZone, NoClock, useDebuffQuestion } from './Debuffs';
 import { DuelBanner, DuelButton, DuelPlay } from './DuelView';
+import { DuelBet } from './DuelBet';
 import { DuelistPicker } from './DuelistPicker';
 import { AnswererPicker } from './AnswererPicker';
 import { TeamBar, buzzerOf, memberName, teamOf } from './TeamBar';
@@ -1021,6 +1022,10 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
 
       <TeamBar view={view} />
       <DuelistPicker view={view} send={send} onError={setError} />
+      {/* Ставка на оголошену дуель (39): не на запитанні — там телефон зайнятий відповіддю; на category — у DuelPlay. */}
+      {view.duel !== null && view.duel.stage === 'declared' && phase !== 'question' && me.duel !== null && me.duel.bet !== null && (
+        <DuelBet duel={view.duel} bet={me.duel.bet} paused={view.paused} send={send} onError={setError} />
+      )}
       <AnswererPicker view={view} send={send} onError={setError} />
 
       {phase === 'lobby' && view.author === null && <p className="lead">{t('inLobby')}</p>}

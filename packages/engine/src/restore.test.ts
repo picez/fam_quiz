@@ -101,7 +101,8 @@ import { sortMarks, sortOf, sortWord } from './sort';
 import type { Splash } from './splash';
 import { seededRng, writeLie } from './bluff';
 import { T0, buffQuiz, toBuffCell, toBuffQuestion, toOthersQuestion } from './testing/buffs';
-import { toDuelQuestion } from './testing/duel';
+import { T0 as DUEL_T0, T1 as DUEL_T1, toDeclarableWith, toDuelQuestion } from './testing/duel';
+import { answerDuel, betDuel, declareDuel, duelQuestionOf, pickDuelCategory } from './duel';
 import {
   auctionRound,
   betsRound,
@@ -450,7 +451,7 @@ const STATE_SHAPE: Record<string, string> = {
   StealthState: keysOf<StealthState>()(['at', 'spent'], true),
   QuestState: keysOf<QuestState>()(['tries', 'stage', 'startedAt'], true),
   QuestTry: keysOf<QuestTry>()(['code', 'at', 'after', 'by', 'right', 'n'], true),
-  DuelState: keysOf<DuelState>()(['challengerId', 'opponentId', 'stage', 'returnPhase', 'categoryId', 'total', 'questions', 'winnerId'], true),
+  DuelState: keysOf<DuelState>()(['challengerId', 'opponentId', 'stage', 'returnPhase', 'categoryId', 'total', 'questions', 'winnerId', 'bets'], true),
   DuelQuestionPlay: keysOf<DuelQuestionPlay>()(['questionId', 'tries', 'winnerId', 'answer', 'timeMs'], true),
   ScoreAdjustment: keysOf<ScoreAdjustment>()(['seq', 'playerId', 'points', 'roundIndex', 'afterQuestion', 'source', 'at', 'target', 'debuff', 'undoes', 'batch', 'anon'], true),
   Splash: keysOf<Splash>()(['kind', 'at', 'until'], true),
@@ -1323,7 +1324,7 @@ const KEYS: Record<number, Record<string, string>> = {
     StealthState: 'at,spent',
     QuestState: 'stage,startedAt,tries',
     QuestTry: 'after,at,by,code,n,right',
-    DuelState: 'categoryId,challengerId,opponentId,questions,returnPhase,stage,total,winnerId',
+    DuelState: 'bets,categoryId,challengerId,opponentId,questions,returnPhase,stage,total,winnerId',
     DuelQuestionPlay: 'answer,questionId,timeMs,tries,winnerId',
     ScoreAdjustment: 'afterQuestion,anon,at,batch,debuff,playerId,points,roundIndex,seq,source,target,undoes',
     Splash: 'at,kind,until',
@@ -2649,5 +2650,44 @@ describe('38 snapshots', () => {
     const done = must(guessSpy(back, 'p3', 'кава', T0 + 10_000 + HOUR));
     expect(done.phase).toBe('locked');
     expect(done.players.map((p) => p.score)).toEqual([1000, 1000, 500, 1000]);
+  });
+});
+
+describe('39 snapshots', () => {
+  it('a restored room keeps the duel bets', () => {
+    expect(GAME_STATE_VERSION).toBe(22);
+    const rng0 = () => 0;
+    let declared = must(declareDuel(toDeclarableWith(['Оля', 'Петро', 'Іра', 'Тарас']), 'p1', 'p2'));
+    declared = must(betDuel(declared, 'p3', 'challenger'));
+    declared = must(betDuel(declared, 'p4', 'opponent'));
+    const category = must(next(declared, DUEL_T0 + 4000, rng0));
+    expect(category.duel?.stage).toBe('category');
+    /** Підсумок: категорію вибирає ведучий, Оля виграє кожне запитання. */
+    const finish = (input: GameState, now: number): GameState => {
+      let s = input.duel?.stage === 'declared' ? must(next(input, now, rng0)) : input;
+      s = must(pickDuelCategory(s, null, 'dc1', now, rng0));
+      while (s.duel?.stage !== 'result') s = must(next(must(answerDuel(s, 'p1', duelQuestionOf(s)?.accepted[0] ?? '', now)), now, rng0));
+      return s;
+    };
+    const lines = (s: GameState) => s.adjustments.filter((a) => a.source === 'duelbet').map((a) => [a.playerId, a.points, a.target]);
+    for (const s of [declared, category]) {
+      const at = DUEL_T0 + 5000;
+      const back = must(resume(roundTrip(suspend(roundTrip(s), at)), at + HOUR));
+      expect(back.duel?.bets).toEqual({ p3: 'challenger', p4: 'opponent' });
+      expect(stageView(back).duel?.bets).toEqual(stageView(s).duel?.bets);
+      expect(playerView(back, 'p3')?.me.duel?.bet).toEqual({ side: 'challenger', can: true });
+      const done = finish(back, DUEL_T1 + HOUR);
+      expect(lines(done)).toEqual(lines(finish(s, DUEL_T1)));
+      expect(lines(done)).toEqual([
+        ['p3', 100, 'p1'],
+        ['p4', -100, 'p2'],
+      ]);
+    }
+    // Старий знімок дуелі без bets: ставок немає, Іра може поставити.
+    const { bets: _bets, ...oldDuel } = category.duel!;
+    const old = must(resume(roundTrip(suspend(roundTrip({ ...category, duel: oldDuel }), DUEL_T0 + 5000)), DUEL_T0 + 5000 + HOUR));
+    expect(stageView(old).duel?.bets).toEqual({ stake: 100, open: true, challenger: [], opponent: [] });
+    expect(playerView(old, 'p3')?.me.duel?.bet).toEqual({ side: null, can: true });
+    expect(must(betDuel(old, 'p3', 'opponent')).duel?.bets).toEqual({ p3: 'opponent' });
   });
 });

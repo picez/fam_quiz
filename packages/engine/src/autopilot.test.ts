@@ -17,7 +17,7 @@ import { buzz } from './blitz';
 import { bluffOrder, bluffPlayOf } from './bluff';
 import { pickCell, skipTurn } from './board';
 import { takeBuff } from './buffs';
-import { declareDuel } from './duel';
+import { betDuel, declareDuel } from './duel';
 import { placeWager } from './final';
 import { addPlayer, createGame, end, lock, removePlayer, setConnected, submitAnswer, tick, type GameState, type Result, type Rng } from './game';
 import { tooSoon, stamp, type PacedAction } from './pacing';
@@ -379,9 +379,9 @@ describe('stage times (11g)', () => {
     expect(s.roundIndex).toBe(1);
   });
 
-  /** Дуель оголошена на reveal q2 і почата автопілотом (із заставками). */
-  function toDuel(): GameState {
-    let s = begin(duelQuiz(), ['Петро', 'Іра'], T, true);
+  /** Дуель a проти p2 оголошена на reveal q2 і почата автопілотом (із заставками); типово двоє — ставців немає. */
+  function toDuel(quiz: Quiz = duelQuiz(), others: string[] = ['Петро']): GameState {
+    let s = begin(quiz, others, T, true);
     for (const answer of [RIGHT, { type: 'multi', optionIds: ['a', 'c'] } as Answer]) {
       s = go(s);
       expect(s.phase).toBe('question');
@@ -421,6 +421,22 @@ describe('stage times (11g)', () => {
     paced(s, 'next', ends + 9000);
     s = go(s);
     expect(s.duel).toBeNull();
+  });
+
+  it('bets give the category pick 25 seconds', () => {
+    const bets = toDuel(duelQuiz(), ['Петро', 'Іра']);
+    expect(bets.splash?.kind).toBe('duel');
+    expect(atOf(bets)).toBe(bets.splash!.until + 25_000);
+    // Ставка не зсуває крок автопілота.
+    const bet = act(bets, betDuel(bets, 'p3', 'challenger'), bets.splash!.until + 1000);
+    expect(atOf(bet)).toBe(bets.splash!.until + 25_000);
+    const picked = go(bet);
+    expect(picked.duel?.stage).toBe('question');
+    expect(picked.duel?.bets).toEqual({ p3: 'challenger' });
+    const off = toDuel(duelQuiz({ betStake: 0 }), ['Петро', 'Іра']);
+    expect(atOf(off)).toBe(off.splash!.until + 15_000);
+    const two = toDuel(duelQuiz(), ['Петро']);
+    expect(atOf(two)).toBe(two.splash!.until + 15_000);
   });
 
   it('duel without questions left: cancelled', () => {

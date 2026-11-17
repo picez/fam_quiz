@@ -1,5 +1,5 @@
-import { LIMITS, duelCutoff, duelThreshold, type DuelQuestion, type Phase, type Quiz } from '@quiz/shared';
-import { adjustScore } from './adjust';
+import { LIMITS, duelBetStake, duelCutoff, duelThreshold, type DuelQuestion, type DuelSide, type Phase, type Quiz } from '@quiz/shared';
+import { addAdjustment, adjustScore } from './adjust';
 import { textMatches } from './check';
 // game.ts викликає цей файл, а цей файл — game.ts; обидва звертаються одне до одного лише під час виклику.
 import { notStarted, splashUntil, withSplash } from './splash';
@@ -81,6 +81,43 @@ export function declareDuel(state: GameState, challengerId: string, opponentId: 
   return ok({ ...state, duel, duelsDeclared: [...state.duelsDeclared, challengerId] });
 }
 
+/** Ставці (39): усі гравці (у командній грі — команди), крім двох у дуелі, у порядку state.players; без дуелі — []. */
+export function duelBettors(state: GameState): string[] {
+  const duel = state.duel;
+  if (duel === null) return [];
+  return state.players.map((p) => p.id).filter((id) => id !== duel.challengerId && id !== duel.opponentId);
+}
+
+/** Ставки ще приймаються: дуель на етапі declared чи category, ставка автора > 0 і є хоч один ставець. */
+export function betsOpen(state: GameState): boolean {
+  const stage = state.duel?.stage;
+  return (stage === 'declared' || stage === 'category') && duelBetStake(state.quiz) > 0 && duelBettors(state).length > 0;
+}
+
+/** Дуель без ставки цього ставця. */
+export function withoutBet(duel: DuelState, bettorId: string): DuelState {
+  if (duel.bets === undefined) return duel;
+  const { [bettorId]: _dropped, ...bets } = duel.bets;
+  return { ...duel, bets };
+}
+
+/**
+ * Ставка на дуелянта (39): side null — зняти ставку; той самий бік ще раз — без змін.
+ * У командній грі bettorId — команда (капітана перевіряє сервер). Ставку закриває відкриття першого запитання дуелі.
+ */
+export function betDuel(state: GameState, bettorId: string, side: DuelSide | null): Result {
+  const duel = state.duel;
+  if (duel === null) return fail('wrong_phase');
+  if (duelBetStake(state.quiz) === 0) return fail('duel_bets_off');
+  if (duel.stage !== 'declared' && duel.stage !== 'category') return fail('duel_bets_closed');
+  if (state.paused) return fail('paused');
+  if (!state.players.some((p) => p.id === bettorId)) return fail('not_found');
+  if (bettorId === duel.challengerId || bettorId === duel.opponentId) return fail('duel_bet_self');
+  const current = duel.bets !== undefined && Object.hasOwn(duel.bets, bettorId) ? duel.bets[bettorId] : null;
+  if (current === side) return ok(state);
+  return ok({ ...state, duel: side === null ? withoutBet(duel, bettorId) : { ...duel, bets: { ...duel.bets, [bettorId]: side } } });
+}
+
 /** Ведучий: прибирає оголошену або поточну дуель (dropDuel); немає дуелі → not_found. */
 export function cancelDuel(state: GameState): Result {
   if (state.duel === null) return fail('not_found');
@@ -157,18 +194,40 @@ function winsOf(duel: DuelState): { challenger: number; opponent: number } {
   return { challenger: count(duel.challengerId), opponent: count(duel.opponentId) };
 }
 
-/** Підсумок: більше виграних — переможець, нічия — без змін; ставка — два коригування 'duel' (переможець першим). */
+/**
+ * Підсумок: більше виграних — переможець, нічия — без змін; ставка — два коригування 'duel' (переможець першим),
+ * за ними ставки інших (39) у порядку state.players: на переможця +betStake, на переможеного −betStake (target — на кого ставили).
+ */
 function settleDuel(state: GameState, duel: DuelState, now: number): GameState {
   const wins = winsOf(duel);
   const winnerId = wins.challenger > wins.opponent ? duel.challengerId : wins.opponent > wins.challenger ? duel.opponentId : null;
   const settled: GameState = { ...state, duel: { ...duel, stage: 'result', winnerId }, startedAt: null, endsAt: null, remainingMs: null };
+  if (winnerId === null) return settled;
+  return settleBets(settleStake(settled, duel, winnerId, now), duel, winnerId, now);
+}
+
+/** Ставка дуелянтів: +stake переможцю, −stake переможеному; stake 0 — без змін. */
+function settleStake(state: GameState, duel: DuelState, winnerId: string, now: number): GameState {
   const stake = state.quiz.duels?.stake ?? 0;
-  if (winnerId === null || stake === 0) return settled;
+  if (stake === 0) return state;
   const loserId = winnerId === duel.challengerId ? duel.opponentId : duel.challengerId;
-  const gained = adjustScore(settled, winnerId, stake, now, 'duel');
-  const after = gained.ok ? gained.state : settled;
+  const gained = adjustScore(state, winnerId, stake, now, 'duel');
+  const after = gained.ok ? gained.state : state;
   const lost = adjustScore(after, loserId, -stake, now, 'duel');
   return lost.ok ? lost.state : after;
+}
+
+/** Ставки інших (39): коригування 'duelbet' для кожного ставця в грі, що поставив. */
+function settleBets(state: GameState, duel: DuelState, winnerId: string, now: number): GameState {
+  const bets = duel.bets ?? {};
+  const stake = duelBetStake(state.quiz);
+  if (stake === 0) return state;
+  return state.players.reduce((s, p) => {
+    if (!Object.hasOwn(bets, p.id)) return s;
+    const target = bets[p.id] === 'challenger' ? duel.challengerId : duel.opponentId;
+    // Без перевірки adjustScore: betStake ≤ LIMITS.maxDuelStake 5000 < LIMITS.maxAdjust 10_000, тож межа коригування не порушується.
+    return addAdjustment(s, p.id, target === winnerId ? stake : -stake, now, 'duelbet', { target });
+  }, state);
 }
 
 /** Ведучий пропускає запитання дуелі: воно не рахується, одразу береться інше з тієї самої категорії. */

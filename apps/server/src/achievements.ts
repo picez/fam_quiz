@@ -90,10 +90,10 @@ export function winStreak(games: PlayedGame[]): number {
   return best;
 }
 
-/** Бали учасника в раунді гри: без ставок дуелей, купівель дебафів і перенесених балів (12r) — це не гра раунду, хоч рядок і лягає в нього. */
+/** Бали учасника в раунді гри: без ставок дуелей і ставок на дуелянтів, купівель дебафів і перенесених балів (12r) — це не гра раунду, хоч рядок і лягає в нього. */
 function roundPointsOfPlay(player: TablePlayer, roundIndex: number): number {
   return player.rows
-    .filter((row) => row.roundIndex === roundIndex && row.source !== 'duel' && row.source !== 'debuff' && row.source !== 'carry')
+    .filter((row) => row.roundIndex === roundIndex && row.source !== 'duel' && row.source !== 'duelbet' && row.source !== 'debuff' && row.source !== 'carry')
     .reduce((sum, row) => sum + row.points, 0);
 }
 

@@ -8,7 +8,7 @@ import { pickCell } from '../board';
 import { rollDie } from '../board-dice';
 import { cellPlayed, chooserOf } from '../board-turns';
 import { guessWord, chainOf } from '../chain';
-import { answerDuel, declareDuel, duelCategoriesLeft, duelQuestionOf, duelWindowOpen, pickDuelCategory } from '../duel';
+import { answerDuel, betDuel, betsOpen, declareDuel, duelBettors, duelCategoriesLeft, duelQuestionOf, duelWindowOpen, pickDuelCategory } from '../duel';
 import { betLimit, betsMinimumNow, betsPlaying, wagerLimitOf } from '../bets';
 import { auctionLeader, auctionNextNow } from '../auction';
 import { placeWager } from '../final';
@@ -422,13 +422,15 @@ export interface Answering {
   duel?: boolean;
   /** Лише оголосити дуель і більше нічого (для перевірки жеребу категорії). */
   onlyDuel?: boolean;
+  /** Ставити на дуелянтів, поки ставки відкриті (типово так): парний за індексом у duelBettors — на challenger, непарний — на opponent (39). */
+  bet?: boolean;
   /** Дія, що не вдалася, — помилка тесту (типово так). */
   strict?: boolean;
 }
 
 /** Люди, що відповідають, з налаштуваннями. */
 export function answerAs(config: Answering = {}): People {
-  const { wrong = [], idle = [], decide = true, duel = true, onlyDuel = false, strict = true } = config;
+  const { wrong = [], idle = [], decide = true, duel = true, onlyDuel = false, bet = true, strict = true } = config;
   const act: Act = strict ? strictAct : looseAct;
   return (state, now) => {
     let s = state;
@@ -438,6 +440,12 @@ export function answerAs(config: Answering = {}): People {
       s = act(s, declareDuel(s, s.players[0].id, s.players[1].id), 'declare a duel');
     }
     if (onlyDuel) return s;
+    // Ставки (39): до вибору категорії кожен ставець, що не мовчить, ставить (той самий бік ще раз — без змін).
+    if (bet && betsOpen(s) && !s.paused) {
+      duelBettors(s).forEach((id, i) => {
+        if (!idle.includes(id)) s = act(s, betDuel(s, id, i % 2 === 0 ? 'challenger' : 'opponent'), `${id} bets on a duellist`);
+      });
+    }
     if (s.duel !== null && s.phase === 'duel') {
       if (s.duel.stage === 'category') {
         const category = duelCategoriesLeft(s).find((c) => c.left > 0);

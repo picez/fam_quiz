@@ -85,7 +85,10 @@ beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(me).mockResolvedValue({ ok: true, id: 'u1', name: 'Олена', email: 'o@example.com', admin: false });
 });
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.restoreAllMocks();
+});
 
 const open = (path: string) =>
   render(
@@ -1260,14 +1263,14 @@ describe('History: unfinished games (13b)', () => {
     vi.mocked(deleteSavedGame).mockResolvedValue({ ok: true });
     const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true);
     open('/history');
-    await screen.findByRole('link', { name: 'Річки' });
+    await screen.findByRole('link', { name: 'Річки' }, { timeout: 5000 });
     fireEvent.click(within(savedItem()).getByRole('button', { name: 'Видалити' }));
     expect(confirm).toHaveBeenCalledWith('Видалити збережену гру «Річки»? Повернути її не вийде.');
-    await waitFor(() => expect(screen.queryByRole('link', { name: 'Річки' })).toBeNull());
+    // Друге читання списку — після видалення; лише тоді «Річок» уже немає в даних, а не лише в завантаженні.
+    await waitFor(() => expect(listGames).toHaveBeenCalledTimes(2), { timeout: 5000 });
+    expect(await screen.findByRole('link', { name: 'Географія' }, { timeout: 5000 })).toBeTruthy();
+    expect(screen.queryByRole('link', { name: 'Річки' })).toBeNull();
     expect(deleteSavedGame).toHaveBeenCalledWith('g7');
-    expect(listGames).toHaveBeenCalledTimes(2);
-    expect(screen.getByRole('link', { name: 'Географія' })).toBeTruthy();
-    confirm.mockRestore();
   });
 
   it('«Видалити» without the confirmation sends nothing', async () => {
@@ -1278,6 +1281,5 @@ describe('History: unfinished games (13b)', () => {
     fireEvent.click(within(savedItem()).getByRole('button', { name: 'Видалити' }));
     expect(deleteSavedGame).not.toHaveBeenCalled();
     expect(screen.getByRole('link', { name: 'Річки' })).toBeTruthy();
-    confirm.mockRestore();
   });
 });

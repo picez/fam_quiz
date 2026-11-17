@@ -7,7 +7,7 @@ import { bluffOrder, bluffPlayOf, removeBluffOption } from './bluff';
 import { resumeError } from './carry';
 import { questionFor } from './buffs';
 import { checkAnswer } from './check';
-import { cancelDuel, duelCategoriesLeft, pickDuelCategory } from './duel';
+import { betsOpen, cancelDuel, duelCategoriesLeft, pickDuelCategory } from './duel';
 import {
   acceptAnswer,
   addPlayer,
@@ -240,7 +240,8 @@ function leaderboardMove(state: GameState, from: number): Move | null {
 function duelMove(state: GameState, from: number): Move | null {
   switch (state.duel?.stage) {
     case 'category':
-      return { at: (splashUntil(state, 'duel') ?? from) + AUTOPILOT_MS.duelCategory, pace: null, act: pickCategory };
+      // Ставки (39): поки є кому ставити, вибір категорії (він закриває ставки) чекає довше.
+      return { at: (splashUntil(state, 'duel') ?? from) + (betsOpen(state) ? AUTOPILOT_MS.duelBets : AUTOPILOT_MS.duelCategory), pace: null, act: pickCategory };
     case 'answer':
       return nextAt(from + AUTOPILOT_MS.duelAnswer);
     case 'result':

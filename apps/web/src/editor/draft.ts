@@ -905,6 +905,7 @@ export function newDuels(): Duels {
     questionsPerDuel: LIMITS.defaultDuelQuestions,
     timeLimit: LIMITS.defaultDuelTime,
     stake: LIMITS.defaultDuelStake,
+    betStake: LIMITS.defaultDuelBetStake,
   };
 }
 
@@ -1858,7 +1859,8 @@ function duelProblems(duels: Duels): string[] {
   if (
     !inRange(duels.questionsPerDuel, 1, LIMITS.maxDuelQuestions) ||
     !inRange(duels.timeLimit, LIMITS.minTime, LIMITS.maxTime) ||
-    !inRange(duels.stake, 0, LIMITS.maxDuelStake)
+    !inRange(duels.stake, 0, LIMITS.maxDuelStake) ||
+    (duels.betStake !== undefined && !inRange(duels.betStake, 0, LIMITS.maxDuelStake))
   ) {
     problems.push(t('problemDuelSettings'));
   }

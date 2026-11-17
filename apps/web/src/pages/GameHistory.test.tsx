@@ -2,7 +2,7 @@
 import { cleanup, render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { answerText } from '../format';
-import { ThinkHistory, auctionLine, truthLine, carryLine, debuffLines, ladderLines, lettersLines, ladderPrizeLines, survivalBonusLines, survivalLines, wagerLine, wipeoutLines } from './GameHistory';
+import { ThinkHistory, auctionLine, duelBetLines, duelLines, truthLine, carryLine, debuffLines, ladderLines, lettersLines, ladderPrizeLines, survivalBonusLines, survivalLines, wagerLine, wipeoutLines } from './GameHistory';
 
 describe('history: memory (29f)', () => {
   it('history shows pairs of total', () => {
@@ -285,5 +285,20 @@ describe('history: think (35)', () => {
     expect(taras.textContent).toContain('вибування на питанні 1');
     expect(taras.textContent).toContain('0');
     expect(screen.getByText('Олена').closest('tr')!.textContent).toContain('+1000');
+  });
+});
+
+describe('history: duel bets (39)', () => {
+  const adj = (seq: number, nickname: string, points: number, source: 'duel' | 'duelbet', target: string | null = null) => ({ seq, roundIndex: 0, at: 0, nickname, points, source, target }) as never;
+  it('one line with every bet and who it was on', () => {
+    expect(duelBetLines([adj(3, 'Тарас', -100, 'duelbet', 'Петро'), adj(2, 'Іра', 100, 'duelbet', 'Оля')])).toEqual(['Ставки на дуель: Іра +100 (на Оля), Тарас −100 (на Петро)']);
+  });
+  it('no bets, no line; no target, no brackets', () => {
+    expect(duelBetLines([adj(1, 'Оля', 300, 'duel')])).toEqual([]);
+    expect(duelBetLines([adj(1, 'Іра', 100, 'duelbet')])).toEqual(['Ставки на дуель: Іра +100']);
+  });
+  it('the duellists keep one line next to the bet adjustments', () => {
+    const rows = [adj(1, 'Оля', 300, 'duel'), adj(2, 'Петро', -300, 'duel'), adj(3, 'Іра', 100, 'duelbet', 'Оля'), adj(4, 'Тарас', -100, 'duelbet', 'Петро')];
+    expect(duelLines(rows)).toHaveLength(1);
   });
 });

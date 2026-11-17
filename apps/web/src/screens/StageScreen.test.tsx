@@ -1564,6 +1564,7 @@ const duelInfo = (patch: Partial<DuelInfo> = {}): DuelInfo => ({
   winningAnswer: null,
   winner: null,
   stake: 300,
+  bets: null,
   ending: false,
   ...patch,
 });
