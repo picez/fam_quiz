@@ -5073,6 +5073,21 @@ body:has(.banner.is-offline) .host .live-notices {
   margin: 0;
 }
 
+/* Звуки сцени (40): кнопка розблокування приглушена, як значок теми, і яскрава на наведенні й фокусі (пульт ТВ); підпис «вимкнув ведучий» — дрібний. */
+.stage-sounds-unlock {
+  opacity: 0.6;
+  transition: opacity 0.2s;
+}
+
+.stage-sounds-unlock:hover,
+.stage-sounds-unlock:focus-visible {
+  opacity: 1;
+}
+
+.stage-sounds-off {
+  align-self: center;
+}
+
 .stage-speech p:empty {
   display: none;
 }

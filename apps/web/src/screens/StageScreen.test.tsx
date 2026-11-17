@@ -3313,6 +3313,23 @@ describe('StageScreen: «Читати вголос» (31)', () => {
   });
 });
 
+describe('StageScreen: sounds (40)', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('the stage corner offers sounds in the lobby and at the finish', () => {
+    vi.stubGlobal('AudioContext', class {});
+    for (const phase of ['lobby', 'finished'] as const) {
+      show(view({ phase }));
+      const button = screen.getByRole('button', { name: '🔊 Увімкнути звуки' });
+      expect(button.closest('.stage-speech-buttons')).not.toBeNull();
+      cleanup();
+    }
+    show(view({ phase: 'lobby', soundsOff: true }));
+    expect(screen.getByText('Звуки вимкнув ведучий')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: '🔊 Увімкнути звуки' })).toBeNull();
+  });
+});
+
 describe('StageScreen: think round (35)', () => {
   const thinkQuestion = { ...question, type: 'think' as const, text: 'Напишіть фрукт', points: 0, choices: [] };
   const rows = [

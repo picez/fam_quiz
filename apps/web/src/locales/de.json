@@ -4286,5 +4286,10 @@
   "historyDuelBet": "{name} {points} (auf {target})",
   "guideDuelsBets": "Die anderen Spieler können auf einen Duellanten wetten: richtig — +{stake}, falsch — −{stake}.",
   "duelBetsCount_one": "Gewettet: {count}",
-  "duelBetsCount_other": "Gewettet: {count}"
+  "duelBetsCount_other": "Gewettet: {count}",
+  "stageSoundsUnlock": "🔊 Töne einschalten",
+  "stageSoundsToggle": "🔔 Töne",
+  "stageSoundsOffByHost": "Der Host hat die Töne ausgeschaltet",
+  "hostSounds": "Töne auf der Bühne",
+  "hostSoundsHint": "Kurze Töne auf der Bühne: Auflösung, letzte Sekunden, Gong, Fanfare"
 }
