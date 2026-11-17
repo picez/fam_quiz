@@ -64,6 +64,27 @@ const freeForAll = (play: Play): boolean => play.blitz !== undefined || isUnscor
  * поза зв'язком — капітан; бліц і опитування — капітан.
  */
 export function answererOf(state: GameState, teamId: string): string | null {
+  return thinkStandIn(state, teamId, ruleAnswererOf(state, teamId));
+}
+
+/**
+ * «Думай інакше» (35) в автопілоті: автор знає слова, тож за команду діє наступний присутній учасник після нього за порядком;
+ * нікого — null (команда лише з автора — глядач). Поза запитанням think поточного раунду — id як є.
+ */
+function thinkStandIn(state: GameState, teamId: string, id: string | null): string | null {
+  const authorId = state.autopilot?.authorId;
+  const play = state.plays[state.questionIndex];
+  if (authorId === undefined || id !== authorId || play?.think === undefined || play.roundIndex !== state.roundIndex) return id;
+  const members = teamMembers(state, teamId);
+  const from = members.findIndex((m) => m.id === authorId);
+  for (let k = 1; k < members.length; k++) {
+    const member = members[(from + k) % members.length];
+    if (member.connected && member.id !== authorId) return member.id;
+  }
+  return null;
+}
+
+function ruleAnswererOf(state: GameState, teamId: string): string | null {
   const captain = captainOf(state, teamId);
   const mode = answererMode(state);
   if (mode === 'captain') return captain;

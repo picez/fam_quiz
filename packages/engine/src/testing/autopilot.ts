@@ -138,6 +138,9 @@ export function rightAnswer(question: Question): Answer | null {
       return { type: 'order', itemIds: question.items.map((item) => item.id) };
     case 'match':
       return { type: 'match', links: question.pairs.map((pair) => ({ left: pair.left.id, right: pair.right.id })) };
+    // «Думай інакше» (35): «правильно» — не збігтися зі словом ведучого.
+    case 'think':
+      return { type: 'think', value: 'ксилофон' };
     default:
       return null;
   }
@@ -156,6 +159,9 @@ export function wrongAnswer(question: Question): Answer | null {
       return { type: 'clues', value: 'Мимо' };
     case 'numeric':
       return { type: 'numeric', value: question.correct + 1_000_000 };
+    // «Думай інакше» (35): збіг — перше слово ведучого.
+    case 'think':
+      return question.words.length === 0 ? null : { type: 'think', value: question.words[0].word };
     default:
       return null;
   }
@@ -184,6 +190,8 @@ function answerQuestion(state: GameState, playerId: string, wrong: boolean, now:
   if (play.board !== undefined && play.blitz === undefined && (play.board.chooserId !== playerId || play.board.answer !== null)) return state;
   // «Правда про гравця» (28b): свій факт автор не вгадує.
   if (play.truth?.actorId === playerId) return state;
+  // «Думай інакше» (35): пишуть лише живі учасники відкриття (автор автопілота — глядач, його немає в lives).
+  if (play.think !== undefined && !(Object.hasOwn(play.think.lives, playerId) && play.think.lives[playerId] > 0)) return state;
   const question = play.question;
   const what = `${playerId} on ${question.id}`;
   switch (question.type) {
