@@ -70,6 +70,8 @@ function filled(question: Question): Question {
       return { ...question, text, photo: '/uploads/0123456789abcdef0123.jpg' };
     case 'melody':
       return { ...question, text, track: { source: 'file', url: '/uploads/0123456789abcdef0123.mp3', start: 0 }, accepted: ['Щедрик'] };
+    case 'videoclip':
+      return { ...question, text, clip: { id: 'dQw4w9WgXcQ', start: 0 }, accepted: ['Take On Me'] };
     case 'memory':
       return { ...question, text, pairs: question.pairs.map((_, i) => ({ a: { text: `Питання ${i + 1}` }, b: { text: `Відповідь ${i + 1}` } })) };
     case 'spotdiff':
@@ -400,7 +402,7 @@ describe('changeType', () => {
   it('keeps the question text, time and points', () => {
     const source = { ...newQuestion('single'), text: 'Скільки?', timeLimit: 45, points: 500 };
     // Сортування, стіна, блеф, опитування й хмара мають власні час чи бали: їх перевіряють окремі тести.
-    for (const type of QUESTION_TYPES.filter((candidate) => !['sort', 'wall', 'poll', 'wordcloud', 'bluff', 'wordladder', 'timedlist', 'letterwords', 'moreless', 'drawing', 'sudoku', 'crossword', 'jigsaw', 'spotdiff', 'memory', 'melody', 'think'].includes(candidate))) {
+    for (const type of QUESTION_TYPES.filter((candidate) => !['sort', 'wall', 'poll', 'wordcloud', 'bluff', 'wordladder', 'timedlist', 'letterwords', 'moreless', 'drawing', 'sudoku', 'crossword', 'jigsaw', 'spotdiff', 'memory', 'melody', 'videoclip', 'think'].includes(candidate))) {
       const changed = changeType(source, type);
       expect(changed.type).toBe(type);
       expect([changed.id, changed.text, changed.timeLimit, changed.points]).toEqual([source.id, 'Скільки?', 45, 500]);
@@ -3311,6 +3313,100 @@ describe('melody in the editor (29e)', () => {
     expect(one('mel-many').accepted).toHaveLength(LIMITS.maxAccepted);
     save('mel-none', { ...withFile(), accepted: [] });
     expect(one('mel-none').accepted).toEqual(['']);
+  });
+});
+
+describe('videoclip in the editor (36)', () => {
+  type Clip = Extract<Question, { type: 'videoclip' }>;
+  const inRound = (round: Round, q: Question): Quiz => ({ ...newQuiz(), title: 'Гра', rounds: [{ ...round, questions: [q] } as Round] });
+  const linked = (patch: Partial<Clip> = {}): Clip => ({ ...(newQuestion('videoclip') as Clip), clip: { id: 'E2Evideo001', start: 30 }, ...patch });
+
+  it('a videoclip lives in classic only, right after the melody', () => {
+    const classic = questionTypesFor('classic');
+    expect(classic.indexOf('videoclip')).toBe(classic.indexOf('melody') + 1);
+    for (const type of ['blitz', 'final', 'board', 'bets', 'auction', 'puzzles'] as const) expect(questionTypesFor(type), type).not.toContain('videoclip');
+  });
+
+  it('a new videoclip waits for its link and its answer', () => {
+    const fresh = newQuestion('videoclip') as Clip;
+    expect(fresh).toMatchObject({ type: 'videoclip', timeLimit: 60, points: LIMITS.defaultPoints, video: null, text: t('videoclipDefaultText'), clip: { id: '', start: 0 }, muted: true, accepted: [''] });
+    expect('hint' in fresh || 'audio' in fresh || 'reveal' in fresh).toBe(false);
+    expect(problemsOf(inRound(newClassicRound(), fresh))).toEqual([t('problemVideoclipLink', { index: 1 })]);
+    expect(problemsOf(inRound(newClassicRound(), linked()))).toEqual([t('problemVideoclipAccepted', { index: 1 })]);
+    const done = linked({ accepted: ['Шрек', 'Shrek'] });
+    expect(problemsOf(inRound(newClassicRound(), done))).toEqual([]);
+    expect(questionSchema.safeParse(cleanedQuestion(done)).success).toBe(true);
+    expect(problemsOf(inRound(newClassicRound(), { ...done, clip: { id: 'x', start: 0 } }))).toEqual([t('problemVideoclipLink', { index: 1 })]);
+    expect(problemsOf(inRound(newClassicRound(), { ...done, clip: { id: 'E2Evideo001', start: LIMITS.maxVideoStart + 1 } }))).toEqual([t('problemVideoclipLink', { index: 1 })]);
+    expect(problemsOf(inRound(newClassicRound(), { ...done, clip: { id: 'E2Evideo001', start: 1.5 } }))).toEqual([t('problemVideoclipLink', { index: 1 })]);
+  });
+
+  it('the timer floor is 25', () => {
+    expect(minTimeOf({ type: 'videoclip' })).toBe(25);
+    expect(maxTimeOf({ type: 'videoclip' })).toBe(LIMITS.maxTime);
+    const done = linked({ accepted: ['Шрек'] });
+    expect(problemsOf(inRound(newClassicRound(), { ...done, timeLimit: 24 }))).toEqual([t('problemVideoclipLimits', { index: 1, min: LIMITS.minVideoclipTime })]);
+    expect(problemsOf(inRound(newClassicRound(), { ...done, timeLimit: 25 }))).toEqual([]);
+    expect(problemsOf(inRound(newClassicRound(), { ...done, timeLimit: 121 }))).toEqual([t('problemVideoclipLimits', { index: 1, min: LIMITS.minVideoclipTime })]);
+  });
+
+  it('a videoclip outside classic is a problem', () => {
+    expect(problemsOf(inRound(newBlitzRound(), linked({ accepted: ['Шрек'] })))).toEqual([t('problemVideoclipPlace', { index: 1 })]);
+  });
+
+  it('text, clues and melody turn into a videoclip keeping spellings', () => {
+    const text = { ...(newQuestion('text') as Extract<Question, { type: 'text' }>), text: 'Що за мультфільм?', accepted: ['Шрек', 'Shrek'] };
+    const clip = changeType(text, 'videoclip') as Clip;
+    expect(clip).toMatchObject({ type: 'videoclip', text: 'Що за мультфільм?', accepted: ['Шрек', 'Shrek'], muted: true, clip: { id: '', start: 0 } });
+    expect(clip.accepted).not.toBe(text.accepted);
+    expect(changeType(clip, 'text')).toMatchObject({ type: 'text', accepted: ['Шрек', 'Shrek'] });
+    const clues = { ...(newQuestion('clues') as Extract<Question, { type: 'clues' }>), text: 'Хто це?', accepted: ['Шрек'] };
+    expect(changeType(clues, 'videoclip')).toMatchObject({ type: 'videoclip', accepted: ['Шрек'] });
+    expect(changeType(clip, 'clues')).toMatchObject({ type: 'clues', accepted: ['Шрек', 'Shrek'] });
+    const melody = { ...(newQuestion('melody') as Extract<Question, { type: 'melody' }>), text: 'Що звучить?', accepted: ['Щедрик'] };
+    expect(changeType(melody, 'videoclip')).toMatchObject({ type: 'videoclip', text: 'Що звучить?', accepted: ['Щедрик'] });
+    expect(changeType(linked({ text: 'Що за кліп?', accepted: ['Шрек'] }), 'melody')).toMatchObject({ type: 'melody', text: 'Що за кліп?', accepted: ['Шрек'] });
+  });
+
+  it('the default text does not outlive the type', () => {
+    const fresh = newQuestion('videoclip');
+    // Типовий текст «Відео» стає типовим текстом мелодії, а не лишається «Що це за відео?».
+    expect(changeType(fresh, 'melody').text).toBe(t('melodyDefaultText'));
+    expect(changeType(fresh, 'text').text).toBe('');
+    expect(changeType(fresh, 'memory').text).toBe(t('memoryDefaultText'));
+    expect(changeType(newQuestion('melody'), 'videoclip').text).toBe(t('videoclipDefaultText'));
+    expect(changeType(linked({ text: 'Свій текст' }), 'text').text).toBe('Свій текст');
+  });
+
+  it('cleaning trims spellings and drops the empty extras; a copy has its own clip', () => {
+    const cleanedQ = cleanedQuestion(linked({ accepted: [' Шрек ', '', ' Shrek'] })) as Clip;
+    expect(cleanedQ.accepted).toEqual(['Шрек', 'Shrek']);
+    const source = linked({ accepted: ['Шрек'] });
+    const copy = duplicateQuestion(source) as Clip;
+    expect(copy.clip).toEqual({ id: 'E2Evideo001', start: 30 });
+    expect(copy.clip).not.toBe(source.clip);
+    expect(copy.accepted).not.toBe(source.accepted);
+  });
+
+  it('a stored videoclip is revived within limits', () => {
+    const save = (name: string, q: unknown) => sessionStorage.setItem('quiz:draft:' + name, JSON.stringify(inRound(newClassicRound(), q as Question)));
+    const one = (name: string) => roundQuestions(loadDraft(name)!.rounds[0]!)[0] as Clip;
+    const long = 'я'.repeat(300);
+    save('clip-wild', { ...linked(), hint: 'підказка', audio: { source: 'youtube', id: 'abcdefghijk', start: 0, duration: 10 }, reveal: { imageUrl: '/uploads/0123456789abcdef0123.jpg' }, video: { id: 'abcdefghijk', start: 0 }, clip: { id: 'x', start: 99_999 }, muted: 'no', accepted: [long, 'b', 7] });
+    const wild = one('clip-wild');
+    expect(wild.clip).toEqual({ id: '', start: 0 });
+    expect(wild.muted).toBe(true);
+    expect(wild.video).toBeNull();
+    expect(wild).not.toHaveProperty('hint');
+    expect(wild).not.toHaveProperty('audio');
+    expect(wild).not.toHaveProperty('reveal');
+    expect(wild.accepted).toEqual(['я'.repeat(LIMITS.answerText), 'b', '']);
+    save('clip-ok', { ...linked(), clip: { id: 'abcdefghijk', start: 42 }, muted: false });
+    expect(one('clip-ok')).toMatchObject({ clip: { id: 'abcdefghijk', start: 42 }, muted: false });
+    save('clip-broken', { ...linked(), clip: 'nope' });
+    expect(one('clip-broken').clip).toEqual({ id: '', start: 0 });
+    save('clip-none', { ...linked(), accepted: [] });
+    expect(one('clip-none').accepted).toEqual(['']);
   });
 });
 

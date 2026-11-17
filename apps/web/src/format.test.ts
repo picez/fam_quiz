@@ -143,6 +143,19 @@ describe('melody texts (29e)', () => {
   });
 });
 
+describe('videoclip texts (36)', () => {
+  const clip = { ...base, type: 'videoclip', timeLimit: 60, clip: { id: 'dQw4w9WgXcQ', start: 0 }, muted: true, accepted: ['Take On Me', 'A-ha Take On Me'] } as Question;
+
+  it('the correct text is the first spelling', () => {
+    expect(correctText(clip)).toBe('Take On Me');
+  });
+
+  it('an answer shows its value and, once known, the chunk', () => {
+    expect(answerText({ type: 'videoclip', value: 'Take On Me' }, clip)).toBe('Take On Me');
+    expect(answerText({ type: 'videoclip', value: 'Take On Me', heard: 2 }, clip)).toBe('Take On Me · 2 с');
+  });
+});
+
 describe('answerText', () => {
   it('describes a player answer using the question options', () => {
     expect(answerText({ type: 'single', optionId: 'c' }, single)).toBe('Одеса');

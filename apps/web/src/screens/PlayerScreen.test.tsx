@@ -7,6 +7,7 @@ import { errorText, t } from '../i18n';
 import { STAGE_GONE_MS } from '../live/useStageGone';
 import { PlayerScreen } from './PlayerScreen';
 import { BLINK_MS, SUSPENSE_MS } from './verdict-blink';
+import { YOUTUBE_ORIGIN } from './YouTubePlayer';
 import { baseMe, teamPlayerView } from './team-test-view';
 
 afterEach(cleanup);
@@ -262,6 +263,43 @@ describe('PlayerScreen melody (29e)', () => {
   it('a held clock keeps the melody ladder silent', () => {
     show(onQuestion({ held: true, question: melodyQuestion(null), me: { ...me, melody: { heard: 0, canOpen: true, canAnswer: false, openedBy: null } } as never }));
     expect((document.querySelector('.melody-step[data-step="1"]') as HTMLButtonElement).disabled).toBe(true);
+  });
+});
+
+describe('PlayerScreen videoclip (36)', () => {
+  const videoclipQuestion = (answer: string | null) => ({ ...publicQuestion, type: 'videoclip' as const, choices: [], videoclip: { id: 'q-vid', clip: { id: 'djV11Xbc914', start: 30 }, muted: true, answer } }) as never;
+  const videoclipMe = (heard: number, canOpen = false) => ({ ...me, videoclip: { heard, canOpen, canAnswer: heard > 0, openedBy: null } }) as never;
+  const playerCommands = (spy: { mock: { calls: unknown[][] } }) =>
+    spy.mock.calls.flatMap(([message]) => {
+      const data = JSON.parse(String(message)) as { func?: string };
+      return data.func === 'playVideo' || data.func === 'seekTo' || data.func === 'unMute' || data.func === 'mute' ? [data.func] : [];
+    });
+
+  afterEach(() => vi.restoreAllMocks());
+
+  it('a videoclip reveal offers watching again', () => {
+    show(view({ phase: 'reveal', questionIndex: 0, question: videoclipQuestion('Take On Me'), me: videoclipMe(2) }));
+    expect(document.querySelector('.player-audio')).toBeNull();
+    const frame = document.querySelector('.player-videoclip .videoclip-frame iframe') as HTMLIFrameElement;
+    expect(frame).not.toBeNull();
+    // На розкритті звук є завжди: рамка без mute=1.
+    expect(frame.src).not.toContain('mute=1');
+    const spy = vi.spyOn(frame.contentWindow as Window, 'postMessage');
+    fireEvent.load(frame);
+    act(() => void window.dispatchEvent(new MessageEvent('message', { data: JSON.stringify({ event: 'initialDelivery' }), origin: YOUTUBE_ORIGIN, source: frame.contentWindow })));
+    // До дотику відео саме не вмикається.
+    expect(playerCommands(spy)).toEqual([]);
+    fireEvent.click(screen.getByRole('button', { name: t('videoclipWatchAgain') }));
+    expect(playerCommands(spy)).toEqual(['seekTo', 'unMute', 'playVideo']);
+  });
+
+  it('a videoclip question has the frame, the ladder and no question audio block', () => {
+    show(onQuestion({ question: videoclipQuestion(null), me: videoclipMe(0, true) }));
+    expect(document.querySelector('.player-audio')).toBeNull();
+    expect(document.querySelector('.player-videoclip')).toBeNull();
+    expect(document.querySelector('.videoclip-play .videoclip-frame')).not.toBeNull();
+    expect(document.querySelectorAll('.melody-step')).toHaveLength(5);
+    expect(screen.getByRole('button', { name: `${t('videoclipWatch', { seconds: 1 })} · ${Math.round(MELODY_SHARES[0] * 100)} %` })).toBeTruthy();
   });
 });
 

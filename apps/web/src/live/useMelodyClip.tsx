@@ -1,18 +1,10 @@
 import { useCallback, useEffect, useRef, useState, type JSX } from 'react';
 import type { MelodyTrack } from '@quiz/shared';
 import { YOUTUBE_BLOCK_MS } from '../screens/QuestionAudio';
-import { YOUTUBE_ORIGIN, youtubeEmbedUrl } from '../screens/YouTubePlayer';
+import { youtubeEmbedUrl } from '../screens/YouTubePlayer';
+import { useYouTubeFrame } from './useYouTubeFrame';
 
 export type MelodyPlayState = 'idle' | 'playing' | 'blocked' | 'failed';
-
-const LISTEN_INTERVAL_MS = 250;
-/** Скільки разів повторюємо «listening» (≈10 с), поки плеєр не відгукнеться. */
-const LISTEN_MAX_TICKS = 40;
-
-interface Command {
-  func: string;
-  args: unknown[];
-}
 
 /**
  * Шматки «Мелодії за нотами» (29e): play(seconds) грає перші seconds секунд треку від його start.
@@ -30,7 +22,6 @@ export function useMelodyClip(track: MelodyTrack, opts: { paused: boolean; live:
   const [state, setState] = useState<MelodyPlayState>('idle');
   const [playing, setPlaying] = useState<number | null>(null);
   const audio = useRef<HTMLAudioElement | null>(null);
-  const frame = useRef<HTMLIFrameElement | null>(null);
   // React відв'язує ref до очищення ефектів: останній елемент тримаємо окремо, щоб при виході його можна було зупинити.
   const lastAudio = useRef<HTMLAudioElement | null>(null);
   const setAudio = (element: HTMLAudioElement | null) => {
@@ -40,7 +31,7 @@ export function useMelodyClip(track: MelodyTrack, opts: { paused: boolean; live:
   // Змінний стан відтворення живе в ref: таймери й події читають його без перемальовувань.
   const run = useRef({ seconds: null as number | null, token: 0, armed: false });
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const yt = useRef({ ready: false, queue: [] as Command[], state: -1, block: null as ReturnType<typeof setTimeout> | null, poll: null as ReturnType<typeof setInterval> | null });
+  const block = useRef<ReturnType<typeof setTimeout> | null>(null);
   const trackRef = useRef(track);
   trackRef.current = track;
   const optsRef = useRef(opts);
@@ -51,17 +42,26 @@ export function useMelodyClip(track: MelodyTrack, opts: { paused: boolean; live:
     timer.current = null;
   };
   const clearBlock = () => {
-    if (yt.current.block !== null) clearTimeout(yt.current.block);
-    yt.current.block = null;
+    if (block.current !== null) clearTimeout(block.current);
+    block.current = null;
   };
 
-  const sendNow = useCallback((command: Command) => {
-    frame.current?.contentWindow?.postMessage(JSON.stringify({ event: 'command', func: command.func, args: command.args, id: 1, channel: 'widget' }), YOUTUBE_ORIGIN);
-  }, []);
-  const youtube = (func: string, args: unknown[] = []) => {
-    if (yt.current.ready) sendNow({ func, args });
-    else yt.current.queue.push({ func, args });
-  };
+  // Рамка YouTube: рукостискання й черга команд — у useYouTubeFrame (для файла рамки немає).
+  const youtube = useYouTubeFrame(track.source === 'youtube' ? track.id : null, {
+    state(playerState, before) {
+      if (playerState === 1 || playerState === 3) clearBlock();
+      if (playerState === 1 && before !== 1 && run.current.seconds !== null) arm();
+      else if (playerState === 0 && run.current.seconds !== null) haltRef.current(null);
+    },
+    error() {
+      haltRef.current('failed');
+    },
+    silent() {
+      // Плеєр не відгукується: «не вийшло» лише якщо хтось уже просив грати.
+      if (run.current.seconds !== null) haltRef.current('failed');
+    },
+  });
+  const pauseYoutube = youtube.pause;
 
   /** Зупиняє звук; next — стан після зупинки (null — тиша). */
   const halt = useCallback(
@@ -71,16 +71,12 @@ export function useMelodyClip(track: MelodyTrack, opts: { paused: boolean; live:
       run.current.armed = false;
       clearTimer();
       clearBlock();
-      yt.current.state = 2;
       lastAudio.current?.pause();
-      if (trackRef.current.source === 'youtube') {
-        yt.current.queue = [];
-        if (yt.current.ready) sendNow({ func: 'pauseVideo', args: [] });
-      }
+      if (trackRef.current.source === 'youtube') pauseYoutube();
       setPlaying(null);
       setState(next ?? 'idle');
     },
-    [sendNow],
+    [pauseYoutube],
   );
   const haltRef = useRef(halt);
   haltRef.current = halt;
@@ -126,12 +122,12 @@ export function useMelodyClip(track: MelodyTrack, opts: { paused: boolean; live:
       return;
     }
     // YouTube: команди — у цьому ж виклику; плеєр, що ще не відгукнувся, отримає їх у черзі.
-    youtube('seekTo', [current.start, true]);
-    youtube('playVideo');
-    if (yt.current.state === 1) arm();
-    yt.current.block = setTimeout(() => {
-      yt.current.block = null;
-      if (run.current.token === token && yt.current.state !== 1 && yt.current.state !== 3) halt('blocked');
+    youtube.command('seekTo', [current.start, true]);
+    youtube.command('playVideo');
+    if (youtube.playerState() === 1) arm();
+    block.current = setTimeout(() => {
+      block.current = null;
+      if (run.current.token === token && youtube.playerState() !== 1 && youtube.playerState() !== 3) halt('blocked');
     }, YOUTUBE_BLOCK_MS);
   };
 
@@ -150,76 +146,6 @@ export function useMelodyClip(track: MelodyTrack, opts: { paused: boolean; live:
     },
     [trackKey],
   );
-
-  // Рамка YouTube: слухаємо відповіді плеєра; до першої відповіді повторюємо «listening».
-  const source = track.source;
-  const ytId = track.source === 'youtube' ? track.id : '';
-  useEffect(() => {
-    if (source !== 'youtube') return;
-    const state = yt.current;
-    // Нова рамка (інше відео) ще не слухає: рукостискання починається заново.
-    state.ready = false;
-    state.queue = [];
-    state.state = -1;
-    const onMessage = (event: MessageEvent) => {
-      if (event.source !== frame.current?.contentWindow || event.origin !== YOUTUBE_ORIGIN) return;
-      let data: { event?: unknown; info?: unknown } | null;
-      try {
-        data = JSON.parse(String(event.data)) as { event?: unknown; info?: unknown } | null;
-      } catch {
-        return;
-      }
-      if (typeof data !== 'object' || data === null) return;
-      if (!state.ready) {
-        state.ready = true;
-        if (state.poll !== null) clearInterval(state.poll);
-        state.poll = null;
-        const queued = state.queue;
-        state.queue = [];
-        for (const command of queued) sendNow(command);
-      }
-      const playerState =
-        data.event === 'onStateChange' ? data.info : data.event === 'infoDelivery' && typeof data.info === 'object' && data.info !== null ? (data.info as { playerState?: unknown }).playerState : undefined;
-      if (data.event === 'onError') haltRef.current('failed');
-      else if (typeof playerState === 'number') {
-        const before = state.state;
-        state.state = playerState;
-        if (playerState === 1 || playerState === 3) clearBlock();
-        if (playerState === 1 && before !== 1 && run.current.seconds !== null) arm();
-        else if (playerState === 0 && run.current.seconds !== null) haltRef.current(null);
-      }
-    };
-    window.addEventListener('message', onMessage);
-    return () => {
-      window.removeEventListener('message', onMessage);
-      if (state.poll !== null) clearInterval(state.poll);
-      state.poll = null;
-      state.ready = false;
-    };
-    // arm читає лише ref-и й haltRef.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [source, ytId, sendNow]);
-
-  const onFrameLoad = () => {
-    const state = yt.current;
-    if (state.ready || state.poll !== null) return;
-    const post = (message: object) => frame.current?.contentWindow?.postMessage(JSON.stringify({ ...message, id: 1, channel: 'widget' }), YOUTUBE_ORIGIN);
-    let ticks = 0;
-    const tick = () => {
-      if (++ticks > LISTEN_MAX_TICKS) {
-        if (state.poll !== null) clearInterval(state.poll);
-        state.poll = null;
-        // Плеєр не відгукується: «не вийшло» лише якщо хтось уже просив грати.
-        if (run.current.seconds !== null) haltRef.current('failed');
-        return;
-      }
-      post({ event: 'listening' });
-      post({ event: 'command', func: 'addEventListener', args: ['onStateChange'] });
-      post({ event: 'command', func: 'addEventListener', args: ['onError'] });
-    };
-    tick();
-    state.poll = setInterval(tick, LISTEN_INTERVAL_MS);
-  };
 
   const element =
     track.source === 'file' ? (
@@ -243,7 +169,7 @@ export function useMelodyClip(track: MelodyTrack, opts: { paused: boolean; live:
     ) : (
       <iframe
         key={track.id}
-        ref={frame}
+        ref={youtube.frameRef}
         className="audio-only-frame"
         aria-hidden="true"
         tabIndex={-1}
@@ -251,7 +177,7 @@ export function useMelodyClip(track: MelodyTrack, opts: { paused: boolean; live:
         allow="autoplay; encrypted-media"
         referrerPolicy="strict-origin-when-cross-origin"
         src={`${youtubeEmbedUrl({ id: track.id, start: 0 }, window.location.origin)}&controls=0`}
-        onLoad={onFrameLoad}
+        onLoad={youtube.onLoad}
       />
     );
 

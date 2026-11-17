@@ -86,11 +86,13 @@ import {
   type MemoryCellView,
   type PlayerMemory,
   type PublicMelody,
-  type MelodyInfo,
-  type MelodyRow,
-  type PlayerMelody,
-  MELODY_STEP_COUNT,
+  type PublicVideoclip,
+  type SnippetInfo,
+  type SnippetRow,
+  type PlayerSnippets,
+  SNIPPET_STEP_COUNT,
   melodyRevealClip,
+  videoclipRevealClip,
   memoryCardAt,
   memoryGridSize,
   memoryLayout,
@@ -235,7 +237,7 @@ import { moreLessOf, moreLessRight, rightOf } from './moreless';
 import { jigsawOf, jigsawTotal, liveHolds } from './jigsaw';
 import { spotdiffOf } from './spotdiff';
 import { memoryOf, settleMemory } from './memory';
-import { melodyHeard } from './melody';
+import { snippetHeard, type SnippetQuestion } from './snippets';
 import { notStarted } from './splash';
 import { puzzleSize, puzzleSolution, puzzleSolved, scoredCells } from './puzzles';
 import { lastSortMove, sortAudience, sortMarks, sortOf, sortSeq, sortsHere } from './sort';
@@ -378,6 +380,7 @@ function publicQuestion(question: Question, presented: string[], clues: PublicCl
     ...(question.type === 'spotdiff' ? { spotdiff: publicSpotdiff(question, revealed) } : {}),
     ...(question.type === 'memory' ? { memory: publicMemory(question, revealed) } : {}),
     ...(question.type === 'melody' ? { melody: publicMelody(question, revealed) } : {}),
+    ...(question.type === 'videoclip' ? { videoclip: publicVideoclip(question, revealed) } : {}),
     ...(question.type === 'wordladder'
       ? { wordladder: { start: question.path[0], target: question.path[question.path.length - 1], letters: ladderLetters(question.path[0]), maxSteps: question.maxSteps } }
       : {}),
@@ -428,6 +431,11 @@ function publicSpotdiff(question: Extract<Question, { type: 'spotdiff' }>, revea
 /** «Мелодія» (29e): джерело й start усім, назва (accepted[0]) - лише на reveal; решта написань - ніколи. */
 function publicMelody(question: Extract<Question, { type: 'melody' }>, revealed: boolean): PublicMelody {
   return { id: question.id, track: question.track, answer: revealed ? (question.accepted[0] ?? null) : null };
+}
+
+/** «Відео за фрагментами» (36): відео, секунда початку й вмикач звуку всім; назва (accepted[0]) — лише на reveal; решта написань — ніколи. */
+function publicVideoclip(question: Extract<Question, { type: 'videoclip' }>, revealed: boolean): PublicVideoclip {
+  return { id: question.id, clip: { ...question.clip }, muted: question.muted, answer: revealed ? (question.accepted[0] ?? null) : null };
 }
 
 /** Сітка «Пам'яті» і кількість пар; самі пари - лише на reveal, seed (розклад) - ніколи. */
@@ -535,6 +543,8 @@ export function audioOf(state: GameState): QuestionAudio | null {
   const question = shownQuestion(state)?.question;
   // «Мелодія» (29e): сцена мовчить до reveal, на reveal пульт керує 30-секундним кліпом треку.
   if (question?.type === 'melody') return state.phase === 'reveal' ? melodyRevealClip(question.track) : null;
+  // «Відео за фрагментами» (36): так само; кліп — лише щоб «Ще раз / Стоп» пройшли перевірку host:audio і дійшли до сцени.
+  if (question?.type === 'videoclip') return state.phase === 'reveal' ? videoclipRevealClip(question.clip) : null;
   return question?.audio ?? null;
 }
 
@@ -2111,28 +2121,28 @@ function playerMemory(state: GameState, actorId: string, memberId: string, now: 
   };
 }
 
-/** Поточна «Мелодія» (будь-який етап запитання); null поза запитанням або для інших типів. */
-function currentMelody(state: GameState) {
+/** Поточне запитання «за шматками» типу type (будь-який етап запитання); null поза запитанням або для інших типів. */
+function currentSnippets(state: GameState, type: SnippetQuestion['type']) {
   if (!inQuestion(state)) return null;
   const play = state.plays[state.questionIndex];
-  if (play === undefined || play.question.type !== 'melody') return null;
+  if (play === undefined || play.question.type !== type) return null;
   return { play, question: play.question };
 }
 
 /**
- * Рядки «Мелодії» (29e) для сцени й ведучого: скільки шматків відкрито й чи відповіли; текстів відповідей немає.
+ * Рядки запитання «за шматками» типу type («Мелодія» 29e, «Відео за фрагментами» 36) для сцени й ведучого: скільки шматків відкрито й чи відповіли; текстів відповідей немає.
  * До reveal - порядок гравців; на reveal - правильні (шматок зростанням, далі час), неправильні, без відповіді; за рівності - порядок гравців.
  */
-function melodyInfo(state: GameState): MelodyInfo | undefined {
-  const open = currentMelody(state);
+function snippetInfo(state: GameState, type: SnippetQuestion['type']): SnippetInfo | undefined {
+  const open = currentSnippets(state, type);
   if (open === null) return undefined;
   const revealed = state.phase === 'reveal';
-  const rows: MelodyRow[] = state.players.map((player) => {
+  const rows: SnippetRow[] = state.players.map((player) => {
     const record = recordOf(state, state.questionIndex, player.id);
     return {
       playerId: player.id,
       nickname: player.nickname,
-      heard: melodyHeard(open.play, player.id),
+      heard: snippetHeard(open.play, player.id),
       answered: record !== undefined,
       correct: revealed && record !== undefined ? record.grade === 'correct' : null,
       points: revealed && record !== undefined ? record.points : null,
@@ -2140,18 +2150,18 @@ function melodyInfo(state: GameState): MelodyInfo | undefined {
     };
   });
   if (revealed) {
-    const rank = (row: MelodyRow) => (row.correct === true ? 0 : row.correct === false ? 1 : 2);
+    const rank = (row: SnippetRow) => (row.correct === true ? 0 : row.correct === false ? 1 : 2);
     rows.sort((a, b) => rank(a) - rank(b) || (rank(a) === 0 ? a.heard - b.heard || (a.timeMs ?? 0) - (b.timeMs ?? 0) : 0));
   }
   return { rows };
 }
 
-/** Власний бік гравця (команди) в «Мелодії»: скільки відкрито, чи можна відкрити й відповісти, хто з команди відкрив останній. Зріз від now. */
-function playerMelody(state: GameState, actorId: string, now: number | undefined): PlayerMelody | undefined {
-  const open = currentMelody(state);
+/** Власний бік гравця (команди) в запитанні «за шматками» типу type: скільки відкрито, чи можна відкрити й відповісти, хто з команди відкрив останній. Зріз від now. */
+function playerSnippets(state: GameState, actorId: string, now: number | undefined, type: SnippetQuestion['type']): PlayerSnippets | undefined {
+  const open = currentSnippets(state, type);
   if (open === null) return undefined;
   const { play } = open;
-  const heard = melodyHeard(play, actorId);
+  const heard = snippetHeard(play, actorId);
   const live =
     state.phase === 'question' &&
     !state.paused &&
@@ -2161,7 +2171,7 @@ function playerMelody(state: GameState, actorId: string, now: number | undefined
   const by = teamsOn(state) && play.melody?.by !== undefined && Object.hasOwn(play.melody.by, actorId) ? play.melody.by[actorId] : undefined;
   return {
     heard,
-    canOpen: live && heard < MELODY_STEP_COUNT,
+    canOpen: live && heard < SNIPPET_STEP_COUNT,
     canAnswer: live && heard >= 1,
     openedBy: by === undefined ? null : (memberOf(state, by)?.nickname ?? null),
   };
@@ -3224,7 +3234,8 @@ function base(state: GameState, forHost: boolean) {
     ...optional('jigsaw', jigsawInfo(state)),
     ...optional('spotdiff', spotdiffInfo(state)),
     ...optional('memory', memoryInfo(state)),
-    ...optional('melody', melodyInfo(state)),
+    ...optional('melody', snippetInfo(state, 'melody')),
+    ...optional('videoclip', snippetInfo(state, 'videoclip')),
     ...optional('drawing', drawingInfo(state, forHost)),
     chain: inFinalRound(state) ? null : chainInfo(state),
     sort: inFinalRound(state) ? null : sortInfo(state),
@@ -3673,8 +3684,9 @@ function playerViewOf(state: GameState, playerId: string, now?: number): PlayerV
     const jigsaw = playerJigsaw(state, playerId, playerId, now);
     const spotdiff = playerSpotdiff(state, playerId);
     const memory = playerMemory(state, playerId, playerId, now);
-    const melody = playerMelody(state, playerId, now);
-    return view === null ? null : { ...view, me: jigsaw === undefined && spotdiff === undefined && memory === undefined && melody === undefined ? view.me : { ...view.me, ...optional('jigsaw', jigsaw), ...optional('spotdiff', spotdiff), ...optional('memory', memory), ...optional('melody', melody) }, away: ownAway(state, playerId), lastAway: lastAway(state, playerId), team: null, author: authorView(state, playerId) };
+    const melody = playerSnippets(state, playerId, now, 'melody');
+    const videoclip = playerSnippets(state, playerId, now, 'videoclip');
+    return view === null ? null : { ...view, me: jigsaw === undefined && spotdiff === undefined && memory === undefined && melody === undefined && videoclip === undefined ? view.me : { ...view.me, ...optional('jigsaw', jigsaw), ...optional('spotdiff', spotdiff), ...optional('memory', memory), ...optional('melody', melody), ...optional('videoclip', videoclip) }, away: ownAway(state, playerId), lastAway: lastAway(state, playerId), team: null, author: authorView(state, playerId) };
   }
   const member = memberOf(state, playerId);
   if (member === undefined) return null;
@@ -3688,7 +3700,7 @@ function playerViewOf(state: GameState, playerId: string, now?: number): PlayerV
   return {
     ...withDrawerText(state, member.id, view),
     teams: ownAnswerers(state, view.teams, teamId),
-    me: { ...view.me, ...(view.me.moreless === undefined ? {} : { moreless: { ...view.me.moreless, canPick: view.me.moreless.canPick && answererOf(state, teamId) === member.id } }), answer: vote, vote: votePrompt(state, member.id), appeal: playerAppeal(state, member.id, teamId), ...optional('truth', playerTruth(state, member.id)), ...optional('quest', playerQuest(state, teamId)), ...optional('drawing', playerDrawing(state, member.id)), ...optional('jigsaw', playerJigsaw(state, teamId, member.id, now)), ...optional('spotdiff', playerSpotdiff(state, teamId)), ...optional('memory', playerMemory(state, teamId, member.id, now)), ...optional('melody', playerMelody(state, teamId, now)) },
+    me: { ...view.me, ...(view.me.moreless === undefined ? {} : { moreless: { ...view.me.moreless, canPick: view.me.moreless.canPick && answererOf(state, teamId) === member.id } }), answer: vote, vote: votePrompt(state, member.id), appeal: playerAppeal(state, member.id, teamId), ...optional('truth', playerTruth(state, member.id)), ...optional('quest', playerQuest(state, teamId)), ...optional('drawing', playerDrawing(state, member.id)), ...optional('jigsaw', playerJigsaw(state, teamId, member.id, now)), ...optional('spotdiff', playerSpotdiff(state, teamId)), ...optional('memory', playerMemory(state, teamId, member.id, now)), ...optional('melody', playerSnippets(state, teamId, now, 'melody')), ...optional('videoclip', playerSnippets(state, teamId, now, 'videoclip')) },
     away: ownAway(state, member.id),
     lastAway: lastAway(state, member.id),
     team,

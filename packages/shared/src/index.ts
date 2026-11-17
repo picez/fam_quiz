@@ -59,4 +59,5 @@ export * from './jigsaw';
 export * from './spotdiff';
 export * from './memory';
 export * from './melody';
+export * from './snippets';
 export * from './quest';

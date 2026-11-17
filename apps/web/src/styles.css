@@ -21894,7 +21894,97 @@ input.sudoku-editor-cell:focus-visible {
   min-width: 4.5rem;
   min-height: 2.75rem;
 }
+
+/* Вибраний перемикач («Файл / YouTube», «Без звуку / Зі звуком») і шматок, що грає, видно з першого погляду (36). */
+.melody-source .btn[aria-pressed='true'],
+.melody-previews .btn[aria-pressed='true'] {
+  border-color: var(--amber);
+  box-shadow: inset 0 0 0 1px var(--amber);
+}
 /* «Мелодія за нотами»: кінець редактора */
+
+/* «Відео за фрагментами» (36): видима рамка 16:9. Затулка закриває її скрізь, крім шматка, що грає; поки грає — маски назви зверху
+ * й логотипа внизу справа. Рамка не ловить дотиків: дотик не відкриє YouTube, пауза не покаже «Більше відео». */
+.videoclip-frame {
+  position: relative;
+  width: 100%;
+  max-width: 100%;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  background: var(--video-mask);
+}
+
+.videoclip-iframe {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  pointer-events: none;
+}
+
+.videoclip-cover {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  background: var(--video-mask);
+  color: var(--dim);
+  font-size: 2.5rem;
+}
+
+.videoclip-mask-top,
+.videoclip-mask-corner {
+  position: absolute;
+  z-index: 1;
+  background: var(--video-mask);
+  pointer-events: none;
+}
+
+.videoclip-mask-top {
+  inset: 0 0 auto 0;
+  height: var(--videoclip-mask-top, 26%);
+}
+
+.videoclip-mask-corner {
+  inset: auto 0 0 auto; /* phys: логотип YouTube завжди справа, відео не віддзеркалюється */
+  width: 22%;
+  height: 16%;
+}
+
+.videoclip-sound {
+  justify-self: start;
+  min-height: 2.75rem;
+}
+
+/* Телефон: рамка на всю ширину поля (на 320 px — 296 × 166,5), під нею «🔇 Без звуку» і спільна з «Мелодією» драбинка (.melody-play). */
+.videoclip-play .videoclip-frame {
+  border-radius: 8px;
+}
+
+.videoclip-muted {
+  margin: 0;
+}
+
+/* Розкриття: «Переглянути ще раз» на телефоні, відео на сцені й пульті без сцени. */
+.player-videoclip {
+  width: 100%;
+  min-width: 0;
+  margin-top: 0.75rem;
+}
+
+.videoclip-reveal {
+  display: grid;
+  gap: 0.5rem;
+  width: 100%;
+  min-width: 0;
+}
+
+.videoclip-again {
+  justify-self: start;
+  min-height: 2.75rem;
+}
+/* «Відео за фрагментами»: кінець рамки */
 
 /* «Мелодія за нотами»: телефон (29e). Драбинка з п'яти комірок в один ряд (на 320 px — без прокрутки): відкриті — «▶ переслухати»,
  * наступна — головна кнопка, решта неактивні; та, що грає, пульсує. Під драбинкою — частка ціни, хто з команди відкрив, рядок стану й поле. */
@@ -22200,6 +22290,38 @@ input.sudoku-editor-cell:focus-visible {
   margin-top: 1rem;
 }
 /* «Мелодія за нотами»: кінець сцени й пульта */
+
+/* «Відео за фрагментами»: сцена й пульт (36). До розкриття — ті самі плитки, що в «Мелодії» (.melody-stage), без жодної рамки; на розкритті —
+ * назва на всю ширину, ліворуч відео 16:9 (вписане в комірку), праворуч таблиця з балами. */
+.puzzle-stage.jigsaw-stage.melody-stage.videoclip-stage.is-reveal {
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 1vh 2vw;
+}
+
+.videoclip-stage.is-reveal .videoclip-title {
+  grid-column: 1 / -1;
+}
+
+.videoclip-stage-video {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  min-height: 0;
+  container-type: size;
+}
+
+/* Під рамкою — кнопка звуку й рядок стану (≈ 4,5rem): відео вписується в решту висоти. */
+.videoclip-stage-video .videoclip-reveal {
+  width: min(100cqw, (100cqh - 4.5rem) * 16 / 9);
+}
+
+.host-videoclip .jigsaw-table.melody-table {
+  margin-top: 1rem;
+}
+/* «Відео за фрагментами»: кінець сцени й пульта */
 
 /* «Квест із кодом»: редактор раунду (29g). Рамка налаштувань, ряд комірок коду з номером порядку під кожною, «Лише першим» з числом. Лише редактор: телефон, сцена й пульт мають власні секції. */
 .quest-settings {

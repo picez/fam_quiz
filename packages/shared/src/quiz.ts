@@ -263,6 +263,10 @@ export const LIMITS = {
   minMelodyTime: 25,
   /** Типовий час «Мелодії за нотами», с. */
   defaultMelodyTime: 60,
+  /** «Відео за фрагментами» (36): мінімум часу, с. */
+  minVideoclipTime: 25,
+  /** Типовий час «Відео за фрагментами», с. */
+  defaultVideoclipTime: 60,
   /** «Думай інакше» (35): життя учасника (найменше, найбільше, типово), сума за місця (найбільша = maxAdjust, типова), запитань у раунді, слів ведучого й синонімів у слові, символів у слові, синонімі й відповіді гравця. */
   minThinkLives: 1,
   maxThinkLives: 10,
@@ -749,6 +753,17 @@ export const questionSchema = z
     }),
     z.object({
       ...base,
+      type: z.literal('videoclip'),
+      timeLimit: z.number().int().min(LIMITS.minVideoclipTime).max(LIMITS.maxTime),
+      /** Відео YouTube і секунда початку фрагмента; шматки 1, 2, 4, 8, 16 с — від неї. */
+      clip: videoSchema,
+      /** «Без звуку» (типово): музика чи голос не підкажуть відповідь. На розкритті звук є завжди. */
+      muted: z.boolean().default(true),
+      /** Прийнятні написання; перше показується на розкритті. */
+      accepted: spellings,
+    }),
+    z.object({
+      ...base,
       type: z.literal('bluff'),
       /** Правда: перше написання — текст варіанта; решта — прийнятні написання (вигадку, що збігається, не приймуть). timeLimit — час вигадок. */
       accepted: spellings,
@@ -906,6 +921,11 @@ export const questionSchema = z
       // Власне джерело — track: загальне аудіо зіграло б сцені на етапі question; підказка недосяжна: бафи вимкнено (off_melody).
       if (q.video !== null || q.reveal !== undefined || q.audio !== undefined) ctx.addIssue({ code: 'custom', message: 'melody_video' });
       if (q.hint !== undefined) ctx.addIssue({ code: 'custom', message: 'melody_hint' });
+    }
+    if (q.type === 'videoclip') {
+      // Власне джерело — clip: загальне відео, аудіо чи розкриття картинки видали б відповідь; підказка недосяжна: бафи вимкнено (off_videoclip).
+      if (q.video !== null || q.reveal !== undefined || q.audio !== undefined) ctx.addIssue({ code: 'custom', message: 'videoclip_video' });
+      if (q.hint !== undefined) ctx.addIssue({ code: 'custom', message: 'videoclip_hint' });
     }
     if (q.type === 'memory') {
       // Загальна картинка й відео видали б пару; підказка недосяжна: бафи на «Пам'яті» вимкнено (off_memory).
@@ -1687,6 +1707,12 @@ export const quizSchema = z
           ? boardCells(round).some(({ cell }) => cell.question.type === 'melody')
           : round.type !== 'classic' && [...roundQuestions(round), ...roundTrials(round)].some((q) => q.type === 'melody');
       if (melodyPlace) ctx.addIssue({ code: 'custom', message: 'melody_place' });
+      // «Відео за фрагментами» (36): так само, як «Мелодія».
+      const videoclipPlace =
+        round.type === 'board'
+          ? boardCells(round).some(({ cell }) => cell.question.type === 'videoclip')
+          : round.type !== 'classic' && [...roundQuestions(round), ...roundTrials(round)].some((q) => q.type === 'videoclip');
+      if (videoclipPlace) ctx.addIssue({ code: 'custom', message: 'videoclip_place' });
       // Блеф: лише класика.
       const bluffPlace =
         round.type === 'board'

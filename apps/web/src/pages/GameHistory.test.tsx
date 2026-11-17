@@ -232,6 +232,13 @@ describe('history: melody (29e)', () => {
   });
 });
 
+describe('history: videoclip (36)', () => {
+  it('history shows the chunk', () => {
+    expect(answerText({ type: 'videoclip', value: 'Take On Me', heard: 2 } as never, null)).toBe('Take On Me · 2 с');
+    expect(answerText({ type: 'videoclip', value: 'Take On Me' } as never, null)).toBe('Take On Me');
+  });
+});
+
 describe('history: think (35)', () => {
   it('shows the final host words and every row with its verdict and lives', () => {
     const think = {

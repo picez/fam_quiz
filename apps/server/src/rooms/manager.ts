@@ -114,12 +114,12 @@ import {
   moreLessPick,
   jigsawHold,
   jigsawHoldsEnd,
-  melodyOpen,
+  snippetOpen,
   enterQuestCode,
   memoryFlip,
   memoryOf,
   memoryTimersEnd,
-  melodyStartEnd,
+  snippetStartEnd,
   jigsawOf,
   jigsawPlace,
   spotdiffOf,
@@ -1852,7 +1852,7 @@ export class RoomManager {
     this.scheduler.clearTimeout(room.holdExpiry);
     room.holdExpiry = null;
     const now = this.now();
-    const ends = [jigsawHoldsEnd(room.state, now), memoryTimersEnd(room.state, now), melodyStartEnd(room.state, now)].filter((end): end is number => end !== null);
+    const ends = [jigsawHoldsEnd(room.state, now), memoryTimersEnd(room.state, now), snippetStartEnd(room.state, now)].filter((end): end is number => end !== null);
     if (ends.length === 0) return;
     const at = Math.min(...ends);
     room.holdExpiry = this.timer(room, 'hold', Math.max(0, at - this.now()), () => {
@@ -1883,7 +1883,8 @@ export class RoomManager {
   }
 
   /**
-   * Відкриття шматка «Мелодії» (29e): у командній грі — будь-який учасник за команду. Номер запитання — в межах раунду (його перевіряє рушій).
+   * Відкриття шматка «Мелодії» (29e) і «Відео за фрагментами» (36) — та сама подія player:melody (рушій snippetOpen).
+   * У командній грі — будь-який учасник за команду. Номер запитання — в межах раунду (його перевіряє рушій).
    * Шматок іде в розсилку одразу (товариш має бачити його без затримки, подій щонайбільше 5 на учасника); повтор відкритого — той самий стан, без розсилки.
    */
   melodyOpen(room: Room, playerId: string, payload: { questionIndex: number; step: number }): AckResult {
@@ -1891,7 +1892,7 @@ export class RoomManager {
     const who = this.act(room, playerId, 'answer');
     if (!who.ok) return who;
     const now = this.now();
-    const result = melodyOpen(room.state, who.id, playerId, payload.questionIndex, payload.step, now);
+    const result = snippetOpen(room.state, who.id, playerId, payload.questionIndex, payload.step, now);
     if (!result.ok) return { ok: false, error: result.error };
     if (result.state !== room.state) this.commit(room, result.state, now);
     return { ok: true };

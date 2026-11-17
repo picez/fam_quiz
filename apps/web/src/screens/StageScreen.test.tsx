@@ -3201,6 +3201,59 @@ describe('StageScreen: melody (29e)', () => {
   });
 });
 
+describe('StageScreen: videoclip (36)', () => {
+  const clip = { id: 'djV11Xbc914', start: 30 };
+  const videoQ = (answer: string | null) => ({ ...question, type: 'videoclip' as const, text: 'Що це за відео?', choices: [], timeLimit: 60, points: 1000, videoclip: { id: 'v1', clip, muted: true, answer } });
+  const row = (playerId: string, nickname: string, heard: number, over: Record<string, unknown> = {}) => ({ playerId, nickname, heard, answered: false, correct: null, points: null, timeMs: null, ...over });
+  const fullVideo = { id: 'v1', type: 'videoclip', text: 'Що це за відео?', imageUrl: null, video: null, timeLimit: 60, points: 1000, clip, muted: true, accepted: ['Take On Me'] } as unknown as Question;
+
+  it('the stage shows chunks and no video before reveal', () => {
+    const info = { rows: [row('p1', 'Оля', 2, { answered: true }), row('p2', 'Тарас', 1), row('p3', 'Петро', 0)] };
+    show(view({ phase: 'question', questionIndex: 0, question: videoQ(null), endsAt: Date.now() + 60_000, playerCount: 3, answeredCount: 1, videoclip: info }));
+    const tiles = [...document.querySelectorAll('.melody-board')].map((el) => el.textContent);
+    expect(tiles).toEqual(['Оля👁 2 с ✓', 'Тарас👁 1 с', 'Петроще не дивився']);
+    expect(screen.getAllByText('Відповіли: 1 з 3')).toHaveLength(1);
+    expect(screen.queryByText('Відповіли 1 з 3')).toBeNull();
+    expect(screen.queryByText('Відповідайте на телефоні')).toBeNull();
+    expect(document.body.textContent).not.toContain('Take On Me');
+    expect(document.querySelector('iframe')).toBeNull();
+    expect(document.querySelector('.videoclip-frame')).toBeNull();
+  });
+
+  it('the stage plays the video after time', () => {
+    const info = { rows: [row('p1', 'Тарас', 1, { answered: true, correct: true, points: 1000, timeMs: 3000 }), row('p2', 'Оля', 2, { answered: true, correct: true, points: 800, timeMs: 9000 }), row('p3', 'Петро', 4, { answered: true, correct: false, points: 0, timeMs: 5000 })] };
+    show(view({ phase: 'reveal', questionIndex: 0, question: videoQ('Take On Me'), reveal: fullVideo, playerCount: 3, answeredCount: 3, videoclip: info }));
+    const frame = document.querySelector('.videoclip-stage .videoclip-frame iframe');
+    expect(frame).not.toBeNull();
+    const src = frame!.getAttribute('src')!;
+    expect(src).toContain('djV11Xbc914');
+    expect(src).not.toContain('mute=1');
+    expect(screen.getByText('Це було: «Take On Me»')).toBeTruthy();
+    expect(screen.queryByText(/Правильна відповідь:/)).toBeNull();
+    const rows = [...document.querySelectorAll('.melody-table tbody tr')].map((tr) => [...tr.querySelectorAll('td')].map((td) => td.textContent));
+    expect(rows).toEqual([
+      ['1', 'Тарас', '✓ 1 с', '+1000'],
+      ['2', 'Оля', '✓ 2 с', '+800'],
+      ['—', 'Петро', '✗ 8 с', '0'],
+    ]);
+    expect(document.querySelector('.melody-table')?.getAttribute('aria-label')).toBe('Результати «Відео за фрагментами»');
+    expect(document.querySelector('.melody-board')).toBeNull();
+  });
+
+  it('twenty-four players fit the stage', () => {
+    const rows24 = Array.from({ length: 24 }, (_, i) => row(`p${i}`, `Гравець ${i + 1}`, (i % 5) + 1, { answered: i % 2 === 0 }));
+    show(view({ phase: 'question', questionIndex: 0, question: videoQ(null), endsAt: Date.now() + 60_000, playerCount: 24, answeredCount: 12, videoclip: { rows: rows24 } }));
+    expect(document.querySelectorAll('.melody-board')).toHaveLength(24);
+    const grid = document.querySelector<HTMLElement>('.melody-boards')!;
+    expect(Number(grid.style.getPropertyValue('--cols')) * Number(grid.style.getPropertyValue('--rows'))).toBeGreaterThanOrEqual(24);
+    cleanup();
+    const twelve = Array.from({ length: 12 }, (_, i) => row(`p${i}`, `Гравець ${i + 1}`, 2, { answered: true, correct: true, points: 800, timeMs: 1000 + i }));
+    show(view({ phase: 'reveal', questionIndex: 0, question: videoQ('Take On Me'), reveal: fullVideo, playerCount: 12, answeredCount: 12, videoclip: { rows: twelve } }));
+    expect(document.querySelectorAll('.melody-table tbody tr')).toHaveLength(12);
+    expect(document.querySelector<HTMLElement>('.melody-table')!.style.getPropertyValue('--rows')).toBe('12');
+  });
+});
+
 describe('StageScreen: code quest (29g)', () => {
   const round: RoundInfo = { index: 0, total: 1, title: 'Квест', type: 'quest', partial: false, description: '', brief: emptyBrief('quest'), times: null };
   const quest = (over: object = {}) => ({

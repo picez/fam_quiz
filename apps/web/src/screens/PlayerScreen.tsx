@@ -47,6 +47,7 @@ import { JigsawPlay, JigsawReveal } from './JigsawView';
 import { SpotdiffPlay, SpotdiffReveal } from './SpotdiffView';
 import { MemoryPlay, MemoryReveal } from './MemoryView';
 import { MelodyPlay } from './MelodyView';
+import { VideoclipPlay, VideoclipReveal } from './VideoclipView';
 import { DrawingClosed, DrawingPhone, DrawingReveal, drawingTitle, strokesOf } from './DrawingView';
 import type { DrawingModel } from '../live/drawing';
 import { ThinkHearts, ThinkInput, ThinkPhoneVerdict, ThinkPlaces, ThinkReveal } from './ThinkView';
@@ -1274,6 +1275,23 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
                   answer={me.answer?.type === 'melody' ? me.answer.value : null}
                 />
               )
+            ) : question.type === 'videoclip' ? (
+              // Відео за фрагментами (36): як «Мелодія»; у товаришів відео само не вмикається — лише з власного дотику.
+              me.videoclip !== undefined &&
+              question.videoclip !== undefined && (
+                <VideoclipPlay
+                  key={`${view.round?.index ?? 0}:${view.questionIndex}:${question.videoclip.id}`}
+                  info={me.videoclip}
+                  question={{ ...question, videoclip: question.videoclip }}
+                  questionIndex={view.questionIndex}
+                  paused={locked || view.held}
+                  live={!buffTimeOver}
+                  send={send}
+                  onSubmit={(answer) => void submit(answer)}
+                  onDraft={onDraft}
+                  answer={me.answer?.type === 'videoclip' ? me.answer.value : null}
+                />
+              )
             ) : thinkQ && me.think !== undefined && (me.think.status !== 'alive' || !teamWatching) ? (
               <ThinkInput
                 key={`${view.round?.index ?? 0}:${view.questionIndex}`}
@@ -1821,6 +1839,12 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
             autoplay={autoAudio}
             listen="again"
           />
+        </div>
+      )}
+      {/* «Відео за фрагментами» (36): на розкритті — 30 с відео зі звуком, лише дотиком до «Переглянути ще раз». */}
+      {phase === 'reveal' && question?.videoclip !== undefined && (
+        <div className="player-videoclip">
+          <VideoclipReveal key={`${view.round?.index ?? 0}:${view.questionIndex}:${question.videoclip.id}`} videoclip={question.videoclip} ready paused={view.paused} onDemand />
         </div>
       )}
       {clip !== null && (phase === 'question' || phase === 'locked' || phase === 'reveal') && (

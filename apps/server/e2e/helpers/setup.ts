@@ -58,9 +58,26 @@ export function avatarPng(): Buffer {
 export const exact = { exact: true };
 // Відео з цим id повідомляє про помилку так само, як справжній плеєр.
 export const BROKEN_VIDEO = 'AAAAAAAAAAA';
+/** Відео, що «грають» (36): заглушка пише кожну команду в window.__yt, на playVideo відповідає станом 1, на pauseVideo — 2, на «listening» — ще й тривалістю 60 с. */
+export const PLAYABLE_VIDEOS = ['E2Evideo001', 'E2Evideo002'];
 
-/** Сторінка вбудовування замість YouTube: для BROKEN_VIDEO помилкою відповідає лише після команди addEventListener на onError (як справжній плеєр); на «listening» усі відповідають initialDelivery. */
+/**
+ * Сторінка вбудовування замість YouTube: для BROKEN_VIDEO помилкою відповідає лише після команди addEventListener на onError (як справжній плеєр);
+ * на «listening» усі відповідають initialDelivery; PLAYABLE_VIDEOS ще й ведуть журнал команд і відповідають станом плеєра.
+ */
 export function youtubeStub(url: string): string {
+  const playable = PLAYABLE_VIDEOS.some((id) => url.includes(id))
+    ? `window.__yt = [];
+      addEventListener('message', (e) => {
+        let m; try { m = JSON.parse(e.data); } catch { return; }
+        if (m.event === 'listening') parent.postMessage(JSON.stringify({ event: 'infoDelivery', info: { duration: 60 }, id: m.id, channel: 'widget' }), '*');
+        if (m.event !== 'command') return;
+        window.__yt.push({ func: m.func, args: m.args });
+        const reply = (info) => parent.postMessage(JSON.stringify({ event: 'onStateChange', info, id: m.id, channel: 'widget' }), '*');
+        if (m.func === 'playVideo') setTimeout(() => reply(1), 50);
+        if (m.func === 'pauseVideo') reply(2);
+      });`
+    : '';
   const failing = url.includes(BROKEN_VIDEO)
     ? `addEventListener('message', (e) => {
         let m; try { m = JSON.parse(e.data); } catch { return; }
@@ -71,7 +88,7 @@ export function youtubeStub(url: string): string {
   const script = `<script>addEventListener('message', (e) => {
     let m; try { m = JSON.parse(e.data); } catch { return; }
     if (m.event === 'listening') parent.postMessage(JSON.stringify({ event: 'initialDelivery', id: m.id, channel: 'widget' }), '*');
-  });${failing}</script>`;
+  });${failing}${playable}</script>`;
   return `<!doctype html><title>stub</title>${script}`;
 }
 

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { checkAnswer, paceFactor, paysForTime, shareVerdict, surveyHits, textAccepts, textMatches, verdictOf } from './check';
 import type { Question } from '@quiz/shared';
-import { bool, clues, match, melody, multi, numeric, order, pin, single, slider, survey, text, withReveal } from './testing/fixtures';
+import { bool, clues, match, melody, multi, numeric, order, pin, single, slider, survey, text, videoclip, withReveal } from './testing/fixtures';
 
 const REJECTED = { accepted: false, accuracy: 0 };
 const FULL = { accepted: true, accuracy: 1 };
@@ -239,6 +239,20 @@ describe('«Melody» (29e)', () => {
     expect(paceFactor(melody, 50_000, 5)).toBe(0.25);
     expect(paceFactor(melody, 50_000)).toBe(1);
     expect(paysForTime(melody)).toBe(true);
+  });
+});
+
+describe('«Videoclip» (36)', () => {
+  it('checks the answer like text, pays by the chunk, no speed bonus', () => {
+    expect(checkAnswer(videoclip, { type: 'videoclip', value: 'take on me', heard: 1 })).toEqual(FULL);
+    expect(checkAnswer(videoclip, { type: 'videoclip', value: 'Тейк он мі', heard: 1 })).toEqual(FULL);
+    expect(checkAnswer(videoclip, { type: 'videoclip', value: 'Hunting High and Low', heard: 1 })).toEqual(REJECTED);
+    expect(checkAnswer(videoclip, { type: 'text', value: 'Take On Me' })).toEqual(REJECTED);
+    expect(checkAnswer(videoclip, { type: 'melody', value: 'Take On Me', heard: 1 })).toEqual(REJECTED);
+    expect(paceFactor(videoclip, 0, 3)).toBe(0.6);
+    expect(paceFactor(videoclip, 50_000, 5)).toBe(0.25);
+    expect(paceFactor(videoclip, 50_000)).toBe(1);
+    expect(paysForTime(videoclip)).toBe(true);
   });
 });
 

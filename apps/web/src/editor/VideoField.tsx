@@ -9,10 +9,12 @@ interface Props {
   onChange: (video: Video | null) => void;
   /** «Лише звук»: перенести розібране відео в аудіо (картинку сховано). Без пропа прапорця немає. */
   onAudioOnly?: (video: Video) => void;
+  /** Попередній перегляд YouTubePlayer (типово так); false — без нього (у «Відео за фрагментами» його дає useVideoClip). */
+  preview?: boolean;
 }
 
 /** Поле посилання YouTube з помилкою під ним і попереднім переглядом. */
-export function VideoField({ video, onChange, onAudioOnly }: Props) {
+export function VideoField({ video, onChange, onAudioOnly, preview = true }: Props) {
   const [text, setText] = useState(() => (video === null ? '' : videoLink(video)));
   const [invalid, setInvalid] = useState(false);
 
@@ -45,7 +47,7 @@ export function VideoField({ video, onChange, onAudioOnly }: Props) {
           {t('videoInvalid')}
         </p>
       )}
-      <YouTubePlayer video={video} />
+      {preview && <YouTubePlayer video={video} />}
       {video !== null && onAudioOnly !== undefined && (
         <label className="check">
           <input type="checkbox" checked={false} onChange={() => onAudioOnly(video)} />

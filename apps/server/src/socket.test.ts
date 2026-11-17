@@ -1,7 +1,7 @@
 import type { AddressInfo } from 'node:net';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { io as connect, type Socket } from 'socket.io-client';
-import { auctionRound, betsRound, bluff, blitzRound, boardRound, bool, chain, classicRound, clues, cloud, duels, finalRound, makeQuiz, multi, makeRoundsQuiz, single, sortQ, survey, survivalQuestions, survivalRound, survivalTrials, text, wall, withAudio, withId, wipeoutLadder, wipeoutRound, ladderRound, letterwords, moreless, drawing, timedlist, truthRound, think, thinkRound, wordladder, puzzlesQuiz, sudoku, jigsaw, jigsawQuiz, spotdiff, spotdiffQuiz, memoryQuiz, melodyQuiz, questQuiz } from '@quiz/engine/testing';
+import { auctionRound, betsRound, bluff, blitzRound, boardRound, bool, chain, classicRound, clues, cloud, duels, finalRound, makeQuiz, multi, makeRoundsQuiz, single, sortQ, survey, survivalQuestions, survivalRound, survivalTrials, text, wall, withAudio, withId, wipeoutLadder, wipeoutRound, ladderRound, letterwords, moreless, drawing, timedlist, truthRound, think, thinkRound, wordladder, puzzlesQuiz, sudoku, jigsaw, jigsawQuiz, spotdiff, spotdiffQuiz, memoryQuiz, melodyQuiz, videoclipQuiz, questQuiz } from '@quiz/engine/testing';
 import { DEFAULT_RULES, defaultTeams, memoryLayout, STICKERS, SPLASH_MS, type AckResult, type ClientToServerEvents, type DrawingEvent, type GameView, type HostDrafts, type Reaction, type ServerToClientEvents, type SocketAuth, type SortTilt } from '@quiz/shared';
 import { eq, inArray } from 'drizzle-orm';
 import { buildApp } from './app';
@@ -957,6 +957,41 @@ describe('host presence', () => {
 
   it('melody events are player-only and the host replay needs reveal', async () => {
     const { host, stage } = await toMelody();
+    for (const who of [host, stage]) expect(await send(who, 'player:melody', { questionIndex: 0, step: 1 })).toEqual({ ok: false, error: 'forbidden' });
+    expect(await send(host, 'host:audio', { action: 'replay' })).toEqual({ ok: false, error: 'wrong_phase' });
+    expect(await send(host, 'host:lock')).toEqual({ ok: true });
+    expect(await send(host, 'host:next')).toEqual({ ok: true });
+    expect(await send(host, 'host:audio', { action: 'replay' })).toEqual({ ok: true });
+  });
+
+  /** «Відео за фрагментами» (36) після першого раунду: шматки — тією самою подією player:melody. */
+  async function toVideoclip() {
+    const created = (await startGame(ctx.app, videoclipQuiz())).game;
+    const rig = await lobby(created);
+    const { host, stage, olena } = rig;
+    expect(await send(host, 'host:start')).toEqual({ ok: true });
+    expect(await send(host, 'host:next')).toEqual({ ok: true });
+    await until(olena, inPhase('question'));
+    expect(await send(host, 'host:lock')).toEqual({ ok: true });
+    while ((await until(olena, () => true)) && !(olena.last?.phase === 'question' && olena.last.role === 'player' && olena.last.question?.videoclip !== undefined)) {
+      expect(await send(host, 'host:next')).toEqual({ ok: true });
+      await pause(30);
+    }
+    await until(stage, (view) => view.phase === 'question');
+    await pause(SPLASH_MS.question + 100);
+    return rig;
+  }
+
+  it('opens video chunks through the melody event and pays by the chunk', async () => {
+    const { olena, taras, stage, host } = await toVideoclip();
+    expect(await send(olena, 'player:melody', { questionIndex: 1, step: 1 })).toEqual({ ok: false, error: 'melody_stale' });
+    expect(await send(olena, 'player:melody', { questionIndex: 0, step: 1 })).toEqual({ ok: true });
+    const mine = await until(olena, (view) => view.role === 'player' && view.me.videoclip?.heard === 1);
+    expect(mine.role === 'player' ? mine.me.videoclip : null).toMatchObject({ heard: 1, canAnswer: true });
+    const seen = await until(stage, (view) => view.videoclip?.rows.some((row) => row.heard === 1) === true);
+    expect(seen.videoclip?.rows.find((row) => row.nickname === 'Олена')).toMatchObject({ heard: 1, answered: false });
+    expect(await send(taras, 'player:answer', { type: 'videoclip', value: 'Take On Me' })).toEqual({ ok: false, error: 'videoclip_unseen' });
+    expect(await send(olena, 'player:answer', { type: 'videoclip', value: 'Take On Me' })).toEqual({ ok: true });
     for (const who of [host, stage]) expect(await send(who, 'player:melody', { questionIndex: 0, step: 1 })).toEqual({ ok: false, error: 'forbidden' });
     expect(await send(host, 'host:audio', { action: 'replay' })).toEqual({ ok: false, error: 'wrong_phase' });
     expect(await send(host, 'host:lock')).toEqual({ ok: true });

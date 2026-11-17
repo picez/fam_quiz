@@ -88,7 +88,7 @@ import { dropFromDrawing, drawingDone, openDrawing, packDrawings, scoreDrawing }
 import { packJigsaws, scoreJigsaw } from './jigsaw';
 import { packSpotdiffs, scoreSpotdiff } from './spotdiff';
 import { packMemories, scoreMemory } from './memory';
-import { melodyHeard, melodyPaid } from './melody';
+import { isSnippetQuestion, snippetHeard, snippetPaid } from './snippets';
 import { packPuzzles, scorePuzzle } from './puzzles';
 import { dealTruth, dropTruthFacts, nextTruthQuestion, truthGuessers, truthPlayFor, truthPlayOf, withTruthPoints } from './truth';
 import { awardThinkPlaces, openThink, submitThinkAnswer, thinkOver, thinkPlayOf, thinkPresent, withThinkGrades } from './think';
@@ -233,7 +233,7 @@ export interface Play {
   spotdiff?: SpotdiffPlay;
   /** Лише в запитанні «Пам'ять» (29f). */
   memory?: MemoryPlay;
-  /** Лише в запитанні «Мелодія за нотами» (29e). */
+  /** Лише в запитаннях «за шматками»: melody (29e) і videoclip (36). */
   melody?: MelodyPlay;
   /** Лише в запитанні-сортуванні; гравця тут немає, поки він не зробив ходу. */
   sort?: Record<string, SortProgress>;
@@ -667,7 +667,7 @@ export interface MemoryPlay {
   order?: Record<string, string[]>;
 }
 
-/** «Мелодія за нотами» (29e): скільки шматків відкрито (1…5) гравцем рушія; у командах by — хто з учасників відкрив останній. */
+/** «Мелодія за нотами» (29e), з 36 — шматки melody і videoclip: скільки шматків відкрито (1…5) гравцем рушія; у командах by — хто з учасників відкрив останній. */
 export interface MelodyPlay {
   heard: Record<string, number>;
   by?: Record<string, string>;
@@ -1566,8 +1566,8 @@ export function openQuestion(state: GameState, question: Question, now: number, 
     // «Знайди відмінності» (29d): так само.
     ...(question.type === 'spotdiff' ? { spotdiff: teamsOn(state) ? { boards: {}, order: Object.fromEntries(state.players.map((p) => [p.id, teamMembers(state, p.id).map((m) => m.id)])) } : { boards: {} } } : {}),
     ...(question.type === 'memory' ? { memory: teamsOn(state) ? { boards: {}, order: Object.fromEntries(state.players.map((p) => [p.id, teamMembers(state, p.id).map((m) => m.id)])) } : { boards: {} } } : {}),
-    // «Мелодія за нотами» (29e): кожен відкриває шматки сам; у командах — спільно, by — хто відкрив останній.
-    ...(question.type === 'melody' ? { melody: teamsOn(state) ? { heard: {}, by: {} } : { heard: {} } } : {}),
+    // «Мелодія за нотами» (29e) і «Відео за фрагментами» (36): кожен відкриває шматки сам; у командах — спільно, by — хто відкрив останній.
+    ...(isSnippetQuestion(question) ? { melody: teamsOn(state) ? { heard: {}, by: {} } : { heard: {} } } : {}),
     ...(built !== null ? { survey: { source: built.source, shown: 0 } } : {}),
     // Блеф: зерно для запасних вигадок і порядку варіантів; tick, що перемикає фазу, rng не має. Інші типи rng тут не тягнуть.
     ...(question.type === 'bluff'
@@ -2153,17 +2153,17 @@ export function submitAnswer(state: GameState, playerId: string, answer: Answer,
   // Після заміни гравець відповідає на запасне, але бали — основного запитання.
   const asked = questionFor(state, play, playerId);
   if (asked.type !== answer.type) return fail('type_mismatch');
-  // «Мелодія за нотами» (29e): платить шматок, відкритий на сервері; heard із телефона не береться.
-  if (asked.type === 'melody' && answer.type === 'melody') {
-    const heard = melodyHeard(play, playerId);
-    if (heard < 1) return fail('melody_unheard');
-    answer = { type: 'melody', value: answer.value, heard };
+  // «Мелодія за нотами» (29e) і «Відео за фрагментами» (36): платить шматок, відкритий на сервері; heard із телефона не береться.
+  if (isSnippetQuestion(asked) && (answer.type === 'melody' || answer.type === 'videoclip')) {
+    const heard = snippetHeard(play, playerId);
+    if (heard < 1) return fail(asked.type === 'melody' ? 'melody_unheard' : 'videoclip_unseen');
+    answer = { type: answer.type, value: answer.value, heard };
   }
 
   // Швидкість на запасному — від миті, коли його отримано.
   const spare = buffOf(play, playerId)?.spare;
   const timeMs = Math.max(0, now - (spare?.startedAt ?? state.startedAt));
-  const { accepted, accuracy, grade } = verdictOf(asked, answer, timeMs, cluesPaid(play, playerId) ?? melodyPaid(play, playerId));
+  const { accepted, accuracy, grade } = verdictOf(asked, answer, timeMs, cluesPaid(play, playerId) ?? snippetPaid(play, playerId));
   const limit = answerLimitMs(play, playerId);
   // Картинка, що проявляється, і «Хто я?» вже платять за час часткою ціни: бонусу швидкості поверх немає.
   // «100 до 1»: ціна вже спадає з популярністю, швидкість набору — не знання.
@@ -2177,8 +2177,8 @@ export function submitAnswer(state: GameState, playerId: string, answer: Answer,
     accuracy,
     speed,
     multiplier: rulesOf(round).multiplier,
-    // «Мелодія за нотами» (29e): неправильна відповідь — 0 і за правила «мінус».
-    penalty: asked.type === 'melody' ? 'none' : rulesOf(round).penalty,
+    // «Мелодія за нотами» (29e) і «Відео за фрагментами» (36): неправильна відповідь — 0 і за правила «мінус».
+    penalty: isSnippetQuestion(asked) ? 'none' : rulesOf(round).penalty,
   });
   const record: AnswerRecord = {
     answer,
@@ -2843,14 +2843,14 @@ function overrideGrade(state: GameState, playerId: string, grade: Grade, now?: n
   // Після заміни гравець відповідав на запасне: проявлення — з його запитання, як у submitAnswer.
   const asked = questionFor(state, play, playerId);
   const speed = speedFactor(record.timeMs, limit ?? 0, speedOn(round) && limit !== null && !paysForTime(asked));
-  // «Хто я?» у власному темпі (12c) — за своїм числом підказок: після відповіді воно не змінюється. «Мелодія» (29e) — за шматком.
-  const paid = accuracy * paceFactor(asked, record.timeMs, cluesPaid(play, playerId) ?? melodyPaid(play, playerId));
+  // «Хто я?» у власному темпі (12c) — за своїм числом підказок: після відповіді воно не змінюється. «Мелодія» (29e) і «Відео» (36) — за шматком.
+  const paid = accuracy * paceFactor(asked, record.timeMs, cluesPaid(play, playerId) ?? snippetPaid(play, playerId));
   const points = answerPoints({
     points: question.points,
     accuracy: paid,
     speed,
     multiplier: rulesOf(round).multiplier,
-    penalty: asked.type === 'melody' ? 'none' : rulesOf(round).penalty,
+    penalty: isSnippetQuestion(asked) ? 'none' : rulesOf(round).penalty,
   });
   const updated: AnswerRecord = {
     ...record,

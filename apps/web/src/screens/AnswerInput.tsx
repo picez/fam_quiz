@@ -105,6 +105,7 @@ function MultiInput({ question, onSubmit, removed, submitLabel, onDraft }: Props
 function wordsAnswer(question: PublicQuestion, value: string): SubmittedAnswer {
   if (question.type === 'clues') return { type: 'clues', value };
   if (question.type === 'melody') return { type: 'melody', value };
+  if (question.type === 'videoclip') return { type: 'videoclip', value };
   return { type: 'text', value };
 }
 
@@ -262,6 +263,7 @@ export function AnswerInput({ question, onSubmit, removed, submitLabel, autoFocu
     case 'numeric':
     case 'clues':
     case 'melody':
+    case 'videoclip':
       return <TypedInput question={question} onSubmit={onSubmit} submitLabel={submitLabel} autoFocus={autoFocus} onDraft={onDraft} disabled={disabled} />;
     case 'order':
       return <OrderInput question={question} onSubmit={onSubmit} onDraft={onDraft} />;

@@ -7,7 +7,7 @@ import { BUFF_KINDS, DEBUFF_KINDS, type ErrorCode } from './game';
 import { DRAWING_ERASER, DRAWING_SCALE, DRAWING_WIDTHS, type DrawOp, type DrawingEvent } from './drawing';
 import { LIFELINES, LIMITS, MORELESS_SIDES, thinkWordSchema } from './quiz';
 import { DOOR_COUNT } from './survival';
-import { MELODY_STEP_COUNT } from './melody';
+import { SNIPPET_STEP_COUNT } from './snippets';
 import { MEMORY_MAX_CELLS } from './memory';
 import { SPOT_MAX_WIDTH, SPOT_MIN_WIDTH } from './spotdiff';
 import { RESUME_POINTS_MAX } from './resume';
@@ -135,8 +135,8 @@ export const MEMORY_FLIPS_PER_SECOND = 4;
 export const MEMORY_SHOW_MS = 2000;
 export const MEMORY_TURN_MS = 5000;
 export const memoryFlipSchema = z.object({ questionIndex: z.number().int().nonnegative(), cell: z.number().int().min(0).max(MEMORY_MAX_CELLS - 1) }).strict();
-/** «Мелодія за нотами» (29e): відкрити шматок step (1…5). questionIndex — номер запитання в поточному раунді, як у зрізі; без верхньої межі, застаріле відсікає melody_stale. */
-export const melodyOpenSchema = z.object({ questionIndex: z.number().int().nonnegative(), step: z.number().int().min(1).max(MELODY_STEP_COUNT) }).strict();
+/** «Мелодія за нотами» (29e), також «Відео за фрагментами» (36): відкрити шматок step (1…5). questionIndex — номер запитання в поточному раунді, як у зрізі; без верхньої межі, застаріле відсікає melody_stale. */
+export const melodyOpenSchema = z.object({ questionIndex: z.number().int().nonnegative(), step: z.number().int().min(1).max(SNIPPET_STEP_COUNT) }).strict();
 export const puzzleDoneSchema = z.object({ questionIndex: z.number().int().nonnegative() }).strict();
 export const moreLessPickSchema = z.object({ index: z.number().int().min(0).max(LIMITS.maxMoreLessPairs - 1), pick: z.enum(MORELESS_SIDES) });
 /** «Малюнок» (28c): операцій малювання на секунду від художника (пакет кожні 80 мс + «крок назад»), спроб вгадати на секунду, запитів повного малюнка на секунду з сокета. */
@@ -304,7 +304,7 @@ export interface ClientToServerEvents {
   'player:spotdiff': (payload: z.infer<typeof spotdiffTapSchema>, ack: Ack) => void;
   /** «Пам'ять» (29f): відкрити клітинку; ack ok — прийнято, інакше помилка (memory_stale, memory_done, memory_cell, memory_wait, memory_busy, memory_matched, memory_open, time_over, too_soon). Вміст картки приходить лише зрізом. */
   'player:memory': (payload: z.infer<typeof memoryFlipSchema>, ack: Ack) => void;
-  /** «Мелодія за нотами» (29e): відкрити шматок step; ack ok — прийнято (повтор відкритого теж), інакше помилка (melody_stale, melody_step, already_answered, type_mismatch, time_over, paused, wrong_phase). Звук приходить лише як джерело в зрізі. */
+  /** «Мелодія за нотами» (29e), також «Відео за фрагментами» (36): відкрити шматок step; ack ok — прийнято (повтор відкритого теж), інакше помилка (melody_stale, melody_step, already_answered, type_mismatch, time_over, paused, wrong_phase). Звук приходить лише як джерело в зрізі. */
   'player:melody': (payload: z.infer<typeof melodyOpenSchema>, ack: Ack) => void;
   /** «Малюнок» (28c): операція художника; ack — лише ok чи помилка (drawing_stale — малюнок розійшовся, просіть draw:sync). */
   'player:draw': (payload: DrawOp, ack: Ack) => void;

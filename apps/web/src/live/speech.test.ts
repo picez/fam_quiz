@@ -41,6 +41,7 @@ describe('speechParts (31)', () => {
     expect(speechParts(speechQuestion({ video: { id: 'dQw4w9WgXcQ', start: 0 } as never }))).toBeNull();
     expect(speechParts(speechQuestion({ audio: { duration: 10, clip: null } as never }))).toBeNull();
     expect(speechParts(speechQuestion({ melody: { source: 'file' } as never }))).toBeNull();
+    expect(speechParts(speechQuestion({ videoclip: { id: 'q1' } as never }))).toBeNull();
   });
 
   it('cuts a long text into short phrases and loses nothing', () => {

@@ -37,7 +37,7 @@ describe('question type registry (30e)', () => {
     const progress = ['chain', 'wordladder', 'sort', 'wall', 'timedlist', 'letterwords', 'moreless', 'drawing', 'sudoku', 'crossword', 'jigsaw', 'spotdiff', 'memory', 'bluff'];
     expect(typesWhere((t) => t.progress)).toEqual(progress);
     expect(typesWhere((t) => !t.hostGraded)).toEqual(['chain', 'wordladder', 'sort', 'wall', 'survey', 'timedlist', 'letterwords', 'moreless', 'drawing', 'sudoku', 'crossword', 'jigsaw', 'spotdiff', 'memory', 'bluff']);
-    expect(typesWhere((t) => t.teamWide)).toEqual(['timedlist', 'letterwords', 'drawing', 'sudoku', 'crossword', 'jigsaw', 'spotdiff', 'memory', 'melody']);
+    expect(typesWhere((t) => t.teamWide)).toEqual(['timedlist', 'letterwords', 'drawing', 'sudoku', 'crossword', 'jigsaw', 'spotdiff', 'memory', 'melody', 'videoclip']);
     expect(typesWhere((t) => t.buffs.risk)).toEqual(['single', 'multi', 'boolean', 'text', 'numeric', 'slider', 'clues', 'pin']);
     expect(typesWhere((t) => t.buffs.letter)).toEqual(['text', 'clues']);
     expect(typesWhere((t) => t.buffs.scope)).toEqual(['numeric', 'slider', 'pin']);
@@ -72,6 +72,8 @@ describe('question type registry (30e)', () => {
         'spotdiff',
         'memory',
         'melody',
+        // 36: «Відео за фрагментами» — одразу за «Мелодією».
+        'videoclip',
         'bluff',
       ],
       blitz: ['single', 'multi', 'boolean', 'text', 'numeric', 'order', 'match', 'sort', 'slider'],
