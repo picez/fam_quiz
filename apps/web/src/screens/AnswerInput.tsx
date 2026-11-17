@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react';
-import type { Answer, SubmittedAnswer, Choice, PlayerScope, PublicQuestion } from '@quiz/shared';
+import { LIMITS, type Answer, type SubmittedAnswer, type Choice, type PlayerScope, type PublicQuestion } from '@quiz/shared';
 import { choiceLabel, LETTERS } from '../format';
 import { t } from '../i18n';
 import { ChoiceFace, choicesClass, ZoomCell } from './ChoiceFace';
@@ -106,6 +106,7 @@ function wordsAnswer(question: PublicQuestion, value: string): SubmittedAnswer {
   if (question.type === 'clues') return { type: 'clues', value };
   if (question.type === 'melody') return { type: 'melody', value };
   if (question.type === 'videoclip') return { type: 'videoclip', value };
+  if (question.type === 'thinkalike') return { type: 'thinkalike', value };
   return { type: 'text', value };
 }
 
@@ -140,8 +141,8 @@ function TypedInput({ question, onSubmit, submitLabel, autoFocus = true, onDraft
           value={raw}
           onChange={(event) => change(event.target.value)}
           inputMode={numeric ? 'decimal' : 'text'}
-          placeholder={t(numeric ? 'numberPlaceholder' : 'answerPlaceholder')}
-          maxLength={200}
+          placeholder={t(numeric ? 'numberPlaceholder' : question.type === 'thinkalike' ? 'alikePhoneHint' : 'answerPlaceholder')}
+          maxLength={question.type === 'thinkalike' ? LIMITS.thinkWord : 200}
           autoComplete="off"
           autoFocus={autoFocus}
           disabled={disabled}
@@ -264,6 +265,7 @@ export function AnswerInput({ question, onSubmit, removed, submitLabel, autoFocu
     case 'clues':
     case 'melody':
     case 'videoclip':
+    case 'thinkalike':
       return <TypedInput question={question} onSubmit={onSubmit} submitLabel={submitLabel} autoFocus={autoFocus} onDraft={onDraft} disabled={disabled} />;
     case 'order':
       return <OrderInput question={question} onSubmit={onSubmit} onDraft={onDraft} />;

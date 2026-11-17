@@ -375,6 +375,11 @@ function build(common: Common, type: QuestionType): Question {
       const { hint: _hint, audio: _audio, reveal: _reveal, ...rest } = common;
       return { ...rest, video: null, type, text: rest.text === '' ? t('videoclipDefaultText') : rest.text, timeLimit: LIMITS.defaultVideoclipTime, points: LIMITS.defaultPoints, clip: { id: '', start: 0 }, muted: true, accepted: [''] };
     }
+    case 'thinkalike': {
+      // 37: «Думай як усі» — без «перевертання» й підказки (бафів немає); тема в тексті, час і бали типові.
+      const { hint: _hint, reveal: _reveal, ...rest } = common;
+      return { ...rest, type, text: rest.text === '' ? t('alikeDefaultText') : rest.text };
+    }
     case 'bluff':
       return { ...common, video: null, type, timeLimit: LIMITS.defaultBluffTime, choiceTime: LIMITS.defaultChoiceTime, accepted: [''], lies: ['', ''] };
     case 'poll':

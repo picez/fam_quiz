@@ -54,6 +54,10 @@ describe('roundSummary', () => {
     expect(roundSummary({ ...emptyBrief('puzzles'), puzzles: { sudoku: 0, crossword: 0, jigsaw: 0, spotdiff: 0, memory: 5, time: 450 } })).toEqual([rule, '5 «Пам’ятей»']);
   });
 
+  it('a classic round with thinkalike questions says who gets the points', () => {
+    expect(roundSummary({ ...emptyBrief('classic'), thinkalikes: 2 }).at(-1)).toBe('2 «Думай як усі»: бали отримує найбільша група однакових слів');
+  });
+
   it('a classic round with videoclips says how they score', () => {
     expect(roundSummary({ ...emptyBrief('classic'), videoclips: 2 }).at(-1)).toBe('2 відео: бали за найдовшим шматком, який переглянули');
   });
