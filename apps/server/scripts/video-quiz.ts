@@ -47,7 +47,7 @@ export const videoQuiz = (): Quiz => ({
         // «PSY - GANGNAM STYLE(강남스타일) M/V», officialpsy; 252 с. Без звуку: приспів одразу видав би назву.
         clip(1, 'Як називається пісня з цього кліпу?', '9bZkp7q19f0', 30, true, ['Gangnam Style', 'Ґанґнам стайл', 'Гангнам стайл', 'Gangnam'], 400),
         // «Zootopia Official US Trailer #2», Walt Disney Animation Studios; 165 с. Старт після заставки студії; назва — лише наприкінці трейлера.
-        clip(2, 'Як називається цей анімаційний фільм?', 'jWM0ct-OLsM', 20, true, ['Зоотрополіс', 'Zootopia', 'Zootropolis', 'Зверополіс', 'Зоотопія'], 600),
+        clip(2, 'Як називається цей анімаційний фільм?', 'jWM0ct-OLsM', 20, true, ['Зоотрополіс', 'Zootopia', 'Zootropolis', 'Зоотопія'], 600),
         // «Usain Bolt 9.58 100m New World Record Berlin [HQ]», realsbstn; 46 с. Фінал чемпіонату світу 2009 у Берліні.
         clip(3, 'Хто виграє цей забіг?', '3nbjhpcZ9_g', 10, true, ['Усейн Болт', 'Usain Bolt', 'Болт', 'Юсейн Болт', 'Bolt'], 800),
         // «Luis Fonsi - Despacito ft. Daddy Yankee», LuisFonsiVEVO; 282 с. Зі звуком; старт 40 с — після вступного вигуку «Fonsi!», на першому куплеті.

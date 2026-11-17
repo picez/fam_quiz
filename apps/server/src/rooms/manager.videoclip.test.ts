@@ -65,7 +65,8 @@ describe('videoclip (36) in the room manager', () => {
     manager.onEvent((_room, event) => events.push(event));
     expect(open(manager, room, olena, 1)).toEqual({ ok: true });
     expect(open(manager, room, olena, 2)).toEqual({ ok: true });
-    expect(events.length).toBeGreaterThan(0);
+    // Кожен шматок — одразу повна розсилка всім (без only і без замикального вікна), тож товариш бачить його зразу.
+    expect(events).toEqual([{ type: 'changed' }, { type: 'changed' }]);
     expect(meOf(manager, room, ira)).toMatchObject({ heard: 2, openedBy: 'Олена' });
   });
 
