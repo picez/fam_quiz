@@ -781,6 +781,11 @@ export const questionSchema = z
     }),
     z.object({
       ...base,
+      /** «Думай як усі» (37e): тема в text, кожен пише одне слово; бали — найбільшій групі схожих. */
+      type: z.literal('thinkalike'),
+    }),
+    z.object({
+      ...base,
       type: z.literal('think'),
       /** «Думай інакше» (35): тема в text, гравець пише одне слово; слова ведучого — 0–3 (0 — ведучий впише їх у грі). points — 0 (think_points), відео немає (think_video). */
       words: z.array(thinkWordSchema).max(LIMITS.maxThinkWords),
@@ -957,6 +962,11 @@ export const questionSchema = z
       const truthKeys = q.accepted.map(answerKey);
       if (spareKeys.some((k) => truthKeys.includes(k))) ctx.addIssue({ code: 'custom', message: 'bluff_spare_truth' });
       if (q.video !== null) ctx.addIssue({ code: 'custom', message: 'bluff_video' });
+    }
+    if (q.type === 'thinkalike') {
+      // Картинка, що проявляється, платила б за час, а підказка недосяжна: бафи вимкнено (off_thinkalike).
+      if (q.reveal !== undefined) ctx.addIssue({ code: 'custom', message: 'thinkalike_reveal' });
+      if (q.hint !== undefined) ctx.addIssue({ code: 'custom', message: 'thinkalike_hint' });
     }
     if (q.type === 'think') {
       // Слово має хоч одну літеру чи цифру; одна відповідь не веде у два слова: стебла слів і синонімів запитання не повторюються.
@@ -1728,6 +1738,12 @@ export const quizSchema = z
           ? boardCells(round).some(({ cell }) => overshootOn(cell.question))
           : round.type !== 'classic' && [...roundQuestions(round), ...roundTrials(round)].some(overshootOn);
       if (overshootPlace) ctx.addIssue({ code: 'custom', message: 'numeric_overshoot_place' });
+      // «Думай як усі» (37e): лише класичні раунди; на клітинці поля відповідає один, групи не буде.
+      const thinkalikePlace =
+        round.type === 'board'
+          ? boardCells(round).some(({ cell }) => cell.question.type === 'thinkalike')
+          : round.type !== 'classic' && round.type !== 'think' && [...roundQuestions(round), ...roundTrials(round)].some((q) => q.type === 'thinkalike');
+      if (thinkalikePlace) ctx.addIssue({ code: 'custom', message: 'thinkalike_place' });
       // Блеф: лише класика.
       const bluffPlace =
         round.type === 'board'

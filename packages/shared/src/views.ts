@@ -1636,6 +1636,25 @@ export interface SurvivalInfo {
   ending: boolean;
 }
 
+/** «Думай як усі» (37e): група схожих слів на розкритті; top — найбільша (бали отримують усі її учасники). */
+export interface AlikeGroupView {
+  key: string;
+  words: string[];
+  members: { id: string; nickname: string }[];
+  top: boolean;
+  points: number;
+}
+
+/** «Думай як усі» (37e): групи від більших до менших, далі за першим учасником у порядку гравців; silent — без відповіді. */
+export interface AlikeInfo {
+  groups: AlikeGroupView[];
+  silent: { id: string; nickname: string }[];
+}
+
+export interface HostAlike extends AlikeInfo {
+  editable: boolean;
+}
+
 /** «Думай інакше» (35): вердикт відповіді учасника на розкритті — не збігся, збігся зі словом ведучого, нічого не написав. */
 export type ThinkVerdict = 'safe' | 'hit' | 'empty';
 
@@ -1970,6 +1989,8 @@ interface BaseView {
   think?: ThinkInfo;
   /** Лише reveal запитання numeric з noOvershoot (37d). */
   overshoot?: OvershootRow[];
+  /** Лише reveal запитання thinkalike (37e): групи слів. До reveal чужих слів тут немає. */
+  alike?: AlikeInfo;
   /** «Мільйонер»: від intro до round_end свого раунду (і finished, якщо він останній); інакше null. */
   ladder: LadderInfo | null;
   /** Поступ ланцюжка; null поза запитанням-ланцюжком, а для сцени й гравців і у фіналі. */
@@ -2506,6 +2527,8 @@ export interface HostView extends BaseView {
   videoclip?: SnippetInfo;
   /** Як у BaseView, але ведучому завжди ще й слово та імена вгадавших. */
   drawing?: HostDrawing;
+  /** «Думай як усі» (37e): як у BaseView, але ще й на locked, з editable (reveal і не автопілот). */
+  alike?: HostAlike;
   /** Як у BaseView, але ще й слова ведучого до reveal, відповіді наживо зі збігом і чи можна міняти слова й розкривати. */
   think?: HostThink;
   /** Як у BaseView, але і у фіналі. */

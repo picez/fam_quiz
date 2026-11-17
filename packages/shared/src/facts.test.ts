@@ -616,3 +616,11 @@ describe('videoclip facts (36)', () => {
     expect(wholeRowQuestion(q)).toBe(false);
   });
 });
+
+describe('thinkalike facts (37e)', () => {
+  it('a thinkalike has no speed window', () => {
+    const q = { id: 'al', type: 'thinkalike', text: 'Фрукт', imageUrl: null, video: null, timeLimit: 30, points: 1000 } as unknown as Question;
+    expect(factLimitMs(q, { type: 'classic' } as Round, false)).toBeNull();
+    expect(wholeRowQuestion(q)).toBe(false);
+  });
+});

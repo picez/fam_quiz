@@ -245,6 +245,10 @@ export const truthFactSchema = z.object({ text: z.string().max(LIMITS.truthText 
 export const questCodeSchema = z.object({ code: z.string().max(LIMITS.maxQuestInput) }).strict();
 /** «Думай інакше» (35): ведучий замінює весь список слів запитання (0–3); зводить і перевіряє рушій. */
 export const thinkWordsEventSchema = z.object({ words: z.array(thinkWordSchema).max(LIMITS.maxThinkWords) });
+/** «Думай як усі» (37e): ведучий об'єднує групу from з групою to; ключі груп — зі зрізу. */
+export const alikeJoinSchema = z.object({ from: z.string().min(1).max(100), to: z.string().min(1).max(100) });
+/** «Думай як усі» (37e): ведучий виносить відповідь гравця в окрему групу. */
+export const alikeSplitSchema = z.object({ playerId: z.string().min(1).max(100) });
 /** Ведучий ховає чи повертає факт гравця (28b). */
 export const truthHideSchema = z.object({ playerId, hidden: z.boolean() });
 /** Командна гра (10j): учасник вибирає команду в лобі. */
@@ -437,6 +441,10 @@ export interface ClientToServerEvents {
   'host:truth-hide': (payload: z.infer<typeof truthHideSchema>, ack: Ack) => void;
   /** «Думай інакше» (35): замінити слова ведучого поточного запитання; ack ok — прийнято, інакше помилка (think_word, think_words_closed, wrong_phase). Слова йдуть лише в зріз ведучого. */
   'host:think-words': (payload: z.infer<typeof thinkWordsEventSchema>, ack: Ack) => void;
+  /** «Думай як усі» (37e): об'єднати групу from з групою to; ack ok чи alike_group / wrong_phase / not_allowed. */
+  'host:alike-join': (payload: z.infer<typeof alikeJoinSchema>, ack: Ack) => void;
+  /** Винести відповідь гравця (команди) в окрему групу. */
+  'host:alike-split': (payload: z.infer<typeof alikeSplitSchema>, ack: Ack) => void;
   /** Командна гра: перемістити учасника в команду або без команди. */
   'host:team-assign': (payload: z.infer<typeof teamAssignSchema>, ack: Ack) => void;
   /** Командна гра: розподілити випадково. */
