@@ -6615,9 +6615,9 @@ body:has(.duel-banner):has(.debuff-banner) .live-notices {
   flex: 1 1 10rem;
 }
 
-/* Ставки на дуелянтів (39). Смуга з лічильниками — на рядок вища: запас під нею росте разом із нею. */
+/* Ставки на дуелянтів (39). Смуга з лічильниками вища (з довгими іменами на 375 px — до 132 px): запас під нею росте разом із нею. */
 body:has(.duel-banner.has-bets) {
-  --duel-banner-room: 8rem;
+  --duel-banner-room: 9rem;
 }
 
 .stage .duel-banner.has-bets ~ .live-notices {
@@ -6653,6 +6653,11 @@ body:has(.duel-banner.has-bets) {
   min-width: 0;
   white-space: normal;
   overflow-wrap: anywhere;
+}
+
+/* Вужчі поля збоку: на 320 px прізвище до 10 літер («Литвиненко») стоїть у кнопці цілим, а не рветься посеред слова. */
+.duel-bet-sides .btn {
+  padding-inline: 0.5rem;
 }
 
 .duel-bet-side.is-challenger {
@@ -6722,6 +6727,19 @@ body:has(.duel-banner.has-bets) {
 .duel-stage-bet-outcome {
   margin: 0;
   overflow-wrap: anywhere;
+}
+
+/*
+ * Понад 8 ставців разом: підсумок дрібніше (на .stage .lead — 2,4vw), а заголовок переможця — менший (довге ім'я дає три рядки),
+ * щоб 22 імені у двох рядках підсумку вмістилися на 1280×720.
+ */
+.stage .duel-stage-bet-outcome.is-many {
+  font-size: clamp(0.875rem, 1.3vw, 1.625rem);
+  line-height: 1.35;
+}
+
+.stage .duel-stage-body:has(.duel-stage-bet-outcome.is-many) > .question {
+  font-size: clamp(1.5rem, 3vw, 3rem);
 }
 
 .duel-host-bets p {

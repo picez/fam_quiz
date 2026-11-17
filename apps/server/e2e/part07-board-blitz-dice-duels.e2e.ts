@@ -2316,7 +2316,8 @@ async function duelGame() {
   await expectNoSideScroll(olya, 'duel7g-pick-375');
   await dialog.getByRole('button', { name: 'Петро', ...exact }).click();
   const banner = '⚔ Дуель: Оля — Петро. Почнеться, щойно ведучий продовжить гру.';
-  for (const page of [stage, ...phones]) await page.locator('.duel-banner').getByText(banner, exact).waitFor();
+  // 39: вікторина без betStake — ставки 100; Іра ставець, тож під текстом смуги — лічильники ставок.
+  for (const page of [stage, ...phones]) await page.locator('.duel-banner', { hasText: banner }).locator('.duel-banner-bets').getByText('Ставки: Оля — 0, Петро — 0', exact).waitFor();
   await expect.poll(() => duelButton(petro).isDisabled()).toBe(true);
   await expect.poll(() => duelButton(ira).isDisabled()).toBe(true);
   expect(await duelButton(olya).count()).toBe(0);
@@ -2455,7 +2456,7 @@ async function duelGame() {
   expect(await duelButton(olya).count(), 'Оля already used her duel').toBe(0);
   await duelButton(ira).click();
   await ira.getByRole('dialog').getByRole('button', { name: 'Оля', ...exact }).click();
-  await ira.locator('.duel-banner').getByText('⚔ Дуель: Іра — Оля. Почнеться, щойно ведучий продовжить гру.', exact).waitFor();
+  await ira.locator('.duel-banner', { hasText: '⚔ Дуель: Іра — Оля. Почнеться, щойно ведучий продовжить гру.' }).waitFor();
   await expect.poll(() => duelButton(petro).isDisabled()).toBe(true);
   await click(host, 'Почати дуель');
   await stageSay('Іра вибирає категорію');

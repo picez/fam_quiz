@@ -387,6 +387,8 @@ export function DuelStage({ view, offsetMs }: { view: StageView; offsetMs: numbe
   const picking = duel.stage === 'category';
   const playing = duel.stage === 'question' || duel.stage === 'answer';
   const bets = duel.bets;
+  // Підсумок ставок: понад MANY_BETS імен разом — дрібніше, щоб два рядки з 22 іменами вмістилися на 1280×720.
+  const outcomeClass = bets !== null && bets.challenger.length + bets.opponent.length > MANY_BETS ? 'lead duel-stage-bet-outcome is-many' : 'lead duel-stage-bet-outcome';
   return (
     <section className="duel-stage">
       <div className="duel-stage-flank">
@@ -450,7 +452,7 @@ export function DuelStage({ view, offsetMs }: { view: StageView; offsetMs: numbe
                 </p>
               </>
             ))}
-          {duel.stage === 'result' && bets !== null && <DuelBetsOutcome duel={duel} bets={bets} className="lead duel-stage-bet-outcome" />}
+          {duel.stage === 'result' && bets !== null && <DuelBetsOutcome duel={duel} bets={bets} className={outcomeClass} />}
         </div>
       </div>
       <div className="duel-stage-flank">

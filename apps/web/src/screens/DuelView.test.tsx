@@ -448,6 +448,21 @@ describe('duel bets', () => {
     expect(outcome(duelInfo({ ...result, bets: null }))).toEqual([]);
   });
 
+  it('the stage result with many bettors is dense: 22 names fit 1280×720', () => {
+    const classes = (duel: DuelInfo) => {
+      const { container, unmount } = render(<DuelStage view={stageView(duel)} offsetMs={0} />);
+      const lines = [...container.querySelectorAll('.duel-stage-bet-outcome')].map((p) => p.classList.contains('is-many'));
+      unmount();
+      return lines;
+    };
+    const people = (n: number, from: number) => Array.from({ length: n }, (_, i) => ({ playerId: `b${from + i}`, nickname: `Гравець ${from + i}` }));
+    // Понад MANY_BETS ставців разом (5 + 4) — щільно, хоч на кожен бік менше за 8.
+    expect(classes(duelInfo({ ...result, bets: bets({ open: false, challenger: people(5, 0), opponent: people(4, 5) }) }))).toEqual([true, true]);
+    expect(classes(duelInfo({ ...result, bets: bets({ open: false, challenger: people(12, 0), opponent: people(10, 12) }) }))).toEqual([true, true]);
+    expect(classes(duelInfo({ ...result, bets: bets({ open: false, challenger: people(4, 0), opponent: people(4, 4) }) }))).toEqual([false, false]);
+    expect(classes(duelInfo({ ...result, bets: bets({ open: false }) }))).toEqual([false, false]);
+  });
+
   it('the phone result', () => {
     const line = (duel: DuelInfo, bet: PlayerDuel['bet'], id: string) => {
       const { container, unmount } = play(view(duel, { bet }, id));
