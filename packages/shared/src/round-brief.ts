@@ -49,6 +49,8 @@ export interface RoundBrief {
   quest: { length: number; tries: number; count: number; bonus: QuestBonusView } | null;
   /** Класичний раунд: скільки в ньому «Мелодій за нотами» (29e); відсутнє, коли їх немає. */
   melodies?: number;
+  /** Класичний раунд: скільки в ньому «Відео за фрагментами» (36); відсутнє, коли їх немає. */
+  videoclips?: number;
 }
 
 /** Зведення без жодної опції: усі прапорці (і instant) false, streak null, multiplier 1, attempts, answerWindow, series, wagerMode, survival, ladder, bets, auction, truth, think і puzzles null, answerModes []. */
@@ -112,7 +114,8 @@ export function roundBrief(round: Round, family = false): RoundBrief {
   const withRules = { ...base, penalty: rules.penalty === 'minus', streak: rules.streak, multiplier: rules.multiplier };
   if (round.type === 'classic') {
     const melodies = round.questions.filter((q) => q.type === 'melody').length;
-    return { ...withRules, speedBonus: round.speedBonus, ...(melodies > 0 ? { melodies } : {}) };
+    const videoclips = round.questions.filter((q) => q.type === 'videoclip').length;
+    return { ...withRules, speedBonus: round.speedBonus, ...(melodies > 0 ? { melodies } : {}), ...(videoclips > 0 ? { videoclips } : {}) };
   }
   if (round.type === 'quest') {
     const bonus: QuestBonusView = round.bonus.kind === 'points' ? { kind: 'points', points: round.bonus.points } : { kind: 'buff', buff: round.bonus.buff, first: round.bonus.first };

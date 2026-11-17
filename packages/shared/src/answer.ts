@@ -12,6 +12,8 @@ export const answerSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('numeric'), value: z.number().finite() }),
   z.object({ type: z.literal('slider'), value: z.number().finite() }),
   z.object({ type: z.literal('melody'), value: z.string().max(LIMITS.answerText).refine(isStorable, UNSTORABLE) }),
+  /** «Відео за фрагментами» (36): текст з телефона; heard дописує рушій. */
+  z.object({ type: z.literal('videoclip'), value: z.string().max(LIMITS.answerText).refine(isStorable, UNSTORABLE) }),
   /** «Думай інакше» (35): одне слово; обрізає й міряє (LIMITS.thinkWord) рушій. */
   z.object({ type: z.literal('think'), value: z.string().max(LIMITS.thinkWord * 2).refine(isStorable, UNSTORABLE) }),
   z.object({ type: z.literal('clues'), value: z.string().max(LIMITS.answerText).refine(isStorable, UNSTORABLE) }),
@@ -171,11 +173,25 @@ export interface MelodyAnswer {
   heard: number;
 }
 
-export type Answer = SubmittedAnswer | ChainAnswer | SortAnswer | WallAnswer | SurveyAnswer | BluffAnswer | WordLadderAnswer | TimedListAnswer | LetterWordsAnswer | MoreLessAnswer | DrawingAnswer | PuzzleAnswer | JigsawAnswer | SpotdiffAnswer | MemoryAnswer | MelodyAnswer;
+/** Запис «Відео за фрагментами» (36): як у «Мелодії» — текст з телефона й скільки шматків відкрито в мить відповіді; heard дописує рушій. */
+export interface VideoclipAnswer {
+  type: 'videoclip';
+  value: string;
+  /** Скільки шматків відкрито в мить відповіді (1…5). */
+  heard: number;
+}
+
+export type Answer = SubmittedAnswer | ChainAnswer | SortAnswer | WallAnswer | SurveyAnswer | BluffAnswer | WordLadderAnswer | TimedListAnswer | LetterWordsAnswer | MoreLessAnswer | DrawingAnswer | PuzzleAnswer | JigsawAnswer | SpotdiffAnswer | MemoryAnswer | MelodyAnswer | VideoclipAnswer;
 
 /** Скільки шматків було відкрито в мить відповіді «Мелодії»; null — не melody або без heard. */
 export function melodyHeardOf(answer: Answer | null): number | null {
   if (answer === null || answer.type !== 'melody') return null;
+  return 'heard' in answer && typeof answer.heard === 'number' ? answer.heard : null;
+}
+
+/** Скільки шматків було відкрито в мить відповіді «Мелодії» чи «Відео за фрагментами» (36); null — інший тип або без heard. */
+export function snippetHeardOf(answer: Answer | null): number | null {
+  if (answer === null || (answer.type !== 'melody' && answer.type !== 'videoclip')) return null;
   return 'heard' in answer && typeof answer.heard === 'number' ? answer.heard : null;
 }
 

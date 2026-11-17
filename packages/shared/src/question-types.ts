@@ -1,7 +1,7 @@
 import type { LIMITS, RoundType } from './quiz';
 
 /** Типи запитань у порядку редактора; звіряється з questionSchema у тесті. */
-export const QUESTION_TYPES = ['single', 'multi', 'boolean', 'text', 'numeric', 'order', 'match', 'chain', 'wordladder', 'sort', 'slider', 'clues', 'pin', 'wall', 'poll', 'wordcloud', 'survey', 'timedlist', 'letterwords', 'moreless', 'drawing', 'sudoku', 'crossword', 'jigsaw', 'spotdiff', 'memory', 'melody', 'bluff', 'think'] as const;
+export const QUESTION_TYPES = ['single', 'multi', 'boolean', 'text', 'numeric', 'order', 'match', 'chain', 'wordladder', 'sort', 'slider', 'clues', 'pin', 'wall', 'poll', 'wordcloud', 'survey', 'timedlist', 'letterwords', 'moreless', 'drawing', 'sudoku', 'crossword', 'jigsaw', 'spotdiff', 'memory', 'melody', 'videoclip', 'bluff', 'think'] as const;
 export type QuestionType = (typeof QUESTION_TYPES)[number];
 
 /** Можливості типу запитання (30e): з них виводяться списки типів у shared, рушії й редакторі. */
@@ -443,6 +443,22 @@ export const QUESTION_TYPE_TRAITS = {
     teamWide: true,
     buffs: { risk: false, letter: false, scope: false },
     time: { min: 'minMelodyTime', max: 'maxTime' },
+  },
+  /** «Відео за фрагментами» (36): як «Мелодія», лише свій мінімум часу. */
+  videoclip: {
+    rounds: ['classic'],
+    simple: false,
+    reveal: false,
+    unscored: false,
+    puzzle: false,
+    proximity: false,
+    wholeRow: false,
+    speed: true,
+    progress: false,
+    hostGraded: true,
+    teamWide: true,
+    buffs: { risk: false, letter: false, scope: false },
+    time: { min: 'minVideoclipTime', max: 'maxTime' },
   },
   bluff: {
     rounds: ['classic', 'truth'],

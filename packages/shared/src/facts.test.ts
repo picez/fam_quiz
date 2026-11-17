@@ -608,3 +608,11 @@ describe('melody facts (29e)', () => {
     expect(wholeRowQuestion(q)).toBe(false);
   });
 });
+
+describe('videoclip facts (36)', () => {
+  it('a videoclip keeps the answer window', () => {
+    const q = { id: 'vc', type: 'videoclip', text: 'Відео', imageUrl: null, video: null, timeLimit: 60, points: 1000 } as unknown as Question;
+    expect(factLimitMs(q, { type: 'classic' } as Round, false)).toBe(60_000);
+    expect(wholeRowQuestion(q)).toBe(false);
+  });
+});

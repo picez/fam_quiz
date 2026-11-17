@@ -127,6 +127,8 @@ export interface PublicQuestion {
   memory?: PublicMemory;
   /** «Мелодія за нотами» (29e): джерело й початок; назва (answer) — лише на reveal. */
   melody?: PublicMelody;
+  /** «Відео за фрагментами» (36): відео YouTube, початок і звук; відповідь (answer) — лише на reveal. */
+  videoclip?: PublicVideoclip;
   /** null для інших типів; слів і правильних категорій тут немає. */
   sort: { categories: Choice[]; total: number; lockSeconds: number } | null;
   /** null для інших типів. */
@@ -417,8 +419,17 @@ export interface PublicMelody {
   answer: string | null;
 }
 
-/** Рядок гравця (команди) в «Мелодії»: heard 0…5; три останні поля — лише на reveal. Текстів відповідей тут немає. */
-export interface MelodyRow {
+/** «Відео за фрагментами» (36): для всіх ролей однаковий; id — id запитання (ключ поля), answer — accepted[0] лише на reveal. */
+export interface PublicVideoclip {
+  id: string;
+  clip: Video;
+  muted: boolean;
+  answer: string | null;
+}
+
+/** Узагальнені рядки шматків (29e → 36): «Мелодія» й «Відео за фрагментами»; MelodyRow/MelodyInfo/PlayerMelody — псевдоніми. */
+/** Рядок гравця (команди): heard 0…5; три останні поля — лише на reveal. Текстів відповідей тут немає. */
+export interface SnippetRow {
   playerId: string;
   nickname: string;
   heard: number;
@@ -428,17 +439,21 @@ export interface MelodyRow {
   timeMs: number | null;
 }
 
-export interface MelodyInfo {
-  rows: MelodyRow[];
+export interface SnippetInfo {
+  rows: SnippetRow[];
 }
 
-/** Власний бік гравця в «Мелодії» (29e). openedBy — лише команди: нік того, хто відкрив останній шматок; соло null. */
-export interface PlayerMelody {
+/** Власний бік гравця в «Мелодії» (29e) чи «Відео за фрагментами» (36). openedBy — лише команди: нік того, хто відкрив останній шматок; соло null. */
+export interface PlayerSnippets {
   heard: number;
   canOpen: boolean;
   canAnswer: boolean;
   openedBy: string | null;
 }
+
+export type MelodyRow = SnippetRow;
+export type MelodyInfo = SnippetInfo;
+export type PlayerMelody = PlayerSnippets;
 
 /** «Пам'ять» (29f), усім: id запитання (ключ поля), сітка й кількість пар; pairs — лише на reveal, інакше null. */
 export interface PublicMemory {
@@ -1966,6 +1981,8 @@ interface BaseView {
   memory?: MemoryInfo;
   /** «Мелодія за нотами» (29e): лише на такому запитанні (question, locked, reveal); без текстів відповідей; інакше ключа немає. */
   melody?: MelodyInfo;
+  /** «Відео за фрагментами» (36): лише на такому запитанні (question, locked, reveal); без текстів відповідей; інакше ключа немає. */
+  videoclip?: SnippetInfo;
   /** Малюнок (28c): лише на такому запитанні (question, locked, reveal); без штрихів і слова до reveal; інакше ключа немає. */
   drawing?: DrawingInfo;
   /** Прогрес сортування; null поза сортуванням, а для сцени й гравців і у фіналі. */
@@ -2255,6 +2272,8 @@ export interface PlayerView extends BaseView {
     memory?: PlayerMemory;
     /** Власний бік у «Мелодії» (29e): лише на такому запитанні; інакше ключа немає. */
     melody?: PlayerMelody;
+    /** Власний бік у «Відео за фрагментами» (36): лише на такому запитанні; інакше ключа немає. */
+    videoclip?: PlayerSnippets;
     /** Власний бік у малюнку (28c): лише на такому запитанні; слово — лише художникові. */
     drawing?: PlayerDrawing;
     /** «Думай інакше» (35): власні життя, статус, вердикт і місце; поза раундом think ключа немає. */
@@ -2364,6 +2383,7 @@ export type LiveProgress =
   | { kind: 'spotdiff'; found: number; total: number; done: boolean }
   | { kind: 'memory'; pairs: number; total: number; done: boolean }
   | { kind: 'melody'; heard: number; total: number }
+  | { kind: 'videoclip'; heard: number; total: number }
   | { kind: 'sort'; card: string | null; cardId: string | null; seq: number; sorted: number; total: number; misses: number }
   | { kind: 'wall'; found: number; groups: number; mistakes: number; locked: boolean; solved: boolean }
   | { kind: 'bluff'; stage: 'lies' | 'choice'; lie: string | null; pick: string | null }
@@ -2471,6 +2491,8 @@ export interface HostView extends BaseView {
   memory?: HostMemoryInfo;
   /** Як у BaseView (29e). */
   melody?: MelodyInfo;
+  /** Як у BaseView (36). */
+  videoclip?: SnippetInfo;
   /** Як у BaseView, але ведучому завжди ще й слово та імена вгадавших. */
   drawing?: HostDrawing;
   /** Як у BaseView, але ще й слова ведучого до reveal, відповіді наживо зі збігом і чи можна міняти слова й розкривати. */

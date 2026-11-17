@@ -29,6 +29,7 @@ import {
   questionSchema,
   ROUND_TYPES,
   QUESTION_TYPES,
+  QUESTION_TYPES_MATCH_SCHEMA,
   questionsOf,
   questionPrice,
   sortSchema,
@@ -111,6 +112,7 @@ import {
   spotdiffFreezeMs,
   melodyOpenSchema,
   melodyHeardOf,
+  snippetHeardOf,
   memoryFlipSchema,
   MEMORY_FLIPS_PER_SECOND,
   MEMORY_SHOW_MS,
@@ -3340,6 +3342,117 @@ describe('melody question (29e)', () => {
   });
 });
 
+describe('videoclip question (36)', () => {
+  const vidQ = (patch: object = {}) => ({ id: 'vc', type: 'videoclip', text: 'Що це за відео?', imageUrl: null, video: null,
+    timeLimit: 60, points: 1000, clip: { id: 'E2Evideo001', start: 12 }, muted: true, accepted: ['Take On Me', 'Тейк он мі'], ...patch });
+  const quizOf = (rounds: object[]) => ({ title: 'T', description: '', settings: DEFAULT_SETTINGS, rounds });
+  const issues = (value: unknown) => {
+    const parsed = quizSchema.safeParse(value);
+    return parsed.success ? [] : parsed.error.issues.map((i) => i.message);
+  };
+  const qIssues = (value: unknown) => {
+    const parsed = questionSchema.safeParse(value);
+    return parsed.success ? [] : parsed.error.issues.map((i) => i.message);
+  };
+
+  it('accepts a videoclip', () => {
+    expect(qIssues(vidQ())).toEqual([]);
+    const { muted: _muted, ...noMuted } = vidQ();
+    expect(questionSchema.parse(noMuted)).toMatchObject({ type: 'videoclip', muted: true, clip: { id: 'E2Evideo001', start: 12 } });
+    expect(questionSchema.parse(vidQ({ muted: false }))).toMatchObject({ muted: false });
+    expect(qIssues(vidQ({ timeLimit: 25 }))).toEqual([]);
+    expect(qIssues(vidQ({ timeLimit: 120 }))).toEqual([]);
+    expect(qIssues(vidQ({ imageUrl: '/uploads/' + 'b'.repeat(32) + '.png' }))).toEqual([]);
+    expect(LIMITS.minVideoclipTime).toBe(25);
+    expect(LIMITS.defaultVideoclipTime).toBe(60);
+  });
+
+  it('refuses a broken videoclip', () => {
+    expect(qIssues(vidQ({ video: { id: 'dQw4w9WgXcQ', start: 0 } }))).toContain('videoclip_video');
+    expect(qIssues(vidQ({ audio: { source: 'youtube', id: 'dQw4w9WgXcQ', start: 0, duration: 15 } }))).toContain('videoclip_video');
+    expect(qIssues(vidQ({ imageUrl: '/uploads/' + 'c'.repeat(32) + '.jpg', reveal: 'blur' }))).toContain('videoclip_video');
+    expect(qIssues(vidQ({ hint: 'Подумайте' }))).toContain('videoclip_hint');
+    const bad = (patch: object) => valid(questionSchema, vidQ(patch));
+    expect(bad({ accepted: [] })).toBe(false);
+    expect(bad({ clip: { id: 'short', start: 0 } })).toBe(false);
+    expect(bad({ clip: { id: 'E2Evideo001', start: -1 } })).toBe(false);
+    expect(bad({ clip: { id: 'E2Evideo001', start: 43_201 } })).toBe(false);
+    expect(bad({ timeLimit: 24 })).toBe(false);
+    expect(bad({ timeLimit: 121 })).toBe(false);
+    expect(bad({ muted: 'yes' })).toBe(false);
+    const { clip: _clip, ...noClip } = vidQ();
+    expect(valid(questionSchema, noClip)).toBe(false);
+  });
+
+  it('roundBrief(classic) counts videoclips only when there are some', () => {
+    const plain = quizSchema.parse(quizOf([round('r1', [single])]));
+    expect(roundBrief(plain.rounds[0]!)).not.toHaveProperty('videoclips');
+    expect(roundBrief(plain.rounds[0]!)).not.toHaveProperty('melodies');
+    const melQ = { id: 'm1', type: 'melody', text: 'Що це за пісня?', imageUrl: null, video: null, timeLimit: 60, points: 1000,
+      track: { source: 'youtube', id: 'abcdefghijk', start: 30 }, accepted: ['Щедрик'] };
+    const mixed = quizSchema.parse(quizOf([round('r1', [single, vidQ({ id: 'v1' }), melQ, vidQ({ id: 'v2' })])]));
+    expect(roundBrief(mixed.rounds[0]!).videoclips).toBe(2);
+    expect(roundBrief(mixed.rounds[0]!).melodies).toBe(1);
+  });
+
+  it('a videoclip plays only in classic rounds', () => {
+    const blitzRound = { id: 'bl', type: 'blitz', title: '', shuffleOptions: false, answerWindow: 15, attempts: 1, check: 'auto',
+      rules: { ...DEFAULT_RULES, partial: null }, questions: [vidQ({ id: 'vb' })] };
+    const final = { id: 'f', type: 'final', title: '', shuffleOptions: false, check: 'auto', questions: [vidQ({ id: 'vf' })] };
+    const bets = { id: 'bt', type: 'bets', title: '', shuffleOptions: false, check: 'auto', betStart: 200, betStep: 100, betMax: 600,
+      questions: [{ ...vidQ({ id: 'vbt' }), betsCut: 2 }] };
+    const auction = { id: 'au', type: 'auction', title: '', shuffleOptions: false, check: 'auto', bidMode: 'step', bidStep: 50, loss: 'bid',
+      questions: [{ ...vidQ({ id: 'vau' }), betsCut: 2 }] };
+    const wipeout = { id: 'rw', type: 'wipeout', title: '', shuffleOptions: false,
+      questions: [vidQ({ id: 'vw' }), ...[1, 2, 3, 4].map((n) => ({ ...single, id: `w${n}` }))] };
+    const survival = { id: 'rs', type: 'survival', title: '', speedBonus: false, shuffleOptions: false, rules: DEFAULT_RULES,
+      questions: [vidQ({ id: 'vsv' }), { ...single, id: 's2' }, { ...single, id: 's3' }], trials: [], trial: 'luck', survivors: 1, bonus: 500 };
+    const four = (id: string) => ({ ...single, id, options: ['a', 'b', 'c', 'd'].map((o) => ({ id: o, text: o.toUpperCase() })), correctId: 'b' });
+    const ladder = { id: 'rl', type: 'ladder', title: '', shuffleOptions: false, questions: [vidQ({ id: 'vl2' }), ...[2, 3, 4, 5].map((n) => four(`l${n}`))],
+      levels: [100, 300, 1000, 3000, 10000], safe: [2], pick: 'host', lifelines: ['fifty'], timer: false };
+    const puzzles = { id: 'pz', type: 'puzzles', title: 'Головоломки', questions: [vidQ({ id: 'vp' })] };
+    const q30 = (id: string) => ({ ...single, id, timeLimit: 30 });
+    const quest = { id: 'rq', type: 'quest', title: '', speedBonus: false, shuffleOptions: false, rules: DEFAULT_RULES,
+      prompt: 'Нічний птах — символ мудрості (4 літери)', code: 'СОВА', order: [0, 1, 2, 3], tries: 3, bonus: { kind: 'points', points: 1200 },
+      questions: [q30('q-1'), q30('q-2'), q30('q-3'), vidQ({ id: 'vq', timeLimit: 30 })] };
+    for (const bad of [blitzRound, final, bets, auction, wipeout, survival, ladder, puzzles, quest]) {
+      expect(issues(quizOf([round('r', [single]), bad])), bad.type).toContain('videoclip_place');
+    }
+    const board = { id: 'b', type: 'board', title: '', shuffleOptions: false, answerMode: 'phone', check: 'auto', rules: DEFAULT_RULES,
+      categories: [1, 2, 3].map((n) => ({ id: `c${n}`, title: `К${n}`, cells: [1, 2, 3].map((m) => ({ mark: 'none',
+        question: n === 1 && m === 1 ? vidQ({ id: 'vc1' }) : { ...single, id: `q${n}${m}` } })) })) };
+    expect(issues(quizOf([board]))).toContain('videoclip_place');
+    const trial = { ...survival, questions: [single, { ...single, id: 's2' }, { ...single, id: 's3' }], trial: 'question', trials: [vidQ({ id: 'vt' })] };
+    expect(issues(quizOf([round('r', [single]), trial]))).toContain('videoclip_place');
+    const thinkQ = (id: string) => ({ id, type: 'think', text: 'Напишіть колір веселки', imageUrl: null, video: null, timeLimit: 30, points: 0, words: [] });
+    const think = { id: 'th', type: 'think', title: '', lives: 3, points: 10000, questions: [thinkQ('t1'), thinkQ('t2'), vidQ({ id: 'vth' })] };
+    expect(issues(quizOf([think]))).toContain('think_type');
+    expect(issues({ ...quizOf([round('r', [single])]), spares: [vidQ({ id: 'vs' })] })).toContain('spare_type');
+    // Дуель зберігає лише текст і написання: відео з запитання туди не потрапляє.
+    expect(duelQuestionSchema.parse(vidQ({ id: 'vd' }))).toEqual({ id: 'vd', text: 'Що це за відео?', accepted: ['Take On Me', 'Тейк он мі'] });
+    expect(issues(quizOf([round('c', [vidQ({ id: 'vc2' })])]))).toEqual([]);
+  });
+
+  it('a videoclip answer comes from the phone without heard', () => {
+    expect(answerSchema.parse({ type: 'videoclip', value: 'Take On Me', heard: 1 })).toEqual({ type: 'videoclip', value: 'Take On Me' });
+    expect(valid(answerSchema, { type: 'videoclip', value: 'я'.repeat(201) })).toBe(false);
+    expect(snippetHeardOf({ type: 'videoclip', value: 'x', heard: 3 })).toBe(3);
+    expect(snippetHeardOf({ type: 'melody', value: 'x', heard: 2 })).toBe(2);
+    expect(melodyHeardOf({ type: 'videoclip', value: 'x', heard: 3 })).toBeNull();
+    expect(snippetHeardOf({ type: 'videoclip', value: 'x' } as never)).toBeNull();
+    expect(snippetHeardOf(null)).toBeNull();
+  });
+
+  it('keeps the type order', () => {
+    expect(QUESTION_TYPES.indexOf('videoclip')).toBe(QUESTION_TYPES.indexOf('melody') + 1);
+    expect(QUESTION_TYPES_MATCH_SCHEMA).toBe(true);
+  });
+
+  it('old quizzes still parse', () => {
+    expect(quizSchema.safeParse(quizOf([round('r', [single])])).success).toBe(true);
+  });
+});
+
 describe('quest round (29g)', () => {
   const q30 = (id: string, patch: object = {}) => ({ ...single, id, timeLimit: 30, ...patch });
   const boolNo = { id: 'q-b', type: 'boolean', text: 'Говерла найвища гора України?', imageUrl: null, video: null, timeLimit: 30, points: 1000, correct: false };
@@ -3508,6 +3621,7 @@ describe('quest round (29g)', () => {
         pairs: ['Київ', 'Варшава', 'Париж', 'Токіо', 'Оттава', 'Рим'].map((text, i) => ({ a: { text: `Країна ${i}` }, b: { text } })),
       },
       melody: { ...b, type: 'melody', text: 'Що це за пісня?', timeLimit: 60, track: { source: 'file', url: `/uploads/${'a'.repeat(32)}.mp3`, start: 5 }, accepted: ['Щедрик'] },
+      videoclip: { ...b, type: 'videoclip', text: 'Що це за відео?', timeLimit: 60, clip: { id: 'E2Evideo001', start: 12 }, muted: true, accepted: ['Take On Me'] },
       bluff: { ...b, type: 'bluff', text: 'Ейфелеву вежу спершу пропонували поставити в …', timeLimit: 60, choiceTime: 30, accepted: ['Барселона'], lies: ['Мадрид', 'Лондон', 'Брюссель'] },
       think: { ...b, points: 0, type: 'think', text: 'Напишіть колір веселки', timeLimit: 30, words: [{ word: 'червоний', synonyms: [] }] },
     };

@@ -66,6 +66,8 @@ export type BuffBlock =
   | 'off_memory'
   /** «Мелодія за нотами»: бафів немає (29e). */
   | 'off_melody'
+  /** «Відео за фрагментами»: бафів немає (36). */
+  | 'off_videoclip'
   | 'unfit_type' | 'unfit_options' | 'unfit_timer' | 'unfit_penalty' | 'unfit_manual' | 'unfit_voice'
   | 'no_voters' | 'spares_out' | 'not_started'
   /** На полі: у категорії клітинки немає власних запасних (9d). */
@@ -238,6 +240,8 @@ export type ErrorCode =
   | 'memory_stale' | 'memory_done' | 'memory_cell' | 'memory_wait' | 'memory_busy' | 'memory_matched' | 'memory_open'
   /** «Мелодія за нотами» (29e): подія не для поточного запитання; шматок не по черзі; відповідь без жодного відкритого шматка. */
   | 'melody_stale' | 'melody_step' | 'melody_unheard'
+  /** «Відео за фрагментами» (36): відповідь без жодного відкритого шматка (stale і step — спільні з «Мелодією»). */
+  | 'videoclip_unseen'
   | 'duel_used'
   | 'duel_busy'
   | 'duel_empty'
