@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { eq } from 'drizzle-orm';
 import { breakdownOf, DEFAULT_RULES, memoryLayout, defaultTeams, packStrokes, SPLASH_MS, type Answer, type GameDetail, type Question } from '@quiz/shared';
-import { LADDER_RIGHT, LADDER_WRONG, auctionRound, betsRound, bluff, blitzRound, boardRound, bool, chain, classicRound, clues, cloud, finalRound, poll, wall, makeQuiz, makeRoundsQuiz, match, pin, single, slider, sortQ, survey, surveyCloud, text, letterwords, moreless, drawing, timedlist, withId, withReveal, withVideo, survivalQuestions, survivalRound, survivalTrials, wipeoutLadder, wipeoutRound, ladderRound, truthRound, think, thinkRound, puzzlesRound, sudoku, crosswordKey, jigsaw, jigsawQuiz, spotdiff, spotdiffQuiz, memoryQuiz, melodyQuiz, videoclipQuiz, alikeQuiz } from '@quiz/engine/testing';
+import { LADDER_RIGHT, LADDER_WRONG, auctionRound, betsRound, bluff, blitzRound, boardRound, bool, chain, classicRound, clues, cloud, finalRound, poll, wall, makeQuiz, makeRoundsQuiz, match, pin, single, slider, sortQ, survey, surveyCloud, text, letterwords, moreless, drawing, timedlist, withId, withReveal, withVideo, survivalQuestions, survivalRound, survivalTrials, wipeoutLadder, wipeoutRound, ladderRound, truthRound, think, thinkRound, puzzlesRound, sudoku, crosswordKey, jigsaw, jigsawQuiz, spotdiff, spotdiffQuiz, memoryQuiz, melodyQuiz, videoclipQuiz, alikeQuiz, spyQuiz } from '@quiz/engine/testing';
 import { buildApp } from './app';
 import { rankPlayers, scoreLines, sortOf } from '@quiz/engine';
 import { answeredTypes, gameQuestionCount, gameTables, hostGame, hostGameWithFacts, hostGames, playerGames } from './history';
@@ -1029,6 +1029,29 @@ describe('host history: answers', () => {
     ]);
     const records = game.room.state.plays[0].answers;
     expect([records[olena]?.points, records[taras]?.points]).toEqual([1000, 1000]);
+  });
+
+  it('history reads a spy answer', async () => {
+    const game = await start(spyQuiz());
+    const ids = [await game.enter('Олена'), await game.enter('Тарас'), await game.enter('Петро')];
+    const manager = game.local.manager;
+    const step = (type: 'start' | 'lock' | 'next') => expect(manager.host(game.room, { type })).toEqual({ ok: true });
+    step('start');
+    step('next');
+    const spyId = game.room.state.plays[0]!.spy!.spyId;
+    const [first, second] = ids.filter((id) => id !== spyId) as [string, string];
+    ids.forEach((id, i) => expect(manager.spyWord(game.room, id, ['запах', 'ранок', 'тепло'][i]!)).toEqual({ ok: true }));
+    for (const id of [first, second]) expect(manager.spyVote(game.room, id, spyId)).toEqual({ ok: true });
+    expect(manager.spyVote(game.room, spyId, first)).toEqual({ ok: true });
+    expect(manager.spyGuess(game.room, spyId, 'кава')).toEqual({ ok: true });
+    step('next');
+    const result = (await game.detail()) as Awaited<ReturnType<typeof game.detail>> & { questions: { responses: object[] }[] };
+    const spyName = game.room.state.players.find((p) => p.id === spyId)!.nickname;
+    const mine = (result.questions[0]?.responses as { nickname: string; answer: unknown }[]).find((r) => r.nickname === spyName);
+    expect(mine?.answer).toMatchObject({ type: 'spy', word: expect.any(String), spy: true, caught: true, guess: 'кава', guessed: true });
+    const records = game.room.state.plays[0]!.answers;
+    expect([first, second].map((id) => records[id]?.points)).toEqual([1000, 1000]);
+    expect(records[spyId]?.points).toBe(500);
   });
 
   it('history shows a solved puzzle', async () => {

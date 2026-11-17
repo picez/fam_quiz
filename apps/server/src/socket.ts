@@ -22,6 +22,8 @@ import {
   sortTiltSchema,
   wallSchema,
   lieSchema,
+  spyTextSchema,
+  spyVoteSchema,
   bluffOptionSchema,
   wipeoutSchema,
   lifelineSchema,
@@ -686,6 +688,24 @@ export function attachSockets(
       if (identity.role !== 'player' || identity.playerId === null) return FORBIDDEN;
       const payload = lieSchema.safeParse(payloadOf(args));
       return payload.success ? manager.lie(room, identity.playerId, payload.data.text) : INVALID;
+    });
+
+    on('player:spy-word', (args) => {
+      if (identity.role !== 'player' || identity.playerId === null) return FORBIDDEN;
+      const payload = spyTextSchema.safeParse(payloadOf(args));
+      return payload.success ? manager.spyWord(room, identity.playerId, payload.data.text) : INVALID;
+    });
+
+    on('player:spy-vote', (args) => {
+      if (identity.role !== 'player' || identity.playerId === null) return FORBIDDEN;
+      const payload = spyVoteSchema.safeParse(payloadOf(args));
+      return payload.success ? manager.spyVote(room, identity.playerId, payload.data.playerId) : INVALID;
+    });
+
+    on('player:spy-guess', (args) => {
+      if (identity.role !== 'player' || identity.playerId === null) return FORBIDDEN;
+      const payload = spyTextSchema.safeParse(payloadOf(args));
+      return payload.success ? manager.spyGuess(room, identity.playerId, payload.data.text) : INVALID;
     });
 
     on('player:bluff', (args) => {
