@@ -195,6 +195,22 @@ function reviveBluff(base: Extract<Question, { type: 'bluff' }>): Question {
   };
 }
 
+/** «Думай інакше» (35) з чернетки: до 3 слів, кожне — рядок і до 5 рядків-синонімів; без відео, звуку, «перевертання» й підказки, ціна 0. */
+function reviveThink(base: Extract<Question, { type: 'think' }>): Question {
+  const { hint: _hint, audio: _audio, reveal: _reveal, ...rest } = base;
+  const raw: unknown = base.words;
+  const words = Array.isArray(raw)
+    ? raw
+        .filter(isObjectLike)
+        .slice(0, LIMITS.maxThinkWords)
+        .map((w) => ({
+          word: typeof w.word === 'string' ? w.word : '',
+          synonyms: Array.isArray(w.synonyms) ? w.synonyms.filter((s): s is string => typeof s === 'string').slice(0, LIMITS.maxThinkSynonyms) : [],
+        }))
+    : [];
+  return { ...rest, video: null, points: 0, words };
+}
+
 /** Малюнок з чернетки: написання — рядки (інакше одне порожнє слово); без відео, звуку, «перевертання» й підказки. */
 function reviveDrawing(base: Extract<Question, { type: 'drawing' }>): Question {
   const { hint: _hint, audio: _audio, reveal: _reveal, ...rest } = base;
@@ -387,6 +403,7 @@ function revive(stored: Question): Question {
   if (base.type === 'spotdiff') return reviveSpotdiff(base);
   if (base.type === 'memory') return reviveMemory(base);
   if (base.type === 'melody') return reviveMelody(base);
+  if (base.type === 'think') return reviveThink(base);
   if (base.type === 'poll') {
     const options = Array.isArray(base.options)
       ? (base.options as unknown[]).filter(isObjectLike).map((option) => ({
@@ -507,7 +524,7 @@ function looksLikeQuiz(value: unknown): value is Quiz {
         typeof id === 'string' &&
         typeof roundTitle === 'string' &&
         // У фіналі, «Ва-банк», «Мільйонері» й «Головоломках» правил немає.
-        (type === 'final' || type === 'bets' || type === 'auction' || type === 'truth' || type === 'puzzles' || type === 'wipeout' || type === 'ladder' || (typeof rules === 'object' && rules !== null));
+        (type === 'final' || type === 'bets' || type === 'auction' || type === 'truth' || type === 'puzzles' || type === 'wipeout' || type === 'think' || type === 'ladder' || (typeof rules === 'object' && rules !== null));
       // «Правда про гравця» без запитань: ціна й таймер.
       if (type === 'truth') return common && typeof (round as Record<string, unknown>).points === 'number' && typeof (round as Record<string, unknown>).timeLimit === 'number';
       if (type === 'board') return common && Array.isArray(categories) && categories.length > 0 && categories.every(looksLikeCategory);
@@ -564,6 +581,7 @@ export function loadDraft(id: string | undefined): Quiz | null {
         const questions = round.questions.map(revive);
         if (round.type === 'blitz' || round.type === 'wipeout' || round.type === 'ladder' || round.type === 'puzzles') return { ...round, questions };
         if (round.type === 'quest') return reviveQuest(round, questions);
+        if (round.type === 'think') return { ...round, lives: numberOr(round.lives), points: numberOr(round.points), questions };
         if (round.type === 'auction') return { ...round, bidStep: round.bidStep ?? LIMITS.defaultBidStep, questions };
         if (round.type === 'bets') return { ...round, betMax: round.betMax ?? null, questions };
         if (round.type === 'survival') return { ...round, questions, trials: round.trials.map(revive) };

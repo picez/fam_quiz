@@ -56,7 +56,7 @@ export function RoundSettings({ round, index, total = 0, onChange, open, onToggl
   // У бліці часткових балів немає, тому «частково» змінює лише класичний раунд і поле.
   const setRules = (patch: Partial<Omit<RoundRules, 'partial'>>) => {
     // У фіналі, «Ва-банк», «Мільйонері» й «Головоломках» правил немає: їхніх елементів керування там не показано.
-    if (round.type === 'final' || round.type === 'bets' || round.type === 'auction' || round.type === 'truth' || round.type === 'puzzles' || round.type === 'wipeout' || round.type === 'ladder') return;
+    if (round.type === 'final' || round.type === 'bets' || round.type === 'auction' || round.type === 'truth' || round.type === 'puzzles' || round.type === 'wipeout' || round.type === 'think' || round.type === 'ladder') return;
     onChange(round.type === 'blitz' ? { ...round, rules: { ...round.rules, ...patch } } : { ...round, rules: { ...round.rules, ...patch } });
   };
   /** Правила бліцу з серіями; плюсова серія замінює стару «Серії», мінусова тримає штраф увімкненим. */
@@ -138,7 +138,7 @@ export function RoundSettings({ round, index, total = 0, onChange, open, onToggl
           <HelpButton id="round.puzzles" />
         </p>
       )}
-      {round.type !== 'truth' && round.type !== 'puzzles' && (
+      {round.type !== 'truth' && round.type !== 'puzzles' && round.type !== 'think' && (
         <label className="check">
           <input
             type="checkbox"
@@ -147,6 +147,38 @@ export function RoundSettings({ round, index, total = 0, onChange, open, onToggl
           />
           <span>{t('shuffleOptions')}</span>
         </label>
+      )}
+      {round.type === 'think' && (
+        <fieldset className="think-settings">
+          <legend className="with-help">
+            <span>{t('roundTypeThink')}</span>
+            <HelpButton id="round.think" />
+          </legend>
+          <label className="field">
+            <span>{t('thinkLivesLabel')}</span>
+            <input
+              type="number"
+              inputMode="numeric"
+              min={LIMITS.minThinkLives}
+              max={LIMITS.maxThinkLives}
+              value={Number.isNaN(round.lives) ? '' : round.lives}
+              onChange={(event) => onChange({ ...round, lives: toNumber(event.target.value) })}
+            />
+          </label>
+          <label className="field">
+            <span>{t('thinkPointsLabel')}</span>
+            <input
+              type="number"
+              inputMode="numeric"
+              min={0}
+              max={LIMITS.maxThinkPoints}
+              step={100}
+              value={Number.isNaN(round.points) ? '' : round.points}
+              onChange={(event) => onChange({ ...round, points: toNumber(event.target.value) })}
+            />
+          </label>
+          <p className="meta">{t('thinkSettingsNote')}</p>
+        </fieldset>
       )}
       {round.type === 'truth' && (
         <>
@@ -493,7 +525,7 @@ export function RoundSettings({ round, index, total = 0, onChange, open, onToggl
           />
         </fieldset>
       )}
-      {round.type !== 'final' && round.type !== 'bets' && round.type !== 'auction' && round.type !== 'truth' && round.type !== 'puzzles' && round.type !== 'wipeout' && round.type !== 'ladder' && (
+      {round.type !== 'final' && round.type !== 'bets' && round.type !== 'auction' && round.type !== 'truth' && round.type !== 'puzzles' && round.type !== 'wipeout' && round.type !== 'think' && round.type !== 'ladder' && (
         <>
       <div className="with-help">
         <label className="check">

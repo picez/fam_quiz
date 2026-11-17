@@ -19,7 +19,7 @@ export interface GuideText {
   items: GuideItem[];
 }
 
-export const ROUND_ICONS: Record<RoundBrief['type'], string> = { classic: '❓', blitz: '⚡', board: '▦', final: '🏆', wipeout: '💰', survival: '🪦', ladder: '🪜', bets: '🎲', auction: '🔨', truth: '🕵️', puzzles: '🧩', quest: '🔐' };
+export const ROUND_ICONS: Record<RoundBrief['type'], string> = { classic: '❓', blitz: '⚡', board: '▦', final: '🏆', wipeout: '💰', survival: '🪦', ladder: '🪜', bets: '🎲', auction: '🔨', truth: '🕵️', puzzles: '🧩', quest: '🔐', think: '🧠' };
 
 export const ROUND_NAMES: Record<RoundBrief['type'], TextKey> = {
   classic: 'roundTypeClassic',
@@ -34,6 +34,7 @@ export const ROUND_NAMES: Record<RoundBrief['type'], TextKey> = {
   truth: 'roundTypeTruth',
   puzzles: 'roundTypePuzzles',
   quest: 'roundTypeQuest',
+  think: 'roundTypeThink',
 };
 
 /** Значки типів; «Аа» — літери мови інтерфейсу (гетер читає словник щоразу). */
@@ -69,6 +70,7 @@ export const TYPE_ICONS: Record<Question['type'], string> = {
   spotdiff: '🔍',
   memory: '🃏',
   melody: '🎵',
+  think: '💭',
 };
 
 /** Значок типу запитання мовою інтерфейсу. */
@@ -103,6 +105,8 @@ export function roundHow(brief: RoundBrief, autopilot = false): string[] {
       return [t('roundHow_puzzles')];
     case 'quest':
       return [t('roundHow_quest')];
+    case 'think':
+      return [t('roundHow_think')];
   }
 }
 

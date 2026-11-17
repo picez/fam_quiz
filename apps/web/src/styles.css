@@ -23785,6 +23785,79 @@ input.sudoku-editor-cell:focus-visible {
   margin-top: 1.5rem;
 }
 
+/* ---------- «Думай інакше» (35): редактор та історія ---------- */
+
+.think-settings,
+.think-words-editor {
+  border: 0;
+  margin: 0 0 0.75rem;
+  padding: 0;
+  min-width: 0;
+}
+
+.think-settings legend,
+.think-words-editor legend {
+  max-width: 100%;
+  padding: 0;
+  margin-bottom: 0.5rem;
+}
+
+.think-word-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.5fr) auto;
+  align-items: end;
+  gap: 0.5rem;
+  min-width: 0;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.think-word-row .field {
+  min-width: 0;
+  margin: 0;
+}
+
+@media (max-width: 30rem) {
+  .think-word-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .think-word-row .field:nth-child(2) {
+    grid-column: 1;
+  }
+
+  .think-word-remove {
+    grid-column: 2;
+    grid-row: 1;
+  }
+}
+
+.think-no-words {
+  margin-top: 0.5rem;
+}
+
+.think-history-rows {
+  list-style: none;
+  margin: 0.25rem 0 0;
+  padding: 0;
+  display: grid;
+  gap: 0.25rem;
+}
+
+.think-history-rows li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.25rem 0.75rem;
+  padding: 0.25rem 0.5rem;
+  border-inline-start: 3px solid var(--correct);
+  overflow-wrap: anywhere;
+}
+
+.think-history-rows li.is-wrong {
+  border-inline-start-color: var(--wrong);
+}
+
 /* ---------- Світла тема ----------
    Змінні — у :root.is-light на початку файлу; тут лише місця, де темна тема має власні числа (білі вуалі, чорні тіні,
    пастельний текст). Як і легкий режим: у кінці файлу й через :where() — специфічність та сама, що в звичайних правил,

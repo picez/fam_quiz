@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest';
 import { loadDraft, saveDraft } from './draft-storage';
-import { newQuestRound, withQuestCode } from './draft';
+import { newQuestRound, newThinkQuestion, newThinkRound, withQuestCode } from './draft';
 import { QUEST_TYPES, type QuestRound } from '@quiz/shared';
 import { newId } from './new-id';
 import { DEFAULT_RULES, LADDER_PRESETS, LIFELINES, LIMITS, ladderPresetSafe, type LadderRound, duelShortfall, duelThreshold, WIPEOUT_TYPES, SURVIVAL_TYPES, rulesOf, boardCells, quizSchema, roundSchema, questionSchema, isPuzzle, ROUND_TYPES, EMPTY_SUDOKU, generateSudoku, layoutCrossword, pickKeyCells, questionsOf, roundQuestions, type BoardRound, type ClassicRound, type Question, type Quiz, type Round, type Duels } from '@quiz/shared';
@@ -89,7 +89,12 @@ describe('newQuestion', () => {
     for (const type of QUESTION_TYPES) {
       // 28d: судоку й кросворд живуть лише в раунді «Головоломки».
       const question = filled(newQuestion(type));
-      const quiz = isPuzzle(question) ? { ...quizWith(), rounds: [{ ...newPuzzlesRound(), questions: [question] }] } : quizWith(question);
+      // 35: «Слово на тему» живе лише в раунді «Думай інакше» (від трьох питань).
+      const quiz = isPuzzle(question)
+        ? { ...quizWith(), rounds: [{ ...newPuzzlesRound(), questions: [question] }] }
+        : question.type === 'think'
+          ? { ...quizWith(), rounds: [{ ...newThinkRound(), questions: [question, filled(newQuestion('think')), filled(newQuestion('think'))] }] }
+          : quizWith(question);
       expect(problemsOf(quiz), type).toEqual([]);
       expect(quizSchema.safeParse(cleaned(quiz)).success, type).toBe(true);
     }
@@ -218,7 +223,7 @@ describe('survey in the editor (10e)', () => {
 describe('wall, poll and word cloud in the editor (10d)', () => {
   it('questionTypesFor: the wall is in classic and on the board; polls and clouds are classic only', () => {
     // 28d: класика — усі типи, крім головоломок (вони лише в «Головоломках»).
-    expect(questionTypesFor('classic')).toEqual(QUESTION_TYPES.filter((type) => type !== 'sudoku' && type !== 'crossword'));
+    expect(questionTypesFor('classic')).toEqual(QUESTION_TYPES.filter((type) => type !== 'sudoku' && type !== 'crossword' && type !== 'think'));
     expect(questionTypesFor('board')).toContain('wall');
     expect(questionTypesFor('board')).not.toContain('poll');
     expect(questionTypesFor('board')).not.toContain('wordcloud');
@@ -395,7 +400,7 @@ describe('changeType', () => {
   it('keeps the question text, time and points', () => {
     const source = { ...newQuestion('single'), text: 'Скільки?', timeLimit: 45, points: 500 };
     // Сортування, стіна, блеф, опитування й хмара мають власні час чи бали: їх перевіряють окремі тести.
-    for (const type of QUESTION_TYPES.filter((candidate) => !['sort', 'wall', 'poll', 'wordcloud', 'bluff', 'wordladder', 'timedlist', 'letterwords', 'moreless', 'drawing', 'sudoku', 'crossword', 'jigsaw', 'spotdiff', 'memory', 'melody'].includes(candidate))) {
+    for (const type of QUESTION_TYPES.filter((candidate) => !['sort', 'wall', 'poll', 'wordcloud', 'bluff', 'wordladder', 'timedlist', 'letterwords', 'moreless', 'drawing', 'sudoku', 'crossword', 'jigsaw', 'spotdiff', 'memory', 'melody', 'think'].includes(candidate))) {
       const changed = changeType(source, type);
       expect(changed.type).toBe(type);
       expect([changed.id, changed.text, changed.timeLimit, changed.points]).toEqual([source.id, 'Скільки?', 45, 500]);
@@ -3384,5 +3389,42 @@ describe('«Із групи» in the editor (12l)', () => {
     const no = { ...newQuestion('boolean'), correct: false } as Question;
     expect(booleanCounts([yes, no, yes, newQuestion('single')])).toEqual({ yes: 2, no: 1 });
     expect(booleanCounts([])).toEqual({ yes: 0, no: 0 });
+  });
+});
+
+describe('think round in the editor (35)', () => {
+  const thinkQuiz = (questions: Question[]) => ({ ...quizWith(), rounds: [{ ...newThinkRound(), questions }] });
+  const topic = (text: string, words: { word: string; synonyms: string[] }[] = []): Question => ({ ...newThinkQuestion(), text, words });
+
+  it('a new think round has the default lives, points and three questions without words', () => {
+    const round = newThinkRound();
+    expect(round).toMatchObject({ type: 'think', title: '', lives: LIMITS.defaultThinkLives, points: LIMITS.defaultThinkPoints });
+    expect(round.questions).toHaveLength(3);
+    for (const question of round.questions) expect(question).toMatchObject({ type: 'think', text: '', words: [], timeLimit: LIMITS.defaultTime, points: 0, imageUrl: null, video: null });
+  });
+
+  it('repeated host words are a problem', () => {
+    const problems = problemsOf(thinkQuiz([topic('Колір?', [{ word: 'червоний', synonyms: [] }, { word: 'Червона', synonyms: [] }]), topic('Фрукт?'), topic('Птах?')]));
+    expect(problems).toContain(t('problemThinkWordsDup', { index: 1 }));
+  });
+
+  it('a cleaned think draft passes the quiz schema: trimmed words, no empty synonyms or rows, price 0', () => {
+    const quiz = thinkQuiz([
+      { ...topic(' Колір? ', [{ word: ' синій ', synonyms: [' блакитний ', ''] }, { word: '', synonyms: [] }]), points: 500 },
+      topic('Фрукт?'),
+      topic('Птах?'),
+    ]);
+    expect(problemsOf(quiz)).toEqual([]);
+    const saved = cleaned(quiz);
+    expect(quizSchema.safeParse(saved).success).toBe(true);
+    expect(saved.rounds[0]).toMatchObject({ type: 'think', lives: 3, points: 5000 });
+    expect(roundQuestions(saved.rounds[0])[0]).toMatchObject({ text: 'Колір?', points: 0, words: [{ word: 'синій', synonyms: ['блакитний'] }] });
+  });
+
+  it('too few questions and broken lives or points are problems', () => {
+    const quiz = { ...quizWith(), rounds: [{ ...newThinkRound(), lives: 0, points: 20_000, questions: [topic('Колір?')] }] };
+    const problems = problemsOf(quiz);
+    expect(problems).toContain(t('problemThinkCount', { min: LIMITS.minThinkQuestions, max: LIMITS.maxThinkQuestions }));
+    expect(problems).toContain(t('problemThinkNumbers', { min: LIMITS.minThinkLives, max: LIMITS.maxThinkLives, points: LIMITS.maxThinkPoints }));
   });
 });

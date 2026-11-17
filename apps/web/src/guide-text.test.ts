@@ -22,6 +22,13 @@ describe('guide texts', () => {
     expect(typeHow('order', 'NASA')).toContain('(зверху — NASA)');
   });
 
+  it('think: the round name, icon and how it works (35)', () => {
+    expect(t(ROUND_NAMES.think)).toBe('Думай інакше');
+    expect(ROUND_ICONS.think).toBe('🧠');
+    expect(roundHow(emptyBrief('think'))[0]).toContain('❤️');
+    expect(typeHow('think')).toContain('ведучий');
+  });
+
   it('every question type has a line', () => {
     for (const type of ['single', 'multi', 'boolean', 'text', 'numeric', 'order', 'match', 'chain', 'wordladder', 'sort', 'timedlist', 'letterwords', 'moreless', 'drawing'] as const) expect(typeHow(type).length).toBeGreaterThan(10);
   });

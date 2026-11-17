@@ -67,6 +67,8 @@ describe('editor type menu before the registry (30e)', () => {
       survival: ['single', 'boolean', 'numeric', 'text', 'slider'],
       ladder: ['single'],
       quest: ['single', 'multi', 'boolean', 'text', 'numeric', 'order', 'match', 'slider'],
+      // 35: «Слово на тему» — лише тут, і тут нічого іншого.
+      think: ['think'],
     });
   });
 
@@ -101,7 +103,12 @@ describe('editor type menu before the registry (30e)', () => {
       memory: [LIMITS.minMemoryTime, LIMITS.maxPuzzleTime],
       melody: [LIMITS.minMelodyTime, LIMITS.maxTime],
       bluff: plain,
+      think: plain,
     });
+  });
+
+  it('think lives only in the think round', () => {
+    for (const round of ROUND_TYPES) expect(questionTypesFor(round).includes('think'), round).toBe(round === 'think');
   });
 
   it('falls back to the general bounds for an unknown type from an old draft', () => {

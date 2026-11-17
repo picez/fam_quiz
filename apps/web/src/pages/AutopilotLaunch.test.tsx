@@ -74,6 +74,15 @@ describe('AutopilotLaunch', () => {
     expect(create().disabled).toBe(true);
   });
 
+  it('lists a think round without host words as the reason (35)', async () => {
+    vi.mocked(getAutopilotCheck).mockResolvedValue({ ok: true, blocked: [{ code: 'think_words', rounds: [1] }], changed: [] });
+    open();
+    expect(await screen.findByText(t('autopilotBlocked'))).toBeTruthy();
+    const line = screen.getByText(t('autopilotBlock_think_words')).closest('li')!;
+    expect(line.textContent).toContain('Раунд 2');
+    expect(create().disabled).toBe(true);
+  });
+
   it('keeps the button off while checking and when the check fails', async () => {
     vi.mocked(getAutopilotCheck).mockResolvedValue({ ok: false, error: 'not_found' });
     open();

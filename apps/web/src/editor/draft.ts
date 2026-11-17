@@ -85,6 +85,10 @@ import {
   questDefaultOrder,
   type LadderPathIssue,
   type QuestionType,
+  type ThinkRound,
+  type ThinkWord,
+  thinkKey,
+  thinkWordsIssue,
 } from '@quiz/shared';
 import { t, type TextKey } from '../i18n';
 import { newId } from './new-id';
@@ -390,6 +394,9 @@ function build(common: Common, type: QuestionType): Question {
     case 'wordladder':
       // Старт, одне проміжне слово й ціль; без відео — без таймера драбина не закінчиться.
       return { ...common, video: null, type, timeLimit: LIMITS.defaultWordLadderTime, path: ['', '', ''], maxSteps: LIMITS.defaultWordLadderSteps };
+    case 'think':
+      // «Думай інакше» (35): тема й слова ведучого; бали дають місця раунду, тож ціна 0; без відео, звуку й «перевертання».
+      return { ...common, video: null, points: 0, type, words: [] };
     case 'sort': {
       const categories = blanks(LIMITS.minSortCategories);
       return {
@@ -738,6 +745,31 @@ export function newTruthRound(): TruthRound {
   return { id: newId(), type: 'truth', title: '', points: LIMITS.defaultPoints, timeLimit: LIMITS.defaultTime };
 }
 
+/** Нове запитання «Думай інакше» (35): порожня тема, без слів (ведучий впише їх у грі), типовий таймер, ціна 0. */
+export function newThinkQuestion(): Extract<Question, { type: 'think' }> {
+  return { id: newId(), text: '', imageUrl: null, video: null, timeLimit: LIMITS.defaultTime, points: 0, type: 'think', words: [] };
+}
+
+/** Новий «Думай інакше» (35): типові життя й сума за 1-ше місце, найменше запитань (без слів). */
+export function newThinkRound(): ThinkRound {
+  return {
+    id: newId(),
+    type: 'think',
+    title: '',
+    lives: LIMITS.defaultThinkLives,
+    points: LIMITS.defaultThinkPoints,
+    questions: Array.from({ length: LIMITS.minThinkQuestions }, newThinkQuestion),
+  };
+}
+
+/** Слова ведучого як їх збереже редактор: слово й синоніми обрізані, пробіли зведені, порожні синоніми відкинуто; зовсім порожній рядок зникає. */
+export function cleanThinkWords(words: readonly ThinkWord[]): ThinkWord[] {
+  const tidy = (value: string) => value.normalize('NFC').replace(/\s+/g, ' ').trim();
+  return words
+    .map((w) => ({ word: tidy(w.word), synonyms: w.synonyms.map(tidy).filter((s) => s !== '') }))
+    .filter((w) => w.word !== '' || w.synonyms.length > 0);
+}
+
 /** Нове запитання драбини «Ва-банк»: «один варіант», ціна на сотню вища за попереднє (не більше максимуму); перше — 100. */
 export function newWipeoutQuestion(after: Question | undefined): Question {
   return newBoardQuestion(after);
@@ -997,6 +1029,11 @@ const cleanBody = (question: Question): Question => {
         accepted: [truth, ...others.filter((s) => s !== '')],
         lies: filledSpares.length >= LIMITS.minBluffSpares ? filledSpares : spares,
       };
+    }
+    case 'think': {
+      // Без відео, звуку, «перевертання» й підказки; ціна 0 (think_points), слова почищені.
+      const { hint: _hint, audio: _audio, reveal: _reveal, ...rest } = question;
+      return { ...rest, text, video: null, points: 0, words: cleanThinkWords(question.words) };
     }
     case 'clues':
       return {
@@ -1456,6 +1493,13 @@ function problemKey(question: Question, place: Place = ANYWHERE): TextKey | null
       if (!Number.isInteger(question.choiceTime) || question.choiceTime < LIMITS.minTime || question.choiceTime > LIMITS.maxTime) return 'problemBluffChoiceTime';
       break;
     }
+    case 'think': {
+      if (question.words.length > LIMITS.maxThinkWords || question.words.some((w) => w.synonyms.length > LIMITS.maxThinkSynonyms)) return 'problemThinkWordsLimits';
+      const issue = thinkWordsIssue(question.words);
+      if (issue === 'think_word_empty' || question.words.some((w) => thinkKey(w.word) === '')) return 'problemThinkWordEmpty';
+      if (issue === 'think_words_dup') return 'problemThinkWordsDup';
+      break;
+    }
     case 'poll':
       if (question.options.some(isBlankOption)) return 'problemEmptyOption';
       break;
@@ -1518,6 +1562,10 @@ const auctionNumbersBroken = (round: AuctionRound) => !wholeBet(round.bidStep, 1
 const truthNumbersBroken = (round: TruthRound) =>
   !Number.isInteger(round.points) || round.points < 0 || round.points > LIMITS.maxPoints || !Number.isInteger(round.timeLimit) || round.timeLimit < LIMITS.minTime || round.timeLimit > LIMITS.maxTime;
 
+/** Життя чи сума за місця «Думай інакше» (35) поза межами. */
+const thinkNumbersBroken = (round: ThinkRound) =>
+  !Number.isInteger(round.lives) || round.lives < LIMITS.minThinkLives || round.lives > LIMITS.maxThinkLives || !Number.isInteger(round.points) || round.points < 0 || round.points > LIMITS.maxThinkPoints;
+
 /** «Квест із кодом»: що не так з кодом, порядком, бонусом чи запитаннями раунду (ключі проблем), без проблем самих запитань. */
 function questIssues(round: QuestRound, quiz: Quiz): TextKey[] {
   const issues: TextKey[] = [];
@@ -1565,6 +1613,7 @@ export function firstProblem(quiz: Quiz): ProblemPlace | null {
     if (current.type === 'bets' && betsSettingsBroken(current)) return { round, question: 0, cell: null };
     if (current.type === 'auction' && auctionNumbersBroken(current)) return { round, question: 0, cell: null };
     if (current.type === 'quest' && questIssues(current, quiz).length > 0) return { round, question: 0, cell: null };
+    if (current.type === 'think' && (thinkNumbersBroken(current) || current.questions.length < LIMITS.minThinkQuestions || current.questions.length > LIMITS.maxThinkQuestions)) return { round, question: 0, cell: null };
     const question = current.questions.findIndex((q, index) => problemKey(q, roundPlace(quiz, round, index)) !== null || ((current.type === 'bets' || current.type === 'auction') && q.betsCut === undefined));
     if (question !== -1) return { round, question, cell: null };
   }
@@ -1807,6 +1856,13 @@ export function problemsOf(quiz: Quiz): string[] {
         problems.push(where(key === 'problemQuestCode' ? t(key, { min: LIMITS.minQuestCode, max: LIMITS.maxQuestCode }) : key === 'problemQuestShort' ? t(key, { length: Math.max(Array.from(round.code).length, LIMITS.minQuestCode) }) : t(key)));
       }
     }
+    if (round.type === 'think') {
+      if (round.questions.length < LIMITS.minThinkQuestions || round.questions.length > LIMITS.maxThinkQuestions) {
+        problems.push(where(t('problemThinkCount', { min: LIMITS.minThinkQuestions, max: LIMITS.maxThinkQuestions })));
+      }
+      if (thinkNumbersBroken(round)) problems.push(where(t('problemThinkNumbers', { min: LIMITS.minThinkLives, max: LIMITS.maxThinkLives, points: LIMITS.maxThinkPoints })));
+      if (round.questions.some((question) => question.type !== 'think')) problems.push(where(t('problemThinkType')));
+    }
     if (round.type === 'wipeout') {
       if (round.questions.length < LIMITS.minWipeoutQuestions) problems.push(where(t('problemWipeoutFew', { min: LIMITS.minWipeoutQuestions })));
       if (round.questions.length > LIMITS.maxWipeoutQuestions) problems.push(where(t('problemWipeoutMany', { max: LIMITS.maxWipeoutQuestions })));
@@ -1894,6 +1950,9 @@ export function problemsOf(quiz: Quiz): string[] {
       if (messages.includes('quest_order')) problems.push(t('problemQuestOrder'));
       if (messages.includes('quest_buff')) problems.push(t('problemQuestBuff'));
       if (messages.includes('quest_type')) problems.push(t('problemQuestType'));
+      if (messages.includes('think_type') || messages.includes('think_round')) problems.push(t('problemThinkType'));
+      if (messages.includes('think_words_dup')) problems.push(t('problemThinkWordsDup', { index: 1 }));
+      if (messages.includes('think_word_empty')) problems.push(t('problemThinkWordEmpty', { index: 1 }));
       if (messages.includes('puzzles_type')) problems.push(t('problemPuzzlesType', { index: 1 }));
       if (messages.includes('spare_video')) problems.push(t('problemSpareVideo'));
       if (messages.includes('duplicate_spare_ids')) problems.push(t('problemSpareDuplicate'));

@@ -1,6 +1,8 @@
+// @vitest-environment jsdom
+import { render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { answerText } from '../format';
-import { auctionLine, truthLine, carryLine, debuffLines, ladderLines, lettersLines, ladderPrizeLines, survivalBonusLines, survivalLines, wagerLine, wipeoutLines } from './GameHistory';
+import { ThinkHistory, auctionLine, truthLine, carryLine, debuffLines, ladderLines, lettersLines, ladderPrizeLines, survivalBonusLines, survivalLines, wagerLine, wipeoutLines } from './GameHistory';
 
 describe('history: memory (29f)', () => {
   it('history shows pairs of total', () => {
@@ -227,5 +229,27 @@ describe('history: melody (29e)', () => {
   it('history shows the chunk', () => {
     expect(answerText({ type: 'melody', value: 'Щедрик', heard: 2 } as never, null)).toBe('Щедрик · 2 с');
     expect(answerText({ type: 'melody', value: 'Щедрик' } as never, null)).toBe('Щедрик');
+  });
+});
+
+describe('history: think (35)', () => {
+  it('shows the final host words and every row with its verdict and lives', () => {
+    const think = {
+      words: ['червоний', 'синій'],
+      lives: { Олена: 2, Хосе: 3, Іра: 0 },
+      rows: [
+        { nickname: 'Олена', answer: 'Червона', verdict: 'hit' as const, lost: true },
+        { nickname: 'Хосе', answer: 'Зелений', verdict: 'safe' as const, lost: false },
+        { nickname: 'Іра', answer: '', verdict: 'empty' as const, lost: true },
+      ],
+    };
+    const { container } = render(<ThinkHistory think={think} />);
+    expect(screen.getByText('Слова ведучого: червоний, синій')).toBeTruthy();
+    const rows = [...container.querySelectorAll('li')].map((li) => li.textContent);
+    expect(rows[0]).toContain('збіг');
+    expect(rows[0]).toContain('❤️ 2');
+    expect(rows[1]).toContain('в безпеці');
+    expect(rows[2]).toContain('без відповіді');
+    expect(rows[2]).toContain('—');
   });
 });
