@@ -3282,6 +3282,8 @@ function base(state: GameState, forHost: boolean) {
     newcomers: newcomersOn(state.quiz),
     // Сімейна гра (31): ключ лише коли ввімкнено — фікстури звичайних ігор не змінюються.
     ...(familyOn(state.quiz) ? { family: true as const } : {}),
+    // Звуки сцени (40): ключ лише коли ведучий вимкнув; в автопілоті вимикача ведучого немає — ключа немає.
+    ...(state.soundsOff === true && state.autopilot === undefined ? { soundsOff: true as const } : {}),
     teams: teamsView(state),
     // Бонуси рівнів (15a): без ключа — діють; 'off' — ведучий вимкнув; 'none' — командна гра чи жоден бонус не пасує (переважає 'off').
     ...levelBonusesView(state),

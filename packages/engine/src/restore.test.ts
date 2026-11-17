@@ -366,7 +366,7 @@ const STATE_SHAPE: Record<string, string> = {
       'quiz', 'phase', 'roundIndex', 'questionIndex', 'players', 'plays', 'presented', 'startedAt', 'endsAt', 'paused', 'remainingMs',
       'pausedAt', 'board', 'heldAt', 'final', 'adjustments', 'adjustmentSeq', 'buffSeq', 'debuffs', 'duel', 'duelsDeclared', 'duelUsed',
       'sparesUsed', 'transitions', 'splash', 'guidePage', 'awaiting', 'ladder', 'teams', 'stepAt', 'autopilot', 'appeals', 'appealQueue', 'perks', 'truth',
-      'drawTurns', 'stealth', 'deferredCharges', 'quest', 'questBuffs',
+      'drawTurns', 'stealth', 'deferredCharges', 'quest', 'questBuffs', 'soundsOff',
     ],
     true,
   ),
@@ -1248,7 +1248,7 @@ const KEYS: Record<number, Record<string, string>> = {
     Appeal: 'adjustmentSeq,by,endsAt,id,no,openedAt,outcome,questionIndex,reason,votes,yes',
   },
   22: {
-    GameState: 'adjustmentSeq,adjustments,appealQueue,appeals,autopilot,awaiting,board,buffSeq,debuffs,deferredCharges,drawTurns,duel,duelUsed,duelsDeclared,endsAt,final,guidePage,heldAt,ladder,paused,pausedAt,perks,phase,players,plays,presented,quest,questBuffs,questionIndex,quiz,remainingMs,roundIndex,sparesUsed,splash,startedAt,stealth,stepAt,teams,transitions,truth',
+    GameState: 'adjustmentSeq,adjustments,appealQueue,appeals,autopilot,awaiting,board,buffSeq,debuffs,deferredCharges,drawTurns,duel,duelUsed,duelsDeclared,endsAt,final,guidePage,heldAt,ladder,paused,pausedAt,perks,phase,players,plays,presented,quest,questBuffs,questionIndex,quiz,remainingMs,roundIndex,soundsOff,sparesUsed,splash,startedAt,stealth,stepAt,teams,transitions,truth',
     Quiz: 'description,duels,rounds,settings,spares,title',
     QuizSettings: 'awayPenalty,buffs,debuffPrices,debuffShop,debuffs,family,leaderboard,levelBonuses,newcomers,teams',
     PlayerState: 'connected,id,nickname,score,streak,totalTimeMs',
