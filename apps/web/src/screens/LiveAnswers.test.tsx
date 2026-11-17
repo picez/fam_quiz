@@ -675,3 +675,20 @@ describe('LiveAnswers: melody (29e)', () => {
     expect(screen.getByText('Відповіли 1 з 3')).toBeTruthy();
   });
 });
+
+describe('LiveAnswers: videoclip (36)', () => {
+  const videoclip = { id: 'v1', type: 'videoclip', text: 'Що це за відео?', imageUrl: null, video: null, timeLimit: 60, points: 1000, clip: { id: 'djV11Xbc914', start: 30 }, muted: true, accepted: ['Take On Me'] } as unknown as Question;
+
+  it('live answers show the chunk and the answer', () => {
+    const rows = [
+      row({ id: 'p1', nickname: 'Оля', answered: true, answer: { type: 'videoclip', value: 'Take On Me', heard: 2 } as never, progress: { kind: 'videoclip', heard: 2, total: 5 }, verdict: 'correct' }),
+      row({ id: 'p2', nickname: 'Тарас', progress: { kind: 'videoclip', heard: 1, total: 5 } }),
+      row({ id: 'p3', nickname: 'Петро', progress: { kind: 'videoclip', heard: 0, total: 5 } }),
+    ];
+    show(rows, base({ correct: videoclip }));
+    const answers = [...document.querySelectorAll('.live-answer')].map((el) => el.textContent);
+    expect(answers).toEqual(['Take On Me · 2 с', '👁 1 с']);
+    expect(document.querySelector('.tag.is-correct')?.textContent).toBe(t('liveVerdict_correct'));
+    expect(screen.getByText('Відповіли 1 з 3')).toBeTruthy();
+  });
+});

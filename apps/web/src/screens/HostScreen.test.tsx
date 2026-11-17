@@ -3888,6 +3888,58 @@ describe('HostScreen melody (29e)', () => {
   });
 });
 
+describe('HostScreen videoclip (36)', () => {
+  const clip = { id: 'djV11Xbc914', start: 30 };
+  const full = { id: 'v1', type: 'videoclip', text: 'Що це за відео?', imageUrl: null, video: null, timeLimit: 60, points: 1000, clip, muted: true, accepted: ['Take On Me'] } as unknown as Question;
+  const publicQ = (answer: string | null) => ({ ...publicOf(single), type: 'videoclip' as const, text: 'Що це за відео?', choices: [], videoclip: { id: 'v1', clip, muted: true, answer } });
+  const r = (playerId: string, nickname: string, heard: number, over: Record<string, unknown> = {}) => ({ playerId, nickname, heard, answered: false, correct: null, points: null, timeMs: null, ...over });
+
+  it('the host gets replay and stop on reveal', async () => {
+    const info = { rows: [r('p1', 'Оля', 2, { answered: true, correct: true, points: 800, timeMs: 5000 }), r('p2', 'Тарас', 0, { points: 0 })] };
+    show(view({ phase: 'question', questionIndex: 0, playerCount: 2, answeredCount: 1, question: publicQ(null), correct: full, endsAt: Date.now() + 60_000, videoclip: info }));
+    expect(document.querySelector('.host-audio')).toBeNull();
+    const tiles = [...document.querySelectorAll('.host-videoclip .melody-board')].map((el) => el.textContent);
+    expect(tiles).toEqual(['Оля👁 2 с ✓', 'Тарасще не дивився']);
+    expect(screen.getByText('Правильна відповідь: Take On Me')).toBeTruthy();
+    expect(document.querySelector('iframe')).toBeNull();
+    cleanup();
+    const send = show(view({ phase: 'reveal', questionIndex: 0, playerCount: 2, answeredCount: 2, question: publicQ('Take On Me'), correct: full, videoclip: info }));
+    expect(document.querySelector('.host-audio')).not.toBeNull();
+    // Сцена відкрита: відео грає там, у пульті рамки немає.
+    expect(document.querySelector('iframe')).toBeNull();
+    fireEvent.click(button('Програти ще раз'));
+    fireEvent.click(button('Стоп'));
+    await waitFor(() => expect(send).toHaveBeenCalledWith('host:audio', { action: 'stop' }));
+    expect(send).toHaveBeenCalledWith('host:audio', { action: 'replay' });
+    const rows = [...document.querySelectorAll('.host-videoclip .melody-table tbody tr')].map((tr) => [...tr.querySelectorAll('td')].map((td) => td.textContent));
+    expect(rows).toEqual([
+      ['1', 'Оля', '✓ 2 с', '+800'],
+      ['—', 'Тарас', '—', '0'],
+    ]);
+  });
+
+  it('without a stage the host panel plays the video, not an audio element', () => {
+    const info = { rows: [r('p1', 'Оля', 2, { answered: true, correct: true, points: 800, timeMs: 5000 })] };
+    render(
+      <HostScreen view={view({ phase: 'reveal', questionIndex: 0, playerCount: 1, answeredCount: 1, question: publicQ('Take On Me'), correct: full, videoclip: info })} code="123456" stageUrl="x" joinUrl="y" send={vi.fn(async () => ({ ok: true as const }))} stageOnline={false} />,
+    );
+    expect(document.querySelector('.host-audio .videoclip-reveal .videoclip-frame iframe')).not.toBeNull();
+    expect(document.querySelector('.host-audio audio')).toBeNull();
+    expect(document.querySelector('.host-audio .audio-card')).toBeNull();
+    expect(document.querySelectorAll('iframe')).toHaveLength(1);
+  });
+
+  it('the host can grade a videoclip', () => {
+    const info = { rows: [r('p1', 'Оля', 2, { answered: true, correct: false, points: 0, timeMs: 5000 })] };
+    const responses = [
+      { playerId: 'p1', nickname: 'Оля', answer: { type: 'videoclip' as const, value: 'Take on me!' }, timeMs: 5000, accepted: false, grade: 'wrong' as const, streakBonus: 0, away: [], awayPenalty: false, silent: false, points: 0, overridden: false, buff: null, spare: null, clue: null },
+    ];
+    const send = show(view({ phase: 'reveal', questionIndex: 0, playerCount: 1, answeredCount: 1, question: publicQ('Take On Me'), correct: full, videoclip: info, responses } as never));
+    fireEvent.click(button('Зарахувати'));
+    expect(send).toHaveBeenCalledWith('host:override', { playerId: 'p1', grade: 'correct' });
+  });
+});
+
 describe('HostScreen: code quest (29g)', () => {
   const questRound: RoundInfo = { index: 0, total: 1, title: 'Квест', type: 'quest', partial: false, description: '', brief: emptyBrief('quest'), times: null };
   const quest = (over: object = {}) => ({

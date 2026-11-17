@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { clueShare, melodyRevealClip, reactionAllowed, revealShare, type Answer, type Reaction, type ClientToServerEvents, type Grade, type HostBoard, type HostDrafts, type HostView, type SortTilt } from '@quiz/shared';
+import { SNIPPET_REVEAL_SECONDS, clueShare, melodyRevealClip, reactionAllowed, revealShare, type Answer, type Reaction, type ClientToServerEvents, type Grade, type HostBoard, type HostDrafts, type HostView, type SortTilt } from '@quiz/shared';
 import { secondsLeft } from '../clock';
 import { ThemeToggle } from '../ThemeToggle';
 import { awayRowTexts } from '../away-text';
@@ -20,6 +20,7 @@ import { PuzzleBoards, PuzzleSolution } from './PuzzleView';
 import { JigsawBoards, JigsawResults } from './JigsawView';
 import { MemoryPeek, MemoryStage } from './MemoryView';
 import { MelodyStage } from './MelodyView';
+import { VideoclipReveal, VideoclipStage } from './VideoclipView';
 import { SpotdiffStage } from './SpotdiffView';
 import { DrawingBoard, DrawingGuessers, DrawingLive, strokesOf } from './DrawingView';
 import type { DrawingModel } from '../live/drawing';
@@ -370,8 +371,19 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
   const debuffKinds = view.allowed.debuffs;
   // У бліці оцінка остаточна: змінювати її на reveal не можна.
   // «Мелодія за нотами» (29e): панель «Ще раз / Стоп» — лише на розкритті, і керує вона треком на сцені (30 с від початку фрагмента).
-  const clip = view.question?.melody !== undefined ? (view.phase === 'reveal' ? melodyRevealClip(view.question.melody.track) : null) : (view.question?.audio?.clip ?? null);
-  const canGrade = phase === 'reveal' && (correct?.type === 'text' || correct?.type === 'melody') && round?.type !== 'blitz' && !isFinal;
+  // «Відео за фрагментами» (36): так само, лише на розкритті; кліп — у формі audioOf ({ source: 'youtube', … }), щоб з'явилася панель. Грає його VideoclipReveal.
+  const videoclip = view.question?.videoclip;
+  const clip =
+    videoclip !== undefined
+      ? view.phase === 'reveal'
+        ? { source: 'youtube' as const, id: videoclip.clip.id, start: videoclip.clip.start, duration: SNIPPET_REVEAL_SECONDS }
+        : null
+      : view.question?.melody !== undefined
+        ? view.phase === 'reveal'
+          ? melodyRevealClip(view.question.melody.track)
+          : null
+        : (view.question?.audio?.clip ?? null);
+  const canGrade = phase === 'reveal' && (correct?.type === 'text' || correct?.type === 'melody' || correct?.type === 'videoclip') && round?.type !== 'blitz' && !isFinal;
   // Апеляція (12f): поки зал голосує, «Далі» рушій відхиляє (appeal_open) — головна кнопка неактивна й каже «Голосує зал».
   const appealVoting = phase === 'reveal' && view.appeal?.outcome === null;
   // Зал зарахував відповідь: оцінку поверх рушій відхиляє (not_allowed), доки рядок апеляції не скасовано в «↶ Бали».
@@ -871,7 +883,10 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
               {t('audioStop')}
             </button>
           </div>
-          {stageGone && (
+          {stageGone && videoclip !== undefined && (
+            <VideoclipReveal key={`${view.round?.index ?? 0}:${view.questionIndex}:${videoclip.id}`} videoclip={videoclip} ready={phase === 'reveal' && !view.paused} paused={view.paused} command={audioCommand} />
+          )}
+          {stageGone && videoclip === undefined && (
             <QuestionAudio
               key={`${view.round?.index ?? 0}:${view.questionIndex}`}
               clip={clip}
@@ -1250,6 +1265,14 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
         <section className="panel host-melody">
           <h2>{t('type_melody')}</h2>
           <MelodyStage info={view.melody} melody={view.question.melody} reveal={phase === 'reveal'} host />
+        </section>
+      )}
+
+      {/* «Відео за фрагментами» (36): хто на якому шматку й хто відповів; на розкритті — таблиця з балами. Відео тут не грає (без сцени — у host-audio). */}
+      {view.videoclip !== undefined && videoclip !== undefined && (
+        <section className="panel host-videoclip">
+          <h2>{t('type_videoclip')}</h2>
+          <VideoclipStage info={view.videoclip} videoclip={videoclip} reveal={phase === 'reveal'} host />
         </section>
       )}
 

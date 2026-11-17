@@ -22284,6 +22284,38 @@ input.sudoku-editor-cell:focus-visible {
 }
 /* «Мелодія за нотами»: кінець сцени й пульта */
 
+/* «Відео за фрагментами»: сцена й пульт (36). До розкриття — ті самі плитки, що в «Мелодії» (.melody-stage), без жодної рамки; на розкритті —
+ * назва на всю ширину, ліворуч відео 16:9 (вписане в комірку), праворуч таблиця з балами. */
+.puzzle-stage.jigsaw-stage.melody-stage.videoclip-stage.is-reveal {
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 1vh 2vw;
+}
+
+.videoclip-stage.is-reveal .videoclip-title {
+  grid-column: 1 / -1;
+}
+
+.videoclip-stage-video {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  min-height: 0;
+  container-type: size;
+}
+
+/* Під рамкою — кнопка звуку й рядок стану (≈ 4,5rem): відео вписується в решту висоти. */
+.videoclip-stage-video .videoclip-reveal {
+  width: min(100cqw, (100cqh - 4.5rem) * 16 / 9);
+}
+
+.host-videoclip .jigsaw-table.melody-table {
+  margin-top: 1rem;
+}
+/* «Відео за фрагментами»: кінець сцени й пульта */
+
 /* «Квест із кодом»: редактор раунду (29g). Рамка налаштувань, ряд комірок коду з номером порядку під кожною, «Лише першим» з числом. Лише редактор: телефон, сцена й пульт мають власні секції. */
 .quest-settings {
   border: 0;

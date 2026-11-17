@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
-import { SNIPPET_REVEAL_SECONDS, SNIPPET_STEPS, snippetSeconds, snippetShare, type PlayerSnippets, type PublicQuestion, type PublicVideoclip, type SubmittedAnswer } from '@quiz/shared';
+import { SNIPPET_REVEAL_SECONDS, SNIPPET_STEPS, snippetSeconds, snippetShare, type PlayerSnippets, type PublicQuestion, type PublicVideoclip, type SnippetInfo, type SubmittedAnswer } from '@quiz/shared';
 import { errorText, t } from '../i18n';
 import type { AudioCommand } from '../live/useGame';
 import type { Send } from '../live/types';
 import { useVideoClip } from '../live/useVideoClip';
 import { AnswerInput } from './AnswerInput';
-import { SnippetSteps, percent, withTimeout, type SnippetTexts } from './SnippetView';
+import { SnippetBoards, SnippetSteps, SnippetTable, percent, withTimeout, type SnippetTexts } from './SnippetView';
 
 /** Тексти «Відео за фрагментами» (36) для спільних драбинки, плиток і таблиці. */
 export const VIDEOCLIP_TEXTS: SnippetTexts = {
@@ -141,7 +141,16 @@ export function VideoclipReveal({ videoclip, ready, paused, command = null, onDe
   playNow.current = clip.play;
   const stopNow = useRef(clip.stop);
   stopNow.current = clip.stop;
+  const playingNow = useRef(clip.playing);
+  playingNow.current = clip.playing;
+  // «Ще раз» ведучого грає лише на готовому розкритті; на паузі — відкладається до її кінця.
+  const readyNow = useRef(ready);
+  readyNow.current = ready;
+  const pausedNow = useRef(paused);
+  pausedNow.current = paused;
   const started = useRef(false);
+  // Відео грало, коли гру поставили на паузу: після паузи сцена (і пульт без сцени) вмикає його знову, як QuestionAudio.
+  const held = useRef(false);
   // Команда, що вже була до монтування, — не нова.
   const lastSeq = useRef<number | null>(command?.seq ?? null);
 
@@ -149,14 +158,30 @@ export function VideoclipReveal({ videoclip, ready, paused, command = null, onDe
   useEffect(() => {
     if (onDemand || !ready || paused || started.current) return;
     started.current = true;
+    // Відкладене на паузі «Ще раз» уже не потрібне: відео вмикається тут.
+    held.current = false;
     playNow.current(SNIPPET_REVEAL_SECONDS);
   }, [onDemand, ready, paused]);
+
+  // Пауза гри: хук глушить відео сам; тут лише запам'ятовуємо, що воно грало, і після паузи вмикаємо знову (з початку фрагмента).
+  useEffect(() => {
+    if (onDemand) return;
+    if (paused) {
+      if (playingNow.current !== null) held.current = true;
+    } else if (held.current) {
+      held.current = false;
+      if (ready) playNow.current(SNIPPET_REVEAL_SECONDS);
+    }
+  }, [onDemand, paused, ready]);
 
   useEffect(() => {
     if (command === null || command.seq === lastSeq.current) return;
     lastSeq.current = command.seq;
-    if (command.action === 'stop') stopNow.current();
-    else playNow.current(SNIPPET_REVEAL_SECONDS);
+    if (command.action === 'stop') {
+      held.current = false;
+      stopNow.current();
+    } else if (readyNow.current && pausedNow.current) held.current = true;
+    else if (readyNow.current) playNow.current(SNIPPET_REVEAL_SECONDS);
   }, [command]);
 
   const status = clip.state === 'failed' ? t('videoclipFailed') : clip.state === 'blocked' ? t('videoclipBlocked') : '';
@@ -178,5 +203,43 @@ export function VideoclipReveal({ videoclip, ready, paused, command = null, onDe
         {status}
       </p>
     </div>
+  );
+}
+
+export interface VideoclipStageProps {
+  info: SnippetInfo;
+  videoclip: PublicVideoclip;
+  reveal: boolean;
+  /** Пульт: уся сітка без сторінок, без назви (правильну відповідь ведучий бачить у власному рядку) і без відео (воно — у панелі host-audio). */
+  host?: boolean;
+  /** Сцена: розкриття готове (без заставки й паузи) — відео вмикається саме. */
+  ready?: boolean;
+  paused?: boolean;
+  /** «Ще раз / Стоп» ведучого. */
+  command?: AudioCommand | null;
+}
+
+/**
+ * «Відео за фрагментами» на сцені й пульті (36). До розкриття — плитки «нік · 👁 шматок · ✓», жодної рамки YouTube; на розкритті — назва
+ * (лише на сцені), таблиця з балами й відео зі звуком (лише на сцені). Назва береться лише з publicVideoclip.answer (на reveal).
+ */
+export function VideoclipStage({ info, videoclip, reveal, host = false, ready = false, paused = false, command = null }: VideoclipStageProps) {
+  if (!reveal) return <SnippetBoards rows={info.rows} host={host} texts={VIDEOCLIP_TEXTS} />;
+  return (
+    <>
+      {!host && videoclip.answer !== null && (
+        <p className="lead melody-title videoclip-title" dir="auto">
+          {t('videoclipRevealTitle', { title: videoclip.answer })}
+        </p>
+      )}
+      {!host && (
+        <div className="videoclip-stage-video">
+          <VideoclipReveal key={videoclip.id} videoclip={videoclip} ready={ready} paused={paused} command={command} />
+        </div>
+      )}
+      <div className="jigsaw-stage-table">
+        <SnippetTable rows={info.rows} host={host} texts={VIDEOCLIP_TEXTS} />
+      </div>
+    </>
   );
 }

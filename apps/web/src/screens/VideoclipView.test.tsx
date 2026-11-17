@@ -31,7 +31,7 @@ vi.mock('../live/useVideoClip', () => ({
   },
 }));
 
-const { VideoclipPlay, VideoclipReveal } = await import('./VideoclipView');
+const { VideoclipPlay, VideoclipReveal, VideoclipStage } = await import('./VideoclipView');
 
 const VIDEOCLIP: PublicVideoclip = { id: 'q-vid', clip: { id: 'djV11Xbc914', start: 30 }, muted: true, answer: null };
 const questionOf = (videoclip: Partial<PublicVideoclip> = {}) =>
@@ -229,6 +229,83 @@ describe('VideoclipReveal', () => {
     render(<VideoclipReveal videoclip={revealed} ready paused={false} />);
     fireEvent.click(screen.getByRole('button', { name: '🔊 Увімкнути звук' }));
     expect(clip.unmute).toHaveBeenCalled();
+  });
+
+  it('a host replay waits for a ready reveal and for the pause to end', () => {
+    const view = render(<VideoclipReveal videoclip={revealed} ready={false} paused={false} command={null} />);
+    view.rerender(<VideoclipReveal videoclip={revealed} ready={false} paused={false} command={{ action: 'replay', seq: 1 }} />);
+    expect(clip.play).not.toHaveBeenCalled();
+    view.rerender(<VideoclipReveal videoclip={revealed} ready paused command={{ action: 'replay', seq: 1 }} />);
+    expect(clip.play).not.toHaveBeenCalled();
+    view.rerender(<VideoclipReveal videoclip={revealed} ready paused command={{ action: 'replay', seq: 2 }} />);
+    expect(clip.play).not.toHaveBeenCalled();
+    // Кінець паузи: автостарт (він же — відкладене «Ще раз») грає один раз.
+    view.rerender(<VideoclipReveal videoclip={revealed} ready paused={false} command={{ action: 'replay', seq: 2 }} />);
+    expect(clip.play).toHaveBeenCalledTimes(1);
+  });
+
+  it('a pause mid-reveal resumes the video afterwards', () => {
+    const view = render(<VideoclipReveal videoclip={revealed} ready paused={false} />);
+    expect(clip.play).toHaveBeenCalledTimes(1);
+    clip.playing = SNIPPET_REVEAL_SECONDS;
+    view.rerender(<VideoclipReveal videoclip={revealed} ready paused={false} />);
+    view.rerender(<VideoclipReveal videoclip={revealed} ready paused />);
+    clip.playing = null;
+    view.rerender(<VideoclipReveal videoclip={revealed} ready paused />);
+    expect(clip.play).toHaveBeenCalledTimes(1);
+    view.rerender(<VideoclipReveal videoclip={revealed} ready paused={false} />);
+    expect(clip.play).toHaveBeenCalledTimes(2);
+    expect(clip.play).toHaveBeenLastCalledWith(SNIPPET_REVEAL_SECONDS);
+    // Пауза, коли нічого не грало, після себе нічого не вмикає.
+    view.rerender(<VideoclipReveal videoclip={revealed} ready paused />);
+    view.rerender(<VideoclipReveal videoclip={revealed} ready paused={false} />);
+    expect(clip.play).toHaveBeenCalledTimes(2);
+  });
+
+  it('a stop during a pause cancels the resume', () => {
+    const view = render(<VideoclipReveal videoclip={revealed} ready paused={false} command={null} />);
+    clip.playing = SNIPPET_REVEAL_SECONDS;
+    view.rerender(<VideoclipReveal videoclip={revealed} ready paused={false} command={null} />);
+    view.rerender(<VideoclipReveal videoclip={revealed} ready paused command={null} />);
+    clip.playing = null;
+    view.rerender(<VideoclipReveal videoclip={revealed} ready paused command={{ action: 'stop', seq: 1 }} />);
+    view.rerender(<VideoclipReveal videoclip={revealed} ready paused={false} command={{ action: 'stop', seq: 1 }} />);
+    expect(clip.play).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('VideoclipStage', () => {
+  const revealed: PublicVideoclip = { ...VIDEOCLIP, answer: 'Take On Me' };
+  const info = { rows: [{ playerId: 'p1', nickname: 'Оля', heard: 2, answered: true, correct: true, points: 800, timeMs: 4000 }] };
+
+  it('before reveal only tiles, no frame and no title', () => {
+    render(<VideoclipStage info={info} videoclip={VIDEOCLIP} reveal={false} />);
+    expect(document.querySelector('.melody-board')?.textContent).toBe('Оля👁 2 с ✓');
+    expect(screen.queryByTestId('videoclip-frame')).toBeNull();
+  });
+
+  it('on reveal the stage plays with sound and follows the host stop', () => {
+    const view = render(<VideoclipStage info={info} videoclip={revealed} reveal ready paused={false} command={null} />);
+    expect(screen.getByText('Це було: «Take On Me»')).toBeTruthy();
+    expect(screen.getByTestId('videoclip-frame')).toBeTruthy();
+    expect(opts.at(-1)?.reveal).toBe(true);
+    expect(clip.play).toHaveBeenCalledWith(SNIPPET_REVEAL_SECONDS);
+    view.rerender(<VideoclipStage info={info} videoclip={revealed} reveal ready paused={false} command={{ action: 'stop', seq: 1 }} />);
+    expect(clip.stop).toHaveBeenCalledTimes(1);
+  });
+
+  it('a muted autoplay offers sound on the stage', () => {
+    clip.state = 'muted-fallback';
+    render(<VideoclipStage info={info} videoclip={revealed} reveal ready paused={false} />);
+    fireEvent.click(screen.getByRole('button', { name: '🔊 Увімкнути звук' }));
+    expect(clip.unmute).toHaveBeenCalledTimes(1);
+  });
+
+  it('the host gets the table without the title or a frame', () => {
+    render(<VideoclipStage info={info} videoclip={revealed} reveal host />);
+    expect(screen.queryByText('Це було: «Take On Me»')).toBeNull();
+    expect(screen.queryByTestId('videoclip-frame')).toBeNull();
+    expect(document.querySelectorAll('.melody-table tbody tr')).toHaveLength(1);
   });
 });
 
