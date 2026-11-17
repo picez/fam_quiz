@@ -7,9 +7,14 @@ import {
   SNIPPET_STEPS,
   snippetSeconds,
   snippetShare,
+  videoclipRevealClip,
 } from './snippets';
 
 describe('snippets', () => {
+  it('the videoclip reveal clip plays 30 s from the start', () => {
+    expect(videoclipRevealClip({ id: 'fJ9rUzIMcZQ', start: 12 })).toEqual({ source: 'youtube', id: 'fJ9rUzIMcZQ', start: 12, duration: 30 });
+  });
+
   it('steps double and shares fall', () => {
     expect([...SNIPPET_STEPS]).toEqual([1, 2, 4, 8, 16]);
     expect([...SNIPPET_SHARES]).toEqual([1, 0.8, 0.6, 0.4, 0.25]);

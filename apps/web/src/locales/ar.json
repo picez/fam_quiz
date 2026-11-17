@@ -4394,6 +4394,8 @@
   "videoclipWatchFirst": "شاهد مقطعًا أولًا",
   "videoclipMutedNote": "🔇 بلا صوت",
   "videoclipCover": "الفيديو مخفي حتى يُفتح مقطع",
+  "videoclipOnStage": "🎬 الفيديو يعمل على المنصة",
+  "videoclipHere": "🎬 المنصة غير مفتوحة، الفيديو يعمل هنا",
   "videoclipBlocked": "لم يسمح المتصفح بتشغيل الفيديو. المس مرة أخرى.",
   "videoclipFailed": "تعذّر تشغيل الفيديو. حاول مرة أخرى.",
   "videoclipWatchAgain": "شاهد مرة أخرى",

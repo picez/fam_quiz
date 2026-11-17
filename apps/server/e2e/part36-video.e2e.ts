@@ -353,6 +353,8 @@ async function videoGame36() {
   await expect.poll(() => funcs36(stage, 'E2Evideo001'), POLL).toEqual(expect.arrayContaining(['unMute', 'playVideo']));
   expect(await funcs36(stage, 'E2Evideo001'), 'the stage never mutes the reveal').not.toContain('mute');
   await expect.poll(() => stage.locator('.videoclip-stage .videoclip-cover').count(), POLL).toBe(0);
+  // На розкритті назву вже можна бачити: масок назви й логотипа немає.
+  expect(await stage.locator('.videoclip-stage .videoclip-mask-top, .videoclip-stage .videoclip-mask-corner').count(), 'no masks on reveal').toBe(0);
   if (process.env.E2E_SHOTS === '1') await sleep(800);
   await expectVideoStageFits36(stage, 'video reveal 1280×720', true);
   await shot(stage, 'video36-reveal-stage');
@@ -375,10 +377,9 @@ async function videoGame36() {
   }
   await stage.locator('.videoclip-stage.is-reveal .melody-table').waitFor();
   await olya.getByRole('button', { name: 'Переглянути ще раз', ...exact }).waitFor();
-  // Сцена після перезавантаження знову вмикає відео: маски непрозорі.
-  await stage.locator('.videoclip-stage .videoclip-mask-top').waitFor();
-  const lightMask = await opaque36(stage, '.videoclip-stage .videoclip-mask-top');
-  expect(lightMask.opaque, `the light-theme title mask is opaque (${lightMask.color})`).toBe(true);
+  // Сцена після перезавантаження знову вмикає відео — без затулки й без масок (розкриття).
+  await expect.poll(() => stage.locator('.videoclip-stage .videoclip-cover').count(), POLL).toBe(0);
+  expect(await stage.locator('.videoclip-stage .videoclip-mask-top, .videoclip-stage .videoclip-mask-corner').count(), 'no masks on the light reveal').toBe(0);
   const lightCover = await opaque36(olya, '.player-videoclip .videoclip-cover');
   expect(lightCover.opaque, `the light-theme cover is opaque (${lightCover.color})`).toBe(true);
   if (process.env.E2E_SHOTS === '1') await sleep(800);

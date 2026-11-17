@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react';
-import { melodySeconds, snippetSeconds, type HostLive, type HostView, type LiveDraft, type LiveRow, type Question, type SortTilt } from '@quiz/shared';
+import { snippetSeconds, type HostLive, type HostView, type LiveDraft, type LiveRow, type Question, type SortTilt } from '@quiz/shared';
 import { awayRowTexts } from '../away-text';
 import { AwayLabel } from './AwayLabel';
 import { answerText, num, secondsText, sliderNumber } from '../format';
@@ -134,7 +134,7 @@ export function liveAnswerText(row: LiveRow, correct: Question | null, choices: 
         break;
       case 'melody':
         // З відповіддю шматок уже в її тексті («Щедрик · 2 с»); без неї — лише «🎧 2 с».
-        if (answer === null && progress.heard > 0) parts.push(t('melodyStageHeard', { seconds: melodySeconds(progress.heard) }));
+        if (answer === null && progress.heard > 0) parts.push(t('melodyStageHeard', { seconds: snippetSeconds(progress.heard) }));
         break;
       case 'videoclip':
         // Так само: з відповіддю шматок у її тексті («Take On Me · 2 с»); без неї — «👁 2 с».

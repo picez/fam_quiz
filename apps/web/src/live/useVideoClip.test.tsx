@@ -134,6 +134,45 @@ describe('useVideoClip', () => {
     expect(last.playing).toBeNull();
   });
 
+  it('a pause or cue by YouTube itself covers the frame again', () => {
+    render(<Harness seconds={16} />);
+    const spy = ready();
+    fireEvent.click(screen.getByText('go'));
+    reply({ event: 'onStateChange', info: 1 });
+    expect(last.covered).toBe(false);
+    reply({ event: 'onStateChange', info: 2 });
+    expect(last.covered).toBe(true);
+    expect(document.querySelector('.videoclip-cover')).not.toBeNull();
+    // Шматок не скасовано: коли відео піде знову, затулка зникає.
+    expect(last.playing).toBe(16);
+    reply({ event: 'onStateChange', info: 1 });
+    expect(last.covered).toBe(false);
+    reply({ event: 'onStateChange', info: 5 });
+    expect(last.covered).toBe(true);
+    reply({ event: 'onStateChange', info: 1 });
+    expect(last.covered).toBe(false);
+    // Наша власна зупинка: подія 2 після неї нічого не змінює.
+    act(() => last.stop());
+    expect(commands(spy).at(-1)?.[0]).toBe('pauseVideo');
+    reply({ event: 'onStateChange', info: 2 });
+    expect(readout()).toBe('idle:null:true');
+  });
+
+  it('the reveal shows the video without masks', () => {
+    render(<Harness reveal seconds={30} />);
+    ready();
+    expect(document.querySelector('.videoclip-cover')).not.toBeNull();
+    fireEvent.click(screen.getByText('go'));
+    reply({ event: 'onStateChange', info: 1 });
+    expect(last.covered).toBe(false);
+    expect(document.querySelector('.videoclip-cover')).toBeNull();
+    expect(document.querySelector('.videoclip-mask-top')).toBeNull();
+    expect(document.querySelector('.videoclip-mask-corner')).toBeNull();
+    // Після кінця відео затулка повертається.
+    reply({ event: 'onStateChange', info: 0 });
+    expect(document.querySelector('.videoclip-cover')).not.toBeNull();
+  });
+
   it('a silent player is reported', () => {
     render(<Harness />);
     ready();

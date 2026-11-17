@@ -90,9 +90,9 @@ import {
   type SnippetInfo,
   type SnippetRow,
   type PlayerSnippets,
-  SNIPPET_REVEAL_SECONDS,
   SNIPPET_STEP_COUNT,
   melodyRevealClip,
+  videoclipRevealClip,
   memoryCardAt,
   memoryGridSize,
   memoryLayout,
@@ -544,9 +544,7 @@ export function audioOf(state: GameState): QuestionAudio | null {
   // «Мелодія» (29e): сцена мовчить до reveal, на reveal пульт керує 30-секундним кліпом треку.
   if (question?.type === 'melody') return state.phase === 'reveal' ? melodyRevealClip(question.track) : null;
   // «Відео за фрагментами» (36): так само; кліп — лише щоб «Ще раз / Стоп» пройшли перевірку host:audio і дійшли до сцени.
-  if (question?.type === 'videoclip') {
-    return state.phase === 'reveal' ? { source: 'youtube', id: question.clip.id, start: question.clip.start, duration: SNIPPET_REVEAL_SECONDS } : null;
-  }
+  if (question?.type === 'videoclip') return state.phase === 'reveal' ? videoclipRevealClip(question.clip) : null;
   return question?.audio ?? null;
 }
 

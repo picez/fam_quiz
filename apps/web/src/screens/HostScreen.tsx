@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { SNIPPET_REVEAL_SECONDS, clueShare, melodyRevealClip, reactionAllowed, revealShare, type Answer, type Reaction, type ClientToServerEvents, type Grade, type HostBoard, type HostDrafts, type HostView, type SortTilt } from '@quiz/shared';
+import { clueShare, melodyRevealClip, reactionAllowed, revealShare, videoclipRevealClip, type Answer, type Reaction, type ClientToServerEvents, type Grade, type HostBoard, type HostDrafts, type HostView, type SortTilt } from '@quiz/shared';
 import { secondsLeft } from '../clock';
 import { ThemeToggle } from '../ThemeToggle';
 import { awayRowTexts } from '../away-text';
@@ -376,7 +376,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
   const clip =
     videoclip !== undefined
       ? view.phase === 'reveal'
-        ? { source: 'youtube' as const, id: videoclip.clip.id, start: videoclip.clip.start, duration: SNIPPET_REVEAL_SECONDS }
+        ? videoclipRevealClip(videoclip.clip)
         : null
       : view.question?.melody !== undefined
         ? view.phase === 'reveal'
@@ -874,7 +874,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
 
       {clip !== null && (phase === 'question' || phase === 'locked' || phase === 'reveal') && (
         <section className="panel host-audio">
-          <p className="meta">{stageGone ? t('audioHere') : t('audioOnStage')}</p>
+          <p className="meta">{videoclip !== undefined ? (stageGone ? t('videoclipHere') : t('videoclipOnStage')) : stageGone ? t('audioHere') : t('audioOnStage')}</p>
           <div className="panel-actions">
             <button type="button" className="btn btn-small" onClick={() => void act('host:audio', { action: 'replay' })}>
               {t('audioReplay')}

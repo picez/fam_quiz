@@ -4178,6 +4178,8 @@
   "videoclipWatchFirst": "Sieh dir zuerst einen Ausschnitt an",
   "videoclipMutedNote": "🔇 Ohne Ton",
   "videoclipCover": "Das Video ist bis zum Ausschnitt verborgen",
+  "videoclipOnStage": "🎬 Das Video läuft auf der Bühne",
+  "videoclipHere": "🎬 Die Bühne ist nicht offen – das Video läuft hier",
   "videoclipBlocked": "Der Browser hat das Video nicht starten lassen. Tippe noch einmal.",
   "videoclipFailed": "Das Video konnte nicht gestartet werden. Versuche es noch einmal.",
   "videoclipWatchAgain": "Noch einmal ansehen",

@@ -3907,6 +3907,8 @@ describe('HostScreen videoclip (36)', () => {
     expect(document.querySelector('.host-audio')).not.toBeNull();
     // Сцена відкрита: відео грає там, у пульті рамки немає.
     expect(document.querySelector('iframe')).toBeNull();
+    expect(screen.getByText('🎬 Відео грає на сцені')).toBeTruthy();
+    expect(screen.queryByText('🎵 Звук грає на сцені')).toBeNull();
     fireEvent.click(button('Програти ще раз'));
     fireEvent.click(button('Стоп'));
     await waitFor(() => expect(send).toHaveBeenCalledWith('host:audio', { action: 'stop' }));
@@ -3924,6 +3926,8 @@ describe('HostScreen videoclip (36)', () => {
       <HostScreen view={view({ phase: 'reveal', questionIndex: 0, playerCount: 1, answeredCount: 1, question: publicQ('Take On Me'), correct: full, videoclip: info })} code="123456" stageUrl="x" joinUrl="y" send={vi.fn(async () => ({ ok: true as const }))} stageOnline={false} />,
     );
     expect(document.querySelector('.host-audio .videoclip-reveal .videoclip-frame iframe')).not.toBeNull();
+    expect(screen.getByText('🎬 Сцена не відкрита — відео грає тут')).toBeTruthy();
+    expect(screen.queryByText('🎵 Сцена не відкрита — звук грає тут')).toBeNull();
     expect(document.querySelector('.host-audio audio')).toBeNull();
     expect(document.querySelector('.host-audio .audio-card')).toBeNull();
     expect(document.querySelectorAll('iframe')).toHaveLength(1);

@@ -15,7 +15,7 @@ const EMBED_EXTRAS = '&controls=0&disablekb=1&modestbranding=1';
  * Команди seekTo, mute/unMute і playVideo йдуть синхронно в тому самому виклику, що й дотик (iOS пускає відтворення лише з жесту).
  * Таймер зупинки стартує з onStateChange 1, а не з дотику. Поза шматком рамку закриває затулка: не видно превʼю з назвою,
  * кадру паузи, «Більше відео» й кінцевих заставок; поки шматок грає — маски назви зверху й логотипа внизу справа.
- * reveal: true (розкриття) — звук завжди; якщо браузер не дав звук без жесту, відео грає без звуку (state 'muted-fallback'), unmute() — у дотику.
+ * reveal: true (розкриття) — без масок (назву вже можна бачити), звук завжди; якщо браузер не дав звук без жесту, відео грає без звуку (state 'muted-fallback'), unmute() — у дотику.
  * element — рендерити один раз.
  */
 export function useVideoClip(
@@ -59,6 +59,10 @@ export function useVideoClip(
       if (playerState === 1 && run.current.seconds !== null) {
         if (before !== 1) arm();
         setCovered(false);
+      } else if ((playerState === 2 || playerState === 5) && run.current.seconds !== null) {
+        // YouTube сам поставив паузу чи повернувся до превʼю посеред шматка: кадр паузи й назву знову ховає затулка.
+        // Наша зупинка (halt) спершу обнуляє seconds, тож сюди не потрапляє.
+        setCovered(true);
       } else if (playerState === 0 && run.current.seconds !== null) haltRef.current(null);
     },
     error() {
@@ -181,7 +185,7 @@ export function useVideoClip(
         <div className="videoclip-cover" role="img" aria-label={t('videoclipCover')}>
           <span aria-hidden="true">🎬</span>
         </div>
-      ) : (
+      ) : opts.reveal === true ? null : (
         <>
           <div className="videoclip-mask-top" aria-hidden="true" />
           <div className="videoclip-mask-corner" aria-hidden="true" />
