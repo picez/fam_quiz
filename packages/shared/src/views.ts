@@ -5,7 +5,7 @@ import type { AwayMark, OwnAway } from './away';
 import type { ScoreBreakdown } from './breakdown';
 import type { BuffBlock, BuffKind, DebuffKind, DuelStage, Grade, Phase, RetryStage, ShopBlock, SplashKind } from './game';
 import type { HostUndoTarget } from './events';
-import type { AnswerMode, AuctionBidMode, MoreLessSide, AuctionLoss, LadderPick, LifelineKind, CellKind, CellMark, CellPenalty, PinMap, Question, QuestionAudio, RevealMode, Round, RoundType, TrialKind, Video, WagerMode } from './quiz';
+import type { AnswerMode, AuctionBidMode, MoreLessSide, AuctionLoss, LadderPick, LifelineKind, CellKind, CellMark, CellPenalty, PinMap, Question, QuestionAudio, RevealMode, Round, RoundType, ThinkWord, TrialKind, Video, WagerMode } from './quiz';
 import type { FactCard, GameCard, OwnRevealFact, RevealFacts, RoundCard, RoundShare } from './facts';
 import type { GuidePage } from './guide';
 import type { LadderOutcomeKind } from './ladder';
@@ -1621,6 +1621,71 @@ export interface SurvivalInfo {
   ending: boolean;
 }
 
+/** «Думай інакше» (35): вердикт відповіді учасника на розкритті — не збігся, збігся зі словом ведучого, нічого не написав. */
+export type ThinkVerdict = 'safe' | 'hit' | 'empty';
+
+/** «Думай інакше» (35): місце учасника раунду (thinkPlaces). */
+export interface ThinkPlaceRow {
+  id: string;
+  place: number;
+  lives: number;
+  /** Номер запитання раунду (від 1), де вибув; null — дожив. */
+  outAt: number | null;
+  points: number;
+}
+
+/** «Думай інакше» (35): рядок учасника (соло — гравець, командна гра — команда) у порядку гравців. */
+export interface ThinkRow {
+  id: string;
+  nickname: string;
+  /** question/locked — життя на відкритті; reveal і далі — після запитання. */
+  lives: number;
+  out: boolean;
+  /** Лише question/locked: чи вже відповів (без тексту). */
+  answered: boolean;
+  /** Лише reveal: текст відповіді ('' — порожньо; null — вибув раніше), вердикт, чи втратив життя тут; інакше null/false. */
+  answer: string | null;
+  verdict: ThinkVerdict | null;
+  lost: boolean;
+}
+
+/** «Думай інакше» (35): для сцени й телефонів слова ведучого й чужі відповіді — лише з reveal. */
+export interface ThinkInfo {
+  lives: number;
+  points: number;
+  /** Номер запитання раунду (від 0) на question, locked, reveal; інакше null. total — скільки запитань у раунді. */
+  index: number | null;
+  total: number;
+  rows: ThinkRow[];
+  /** Лише reveal: слова ведучого (головне + синоніми). До reveal — null. */
+  words: ThinkWord[] | null;
+  /** Лише round_end (і finished) раунду think. */
+  places: (ThinkPlaceRow & { nickname: string })[] | null;
+}
+
+/** Пульт «Думай інакше» (35): чернетка слів і відповіді наживо з позначкою збігу. */
+export interface HostThink extends ThinkInfo {
+  /** question…reveal: поточні слова ведучого (play.think.words) — завжди, і до reveal; інакше []. */
+  draft: ThinkWord[];
+  /** Можна змінити слова зараз (правила setThinkWords; в автопілоті — ні). */
+  editable: boolean;
+  /** locked: «Показати» дозволено (є слова або автопілот). */
+  canReveal: boolean;
+  /** question…reveal: відповіді живих на відкритті з позначкою збігу; немає відповіді — answer і hit null. */
+  answers: { id: string; nickname: string; answer: string | null; hit: boolean | null; overridden: boolean }[];
+}
+
+/** Телефон «Думай інакше» (35): власні життя (соло — свої, командна гра — команди). */
+export interface PlayerThink {
+  lives: number;
+  /** spectator — не учасник цього запитання (автор автопілота, новенький до відкриття). */
+  status: 'alive' | 'out' | 'spectator';
+  /** Лише reveal: свій вердикт. */
+  verdict: ThinkVerdict | null;
+  /** Лише round_end (і finished): своє місце й очки. */
+  place: { place: number; points: number } | null;
+}
+
 /** Останній узятий баф у грі, для сповіщення «Оля: 50/50». seq — номер використання в грі. */
 export interface BuffNotice extends BlitzPlayer {
   seq: number;
@@ -1873,6 +1938,8 @@ interface BaseView {
   wipeout: WipeoutInfo | null;
   /** «Вибування»: від intro до round_end свого раунду (і finished, якщо він останній); інакше null. */
   survival: SurvivalInfo | null;
+  /** «Думай інакше» (35): від intro до round_end свого раунду (і finished, якщо він останній); поза ним ключа немає. */
+  think?: ThinkInfo;
   /** «Мільйонер»: від intro до round_end свого раунду (і finished, якщо він останній); інакше null. */
   ladder: LadderInfo | null;
   /** Поступ ланцюжка; null поза запитанням-ланцюжком, а для сцени й гравців і у фіналі. */
@@ -2186,6 +2253,8 @@ export interface PlayerView extends BaseView {
     melody?: PlayerMelody;
     /** Власний бік у малюнку (28c): лише на такому запитанні; слово — лише художникові. */
     drawing?: PlayerDrawing;
+    /** «Думай інакше» (35): власні життя, статус, вердикт і місце; поза раундом think ключа немає. */
+    think?: PlayerThink;
     /** null поза сортуванням і для того, хто не відповідає тут (глядач на полі). */
     sort: PlayerSort | null;
     /** null поза стіною і для того, хто тут не складає (глядач на полі). */
@@ -2400,6 +2469,8 @@ export interface HostView extends BaseView {
   melody?: MelodyInfo;
   /** Як у BaseView, але ведучому завжди ще й слово та імена вгадавших. */
   drawing?: HostDrawing;
+  /** Як у BaseView, але ще й слова ведучого до reveal, відповіді наживо зі збігом і чи можна міняти слова й розкривати. */
+  think?: HostThink;
   /** Як у BaseView, але і у фіналі. */
   chain: ChainInfo | null;
   /** Як у BaseView, але і у фіналі. */

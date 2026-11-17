@@ -23,6 +23,10 @@ import {
   type TruthInfo,
   type TruthCard,
   type TruthRecap,
+  type HostThink,
+  type PlayerThink,
+  type ThinkInfo,
+  type ThinkRow,
   betMinimum,
   betsTeaser,
   type BetsInfo,
@@ -190,6 +194,7 @@ import { lastNotice } from './adjust';
 import { BETS_OPEN_PHASES, betLimit, betsIndex, betsPlaying, stakedPlay, wagerLimitOf, wagerRound } from './bets';
 import { auctionLeader, auctionNextNow, auctionRoundOf } from './auction';
 import { questAfter, questOpened, questRoundOf, questSolved, questWindowOpen, type QuestTry } from './quest';
+import { thinkLivesAfter, thinkPlaces, thinkPlayOf, thinkRoundOf, thinkRoundPlays, thinkVerdicts, thinkWatches } from './think';
 import { inTruthDeck, nextTruthQuestion, truthCount, truthGuessers, truthHeld, truthOpen, truthPlayOf, truthRoundOf, truthSkipped } from './truth';
 import { presentPlayers } from './present';
 import { appealView, playerAppeal } from './appeal';
@@ -3013,6 +3018,112 @@ function playerSurvival(state: GameState, playerId: string): PlayerView['me']['s
   };
 }
 
+/** Етапи, на яких зріз «Думай інакше» (35) є: від intro до round_end свого раунду (і finished, якщо він останній). */
+const THINK_PHASES: Phase[] = ['intro', 'question', 'locked', 'reveal', 'leaderboard', 'round_end', 'finished'];
+
+/** Текст запису think учасника на запитанні index; '' — немає запису. */
+function thinkText(state: GameState, index: number, id: string): string {
+  const answer = recordOf(state, index, id)?.answer;
+  return answer?.type === 'think' ? answer.value : '';
+}
+
+/**
+ * «Думай інакше» (35): спільна частина для всіх ролей. На question/locked — життя на відкритті й «відповів» без тексту;
+ * слова ведучого й тексти відповідей — лише з reveal; місця — на round_end (і finished). Учасники — ключі lives поточного
+ * (на intro — ще не відкритого: усі, крім автора-глядача, з round.lives; між запитаннями — останнього) запитання раунду.
+ */
+function thinkInfo(state: GameState): ThinkInfo | undefined {
+  const round = thinkRoundOf(state);
+  if (round === null || !THINK_PHASES.includes(state.phase)) return undefined;
+  const play = thinkPlayOf(state);
+  const open = play !== null && ANSWERING.includes(state.phase);
+  const last = play !== null ? state.questionIndex : thinkRoundPlays(state, state.roundIndex).at(-1);
+  const shown = open && state.phase === 'reveal';
+  const verdicts = shown ? thinkVerdicts(state, state.questionIndex) : {};
+  const rows = state.players.flatMap((p): ThinkRow[] => {
+    if (last === undefined) {
+      if (thinkWatches(state, p.id)) return [];
+      return [{ id: p.id, nickname: p.nickname, lives: round.lives, out: false, answered: false, answer: null, verdict: null, lost: false }];
+    }
+    const opened = state.plays[last].think?.lives;
+    if (opened === undefined || !Object.hasOwn(opened, p.id)) return [];
+    const before = opened[p.id];
+    const after = thinkLivesAfter(state, last, p.id) ?? before;
+    const asking = open && !shown;
+    const lives = asking ? before : after;
+    const verdict = shown && Object.hasOwn(verdicts, p.id) ? verdicts[p.id] : null;
+    return [
+      {
+        id: p.id,
+        nickname: p.nickname,
+        lives,
+        out: lives === 0,
+        answered: asking && recordOf(state, last, p.id) !== undefined,
+        answer: verdict === null ? null : thinkText(state, last, p.id),
+        verdict,
+        lost: verdict !== null && after < before,
+      },
+    ];
+  });
+  const nickname = (id: string) => state.players.find((p) => p.id === id)?.nickname ?? '';
+  const ended = state.phase === 'round_end' || state.phase === 'finished';
+  const index = open ? thinkRoundPlays(state, state.roundIndex).indexOf(state.questionIndex) : -1;
+  return {
+    lives: round.lives,
+    points: round.points,
+    index: index === -1 ? null : index,
+    total: round.questions.length,
+    rows,
+    words: shown && play !== null ? play.think.words : null,
+    places: ended ? thinkPlaces(state).map((row) => ({ ...row, nickname: nickname(row.id) })) : null,
+  };
+}
+
+/** Пульт «Думай інакше» (35): спільна частина й слова ведучого до reveal, відповіді наживо зі збігом, чи можна міняти слова й розкривати. */
+function hostThink(state: GameState): HostThink | undefined {
+  const info = thinkInfo(state);
+  if (info === undefined) return undefined;
+  const play = thinkPlayOf(state);
+  if (play === null || !ANSWERING.includes(state.phase)) return { ...info, draft: [], editable: false, canReveal: false, answers: [] };
+  const words = play.think.words;
+  const pilot = state.autopilot !== undefined;
+  const verdicts = thinkVerdicts(state, state.questionIndex);
+  const answers = state.players.flatMap((p) => {
+    if (!Object.hasOwn(verdicts, p.id)) return [];
+    const record = recordOf(state, state.questionIndex, p.id);
+    return [
+      {
+        id: p.id,
+        nickname: p.nickname,
+        answer: record === undefined ? null : thinkText(state, state.questionIndex, p.id),
+        hit: record === undefined ? null : verdicts[p.id] === 'hit',
+        overridden: record?.overridden ?? false,
+      },
+    ];
+  });
+  return {
+    ...info,
+    draft: words,
+    editable: !pilot && (state.phase === 'question' || (state.phase === 'locked' && words.length === 0)),
+    canReveal: state.phase === 'locked' && (words.length > 0 || pilot),
+    answers,
+  };
+}
+
+/** Власний стан у «Думай інакше» (35) (соло — гравця, командна гра — команди); поза раундом — undefined. */
+function playerThink(state: GameState, actorId: string): PlayerThink | undefined {
+  const info = thinkInfo(state);
+  if (info === undefined) return undefined;
+  const row = info.rows.find((r) => r.id === actorId);
+  const place = info.places?.find((r) => r.id === actorId);
+  return {
+    lives: row?.lives ?? 0,
+    status: row === undefined ? 'spectator' : row.out ? 'out' : 'alive',
+    verdict: row?.verdict ?? null,
+    place: place === undefined ? null : { place: place.place, points: place.points },
+  };
+}
+
 /** Відповідь привида «для себе» на поточне запитання «Вибування»; null — не привид чи не відповідав. */
 function ghostAnswer(state: GameState, playerId: string): Answer | null {
   return inQuestion(state) ? (survivalPlayOf(state)?.survival.ghosts[playerId]?.answer ?? null) : null;
@@ -3092,6 +3203,7 @@ function base(state: GameState, forHost: boolean) {
     ...optional('quest', questInfo(state)),
     wipeout: wipeoutInfo(state, forHost),
     survival: survivalInfo(state, forHost),
+    ...optional('think', thinkInfo(state)),
     ladder: ladderInfo(state, forHost),
     ...optional('wordladder', !forHost && inFinalRound(state) ? undefined : wordLadderInfo(state, forHost)),
     ...optional('timedlist', timedListInfo(state, forHost)),
@@ -3766,6 +3878,7 @@ function buildOwnView(state: GameState, playerId: string): Omit<PlayerView, 'tea
       ...optional('quest', teamsOn(state) ? undefined : playerQuest(state, playerId)),
       wipeout: playerWipeout(state, playerId),
       survival: playerSurvival(state, playerId),
+      ...optional('think', playerThink(state, playerId)),
       ladder: playerLadder(state, playerId),
       ...optional('wordladder', playerWordLadder(state, playerId)),
       ...optional('timedlist', playerTimedList(state, playerId)),
@@ -3908,7 +4021,7 @@ export function hostView(state: GameState): HostView {
   });
   const wards = wardsView(state);
   // Зріз «Ставок» для сцени й телефонів ведучому замінює повний (hostBets).
-  const { bets: _publicBets, auction: _publicAuction, truth: _publicTruth, quest: _publicQuest, drawing: _publicDrawing, spotdiff: _publicSpotdiff, memory: _publicMemory, ...shared } = base(state, true);
+  const { bets: _publicBets, auction: _publicAuction, truth: _publicTruth, quest: _publicQuest, drawing: _publicDrawing, spotdiff: _publicSpotdiff, memory: _publicMemory, think: _publicThink, ...shared } = base(state, true);
   return {
     ...shared,
     ...optional('spotdiff', spotdiffHostInfo(state)),
@@ -3935,6 +4048,7 @@ export function hostView(state: GameState): HostView {
     ...optional('truth', hostTruth(state)),
     ...optional('quest', hostQuest(state)),
     ...optional('drawing', hostDrawing(state)),
+    ...optional('think', hostThink(state)),
     chain: chainInfo(state),
     sort: sortInfo(state),
     duel: hostDuel(state),

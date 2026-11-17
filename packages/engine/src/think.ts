@@ -1,4 +1,4 @@
-import { LIMITS, thinkKey, thinkStem, thinkWordsIssue, type Answer, type Question, type ThinkRound, type ThinkWord } from '@quiz/shared';
+import { LIMITS, thinkKey, thinkStem, thinkWordsIssue, type Answer, type Question, type ThinkPlaceRow, type ThinkRound, type ThinkVerdict, type ThinkWord } from '@quiz/shared';
 import { addAdjustment } from './adjust';
 // game.ts викликає цей файл, а цей файл — game.ts; обидва звертаються одне до одного лише під час виклику.
 import { autoLock, currentRound, fail, ok, recordOf, withCurrentPlay, withRecord, type AnswerRecord, type GameState, type Play, type Result, type ThinkPlay } from './game';
@@ -8,9 +8,6 @@ import { teamMembers, teamsOn } from './teams';
 import { timeOverFor } from './timing';
 
 // «Думай інакше» (35): життя, вибування й місця виводяться з журналу (Play.think кожного запитання раунду), без полів GameState.
-
-/** «Думай інакше» (35): вердикт відповіді учасника на розкритті — не збігся, збігся зі словом ведучого, нічого не написав. */
-export type ThinkVerdict = 'safe' | 'hit' | 'empty';
 
 /**
  * Скільки одруківок прощається стеблу слова ведучого: коротші за 7 літер — жодної (банан ≠ баран, яблуко ≠ яблуня),
@@ -65,12 +62,12 @@ export function thinkPlayOf(state: GameState, index?: number): (Play & { think: 
 }
 
 /** Індекси записів think раунду roundIndex у журналі (за порядком). */
-function roundPlays(state: GameState, roundIndex: number): number[] {
+export function thinkRoundPlays(state: GameState, roundIndex: number): number[] {
   return state.plays.flatMap((play, index) => (play.think !== undefined && play.roundIndex === roundIndex ? [index] : []));
 }
 
 /** Автор автопілота — глядач раунду: соло — його гравець; командна гра — команда, де він єдиний учасник. */
-function authorWatches(state: GameState, actorId: string): boolean {
+export function thinkWatches(state: GameState, actorId: string): boolean {
   const authorId = state.autopilot?.authorId;
   if (authorId === undefined) return false;
   if (!teamsOn(state)) return actorId === authorId;
@@ -86,8 +83,8 @@ function authorWatches(state: GameState, actorId: string): boolean {
 export function openThink(state: GameState, question: Extract<Question, { type: 'think' }>): ThinkPlay {
   const round = thinkRoundOf(state);
   const start = round?.lives ?? LIMITS.defaultThinkLives;
-  const previous = roundPlays(state, state.roundIndex).at(-1);
-  const ids = state.players.map((p) => p.id).filter((id) => !authorWatches(state, id));
+  const previous = thinkRoundPlays(state, state.roundIndex).at(-1);
+  const ids = state.players.map((p) => p.id).filter((id) => !thinkWatches(state, id));
   if (previous === undefined) return { words: question.words, lives: Object.fromEntries(ids.map((id) => [id, start])), revealed: false };
   const known = ids.flatMap((id) => {
     const after = thinkLivesAfter(state, previous, id);
@@ -215,7 +212,7 @@ export function thinkLivesAfter(state: GameState, index: number, actorId: string
 /** Живі зараз у поточному раунді think (у порядку state.players): за останнім запитанням раунду; поза раундом — []. */
 export function thinkAlive(state: GameState): string[] {
   if (thinkRoundOf(state) === null) return [];
-  const last = roundPlays(state, state.roundIndex).at(-1);
+  const last = thinkRoundPlays(state, state.roundIndex).at(-1);
   if (last === undefined) return [];
   return state.players.map((p) => p.id).filter((id) => (thinkLivesAfter(state, last, id) ?? 0) > 0);
 }
@@ -226,22 +223,13 @@ export function thinkAlive(state: GameState): string[] {
  */
 export function thinkOver(state: GameState): boolean {
   if (thinkRoundOf(state) === null) return false;
-  const indices = roundPlays(state, state.roundIndex);
+  const indices = thinkRoundPlays(state, state.roundIndex);
   const first = indices[0];
   if (first === undefined) return false;
   const alive = thinkAlive(state).length;
   if (alive === 0) return true;
   const started = Object.keys(state.plays[first].think?.lives ?? {}).length;
   return started >= 2 && alive <= 1;
-}
-
-export interface ThinkPlaceRow {
-  id: string;
-  place: number;
-  lives: number;
-  /** Номер запитання раунду (від 1), де вибув; null — дожив. */
-  outAt: number | null;
-  points: number;
 }
 
 /** Очки місця: один учасник — P, якщо дожив, інакше 0; інакше round(P × (n − place) / (n − 1)). */
@@ -257,7 +245,7 @@ export function thinkPoints(total: number, n: number, place: number, alive: bool
 export function thinkPlaces(state: GameState, roundIndex: number = state.roundIndex): ThinkPlaceRow[] {
   const round = state.quiz.rounds[roundIndex];
   if (round?.type !== 'think') return [];
-  const indices = roundPlays(state, roundIndex);
+  const indices = thinkRoundPlays(state, roundIndex);
   const stats: { id: string; lives: number; outAt: number | null }[] = [];
   for (const { id } of state.players) {
     let lives: number | null = null;
