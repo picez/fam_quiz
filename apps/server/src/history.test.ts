@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { eq } from 'drizzle-orm';
-import { breakdownOf, DEFAULT_RULES, memoryLayout, defaultTeams, packStrokes, SPLASH_MS, type Answer, type Question } from '@quiz/shared';
-import { LADDER_RIGHT, LADDER_WRONG, auctionRound, betsRound, bluff, blitzRound, boardRound, bool, chain, classicRound, clues, cloud, finalRound, poll, wall, makeQuiz, makeRoundsQuiz, match, pin, single, slider, sortQ, survey, surveyCloud, text, letterwords, moreless, drawing, timedlist, withId, withReveal, withVideo, survivalQuestions, survivalRound, survivalTrials, wipeoutLadder, wipeoutRound, ladderRound, truthRound, puzzlesRound, sudoku, crosswordKey, jigsaw, jigsawQuiz, spotdiff, spotdiffQuiz, memoryQuiz, melodyQuiz } from '@quiz/engine/testing';
+import { breakdownOf, DEFAULT_RULES, memoryLayout, defaultTeams, packStrokes, SPLASH_MS, type Answer, type GameDetail, type Question } from '@quiz/shared';
+import { LADDER_RIGHT, LADDER_WRONG, auctionRound, betsRound, bluff, blitzRound, boardRound, bool, chain, classicRound, clues, cloud, finalRound, poll, wall, makeQuiz, makeRoundsQuiz, match, pin, single, slider, sortQ, survey, surveyCloud, text, letterwords, moreless, drawing, timedlist, withId, withReveal, withVideo, survivalQuestions, survivalRound, survivalTrials, wipeoutLadder, wipeoutRound, ladderRound, truthRound, think, thinkRound, puzzlesRound, sudoku, crosswordKey, jigsaw, jigsawQuiz, spotdiff, spotdiffQuiz, memoryQuiz, melodyQuiz } from '@quiz/engine/testing';
 import { buildApp } from './app';
 import { rankPlayers, scoreLines, sortOf } from '@quiz/engine';
 import { answeredTypes, gameQuestionCount, gameTables, hostGame, hostGameWithFacts, hostGames, playerGames } from './history';
@@ -2631,5 +2631,74 @@ describe('answeredTypes (12i)', () => {
       players: [{ userId: account.id, nickname: 'Віра', score: 100, rank: 1, rows: [{ questionIndex: 0, accepted: true, points: 100 }] }],
     });
     expect(await answeredTypes(db, account.id)).toEqual(new Set());
+  });
+});
+
+describe('history: think (35)', () => {
+  const red = { word: 'червоний', synonyms: ['багряний'] };
+  const blue = { word: 'синій', synonyms: [] };
+
+  /** «Думай інакше» (1 життя, 1000 за 1-ше) і класика: Олена (з акаунтом) в безпеці, Тарас збігається й вибуває; ведучий дописує слова в грі. */
+  async function thinkGame() {
+    const host = await signUp(ctx.app, 'Ведуча');
+    const olena = await signUp(ctx.app, 'Олена');
+    const quiz = makeRoundsQuiz([thinkRound('r1', [think('t1'), think('t2', [red]), think('t3', [red])], { lives: 1, points: 1000 }), classicRound('r2', [single])]);
+    const quizId = ((await post('/api/quizzes', quiz, host.cookie)).json() as { id: string }).id;
+    const created = (await post('/api/games', { quizId }, host.cookie)).json() as { gameId: string; code: string };
+    const joinAs = async (nickname: string, cookie?: string) =>
+      ((await post(`/api/games/by-code/${created.code}/join`, { nickname }, cookie)).json() as { playerId: string }).playerId;
+    const olenaId = await joinAs('Олена', olena.cookie);
+    const tarasId = await joinAs('Тарас');
+    const room = ctx.manager.get(created.code);
+    if (room === undefined) throw new Error('room missing');
+    for (const playerId of [olenaId, tarasId]) ctx.manager.connect(room, { role: 'player', playerId });
+    const step = (type: 'start' | 'lock' | 'next') => expect(ctx.manager.host(room, { type })).toEqual({ ok: true });
+    step('start');
+    step('next');
+    expect(ctx.manager.host(room, { type: 'think-words', words: [red, blue] })).toEqual({ ok: true });
+    expect(ctx.manager.answer(room, olenaId, { type: 'think', value: 'ксилофон' })).toEqual({ ok: true });
+    expect(ctx.manager.answer(room, tarasId, { type: 'think', value: 'Синя' })).toEqual({ ok: true });
+    step('lock');
+    step('next');
+    for (let i = 0; i < 10 && !(room.state.phase === 'question' && room.state.roundIndex === 1); i++) step('next');
+    ctx.manager.answer(room, olenaId, { type: 'single', optionId: 'b' });
+    step('lock');
+    for (let i = 0; i < 10 && room.state.phase !== 'finished'; i++) step('next');
+    expect(room.state.phase).toBe('finished');
+    await ctx.recorder.idle();
+    return { host, olena, gameId: created.gameId, olenaId, tarasId };
+  }
+
+  it('think questions show the words, the verdicts and the places', async () => {
+    const { host, gameId } = await thinkGame();
+    const detail = (await get(`/api/games/${gameId}`, host.cookie)).json() as GameDetail;
+    expect(detail.questions[0].think).toEqual({
+      words: ['червоний', 'синій'],
+      lives: { Олена: 1, Тарас: 0 },
+      rows: [
+        { nickname: 'Олена', answer: 'ксилофон', verdict: 'safe', lost: false },
+        { nickname: 'Тарас', answer: 'Синя', verdict: 'hit', lost: true },
+      ],
+    });
+    expect(detail.questions[0]).toMatchObject({ answered: 2, accepted: 0 });
+    expect(detail.adjustments.filter((a) => a.source === 'think').map((a) => [a.nickname, a.points])).toEqual([['Олена', 1000]]);
+    expect(detail.standings.map((s) => [s.nickname, s.score, s.correct])).toEqual([
+      ['Олена', 2000, 1],
+      ['Тарас', 0, 0],
+    ]);
+  });
+
+  it('think answers do not count as correct answers or as answers in the stats', async () => {
+    const { olena: account, gameId } = await thinkGame();
+    const olena = { userId: (await db.select({ id: user.id }).from(user).where(eq(user.email, account.email)))[0].id };
+    const [mine] = (await playerGames(db, olena.userId, null)).filter((g) => g.played.gameId === gameId);
+    // Лише класика: слово «Думай інакше» — не відповідь (точність, серії), а його запитання — не запитання для точності.
+    expect(mine.played).toMatchObject({ correct: 1, answered: 1, questionsPlayed: 1 });
+    expect(mine.marks.filter((m) => m.attempt !== VOTE_ATTEMPT).map((m) => m.questionIndex)).toEqual([1]);
+    // «Усі раунди»: рядок think лишається в таблиці гри.
+    const [table] = await gameTables(db, [gameId]);
+    const own = table.players.find((p) => p.userId === olena.userId);
+    expect(own?.rows.some((r) => r.roundIndex === 0 && r.attempt === VOTE_ATTEMPT)).toBe(true);
+    expect(await answeredTypes(db, olena.userId)).toEqual(new Set(['think', 'single']));
   });
 });

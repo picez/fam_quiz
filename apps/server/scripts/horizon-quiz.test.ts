@@ -46,7 +46,7 @@ describe('the «Горизонт» quiz', () => {
 
   it('has every round type, two classic rounds, a warm-up and the new rounds right before the final', () => {
     const types = horizonQuiz.rounds.map((r) => r.type);
-    for (const type of ROUND_TYPES.filter((round) => round !== 'bets' && round !== 'auction' && round !== 'truth' && round !== 'puzzles' && round !== 'quest')) expect(types).toContain(type); // 28b: новий тип раунду, сід-скрипти не змінюються; 28d: так само «Головоломки»; 29g: так само «Квест із кодом»
+    for (const type of ROUND_TYPES.filter((round) => round !== 'bets' && round !== 'auction' && round !== 'truth' && round !== 'puzzles' && round !== 'quest' && round !== 'think')) expect(types).toContain(type); // 28b: новий тип раунду, сід-скрипти не змінюються; 28d: так само «Головоломки»; 29g: так само «Квест із кодом»; 35: так само «Думай інакше»
     expect(types.filter((t) => t === 'classic').length).toBeGreaterThanOrEqual(2);
     expect(types.slice(-4)).toEqual(['wipeout', 'survival', 'ladder', 'final']);
     expect(types.length).toBeLessThanOrEqual(LIMITS.maxRounds);
@@ -61,7 +61,7 @@ describe('the «Горизонт» quiz', () => {
   it('has every question type', () => {
     const types = new Set(questionsOf(horizonQuiz).map((q) => q.type));
     // 26c: демо без драбини; 27c: новий тип, демо без списку; 27d: новий тип, демо без слів з літер.
-    for (const type of QUESTION_TYPES.filter((t) => t !== 'wordladder' && t !== 'timedlist' && t !== 'letterwords' && t !== 'moreless' && t !== 'drawing' && t !== 'sudoku' && t !== 'crossword' && t !== 'jigsaw' && t !== 'spotdiff' && t !== 'memory' && t !== 'melody')) expect(types.has(type)).toBe(true); // 28a: новий тип, демо без «Більше чи менше»; 28c: новий тип, демо без «Малюнка»; 28d: нові типи, демо без судоку й кросворду; 29c: новий тип, демо без пазла; 29d: новий тип, демо без відмінностей; 29e, 29f: нові типи, демо без «Мелодії» і «Пам'яті»
+    for (const type of QUESTION_TYPES.filter((t) => t !== 'wordladder' && t !== 'timedlist' && t !== 'letterwords' && t !== 'moreless' && t !== 'drawing' && t !== 'sudoku' && t !== 'crossword' && t !== 'jigsaw' && t !== 'spotdiff' && t !== 'memory' && t !== 'melody' && t !== 'think')) expect(types.has(type)).toBe(true); // 28a: новий тип, демо без «Більше чи менше»; 28c: новий тип, демо без «Малюнка»; 28d: нові типи, демо без судоку й кросворду; 29c: новий тип, демо без пазла; 29d: новий тип, демо без відмінностей; 29e, 29f: нові типи, демо без «Мелодії» і «Пам'яті»; 35: новий тип, демо без «Думай інакше»
   });
 
   it('every board has 5–6 categories going 100…500 with ×2, ×3, blitz, voice cells, a pin, a 3×3 wall and spares', () => {

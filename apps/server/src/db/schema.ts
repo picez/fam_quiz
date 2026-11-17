@@ -34,6 +34,7 @@ import type {
   QuizSettings,
   Round,
   SurveyRow,
+  ThinkWord,
   TrialKind,
 } from '@quiz/shared';
 import { sql } from 'drizzle-orm';
@@ -159,6 +160,11 @@ export interface PlayRef {
    * на мить запитання й учасник рушія автора (соло — сам автор, командна гра — команда). Знімок вікторини їх не має.
    */
   truth?: { question: Question; author: string; authorName: string; actor: string };
+  /**
+   * «Думай інакше» (35): фінальні слова ведучого (дописані в грі; знімок вікторини має лише заготовлені), життя учасників на відкритті,
+   * чи запитання розкрито (лише розкрите забирає життя) і хто збігся зі словом (з ручною оцінкою ведучого).
+   */
+  think?: { words: ThinkWord[]; lives: Record<string, number>; revealed: boolean; hit: string[] };
   /** «Вибування»: хто був на межі, випробування, привиди й кінець раунду (id учасників). */
   survival?: {
     /** Хто був на межі; немає — раунд чи гра скінчились на розкритті, до вердикту. */

@@ -40,6 +40,7 @@ import {
   teamPickSchema,
   truthFactSchema,
   truthHideSchema,
+  thinkWordsEventSchema,
   duelistSchema,
   pickAnswererSchema,
   draftSchema,
@@ -1027,6 +1028,13 @@ export function attachSockets(
       if (!hostSide) return FORBIDDEN;
       const payload = truthHideSchema.safeParse(payloadOf(args));
       return payload.success ? run({ type: 'truth-hide', ...payload.data }) : INVALID;
+    });
+
+    // «Думай інакше» (35): слова ведучого йдуть лише в його зріз; ack — лише ok чи помилка.
+    on('host:think-words', (args) => {
+      if (!hostSide) return FORBIDDEN;
+      const payload = thinkWordsEventSchema.safeParse(payloadOf(args));
+      return payload.success ? run({ type: 'think-words', words: payload.data.words }) : INVALID;
     });
 
     on('host:captain', (args) => {

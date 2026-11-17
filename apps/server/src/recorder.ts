@@ -1,4 +1,4 @@
-import { answeredByOf, appealTally, cluesAnswered, debuffOn, isSilentRisk, memberOf, packedStrokes, rankPlayers, recordOf, teamMembers, teamsOn, voteTally, type DrawingPlay, type GameState, type LadderPlay, type SurvivalPlay, type TruthPlay } from '@quiz/engine';
+import { answeredByOf, appealTally, cluesAnswered, debuffOn, isSilentRisk, memberOf, packedStrokes, rankPlayers, recordOf, teamMembers, teamsOn, thinkVerdicts, voteTally, type DrawingPlay, type GameState, type LadderPlay, type SurvivalPlay, type ThinkPlay, type TruthPlay } from '@quiz/engine';
 import { AWAY_MS, isUnscored, type Answer, type BuffKind, type DebuffKind, type Question } from '@quiz/shared';
 import { and, eq, gt, gte, inArray, max, notInArray, sql } from 'drizzle-orm';
 import { antiHidden, awardedIn, awardGame } from './achievement-store';
@@ -150,8 +150,9 @@ function answerRowsOf(state: GameState, index: number, playerId: string, engineP
     // Частка автора «Правди про гравця» (28b) — бали без відповіді: рядок штрафу, щоб історія, профіль і ачівки не рахували її відповіддю.
     const silent = (final !== undefined && payload === null) || isSilentRisk(play, record) || play.truth?.actorId === playerId;
     const wager = final === undefined ? null : Object.hasOwn(final.wagers, playerId) ? final.wagers[playerId] : 0;
-    // Голос в опитуванні чи «хмарі» — не відповідь для статистики: свій номер рядка.
-    const vote = isUnscored(state.plays[index].question);
+    // Голос в опитуванні чи «хмарі» — не відповідь для статистики: свій номер рядка. «Думай інакше» (35): слово без правильності
+    // (бали дають місця) — так само, щоб точність, серії, швидкість і анти-ачівки його не рахували.
+    const vote = isUnscored(state.plays[index].question) || play.think !== undefined;
     // Підказка — лише відповідь на основне «Хто я?» (стан тримає clueOpens назавжди); штраф мовчання — без підказки й відповідача.
     const clue = engineParticipant && !silent && record.spare === undefined ? cluesAnswered(play, play.question, timeMs, playerId) : null;
     const answeredBy = team && !silent ? answeredByOf(state, index, playerId) : null;
@@ -214,6 +215,15 @@ function drawingRef(state: GameState, drawing: DrawingPlay): NonNullable<PlayRef
   return { drawer: nickname, strokes: packedStrokes(drawing) };
 }
 
+/**
+ * «Думай інакше» (35) для PlayRef: фінальні слова ведучого (знімок вікторини має лише заготовлені), життя на відкритті,
+ * чи розкрито й хто збігся (з ручною оцінкою) — щоб історія показала вердикти без повторного порівняння.
+ */
+function thinkRef(state: GameState, index: number, think: ThinkPlay): NonNullable<PlayRef['think']> {
+  const verdicts = thinkVerdicts(state, index);
+  return { words: think.words, lives: think.lives, revealed: think.revealed, hit: Object.keys(verdicts).filter((id) => verdicts[id] === 'hit') };
+}
+
 /** «Вибування» для PlayRef: лише закрите випробування; відповіді привидів — лише лічильники. */
 function survivalRef(survival: SurvivalPlay): NonNullable<PlayRef['survival']> {
   const ghosts = Object.values(survival.ghosts);
@@ -273,7 +283,7 @@ async function writeGame(tx: Tx, snapshot: Snapshot, saving: boolean): Promise<v
   const ranks = new Map(finished ? rankPlayers(state.players).map((row) => [row.participantId, row.rank]) : []);
   const progress = {
     questionsPlayed: closed,
-    plays: state.plays.slice(0, closed).map((play) => ({
+    plays: state.plays.slice(0, closed).map((play, index) => ({
       roundIndex: play.roundIndex,
       questionId: play.question.id,
       ...(play.board === undefined ? {} : { cell: { cellId: play.board.cellId, chooserId: play.board.chooserId } }),
@@ -291,6 +301,7 @@ async function writeGame(tx: Tx, snapshot: Snapshot, saving: boolean): Promise<v
       ...(play.survival === undefined ? {} : { survival: survivalRef(play.survival) }),
       ...(play.ladder === undefined ? {} : { ladder: ladderRef(play.ladder, play.question) }),
       ...(play.truth === undefined ? {} : { truth: truthRef(play.truth, play.question) }),
+      ...(play.think === undefined ? {} : { think: thinkRef(state, index, play.think) }),
     })),
     finishedAt: finished ? new Date() : null,
   };
