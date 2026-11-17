@@ -108,6 +108,10 @@ describe('think round flow (35)', () => {
     expect(setThinkWords(s1, [red, blue, green, w('жовтий')], t0)).toEqual({ ok: false, error: 'think_word' });
     expect(setThinkWords(s1, [red, w('Червона')], t0)).toEqual({ ok: false, error: 'think_word' });
     expect(setThinkWords(s1, [w('я'.repeat(41))], t0)).toEqual({ ok: false, error: 'think_word' });
+    // Без жодної літери чи цифри — не слово; повтор після розділових — теж повтор.
+    expect(setThinkWords(s1, [w('!!!')], t0)).toEqual({ ok: false, error: 'think_word' });
+    expect(setThinkWords(s1, [w('червоний', '—')], t0)).toEqual({ ok: false, error: 'think_word' });
+    expect(setThinkWords(s1, [w('темно-синій'), w('темно синій')], t0)).toEqual({ ok: false, error: 'think_word' });
     expect(setThinkWords(s1, [w('червоний', 'a', 'b', 'c', 'd', 'e', 'f')], t0)).toEqual({ ok: false, error: 'think_word' });
     // Порожні синоніми відкидаються.
     expect(play(must(setThinkWords(s1, [w('червоний', ' ', 'багряний')], t0))).think?.words).toEqual([w('червоний', 'багряний')]);

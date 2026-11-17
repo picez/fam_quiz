@@ -13,6 +13,19 @@ describe('think word keys (35)', () => {
     expect(thinkKey('п`ять')).toBe('пять');
     expect(thinkKey('  темно   синій ')).toBe('темно синій');
     expect(thinkKey('   ')).toBe('');
+    expect(thinkKey('п′ять')).toBe('пять');
+    expect(thinkKey('п´ять')).toBe('пять');
+  });
+
+  it('punctuation, quotes, emoji and dashes become spaces', () => {
+    for (const value of ['Червоний!', 'червоний.', '"Червоний"', '«червоний»', 'червоний , ', '🍎 червоний']) expect(thinkKey(value)).toBe('червоний');
+    expect(thinkKey('темно-синій')).toBe('темно синій');
+    expect(thinkKey('темно–синій')).toBe('темно синій');
+    expect(thinkKey('темно — синій')).toBe('темно синій');
+    expect(thinkKey('черво́ний')).toBe('червоний');
+    expect(thinkKey('!!! ...')).toBe('');
+    expect(thinkStem('синьою')).toBe('син');
+    expect(thinkStem('синьої')).toBe('син');
   });
 
   it('endings come off, the stem stays at least three letters', () => {
@@ -48,6 +61,8 @@ describe('think word keys (35)', () => {
     expect(thinkWordsIssue([{ word: 'синій', synonyms: ['Сині'] }])).toBe('think_words_dup');
     expect(thinkWordsIssue([{ word: 'червоний', synonyms: ['багряний'] }, { word: 'синій', synonyms: ['блакитний'] }])).toBeNull();
     expect(thinkWordsIssue([])).toBeNull();
+    expect(thinkWordsIssue([{ word: '!!!', synonyms: [] }])).toBe('think_word_empty');
+    expect(thinkWordsIssue([{ word: 'червоний', synonyms: ['—'] }])).toBe('think_word_empty');
   });
 });
 

@@ -2,7 +2,7 @@ import { LIMITS, thinkKey, thinkStem, thinkWordsIssue, type Answer, type Questio
 import { addAdjustment } from './adjust';
 // game.ts викликає цей файл, а цей файл — game.ts; обидва звертаються одне до одного лише під час виклику.
 import { autoLock, currentRound, fail, ok, recordOf, withCurrentPlay, withRecord, type AnswerRecord, type GameState, type Play, type Result, type ThinkPlay } from './game';
-import { textAccepts } from './check';
+import { typoDistance } from './check';
 import { presentPlayers } from './present';
 import { teamMembers, teamsOn } from './teams';
 import { timeOverFor } from './timing';
@@ -13,16 +13,38 @@ import { timeOverFor } from './timing';
 export type ThinkVerdict = 'safe' | 'hit' | 'empty';
 
 /**
- * Індекс першого слова ведучого, з яким збігається відповідь (стебло = стеблу слова чи синоніма, або textAccepts на стеблах —
- * той самий допуск до одруківки, що в типі text: навмисна описка не рятує); порожня — null.
+ * Скільки одруківок прощається стеблу слова ведучого: коротші за 7 літер — жодної (банан ≠ баран, яблуко ≠ яблуня),
+ * 7–9 — одна, від 10 — дві. Суворіше, ніж typoBudget типу text: тут сусідні слова — різні відповіді, а не описки.
+ */
+function thinkTypoBudget(stem: string): number {
+  const length = [...stem].length;
+  return length >= 10 ? 2 : length >= 7 ? 1 : 0;
+}
+
+/** Стебло відповіді близьке до стебла слова ведучого: рівне, або (без цифр, та сама перша літера) у межах thinkTypoBudget. */
+function closeStems(host: string, typed: string): boolean {
+  if (host === typed) return true;
+  const budget = thinkTypoBudget(host);
+  if (budget === 0 || /\d/u.test(host) || /\d/u.test(typed) || [...host][0] !== [...typed][0]) return false;
+  return Math.abs([...host].length - [...typed].length) <= budget && typoDistance(host, typed) <= budget;
+}
+
+/**
+ * Індекс першого слова ведучого, з яким збігається відповідь; порожня — null.
+ * Збіг — стебло всієї відповіді близьке (closeStems) до стебла слова чи синоніма; а для однослівного слова ведучого — ще й
+ * будь-яке слово відповіді («дуже червоний», «червоний колір» → «червоний»). Багатослівне слово ведучого («темно синій») — лише вся відповідь.
+ * Навмисна описка в довгому слові не рятує.
  */
 export function thinkHit(words: readonly ThinkWord[], value: string): number | null {
   const typed = thinkStem(value);
   if (typed === '') return null;
+  const parts = typed.split(' ');
   const index = words.findIndex((w) =>
     [w.word, ...w.synonyms].some((spelling) => {
       const stem = thinkStem(spelling);
-      return stem !== '' && (stem === typed || textAccepts([stem], typed));
+      if (stem === '') return false;
+      if (closeStems(stem, typed)) return true;
+      return !stem.includes(' ') && parts.length > 1 && parts.some((part) => closeStems(stem, part));
     }),
   );
   return index === -1 ? null : index;

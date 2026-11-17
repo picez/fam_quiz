@@ -3675,6 +3675,16 @@ describe('think round (35)', () => {
     expect(issues(quizOf([thinkRound({ questions: [thinkQ('a', same), thinkQ('b', same), thinkQ('c')] })]))).toEqual([]);
   });
 
+  it('a word needs a letter or a digit; no video, no points', () => {
+    const blank = [{ word: '...', synonyms: [] }];
+    expect(issues(quizOf([thinkRound({ questions: [thinkQ('a'), thinkQ('b'), thinkQ('c', blank)] })]))).toContain('think_word_empty');
+    const blankSynonym = [{ word: 'червоний', synonyms: ['🙂'] }];
+    expect(issues(quizOf([thinkRound({ questions: [thinkQ('a'), thinkQ('b'), thinkQ('c', blankSynonym)] })]))).toContain('think_word_empty');
+    const video = { ...thinkQ('c'), video: { id: 'dQw4w9WgXcQ', start: 0 } };
+    expect(issues(quizOf([thinkRound({ questions: [thinkQ('a'), thinkQ('b'), video] })]))).toContain('think_video');
+    expect(issues(quizOf([thinkRound({ questions: [thinkQ('a'), thinkQ('b'), { ...thinkQ('c'), points: 100 }] })]))).toContain('think_points');
+  });
+
   it('rules of a think round are the defaults', () => {
     const parsed = quizSchema.parse(quizOf([thinkRound()]));
     expect(rulesOf(parsed.rounds[0]!)).toBe(DEFAULT_RULES);

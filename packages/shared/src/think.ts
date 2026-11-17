@@ -9,9 +9,10 @@ interface ThinkWordLike {
 /**
  * Закінчення, які відкидає thinkStem, від довших до коротших (кириличні; латиниця лишається як є).
  * Без «ові», «еві», «єві»: інакше «фіолетові» / «рожеві» (множина прикметника) втратили б «ов» / «ев» і розійшлися б із «фіолетовий» / «рожевий».
+ * «ьою», «ьої» — м'які прикметники: «синьою», «синьої» ≈ «синій».
  */
 export const THINK_ENDINGS: readonly string[] = [
-  'ього', 'ьому', 'ого', 'ому', 'ими', 'іми', 'ями', 'ами', 'ією',
+  'ього', 'ьому', 'ого', 'ому', 'ими', 'іми', 'ями', 'ами', 'ією', 'ьою', 'ьої',
   'ий', 'ій', 'ої', 'ою', 'ею', 'єю', 'им', 'ім', 'их', 'іх', 'ів', 'їв', 'ам', 'ям', 'ах', 'ях', 'ом', 'ем', 'єм', 'ія', 'ії', 'ію',
   'а', 'я', 'о', 'е', 'є', 'і', 'ї', 'и', 'у', 'ю', 'ь', 'й',
 ];
@@ -20,14 +21,16 @@ export const THINK_ENDINGS: readonly string[] = [
 const MIN_STEM = 3;
 
 /**
- * Ключ слова: як answerKey (NFC, лапки “”«»„ → ", пробіли зведено, обрізано, toLowerCase), і без жодного апострофа (' ’ ʼ ` ‘),
- * тож «пʼять» = «п'ять» = «пять».
+ * Ключ слова: NFC, без апострофів (' ’ ʼ ` ‘ ′ ´) і знаків наголосу, кожен символ, що не літера, не цифра й не пробіл
+ * (розділові, лапки, дефіси й тире, емодзі), — пробіл; пробіли зведено, обрізано, toLowerCase.
+ * Тож «пʼять» = «п'ять» = «пять», «Червоний!» = «"червоний"» = «червоний», «темно-синій» = «темно синій».
  */
 export function thinkKey(value: string): string {
   return value
     .normalize('NFC')
-    .replace(/['’ʼ`‘]/g, '')
-    .replace(/[“”«»„]/g, '"')
+    .replace(/['’ʼ`‘′´]/g, '')
+    .replace(/\p{M}/gu, '')
+    .replace(/[^\p{L}\p{N}\s]/gu, ' ')
     .replace(/\s+/g, ' ')
     .trim()
     .toLowerCase();
@@ -49,8 +52,13 @@ export function thinkStem(value: string): string {
   return key === '' ? '' : key.split(' ').map(stemWord).join(' ');
 }
 
-/** Слова й синоніми одного запитання не повторюються за thinkStem: одна відповідь не веде у два слова. */
-export function thinkWordsIssue(words: readonly ThinkWordLike[]): 'think_words_dup' | null {
-  const stems = words.flatMap((w) => [w.word, ...w.synonyms].map(thinkStem));
+/**
+ * Перевірка слів одного запитання: слово чи синонім без жодної літери чи цифри (thinkKey порожній) — think_word_empty;
+ * повтор за thinkStem — think_words_dup (одна відповідь не веде у два слова).
+ */
+export function thinkWordsIssue(words: readonly ThinkWordLike[]): 'think_word_empty' | 'think_words_dup' | null {
+  const spellings = words.flatMap((w) => [w.word, ...w.synonyms]);
+  if (spellings.some((s) => thinkKey(s) === '')) return 'think_word_empty';
+  const stems = spellings.map(thinkStem);
   return new Set(stems).size === stems.length ? null : 'think_words_dup';
 }

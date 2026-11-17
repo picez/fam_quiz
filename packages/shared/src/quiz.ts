@@ -763,7 +763,7 @@ export const questionSchema = z
     z.object({
       ...base,
       type: z.literal('think'),
-      /** «Думай інакше» (35): тема в text, гравець пише одне слово; слова ведучого — 0–3 (0 — ведучий впише їх у грі). points не важить (редактор ставить 0). */
+      /** «Думай інакше» (35): тема в text, гравець пише одне слово; слова ведучого — 0–3 (0 — ведучий впише їх у грі). points — 0 (think_points), відео немає (think_video). */
       words: z.array(thinkWordSchema).max(LIMITS.maxThinkWords),
     }),
   ])
@@ -935,9 +935,12 @@ export const questionSchema = z
       if (q.video !== null) ctx.addIssue({ code: 'custom', message: 'bluff_video' });
     }
     if (q.type === 'think') {
-      // Одна відповідь не веде у два слова: стебла слів і синонімів запитання не повторюються.
+      // Слово має хоч одну літеру чи цифру; одна відповідь не веде у два слова: стебла слів і синонімів запитання не повторюються.
       const issue = thinkWordsIssue(q.words);
       if (issue !== null) ctx.addIssue({ code: 'custom', message: issue });
+      // Тема — текст: відео немає; бали дають місця раунду, тож points запитання — 0.
+      if (q.video !== null) ctx.addIssue({ code: 'custom', message: 'think_video' });
+      if (q.points !== 0) ctx.addIssue({ code: 'custom', message: 'think_points' });
     }
     if ((q.type === 'poll' || q.type === 'wordcloud') && q.points !== 0) ctx.addIssue({ code: 'custom', message: 'vote_points' });
     if (q.audio !== undefined && q.video !== null) ctx.addIssue({ code: 'custom', message: 'audio_video' });

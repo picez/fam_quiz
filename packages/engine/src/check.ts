@@ -75,7 +75,7 @@ function typoBudget(key: string): number {
 }
 
 /** Відстань Дамерау — Левенштейна (обмежена: сусідні літери, переставлені місцями, — одна помилка). */
-function typoDistance(a: string, b: string): number {
+export function typoDistance(a: string, b: string): number {
   const x = [...a];
   const y = [...b];
   const d: number[][] = Array.from({ length: x.length + 1 }, (_, i) => Array.from({ length: y.length + 1 }, (_, j) => (i === 0 ? j : j === 0 ? i : 0)));
