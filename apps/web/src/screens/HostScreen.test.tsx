@@ -4085,3 +4085,38 @@ describe('HostScreen: thinkalike and no overshoot (37)', () => {
     expect(within(rows).getByText('Тарас').closest('li')!.className).toContain('overshoot-over');
   });
 });
+
+describe('HostScreen: spy (38)', () => {
+  const spyQ = { id: 'q7', type: 'spy', text: 'Напишіть одне слово-асоціацію до свого слова', imageUrl: null, video: null, timeLimit: 40, points: 1000, accepted: ['кава'], spyWord: 'чай', voteTime: 30 } as Question;
+  const hostSpy = {
+    stage: 'words' as const,
+    written: 1,
+    voted: 0,
+    total: 3,
+    rows: [
+      { id: 'p1', nickname: 'Оля', word: 'аромат', voters: [], spy: false, points: null },
+      { id: 'p2', nickname: 'Петро', word: null, voters: [], spy: true, points: null },
+      { id: 'p3', nickname: 'Тарас', word: null, voters: [], spy: false, points: null },
+    ],
+    spyId: 'p2',
+    playersWord: 'кава',
+    spyWord: 'чай',
+    spyName: 'Петро',
+    caught: false,
+    guess: null,
+    guessed: false,
+  };
+
+  it('the host sees the spy and the pair from the open, without live answers or the correct line', async () => {
+    const live = { kind: 'answers' as const, answered: 1, total: 3, rows: [], aside: null };
+    const send = show(during('question', spyQ, { endsAt: Date.now() + 30_000, limitMs: 40_000, spy: hostSpy, live }));
+    const panel = document.querySelector('.host-spy') as HTMLElement;
+    expect(within(panel).getByText(t('spyRevealSpy', { name: 'Петро' }))).toBeTruthy();
+    expect(within(panel).getByText(t('spyRevealWords', { players: 'кава', spy: 'чай' }))).toBeTruthy();
+    expect(within(panel).getByText('аромат')).toBeTruthy();
+    expect(document.getElementById('live-answers')).toBeNull();
+    expect(screen.queryByText(t('correctAnswer', { answer: t('spyCorrect') }))).toBeNull();
+    fireEvent.click(button(t('lock')));
+    await waitFor(() => expect(send).toHaveBeenCalledWith('host:lock', undefined));
+  });
+});

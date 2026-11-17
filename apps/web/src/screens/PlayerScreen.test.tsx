@@ -5340,3 +5340,46 @@ describe('PlayerScreen: thinkalike and no overshoot (37)', () => {
     expect(document.querySelectorAll('.overshoot-row')).toHaveLength(1);
   });
 });
+
+describe('PlayerScreen: spy (38)', () => {
+  const spyQuestion = { ...publicQuestion, type: 'spy' as const, text: 'Напишіть одне слово-асоціацію до свого слова', choices: [] };
+  const spyFull = { id: 'q1', type: 'spy' as const, text: spyQuestion.text, imageUrl: null, video: null, timeLimit: 40, points: 1000, accepted: ['кава'], spyWord: 'чай', voteTime: 30 } as Question;
+  const base = { written: 0, voted: 0, total: 3, playersWord: null, spyWord: null, spyName: null, caught: null, guess: null, guessed: null };
+  const mine = { word: 'чай', wrote: null, vote: null, spectator: false, guessing: false, guess: null, spy: null };
+  const revealRows = [
+    { id: 'p1', nickname: 'Олена', word: 'листя', voters: ['Оля', 'Тарас'], spy: true, points: 0 },
+    { id: 'p2', nickname: 'Оля', word: 'аромат', voters: [], spy: false, points: 1000 },
+    { id: 'p3', nickname: 'Тарас', word: 'ранок', voters: [], spy: false, points: 1000 },
+  ];
+  const revealSpy = { ...base, stage: 'reveal' as const, written: 3, voted: 3, rows: revealRows, playersWord: 'кава', spyWord: 'чай', spyName: 'Олена', caught: true, guess: null, guessed: false };
+
+  it('spy phone', async () => {
+    const send = show(onQuestion({ question: spyQuestion as never, spy: { ...base, stage: 'words', rows: null }, me: { ...me, spy: mine } as never }));
+    expect(screen.getByText(t('spyYourWord'))).toBeTruthy();
+    expect(screen.getByText('чай')).toBeTruthy();
+    expect(document.body.textContent).not.toContain('кава');
+    fireEvent.change(screen.getByRole('textbox', { name: t('spyWordPrompt') }), { target: { value: 'листя' } });
+    fireEvent.click(screen.getByRole('button', { name: t('submit') }));
+    await waitFor(() => expect(send).toHaveBeenCalledWith('player:spy-word', { text: 'листя' }));
+  });
+
+  it('reveal: «Ви були шпигуном» only for the spy', () => {
+    const { unmount } = render(
+      <PlayerScreen view={view({ phase: 'reveal', questionIndex: 0, question: spyQuestion as never, reveal: spyFull, spy: revealSpy, me: { ...me, spy: { ...mine, wrote: 'листя', spy: true }, result: { accepted: false, accuracy: 0, grade: 'wrong', streakBonus: 0, points: 0 } } as never })} hostOnline offsetMs={0} send={vi.fn(async () => ({ ok: true as const }))} />,
+    );
+    expect(screen.getByText(t('spyYouWere'))).toBeTruthy();
+    expect(screen.getByText(t('spyRevealSpy', { name: 'Олена' }))).toBeTruthy();
+    expect(document.querySelector('.spy-board')).toBeTruthy();
+    unmount();
+    show(view({ phase: 'reveal', questionIndex: 0, question: spyQuestion as never, reveal: spyFull, spy: revealSpy, me: { ...me, id: 'p2', nickname: 'Оля', spy: { ...mine, word: 'кава', wrote: 'аромат', vote: 'p1', spy: false }, result: { accepted: true, accuracy: 1, grade: 'correct', streakBonus: 0, points: 1000 } } as never }));
+    expect(screen.queryByText(t('spyYouWere'))).toBeNull();
+    expect(document.querySelector('.earned')!.textContent).toBe('+1000');
+  });
+
+  it('locked shows the own association and no pair', () => {
+    show(view({ phase: 'locked', questionIndex: 0, question: spyQuestion as never, spy: { ...base, stage: 'vote', written: 3, voted: 3, rows: revealRows.map((row) => ({ ...row, voters: null, spy: null, points: null })) }, me: { ...me, spy: { ...mine, wrote: 'листя', vote: 'p2' } } as never }));
+    expect(screen.getByText('листя')).toBeTruthy();
+    expect(screen.getByText(t('waitReveal'))).toBeTruthy();
+    expect(document.body.textContent).not.toContain('кава');
+  });
+});

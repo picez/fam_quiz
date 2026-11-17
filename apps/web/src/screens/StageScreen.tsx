@@ -67,6 +67,7 @@ import { WallTable } from './WallTable';
 import { PollBars } from './PollBars';
 import { WordCloud } from './WordCloud';
 import { BluffBoard } from './BluffBoard';
+import { SpyBoard } from './SpyBoard';
 import { SurveyBoard } from './SurveyBoard';
 import { FactCards, RevealFactsLine } from './FactCards';
 import { AwardsCarousel } from './AwardsCarousel';
@@ -265,7 +266,12 @@ function Question({ view, offsetMs, blink, blinking, audioCommand, tilts, drawin
         {/* Малюнок (28c): «Вгадали N з M» — під полотном, разом із тим, хто малює. */}
         {view.board === null && !(view.auction !== undefined && !view.auction.open) && question.type !== 'drawing' && view.melody === undefined && view.videoclip === undefined && (
           <span>
-            {question.type === 'chain'
+            {question.type === 'spy' && view.spy !== undefined
+              ? // «Шпигун» (38): учасники без автора автопілота; на етапі слів — хто написав, далі — хто проголосував.
+                view.spy.stage === 'words'
+                ? t('answeredOf', { answered: view.spy.written, total: view.spy.total })
+                : t('votedOf', { voted: view.spy.voted, total: view.spy.total })
+              : question.type === 'chain'
               ? t('chainFinishedOf', { finished: view.answeredCount, total: view.playerCount })
               : // Драбина: «дійшли» — за рядками (записи після закриття є й у тих, хто не дійшов). У фіналі рядків сцені немає,
               // і лічильник — загальний «Відповіли» за тими, хто зробив хоч крок, щоб не видати, скільки вже правильно.
@@ -443,6 +449,12 @@ function Question({ view, offsetMs, blink, blinking, audioCommand, tilts, drawin
               {view.bluff.stage === 'choice' && <p className="meta">{t('bluffPickedCount', { n: view.bluff.picked, total: view.playerCount })}</p>}
             </>
           )}
+        </div>
+      ) : question.type === 'spy' && view.spy !== undefined ? (
+        // «Шпигун» (38): до голосування — нічого, крім лічильника в шапці; далі — асоціації з іменами; на розкритті — пара, шпигун і голоси.
+        <div className="stage-fit stage-spy">
+          <SpyBoard info={view.spy} />
+          {view.phase === 'reveal' && view.facts?.reveal != null && <RevealFactsLine facts={view.facts.reveal} big />}
         </div>
       ) : question.type === 'survey' && view.survey !== null ? (
         <div className="stage-fit stage-survey">
@@ -627,7 +639,7 @@ function Question({ view, offsetMs, blink, blinking, audioCommand, tilts, drawin
         </div>
       )}
       {reveal !== null && view.survival !== null && <SurvivalReveal info={view.survival} />}
-      {reveal !== null && scale === null && question.type !== 'pin' && question.type !== 'match' && question.type !== 'chain' && question.type !== 'wordladder' && question.type !== 'timedlist' && question.type !== 'letterwords' && question.type !== 'moreless' && question.type !== 'sort' && question.type !== 'wall' && question.type !== 'poll' && question.type !== 'wordcloud' && question.type !== 'survey' && question.type !== 'bluff' && question.type !== 'drawing' && question.type !== 'sudoku' && question.type !== 'crossword' && question.type !== 'jigsaw' && question.type !== 'spotdiff' && question.type !== 'memory' && question.type !== 'melody' && question.type !== 'videoclip' && question.type !== 'thinkalike' && (
+      {reveal !== null && scale === null && question.type !== 'pin' && question.type !== 'match' && question.type !== 'chain' && question.type !== 'wordladder' && question.type !== 'timedlist' && question.type !== 'letterwords' && question.type !== 'moreless' && question.type !== 'sort' && question.type !== 'wall' && question.type !== 'poll' && question.type !== 'wordcloud' && question.type !== 'survey' && question.type !== 'bluff' && question.type !== 'drawing' && question.type !== 'sudoku' && question.type !== 'crossword' && question.type !== 'jigsaw' && question.type !== 'spotdiff' && question.type !== 'memory' && question.type !== 'melody' && question.type !== 'videoclip' && question.type !== 'thinkalike' && question.type !== 'spy' && (
         <>
           <p className="lead answer">{t('correctAnswer', { answer: correctText(reveal, question.choices) })}</p>
           {view.facts?.reveal != null && <RevealFactsLine facts={view.facts.reveal} big />}
