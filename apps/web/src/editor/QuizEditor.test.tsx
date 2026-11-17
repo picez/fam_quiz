@@ -1596,6 +1596,28 @@ describe('QuizEditor duels', () => {
     expect(quiz.duels?.categories[0]).toMatchObject({ title: 'Столиці' });
   });
 
+  it('edits the bet stake', () => {
+    open(filledQuiz());
+    fireEvent.click(duelsToggle());
+    const field = () => screen.getByLabelText(t('duelsBetStake')) as HTMLInputElement;
+    expect(field().value).toBe('100');
+    expect(screen.getByText(t('duelsBetStakeHint'))).toBeTruthy();
+    fill(t('duelsBetStake'), '0');
+    expect(field().value).toBe('0');
+    fill(t('duelsBetStake'), '250');
+    expect(field().value).toBe('250');
+  });
+
+  it('the saved quiz carries the bet stake', async () => {
+    const { onSave } = open(filledQuiz());
+    fireEvent.click(duelsToggle());
+    fillPool();
+    fill(t('duelsBetStake'), '0');
+    click('Зберегти');
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+    expect(saved(onSave).duels?.betStake).toBe(0);
+  });
+
   it('too few questions in a duel category stops saving with a clear message', async () => {
     const { onSave } = open(filledQuiz());
     fireEvent.click(duelsToggle());

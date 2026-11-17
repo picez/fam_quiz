@@ -526,6 +526,7 @@ function reviveDuels(duels: Duels): Duels | null {
     questionsPerDuel: number(duels.questionsPerDuel, LIMITS.defaultDuelQuestions),
     timeLimit: number(duels.timeLimit, LIMITS.defaultDuelTime),
     stake: number(duels.stake, LIMITS.defaultDuelStake),
+    betStake: number(duels.betStake, LIMITS.defaultDuelBetStake),
   };
 }
 

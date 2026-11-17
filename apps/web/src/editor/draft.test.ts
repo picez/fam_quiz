@@ -1345,6 +1345,28 @@ describe('duels in the draft', () => {
     expect(problemsOf(withDuels({ ...ok, categories: [short] }))).toContain('Дуелі, «Столиці»: замало запитань — потрібно щонайменше 3.');
   });
 
+  it('the bet stake starts at 100, is checked against the stake limit and may be absent', () => {
+    const ok = fillDuels(newDuels());
+    expect(ok.betStake).toBe(100);
+    expect(problemsOf(withDuels({ ...ok, betStake: 0 }))).toEqual([]);
+    expect(problemsOf(withDuels({ ...ok, betStake: 5001 }))).toContain(t('problemDuelSettings'));
+    expect(problemsOf(withDuels({ ...ok, betStake: Number.NaN }))).toContain(t('problemDuelSettings'));
+    const { betStake: _gone, ...old } = ok;
+    expect(problemsOf(withDuels(old))).toEqual([]);
+  });
+
+  it('the draft revives the bet stake: junk or a missing value is 100, zero stays zero', () => {
+    const revived = (betStake: unknown) => {
+      const duels = { ...fillDuels(newDuels()), betStake } as unknown as Duels;
+      sessionStorage.setItem('quiz:draft:bs', JSON.stringify(withDuels(duels)));
+      return loadDraft('bs')!.duels!.betStake;
+    };
+    expect(revived('x')).toBe(100);
+    expect(revived(undefined)).toBe(100);
+    expect(revived(0)).toBe(0);
+    expect(revived(250)).toBe(250);
+  });
+
   it('duels that can never start stop saving; the threshold is the one the game uses', () => {
     const duels = fillDuels(newDuels());
     const unreachable = t('problemDuelUnreachable', { needed: 1 });
