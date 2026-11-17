@@ -5225,3 +5225,24 @@ describe('PlayerScreen: family game (31)', () => {
     expect(screen.queryByText(/Сімейна гра/)).toBeNull();
   });
 });
+
+describe('PlayerScreen: think round (35)', () => {
+  const thinkQuestion = { ...publicQuestion, type: 'think' as const, text: 'Напишіть колір веселки', points: 0, choices: [] };
+  const think = { lives: 3, points: 10000, index: 0, total: 5, rows: [{ id: 'p1', nickname: 'Олена', lives: 2, out: false, answered: false, answer: null, verdict: null, lost: false }], words: null, places: null };
+
+  it('one word field instead of the answer input, and own hearts', () => {
+    show(onQuestion({ question: thinkQuestion as never, think, me: { ...me, think: { lives: 2, status: 'alive', verdict: null, place: null } } as never }));
+    expect(screen.getByLabelText(t('thinkInputLabel'))).toBeTruthy();
+    expect(screen.getByRole('button', { name: t('thinkSend') })).toBeTruthy();
+    expect(document.querySelector('.choices')).toBeNull();
+    expect(screen.getByRole('img', { name: 'Життя: 2' })).toBeTruthy();
+  });
+
+  it('the reveal shows the host words, the own verdict and every answer', () => {
+    const revealed = { ...think, words: [{ word: 'червоний', synonyms: [] }], rows: [{ ...think.rows[0]!, lives: 1, answer: 'Червона', verdict: 'hit' as const, lost: true }] };
+    show(view({ phase: 'reveal', questionIndex: 0, question: thinkQuestion as never, think: revealed, me: { ...me, think: { lives: 1, status: 'alive', verdict: 'hit', place: null } } as never }));
+    expect(screen.getByText('Збіг: −1 ❤️')).toBeTruthy();
+    expect(screen.getByText('червоний')).toBeTruthy();
+    expect(screen.getByText('Червона')).toBeTruthy();
+  });
+});

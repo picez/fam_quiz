@@ -57,6 +57,7 @@ import { MemoryStage } from './MemoryView';
 import { MelodyStage } from './MelodyView';
 import { SpotdiffStage } from './SpotdiffView';
 import type { DrawingModel } from '../live/drawing';
+import { ThinkPlaces, ThinkReveal, ThinkStage } from './ThinkView';
 import { TruthRecapView, TruthSkipped, TruthStage } from './TruthView';
 import { SortBoard, SortReveal, SortStage, SortWords } from './SortView';
 import { WallGrid } from './WallGrid';
@@ -1030,6 +1031,9 @@ export function StageScreen({ view: live, code, joinUrl, offsetMs, hostOnline, a
   const truthStage = view.truth !== undefined && view.truth.index !== null && view.question?.type === 'single';
   // Раунд truth скінчено раніше (останнього розкриття-підсумку не було): на round_end сцена показує підсумок; фініш — подіум, як завжди.
   const truthEarly = phase === 'round_end' && view.truth?.recap?.early === true;
+  // «Думай інакше» (35): своя сцена — тема, ряд ❤️ і ✓ без слів; на розкритті слова ведучого й усі відповіді; наприкінці — місця.
+  const thinkStage = view.think !== undefined && view.question?.type === 'think';
+  const thinkPlaces = phase === 'round_end' && view.think?.places != null && view.think.places.length > 0;
   return (
     // Реакції (13a): бейджі біля ніків і смуга внизу — лише в REACTION_PHASES (.has-reactions тримає запас під смугою).
     <ReactionMain className={['app stage game-bg', appeal !== null ? 'has-appeal' : '', suspense ? 'is-suspense' : ''].filter(Boolean).join(' ')} phase={phase} reactions={reactions} size="stage">
@@ -1066,7 +1070,16 @@ export function StageScreen({ view: live, code, joinUrl, offsetMs, hostOnline, a
       {phase === 'guide' && view.guide !== null && <GuidePageView guide={view.guide} size="stage" autopilot={view.autopilot} />}
       {(phase === 'question' || phase === 'locked' || phase === 'reveal') && view.ladder !== null && <LadderStage view={view} offsetMs={offsetMs} audioCommand={audioCommand} />}
       {(phase === 'question' || phase === 'locked' || phase === 'reveal') && truthStage && <TruthStage view={view} offsetMs={offsetMs} />}
-      {(phase === 'question' || phase === 'locked' || phase === 'reveal') && view.ladder === null && !truthStage && <Question view={view} offsetMs={offsetMs} blink={blink} blinking={blinking} audioCommand={audioCommand} tilts={tilts} drawing={drawing} />}
+      {(phase === 'question' || phase === 'locked') && thinkStage && <ThinkStage view={view} offsetMs={offsetMs} />}
+      {phase === 'reveal' && thinkStage && view.think !== undefined && view.question !== null && (
+        <div className="stage-question think-stage is-reveal">
+          <h1 className={questionClass(view.question.text)} dir="auto">
+            {view.question.text}
+          </h1>
+          <ThinkReveal think={view.think} big />
+        </div>
+      )}
+      {(phase === 'question' || phase === 'locked' || phase === 'reveal') && view.ladder === null && !truthStage && !thinkStage && <Question view={view} offsetMs={offsetMs} blink={blink} blinking={blinking} audioCommand={audioCommand} tilts={tilts} drawing={drawing} />}
       {/* Апеляція (12f) — шар position: fixed унизу по центру; .has-appeal тримає під ним запас унизу, щоб розкриття не ховалося. */}
       {appeal !== null && <AppealCard view={appeal} screenQuestion={view.question} size="stage" teams={view.teams !== null} offsetMs={offsetMs} />}
       {phase === 'duel' && view.duel !== null && <DuelStage view={view} offsetMs={offsetMs} />}
@@ -1089,7 +1102,12 @@ export function StageScreen({ view: live, code, joinUrl, offsetMs, hostOnline, a
           <TruthRecapView recap={view.truth.recap} big />
         </div>
       )}
-      {(phase === 'leaderboard' || phase === 'round_end' || phase === 'finished') && standings !== null && !truthEarly && !(phase === 'leaderboard' && view.ladder !== null) && !(phase === 'leaderboard' && view.quest !== undefined && view.quest.stage !== 'play') && (
+      {thinkPlaces && view.think !== undefined && (
+        <div className="stage-question think-stage is-places">
+          <ThinkPlaces think={view.think} />
+        </div>
+      )}
+      {(phase === 'leaderboard' || phase === 'round_end' || phase === 'finished') && standings !== null && !truthEarly && !thinkPlaces && !(phase === 'leaderboard' && view.ladder !== null) && !(phase === 'leaderboard' && view.quest !== undefined && view.quest.stage !== 'play') && (
         <StandingsBoard view={view} standings={standings} awardsSeq={awardsSeq} splashing={splashNow !== null} ceremony={ceremony} />
       )}
       {/* Не під заставкою «Підсумки»: шар однаково перехоплює дотики. */}

@@ -3258,3 +3258,33 @@ describe('StageScreen: «Читати вголос» (31)', () => {
     expect(screen.queryByRole('button', { name: '🔊 Читати вголос' })).toBeNull();
   });
 });
+
+describe('StageScreen: think round (35)', () => {
+  const thinkQuestion = { ...question, type: 'think' as const, text: 'Напишіть фрукт', points: 0, choices: [] };
+  const rows = [
+    { id: 'p1', nickname: 'Олена', lives: 3, out: false, answered: true, answer: null, verdict: null, lost: false },
+    { id: 'p2', nickname: 'Хосе', lives: 1, out: false, answered: false, answer: null, verdict: null, lost: false },
+  ];
+  const think = { lives: 3, points: 10000, index: 1, total: 5, rows, words: null, places: null };
+
+  it('the think round — hearts row, reveal and places', () => {
+    const { unmount } = show(view({ phase: 'question', questionIndex: 1, question: thinkQuestion as never, think, endsAt: Date.now() + 20_000, limitMs: 30_000 }));
+    expect(screen.getByText('Напишіть фрукт')).toBeTruthy();
+    expect(document.querySelectorAll('.think-row')).toHaveLength(2);
+    expect(document.querySelectorAll('.think-answered')).toHaveLength(1);
+    expect(document.querySelector('.choices')).toBeNull();
+    unmount();
+    const revealed = { ...think, words: [{ word: 'яблуко', synonyms: ['яблучко'] }], rows: [{ ...rows[0]!, answered: false, answer: 'Яблука', verdict: 'hit' as const, lives: 2, lost: true }, { ...rows[1]!, answer: 'Банан', verdict: 'safe' as const }] };
+    const second = show(view({ phase: 'reveal', questionIndex: 1, question: thinkQuestion as never, think: revealed }));
+    expect(screen.getByText('яблуко')).toBeTruthy();
+    expect(screen.getByText('Яблука').closest('li')!.className).toContain('is-hit');
+    second.unmount();
+    const places = [
+      { id: 'p2', nickname: 'Хосе', place: 1, lives: 1, outAt: null, points: 10000 },
+      { id: 'p1', nickname: 'Олена', place: 2, lives: 0, outAt: 4, points: 0 },
+    ];
+    show(view({ phase: 'round_end', think: { ...think, index: null, places }, standings: [] }));
+    expect(screen.getByText(t('thinkPlacesTitle'))).toBeTruthy();
+    expect(screen.getByText('вибув на 4')).toBeTruthy();
+  });
+});
