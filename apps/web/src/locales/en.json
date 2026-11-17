@@ -4148,6 +4148,9 @@
   "thinkAnsweredMark": "answered",
   "thinkWordsTitle": "Host words",
   "thinkPlacesTitle": "“Think different” places",
-  "thinkOutAt": "out on {index}",
-  "thinkPlace": "place {place}"
+  "thinkOutAt": "out at question {index}",
+  "thinkPlace": "place {place}",
+  "thinkNoAnswer": "No answer — that is −1 ❤️",
+  "thinkTotalCol": "Total",
+  "thinkRoundCol": "Round"
 }

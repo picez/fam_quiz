@@ -4148,6 +4148,9 @@
   "thinkAnsweredMark": "hat geantwortet",
   "thinkWordsTitle": "Host-Wörter",
   "thinkPlacesTitle": "Plätze der Runde „Denk anders“",
-  "thinkOutAt": "raus bei {index}",
-  "thinkPlace": "Platz {place}"
+  "thinkOutAt": "raus bei Frage {index}",
+  "thinkPlace": "Platz {place}",
+  "thinkNoAnswer": "Keine Antwort — das kostet −1 ❤️",
+  "thinkTotalCol": "Gesamt",
+  "thinkRoundCol": "Runde"
 }

@@ -269,7 +269,7 @@ describe('history: think (35)', () => {
     expect(screen.getByText('Місця раунду «Думай інакше»')).toBeTruthy();
     const taras = screen.getByText('Тарас').closest('tr')!;
     expect(taras.textContent).toContain('2 місце');
-    expect(taras.textContent).toContain('вибув на 1');
+    expect(taras.textContent).toContain('вибування на питанні 1');
     expect(taras.textContent).toContain('0');
     expect(screen.getByText('Олена').closest('tr')!.textContent).toContain('+1000');
   });

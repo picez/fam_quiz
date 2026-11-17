@@ -3051,7 +3051,7 @@ function thinkInfo(state: GameState): ThinkInfo | undefined {
   const rows = state.players.flatMap((p): ThinkRow[] => {
     if (last === undefined) {
       if (thinkWatches(state, p.id)) return [];
-      return [{ id: p.id, nickname: p.nickname, lives: round.lives, out: false, answered: false, answer: null, verdict: null, lost: false }];
+      return [{ id: p.id, nickname: p.nickname, lives: round.lives, out: false, answered: false, answer: null, verdict: null, lost: false, overridden: false }];
     }
     const opened = state.plays[last].think?.lives;
     if (opened === undefined || !Object.hasOwn(opened, p.id)) return [];
@@ -3070,6 +3070,7 @@ function thinkInfo(state: GameState): ThinkInfo | undefined {
         answer: verdict === null ? null : thinkText(state, last, p.id),
         verdict,
         lost: verdict !== null && after < before,
+        overridden: verdict !== null && recordOf(state, last, p.id)?.overridden === true,
       },
     ];
   });

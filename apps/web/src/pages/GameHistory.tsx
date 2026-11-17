@@ -203,7 +203,6 @@ export function auctionLine(entry: { nickname: string; wager: number; points: nu
   return t('auctionHistoryLine', { nickname: entry.nickname, wager: entry.wager, points: signed(entry.points) });
 }
 
-/** «Правда про гравця»: хто написав факт і скільки балів отримав за тих, хто не вгадав. */
 /** «Думай інакше» (35): «Слова ведучого: …» і рядок кожного живого на відкритті — слово чи «—», вердикт і життя після запитання. */
 export function ThinkHistory({ think }: { think: NonNullable<GameQuestionResult['think']> }) {
   const verdictKey = { safe: 'thinkHistorySafe', hit: 'thinkHistoryHit', empty: 'thinkHistoryEmpty' } as const;
@@ -250,6 +249,7 @@ export function ThinkHistory({ think }: { think: NonNullable<GameQuestionResult[
   );
 }
 
+/** «Правда про гравця»: хто написав факт і скільки балів отримав за тих, хто не вгадав. */
 export function truthLine(info: { author: string; points: number }): string {
   return t('truthHistoryAuthor', { nickname: info.author, points: signed(info.points) });
 }

@@ -548,7 +548,10 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
     panel?.focus({ preventScroll: true });
   };
   const countText =
-    view.wipeout !== null
+    thinkHost !== null
+      ? // «Думай інакше» (35): з живих на відкритті (у командах — команди), а не з усіх гравців.
+        t('answeredOf', { answered: thinkHost.answers.filter((row) => row.answer !== null).length, total: thinkHost.answers.length })
+      : view.wipeout !== null
       ? t('answeredOf', { answered: view.answeredCount, total: view.wipeout.inCount })
       : view.survival !== null
         ? t('answeredOf', { answered: view.answeredCount, total: view.survival.aliveCount })

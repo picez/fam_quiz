@@ -10,7 +10,7 @@ afterEach(cleanup);
 
 const question = { type: 'think', text: 'Напишіть колір веселки', imageUrl: null, video: null, timeLimit: 30, points: 0, choices: [] } as unknown as PublicQuestion;
 const alive: PlayerThink = { lives: 3, status: 'alive', verdict: null, place: null };
-const row = (over: Partial<ThinkRow> = {}): ThinkRow => ({ id: 'p1', nickname: 'Олена', lives: 3, out: false, answered: false, answer: null, verdict: null, lost: false, ...over });
+const row = (over: Partial<ThinkRow> = {}): ThinkRow => ({ id: 'p1', nickname: 'Олена', lives: 3, out: false, answered: false, answer: null, verdict: null, lost: false, overridden: false, ...over });
 const info = (over: Partial<ThinkInfo> = {}): ThinkInfo => ({ lives: 3, points: 10000, index: 0, total: 5, rows: [row(), row({ id: 'p2', nickname: 'Хосе' })], words: null, places: null, ...over });
 const host = (over: Partial<HostThink> = {}): HostThink => ({ ...info(), draft: [], editable: true, canReveal: false, answers: [], ...over });
 const okSend = () => vi.fn<Send>(async () => ({ ok: true as const }));
@@ -90,7 +90,8 @@ describe('HostThinkWords', () => {
   it('the host saves words and is locked after the timer', async () => {
     const send = okSend();
     const { rerender } = render(<HostThinkWords think={host()} phase="question" send={send} />);
-    fireEvent.click(screen.getByRole('button', { name: t('thinkAddWord') }));
+    // Порожній список — одне порожнє поле одразу.
+    expect((screen.getByLabelText(t('thinkWordLabel', { index: 1 })) as HTMLInputElement).value).toBe('');
     fireEvent.click(screen.getByRole('button', { name: t('thinkAddWord') }));
     fireEvent.change(screen.getByLabelText(t('thinkWordLabel', { index: 1 })), { target: { value: 'червоний' } });
     fireEvent.change(screen.getAllByLabelText(t('thinkSynonymsLabel'))[0]!, { target: { value: 'багряний, алий' } });
@@ -114,10 +115,43 @@ describe('HostThinkWords', () => {
     expect(screen.queryByRole('button', { name: t('thinkHostSave') })).toBeNull();
   });
 
+  it('typed words save themselves while the timer runs', async () => {
+    vi.useFakeTimers();
+    try {
+      const send = okSend();
+      render(<HostThinkWords think={host()} phase="question" send={send} />);
+      fireEvent.change(screen.getByLabelText(t('thinkWordLabel', { index: 1 })), { target: { value: 'черв' } });
+      await vi.advanceTimersByTimeAsync(300);
+      fireEvent.change(screen.getByLabelText(t('thinkWordLabel', { index: 1 })), { target: { value: 'червоний' } });
+      await vi.advanceTimersByTimeAsync(300);
+      expect(send).not.toHaveBeenCalled();
+      await vi.advanceTimersByTimeAsync(400);
+      expect(send).toHaveBeenCalledTimes(1);
+      expect(send).toHaveBeenCalledWith('host:think-words', { words: [{ word: 'червоний', synonyms: [] }] });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('locked words show what is in effect, not an unsaved draft', () => {
+    vi.useFakeTimers();
+    try {
+      const send = okSend();
+      const { rerender } = render(<HostThinkWords think={host({ draft: [{ word: 'синій', synonyms: [] }] })} phase="question" send={send} />);
+      fireEvent.change(screen.getByLabelText(t('thinkWordLabel', { index: 1 })), { target: { value: 'зелений' } });
+      // Таймер закрив питання раніше, ніж спрацювало автозбереження: діють старі слова.
+      rerender(<HostThinkWords think={host({ draft: [{ word: 'синій', synonyms: [] }], editable: false })} phase="locked" send={send} />);
+      expect((screen.getByLabelText(t('thinkWordLabel', { index: 1 })) as HTMLInputElement).value).toBe('синій');
+      vi.advanceTimersByTime(2000);
+      expect(send).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('after the timer with no words the host still can write one', () => {
     render(<HostThinkWords think={host({ draft: [], editable: true })} phase="locked" send={okSend()} />);
     expect(screen.getByText(t('thinkHostLate'))).toBeTruthy();
-    fireEvent.click(screen.getByRole('button', { name: t('thinkAddWord') }));
     expect((screen.getByLabelText(t('thinkWordLabel', { index: 1 })) as HTMLInputElement).disabled).toBe(false);
   });
 });
@@ -133,11 +167,12 @@ describe('HostThinkAnswers', () => {
     const send = okSend();
     const { rerender } = render(<HostThinkAnswers think={host({ answers })} phase="question" send={send} />);
     expect(screen.getByText('Червона')).toBeTruthy();
-    expect(screen.queryByRole('button', { name: t('thinkHostMarkSafe') })).toBeNull();
+    expect(screen.queryByRole('button', { name: `${t('thinkHostMarkSafe')}: Олена` })).toBeNull();
     rerender(<HostThinkAnswers think={host({ answers })} phase="reveal" send={send} />);
-    fireEvent.click(screen.getByRole('button', { name: t('thinkHostMarkSafe') }));
+    // Назва кнопки — з ніком: зчитувач екрана чує, чию відповідь змінює.
+    fireEvent.click(screen.getByRole('button', { name: `${t('thinkHostMarkSafe')}: Олена` }));
     await waitFor(() => expect(send).toHaveBeenCalledWith('host:override', { playerId: 'p1', grade: 'correct' }));
-    fireEvent.click(screen.getByRole('button', { name: t('thinkHostMarkHit') }));
+    fireEvent.click(screen.getByRole('button', { name: `${t('thinkHostMarkHit')}: Хосе` }));
     await waitFor(() => expect(send).toHaveBeenCalledWith('host:override', { playerId: 'p2', grade: 'wrong' }));
     // Без відповіді — без кнопок: 2 рядки з кнопками.
     expect(screen.getAllByRole('button')).toHaveLength(2);
@@ -170,6 +205,13 @@ describe('ThinkStage and ThinkReveal', () => {
     expect(screen.getByText('Зелений').closest('li')!.className).toContain('is-safe');
     expect(screen.getByText('Хосе').closest('li')!.textContent).toContain('—');
     expect(container.querySelectorAll('.think-heart.is-lost')).toHaveLength(2);
+    expect(container.querySelector('.think-overridden')).toBeNull();
+  });
+
+  it('a manual verdict is marked for everyone', () => {
+    const think = info({ words: [{ word: 'червоний', synonyms: [] }], rows: [row({ answer: 'Червона', verdict: 'safe', overridden: true })] });
+    render(<ThinkReveal think={think} big />);
+    expect(screen.getByText('Червона').closest('li')!.querySelector('.think-overridden')?.textContent).toBe(t('thinkHostOverridden'));
   });
 
   it('places table', () => {
@@ -183,7 +225,21 @@ describe('ThinkStage and ThinkReveal', () => {
     expect(screen.getByText('1 місце')).toBeTruthy();
     expect(screen.getByText('Хосе')).toBeTruthy();
     expect(screen.getByText('+10000')).toBeTruthy();
-    expect(screen.getByText('вибув на 2')).toBeTruthy();
+    expect(screen.getByText('вибування на питанні 2')).toBeTruthy();
     expect(screen.getByText('Олена').closest('tr')!.className).toBe('is-me');
+    expect(screen.queryByText(t('thinkTotalCol'))).toBeNull();
+  });
+
+  it('the stage places table carries the game total', () => {
+    const think = info({
+      places: [
+        { id: 'p2', nickname: 'Хосе', place: 1, lives: 2, outAt: null, points: 10000 },
+        { id: 'p1', nickname: 'Олена', place: 2, lives: 0, outAt: 2, points: 0 },
+      ],
+    });
+    render(<ThinkPlaces think={think} totals={{ p1: 4200, p2: 10500 }} />);
+    expect(screen.getByRole('columnheader', { name: t('thinkTotalCol') })).toBeTruthy();
+    expect(screen.getByText('Олена').closest('tr')!.querySelector('.think-place-total')?.textContent?.replace(/\s/g, '')).toBe('4200');
+    expect(screen.getByText('Хосе').closest('tr')!.querySelector('.think-place-total')?.textContent?.replace(/\s/g, '')).toBe('10500');
   });
 });

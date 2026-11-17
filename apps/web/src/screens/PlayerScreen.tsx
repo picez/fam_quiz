@@ -1437,8 +1437,11 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
             <section className="sent think-locked">
               {me.think.status !== 'alive' ? (
                 <p className="lead think-status">{t(me.think.status === 'out' ? 'thinkOutNow' : view.author !== null ? 'thinkSpectatorAuthor' : 'thinkSpectator')}</p>
+              ) : me.answer?.type === 'think' ? (
+                <h2 dir="auto">{t('thinkSent', { word: me.answer.value })}</h2>
               ) : (
-                me.answer?.type === 'think' && <h2 dir="auto">{t('thinkSent', { word: me.answer.value })}</h2>
+                // Живий без відповіді: мовчання теж коштує життя — кажемо це до розкриття.
+                <h2 className="think-no-answer">{t('thinkNoAnswer')}</h2>
               )}
               <p className="lead">{t('waitReveal')}</p>
             </section>

@@ -4348,7 +4348,7 @@
   "thinkEmpty": "بلا إجابة: −1 ❤️",
   "thinkOutNow": "خرجت — أنت الآن مشاهد",
   "thinkSpectator": "أنت مشاهد",
-  "thinkSpectatorAuthor": "أنت مؤلف الاختبار — تشاهد هذه الجولة فقط",
+  "thinkSpectatorAuthor": "هذا اختبارك — في هذه الجولة تكتفي بالمشاهدة",
   "thinkOf": "السؤال {index} من {total}",
   "thinkHostWords": "كلماتك",
   "thinkHostSave": "احفظ الكلمات",
@@ -4361,9 +4361,12 @@
   "thinkHostOverridden": "يدويًا",
   "thinkHostMarkHit": "احتسب تطابقًا",
   "thinkHostMarkSafe": "ألغِ التطابق",
-  "thinkAnsweredMark": "أجاب",
+  "thinkAnsweredMark": "توجد إجابة",
   "thinkWordsTitle": "كلمات المقدّم",
   "thinkPlacesTitle": "مراكز جولة «فكّر بشكل مختلف»",
-  "thinkOutAt": "خرج في {index}",
-  "thinkPlace": "المركز {place}"
+  "thinkOutAt": "خروج في السؤال {index}",
+  "thinkPlace": "المركز {place}",
+  "thinkNoAnswer": "لا إجابة — هذا يعني −1 ❤️",
+  "thinkTotalCol": "المجموع",
+  "thinkRoundCol": "الجولة"
 }

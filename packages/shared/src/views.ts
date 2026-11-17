@@ -1647,6 +1647,8 @@ export interface ThinkRow {
   answer: string | null;
   verdict: ThinkVerdict | null;
   lost: boolean;
+  /** Лише reveal: вердикт поставив ведучий вручну (видно всім — «вручну»). */
+  overridden: boolean;
 }
 
 /** «Думай інакше» (35): для сцени й телефонів слова ведучого й чужі відповіді — лише з reveal. */

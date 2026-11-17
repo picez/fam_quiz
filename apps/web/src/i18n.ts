@@ -4257,11 +4257,14 @@ const uk = {
   thinkHostOverridden: 'вручну',
   thinkHostMarkHit: 'Зарахувати збіг',
   thinkHostMarkSafe: 'Зняти збіг',
-  thinkAnsweredMark: 'відповів(ла)',
+  thinkAnsweredMark: 'є відповідь',
   thinkWordsTitle: 'Слова ведучого',
   thinkPlacesTitle: 'Місця раунду «Думай інакше»',
-  thinkOutAt: 'вибув на {index}',
+  thinkOutAt: 'вибування на питанні {index}',
   thinkPlace: '{place} місце',
+  thinkRoundCol: 'Раунд',
+  thinkTotalCol: 'Разом',
+  thinkNoAnswer: 'Ви не відповіли — це −1 ❤️',
 } as const;
 
 /** uk-словник — той самий об'єкт, що читає t(); інші мови перевіряються проти нього. */

@@ -3970,4 +3970,13 @@ describe('HostScreen: think round (35)', () => {
     fireEvent.click(button(t('reveal')));
     await waitFor(() => expect(send).toHaveBeenCalledWith('host:next', undefined));
   });
+
+  it('the answered count is out of the living participants, not every player', () => {
+    const answers = [
+      { id: 'p1', nickname: 'Оля', answer: 'Червоний', hit: false, overridden: false },
+      { id: 'p2', nickname: 'Тарас', answer: null, hit: null, overridden: false },
+    ];
+    show(during('question', think, { think: hostThink({ answers }) }));
+    expect(screen.getAllByText(t('answeredOf', { answered: 1, total: 2 })).length).toBeGreaterThan(0);
+  });
 });

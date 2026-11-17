@@ -1,6 +1,6 @@
-import { useId, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { LIMITS, type HostThink, type Phase, type PlayerThink, type PublicQuestion, type StageView, type ThinkInfo, type ThinkRow, type ThinkWord } from '@quiz/shared';
-import { questionClass, signed } from '../format';
+import { num, questionClass, signed } from '../format';
 import { errorText, t } from '../i18n';
 import { RowReaction } from '../live/Reactions';
 import { Timer, timerStatus } from '../live/Timer';
@@ -161,25 +161,35 @@ interface DraftRow {
 }
 
 const rowsOf = (words: ThinkWord[]): DraftRow[] => words.map((w) => ({ word: w.word, synonyms: w.synonyms.join(', ') }));
+/** Порожній список — один порожній рядок: у ведучого завжди є поле (зокрема «Таймер скінчився — впишіть слово»). */
+const editRowsOf = (words: ThinkWord[]): DraftRow[] => (words.length === 0 ? [{ word: '', synonyms: '' }] : rowsOf(words));
 const wordsOf = (rows: DraftRow[]): ThinkWord[] =>
   rows.map((row) => ({ word: tidy(row.word), synonyms: parseSynonyms(row.synonyms) })).filter((w) => w.word !== '' || w.synonyms.length > 0);
 const sameWords = (a: ThinkWord[], b: ThinkWord[]) => JSON.stringify(a) === JSON.stringify(b);
+/** Автозбереження: стільки після останнього натискання, поки слова ще можна змінити, — щоб недозбережене не зникло з таймером. */
+export const THINK_AUTOSAVE_MS = 600;
 
 /**
- * Пульт: до 3 рядків «слово + синоніми», «Зберегти слова» → host:think-words (увесь список); поле не скидається новими зрізами,
- * поки ведучий пише (є незбережені зміни); !editable — лише читання з «Слова зафіксовано»; locked з порожнім списком — «Таймер скінчився…».
+ * Пульт: до 3 рядків «слово + синоніми», «Зберегти слова» → host:think-words (увесь список); і саме — через THINK_AUTOSAVE_MS
+ * після набору, поки слова можна змінити. Поле не скидається новими зрізами, поки ведучий пише (є незбережені зміни);
+ * !editable — лише читання чинних слів (think.draft) з «Слова зафіксовано»; locked з порожнім списком — «Таймер скінчився…».
  */
 export function HostThinkWords({ think, phase, send, onError }: { think: HostThink; phase: Phase; send: Send; onError?: (text: string | null) => void }) {
-  const [rows, setRows] = useState<DraftRow[]>(() => rowsOf(think.draft));
+  const [rows, setRows] = useState<DraftRow[]>(() => editRowsOf(think.draft));
   const [dirty, setDirty] = useState(false);
   const [seen, setSeen] = useState(think.draft);
+  /** Росте після кожної відповіді на збереження: якщо поки воно летіло, ведучий писав далі, автозбереження спрацює знову. */
+  const [saves, setSaves] = useState(0);
   const busy = useRef(false);
+  const latest = useRef(rows);
+  latest.current = rows;
   if (!sameWords(seen, think.draft)) {
     setSeen(think.draft);
-    if (!dirty) setRows(rowsOf(think.draft));
+    if (!dirty) setRows(editRowsOf(think.draft));
   }
   // Таймер скінчився, а слів немає: ведучий вписує їх один раз, і розкриття чекає.
   const late = phase === 'locked' && think.editable && think.draft.length === 0;
+  const locked = !think.editable;
   const words = wordsOf(rows);
   const changed = !sameWords(words, think.draft);
   const edit = (next: DraftRow[]) => {
@@ -189,23 +199,33 @@ export function HostThinkWords({ think, phase, send, onError }: { think: HostThi
   const save = () => {
     if (busy.current) return;
     busy.current = true;
-    void send('host:think-words', { words })
+    const sent = words;
+    void send('host:think-words', { words: sent })
       .then((result) => {
         onError?.(result.ok ? null : errorText(result.error));
-        if (result.ok) setDirty(false);
+        if (result.ok && sameWords(wordsOf(latest.current), sent)) setDirty(false);
       })
       .catch(() => onError?.(errorText('network')))
       .finally(() => {
         busy.current = false;
+        setSaves((n) => n + 1);
       });
   };
-  const locked = !think.editable;
+  useEffect(() => {
+    if (!dirty || locked || !changed) return;
+    const timer = setTimeout(save, THINK_AUTOSAVE_MS);
+    return () => clearTimeout(timer);
+    // save бере слова з цього ж рендера: перезапуск лише від нового набору чи кінця попереднього збереження.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rows, dirty, locked, changed, saves]);
+  // Зафіксовано: показуємо те, що справді діє, а не недозбережений набір.
+  const shown = locked ? rowsOf(think.draft) : rows;
   return (
     <section className="panel think-host-words">
       <h2>{t('thinkHostWords')}</h2>
       {locked && <p className="meta think-host-locked">{t('thinkHostLocked')}</p>}
       {late && <p className="lead think-host-late">{t('thinkHostLate')}</p>}
-      {rows.map((row, index) => (
+      {shown.map((row, index) => (
         <div className="think-word-row" key={index}>
           <label className="field">
             <span>{t('thinkWordLabel', { index: index + 1 })}</span>
@@ -281,7 +301,7 @@ export function HostThinkAnswers({ think, phase, send, onError }: { think: HostT
             {row.hit !== null && <span className={row.hit ? 'tag is-wrong' : 'tag is-correct'}>{t(row.hit ? 'thinkHostHit' : 'thinkHostSafe')}</span>}
             {row.overridden && <span className="tag">{t('thinkHostOverridden')}</span>}
             {phase === 'reveal' && row.hit !== null && (
-              <button type="button" className="btn btn-small" onClick={() => mark(row.id, row.hit ? 'correct' : 'wrong')}>
+              <button type="button" className="btn btn-small" aria-label={`${t(row.hit ? 'thinkHostMarkSafe' : 'thinkHostMarkHit')}: ${row.nickname}`} onClick={() => mark(row.id, row.hit ? 'correct' : 'wrong')}>
                 {t(row.hit ? 'thinkHostMarkSafe' : 'thinkHostMarkHit')}
               </button>
             )}
@@ -355,6 +375,7 @@ function RevealRow({ row, max, me }: { row: ThinkRow; max: number; me?: string }
       <span className="think-reveal-word" dir="auto">
         {row.answer === null || row.answer === '' ? '—' : row.answer}
       </span>
+      {row.overridden && <span className="tag think-overridden">{t('thinkHostOverridden')}</span>}
       <ThinkHearts lives={row.lives} max={max} lost={row.lost} />
     </li>
   );
@@ -389,13 +410,29 @@ export function ThinkReveal({ think, me, big = false }: { think: ThinkInfo; me?:
   );
 }
 
-/** Сцена й телефони на round_end: таблиця місць — місце, нік, ❤️ чи «вибув на k», очки. */
-export function ThinkPlaces({ think, me }: { think: ThinkInfo; me?: string }) {
+/**
+ * Сцена й телефони на round_end (і фініші, якщо раунд останній): таблиця місць — місце, нік, ❤️ чи «вибування на питанні k», очки раунду;
+ * totals (сцена) — ще й колонка «Разом»: загальний рахунок учасника, щоб кімната бачила й підсумок гри.
+ */
+export function ThinkPlaces({ think, me, totals }: { think: ThinkInfo; me?: string; totals?: Record<string, number> }) {
   if (think.places === null || think.places.length === 0) return null;
   return (
     <section className="think-places">
       <h2>{t('thinkPlacesTitle')}</h2>
       <table className="think-places-table">
+        {totals !== undefined && (
+          <thead>
+            <tr>
+              <td colSpan={3} />
+              <th scope="col" className="think-place-points">
+                {t('thinkRoundCol')}
+              </th>
+              <th scope="col" className="think-place-total">
+                {t('thinkTotalCol')}
+              </th>
+            </tr>
+          </thead>
+        )}
         <tbody>
           {think.places.map((row) => (
             <tr key={row.id} className={row.id === me ? 'is-me' : undefined}>
@@ -407,6 +444,11 @@ export function ThinkPlaces({ think, me }: { think: ThinkInfo; me?: string }) {
               <td className="think-place-points" dir="ltr">
                 {signed(row.points)}
               </td>
+              {totals !== undefined && (
+                <td className="think-place-total" dir="ltr">
+                  {num(totals[row.id] ?? 0)}
+                </td>
+              )}
             </tr>
           ))}
         </tbody>

@@ -4186,7 +4186,7 @@
   "thinkEmpty": "Sin respuesta: −1 ❤️",
   "thinkOutNow": "Quedas fuera: ahora solo miras",
   "thinkSpectator": "Solo miras",
-  "thinkSpectatorAuthor": "Eres el autor del quiz: en esta ronda solo miras",
+  "thinkSpectatorAuthor": "Este quiz es tuyo: en esta ronda solo miras",
   "thinkOf": "Pregunta {index} de {total}",
   "thinkHostWords": "Tus palabras",
   "thinkHostSave": "Guardar palabras",
@@ -4202,6 +4202,9 @@
   "thinkAnsweredMark": "ha respondido",
   "thinkWordsTitle": "Palabras del presentador",
   "thinkPlacesTitle": "Puestos de la ronda «Piensa diferente»",
-  "thinkOutAt": "fuera en la {index}",
-  "thinkPlace": "puesto {place}"
+  "thinkOutAt": "fuera en la pregunta {index}",
+  "thinkPlace": "puesto {place}",
+  "thinkNoAnswer": "Sin respuesta: eso es −1 ❤️",
+  "thinkTotalCol": "Total",
+  "thinkRoundCol": "Ronda"
 }

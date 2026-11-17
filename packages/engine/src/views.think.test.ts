@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Answer, ThinkRound, ThinkWord } from '@quiz/shared';
-import { end, endRound, next, start, submitAnswer, tick, type GameState } from './game';
+import { end, endRound, next, override, start, submitAnswer, tick, type GameState } from './game';
 import { addLatePlayer } from './saved';
 import { actAnswer } from './team-act';
 import { setThinkWords } from './think';
@@ -110,7 +110,7 @@ describe('think views (35)', () => {
     const asked = answer(opened(intro()), { p1: 'Червона' });
     const think = stageView(asked).think;
     expect(think).toMatchObject({ lives: 3, points: 10_000, index: 0, total: 5, words: null, places: null });
-    expect(think?.rows[0]).toEqual({ id: 'p1', nickname: 'Олена', lives: 3, out: false, answered: true, answer: null, verdict: null, lost: false });
+    expect(think?.rows[0]).toEqual({ id: 'p1', nickname: 'Олена', lives: 3, out: false, answered: true, answer: null, verdict: null, lost: false, overridden: false });
     expect(think?.rows[1]).toMatchObject({ nickname: 'Тарас', answered: false, answer: null });
   });
 
@@ -121,7 +121,11 @@ describe('think views (35)', () => {
     expect(think?.words).toEqual([red, blue]);
     expect(think?.rows.find((r) => r.id === 'p1')).toMatchObject({ answer: 'Червона', verdict: 'hit', lost: true, lives: 2, answered: false });
     expect(think?.rows.find((r) => r.id === 'p3')).toMatchObject({ answer: '', verdict: 'empty', lost: true, lives: 2 });
-    expect(think?.rows.find((r) => r.id === 'p4')).toMatchObject({ answer: 'Зелений', verdict: 'safe', lost: false, lives: 3 });
+    expect(think?.rows.find((r) => r.id === 'p4')).toMatchObject({ answer: 'Зелений', verdict: 'safe', lost: false, lives: 3, overridden: false });
+    // Ручна оцінка ведучого видна всім: «вручну» в рядку.
+    const marked = must(override(shown, 'p1', 'correct'));
+    expect(stageView(marked).think?.rows.find((r) => r.id === 'p1')).toMatchObject({ verdict: 'safe', lost: false, lives: 3, overridden: true });
+    expect(playerView(marked, 'p2')?.think?.rows.find((r) => r.id === 'p1')?.overridden).toBe(true);
     expect(playerView(shown, 'p2')?.me.think).toEqual({ lives: 3, status: 'alive', verdict: 'safe', place: null });
     expect(playerView(shown, 'p1')?.me.think?.verdict).toBe('hit');
     // Наступне запитання: знову без слів і відповідей.

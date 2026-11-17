@@ -3262,8 +3262,8 @@ describe('StageScreen: «Читати вголос» (31)', () => {
 describe('StageScreen: think round (35)', () => {
   const thinkQuestion = { ...question, type: 'think' as const, text: 'Напишіть фрукт', points: 0, choices: [] };
   const rows = [
-    { id: 'p1', nickname: 'Олена', lives: 3, out: false, answered: true, answer: null, verdict: null, lost: false },
-    { id: 'p2', nickname: 'Хосе', lives: 1, out: false, answered: false, answer: null, verdict: null, lost: false },
+    { id: 'p1', nickname: 'Олена', lives: 3, out: false, answered: true, answer: null, verdict: null, lost: false, overridden: false },
+    { id: 'p2', nickname: 'Хосе', lives: 1, out: false, answered: false, answer: null, verdict: null, lost: false, overridden: false },
   ];
   const think = { lives: 3, points: 10000, index: 1, total: 5, rows, words: null, places: null };
 
@@ -3278,13 +3278,33 @@ describe('StageScreen: think round (35)', () => {
     const second = show(view({ phase: 'reveal', questionIndex: 1, question: thinkQuestion as never, think: revealed }));
     expect(screen.getByText('яблуко')).toBeTruthy();
     expect(screen.getByText('Яблука').closest('li')!.className).toContain('is-hit');
+    // Розкриття тримає «Питання k з n», як і питання.
+    expect(screen.getByText(t('thinkOf', { index: 2, total: 5 }))).toBeTruthy();
     second.unmount();
     const places = [
       { id: 'p2', nickname: 'Хосе', place: 1, lives: 1, outAt: null, points: 10000 },
       { id: 'p1', nickname: 'Олена', place: 2, lives: 0, outAt: 4, points: 0 },
     ];
-    show(view({ phase: 'round_end', think: { ...think, index: null, places }, standings: [] }));
+    const standings = [
+      { participantId: 'p1', nickname: 'Олена', score: 2500, totalTimeMs: 1, rank: 1 },
+      { participantId: 'p2', nickname: 'Хосе', score: 10400, totalTimeMs: 1, rank: 2 },
+    ];
+    const third = show(view({ phase: 'round_end', think: { ...think, index: null, places }, standings }));
     expect(screen.getByText(t('thinkPlacesTitle'))).toBeTruthy();
-    expect(screen.getByText('вибув на 4')).toBeTruthy();
+    expect(screen.getByText('вибування на питанні 4')).toBeTruthy();
+    // Підсумки раунду лишаються (дошка round_end), таблиця місць — з колонкою «Разом».
+    expect(document.querySelector('.stage-board .think-places')).toBeTruthy();
+    expect(screen.getByRole('columnheader', { name: t('thinkTotalCol') })).toBeTruthy();
+    expect(screen.getByText('Хосе').closest('tr')!.querySelector('.think-place-total')?.textContent?.replace(/\s/g, '')).toBe('10400');
+    third.unmount();
+    // Останній раунд іде одразу на фініш: місця стоять поряд із п'єдесталом.
+    show(view({ phase: 'finished', think: { ...think, index: null, places }, standings }));
+    expect(document.querySelector('.stage-board.is-final.has-think-places .think-places')).toBeTruthy();
+  });
+
+  it('a manual verdict shows on the stage reveal', () => {
+    const revealed = { ...think, words: [{ word: 'яблуко', synonyms: [] }], rows: [{ ...rows[0]!, answered: false, answer: 'Яблука', verdict: 'safe' as const, overridden: true }] };
+    show(view({ phase: 'reveal', questionIndex: 1, question: thinkQuestion as never, think: revealed }));
+    expect(screen.getByText('Яблука').closest('li')!.textContent).toContain(t('thinkHostOverridden'));
   });
 });

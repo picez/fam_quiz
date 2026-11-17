@@ -5228,7 +5228,7 @@ describe('PlayerScreen: family game (31)', () => {
 
 describe('PlayerScreen: think round (35)', () => {
   const thinkQuestion = { ...publicQuestion, type: 'think' as const, text: 'Напишіть колір веселки', points: 0, choices: [] };
-  const think = { lives: 3, points: 10000, index: 0, total: 5, rows: [{ id: 'p1', nickname: 'Олена', lives: 2, out: false, answered: false, answer: null, verdict: null, lost: false }], words: null, places: null };
+  const think = { lives: 3, points: 10000, index: 0, total: 5, rows: [{ id: 'p1', nickname: 'Олена', lives: 2, out: false, answered: false, answer: null, verdict: null, lost: false, overridden: false }], words: null, places: null };
 
   it('one word field instead of the answer input, and own hearts', () => {
     show(onQuestion({ question: thinkQuestion as never, think, me: { ...me, think: { lives: 2, status: 'alive', verdict: null, place: null } } as never }));
@@ -5244,5 +5244,14 @@ describe('PlayerScreen: think round (35)', () => {
     expect(screen.getByText('Збіг: −1 ❤️')).toBeTruthy();
     expect(screen.getByText('червоний')).toBeTruthy();
     expect(screen.getByText('Червона')).toBeTruthy();
+  });
+
+  it('locked without an answer warns that silence costs a heart', () => {
+    show(view({ phase: 'locked', questionIndex: 0, question: thinkQuestion as never, think, me: { ...me, answer: null, think: { lives: 2, status: 'alive', verdict: null, place: null } } as never }));
+    expect(screen.getByText(t('thinkNoAnswer'))).toBeTruthy();
+    cleanup();
+    show(view({ phase: 'locked', questionIndex: 0, question: thinkQuestion as never, think, me: { ...me, answer: { type: 'think', value: 'Синій' }, think: { lives: 2, status: 'alive', verdict: null, place: null } } as never }));
+    expect(screen.queryByText(t('thinkNoAnswer'))).toBeNull();
+    expect(screen.getByText(t('thinkSent', { word: 'Синій' }))).toBeTruthy();
   });
 });

@@ -23883,8 +23883,13 @@ input.sudoku-editor-cell:focus-visible {
 }
 
 .think-heart.is-gone {
-  opacity: 0.35;
+  opacity: 0.55;
   filter: grayscale(1);
+}
+
+/* Світла тема: на світлому тлі сіре серце й так видно — блідіше, щоб живі виділялися. */
+:where(:root.is-light) .think-heart.is-gone {
+  opacity: 0.35;
 }
 
 .think-hearts.is-compact.is-lost {
@@ -23907,7 +23912,7 @@ input.sudoku-editor-cell:focus-visible {
     transform: scale(0.85);
   }
   100% {
-    opacity: 0.35;
+    opacity: 0.55;
     filter: grayscale(1);
     transform: scale(1);
   }
@@ -24119,10 +24124,35 @@ input.sudoku-editor-cell:focus-visible {
   white-space: nowrap;
 }
 
-.think-places-table .think-place-points {
+.think-places-table .think-place-points,
+.think-places-table .think-place-total {
   text-align: end;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
+}
+
+.think-places-table thead th {
+  color: var(--dim);
+  font-size: 0.75em;
+  font-weight: 400;
+}
+
+.think-places-table thead td {
+  border-bottom: 1px solid var(--line);
+}
+
+.think-places-table .think-place-total {
+  font-weight: 700;
+}
+
+/* «вручну»: вердикт поставив ведучий — видно всім. */
+.think-overridden {
+  font-size: 0.75em;
+  white-space: nowrap;
+}
+
+.think-no-answer {
+  color: var(--wrong);
 }
 
 /* Сцена: тема великим, ряд учасників сіткою; 20+ учасників — дрібніше. */
@@ -24139,7 +24169,8 @@ input.sudoku-editor-cell:focus-visible {
 }
 
 .think-stage .think-rows.is-many {
-  grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr));
+  /* 1280 px — п'ять колонок: ім'я з прізвищем переноситься між словами, а не посеред імені. */
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 14rem), 1fr));
   font-size: clamp(0.75rem, 1.15vw, 1.25rem);
 }
 
@@ -24167,7 +24198,8 @@ input.sudoku-editor-cell:focus-visible {
 }
 
 .think-reveal.is-big .think-reveal-rows.is-many {
-  grid-template-columns: repeat(auto-fill, minmax(17rem, 1fr));
+  /* 1280 px — три колонки, 1600 px — чотири: слову лишається місце, рядків — не більше восьми. */
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 20rem), 1fr));
   font-size: clamp(0.75rem, 1.1vw, 1.25rem);
 }
 
@@ -24185,15 +24217,71 @@ input.sudoku-editor-cell:focus-visible {
   line-height: 1.2;
 }
 
-.think-stage.is-places .think-places {
-  width: min(100%, 60rem);
-  margin: 0 auto;
+/* Сцена: розкриття — колонка слова ширша за нік; слова переносяться за складами (lang на <html>), а не посеред літер. */
+.think-reveal.is-big .think-reveal-row {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.35fr) auto;
+}
+
+.think-reveal.is-big .think-reveal-row:has(.think-overridden) {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.35fr) auto auto;
+}
+
+.think-reveal.is-big .think-reveal-row .name,
+.think-reveal.is-big .think-reveal-word,
+.think-stage .think-row .name,
+.think-reveal.is-big .think-word {
+  /* Перенос за складами, де браузер знає мову; слово, якому й так немає місця, ламається лише в останню мить. */
+  overflow-wrap: break-word;
+  word-break: normal;
+  hyphens: auto;
+}
+
+/* 20+ учасників: синоніми ховаються (головні слова лишаються), картки слів і тема нижчі, а знизу — запас під «Читати вголос». */
+.think-reveal.is-big:has(.think-reveal-rows.is-many) .think-synonyms {
+  display: none;
+}
+
+.think-stage.is-reveal:has(.think-reveal-rows.is-many) {
+  gap: 1vh;
+  padding-bottom: 3.25rem;
+}
+
+.think-stage.is-reveal:has(.think-reveal-rows.is-many) h1 {
+  font-size: clamp(1.5rem, 3vw, 3rem);
+}
+
+/* Реакція в рядку учасника — за шрифтом рядка (як на тісних дошках «Вибування»): рядок не росте на висоту бейджа. */
+.think-row .reaction-badge,
+.think-reveal-row .reaction-badge {
+  --reaction-size: min(56px, 1.5em);
+}
+
+/* Підсумки раунду: таблиця місць замість звичайної — з колонкою «Разом». */
+.stage-board .think-places h2 {
+  margin: 0 0 0.25rem;
+  color: var(--dim);
+  font-size: clamp(1rem, 1.4vw, 1.5rem);
+}
+
+.stage-board .think-places-table {
   font-size: clamp(1rem, 1.6vw, 1.75rem);
 }
 
-.think-stage.is-places .think-places h2 {
-  font-size: clamp(1.5rem, 2.6vw, 2.75rem);
-  text-align: center;
+/* Останній раунд — одразу фініш: п'єдестал ліворуч, місця раунду праворуч. */
+.stage .stage-board.is-final.has-think-places {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 2rem;
+  align-items: start;
+  width: min(100%, 90rem);
+}
+
+.stage-board .think-stage-places {
+  min-width: 0;
+}
+
+.stage-board .think-stage-places .think-places-table {
+  font-size: clamp(0.875rem, 1.25vw, 1.375rem);
 }
 
 /* Пульт: слова ведучого й відповіді зі збігом. */
