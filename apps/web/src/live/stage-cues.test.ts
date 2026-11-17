@@ -1,0 +1,78 @@
+import type { StageView } from '@quiz/shared';
+import { describe, expect, it } from 'vitest';
+import { ACCENT_SPLASHES, GONG_GRACE_MS, TICK_FROM_S, stageCues } from './stage-cues';
+
+const stageView = (over: Record<string, unknown> = {}): StageView =>
+  ({
+    phase: 'question',
+    paused: false,
+    round: { index: 0 },
+    questionIndex: 1,
+    endsAt: null,
+    remainingMs: null,
+    held: false,
+    splash: null,
+    stats: null,
+    ...over,
+  }) as unknown as StageView;
+
+const reveal = (accepted: number | null) => stageView({ phase: 'reveal', stats: { answered: 3, accepted, counts: {} } });
+const counting = (over: Record<string, unknown> = {}) => stageView({ endsAt: 10_000, ...over });
+
+describe('stageCues (40)', () => {
+  it('the agreed constants', () => {
+    expect(ACCENT_SPLASHES).toEqual(['round', 'final', 'duel', 'trial', 'blitz']);
+    expect(GONG_GRACE_MS).toBe(1000);
+    expect(TICK_FROM_S).toBe(5);
+  });
+
+  it('a reveal with a correct answer', () => {
+    expect(stageCues(null, reveal(2), 0)).toEqual([{ sound: 'correct', key: 'reveal:0:1' }]);
+    expect(stageCues(null, reveal(0), 0)).toEqual([{ sound: 'wrong', key: 'reveal:0:1' }]);
+    expect(stageCues(null, reveal(null), 0)).toEqual([]);
+    expect(stageCues(null, stageView({ phase: 'reveal', stats: null }), 0)).toEqual([]);
+    expect(stageCues(null, stageView({ phase: 'reveal', round: null, questionIndex: 4, stats: { answered: 1, accepted: 1, counts: {} } }), 0)).toEqual([
+      { sound: 'correct', key: 'reveal:-1:4' },
+    ]);
+  });
+
+  it('ticks in the last five seconds', () => {
+    expect(stageCues(null, counting(), 4_999)).toEqual([]);
+    expect(stageCues(null, counting(), 5_000)).toEqual([{ sound: 'tick', key: 'tick:0:1:10000:5' }]);
+    expect(stageCues(null, counting(), 5_500)).toEqual([{ sound: 'tick', key: 'tick:0:1:10000:5' }]);
+    expect(stageCues(null, counting(), 6_000)).toEqual([{ sound: 'tick', key: 'tick:0:1:10000:4' }]);
+    expect(stageCues(null, counting(), 9_000)).toEqual([{ sound: 'tick', key: 'tick:0:1:10000:1' }]);
+    expect(stageCues(null, counting({ paused: true }), 6_000)).toEqual([]);
+    expect(stageCues(null, counting({ remainingMs: 3000 }), 6_000)).toEqual([]);
+    expect(stageCues(null, counting({ held: true }), 6_000)).toEqual([]);
+    expect(stageCues(null, counting({ endsAt: null }), 6_000)).toEqual([]);
+  });
+
+  it('a gong when time runs out', () => {
+    expect(stageCues(null, counting(), 10_000)).toEqual([{ sound: 'gong', key: 'gong:0:1' }]);
+    expect(stageCues(null, counting(), 12_000)).toEqual([{ sound: 'gong', key: 'gong:0:1' }]);
+    expect(stageCues(null, counting({ paused: true }), 12_000)).toEqual([]);
+  });
+
+  it('a gong on a lock the stage did not see coming', () => {
+    const locked = stageView({ phase: 'locked' });
+    expect(stageCues(counting(), locked, 9_200)).toEqual([{ sound: 'gong', key: 'gong:0:1' }]);
+    expect(stageCues(counting(), locked, 8_000)).toEqual([]);
+    expect(stageCues(counting({ questionIndex: 0 }), locked, 9_200)).toEqual([]);
+    expect(stageCues(counting({ paused: true }), locked, 9_200)).toEqual([]);
+    expect(stageCues(null, locked, 9_200)).toEqual([]);
+  });
+
+  it('an accent on a round splash', () => {
+    const splash = (kind: string) => stageView({ phase: 'lobby', splash: { kind, at: 0, until: 3500 } });
+    expect(stageCues(null, splash('round'), 1000)).toEqual([{ sound: 'accent', key: 'splash:round:0' }]);
+    expect(stageCues(null, splash('round'), 3600)).toEqual([]);
+    for (const kind of ['final', 'duel', 'trial', 'blitz']) expect(stageCues(null, splash(kind), 1000)).toEqual([{ sound: 'accent', key: `splash:${kind}:0` }]);
+    for (const kind of ['question', 'cell', 'podium']) expect(stageCues(null, splash(kind), 1000)).toEqual([]);
+    expect(stageCues(null, stageView({ paused: true, splash: { kind: 'round', at: 0, until: 3500 } }), 1000)).toEqual([]);
+  });
+
+  it('fanfare on the finish', () => {
+    expect(stageCues(null, stageView({ phase: 'finished', splash: { kind: 'podium', at: 0, until: 2500 } }), 1000)).toEqual([{ sound: 'fanfare', key: 'fanfare' }]);
+  });
+});
