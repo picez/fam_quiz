@@ -183,6 +183,8 @@ describe('uk golden (22a)', () => {
   const ADDED_OVERSHOOT = ['overshootLabel', 'overshootHint', 'overshootCorrect', 'overshootOver', 'overshootRowsTitle', 'buffWhy_off_overshoot', 'problemOvershootPlace'];
   const ADDED_THINKALIKE = ['type_thinkalike', 'typeShort_thinkalike', 'typeHow_thinkalike', 'buffWhy_off_thinkalike', 'err_alike_group', 'problemAlikePlace', 'alikeDefaultText', 'alikeEditorHint', 'alikePhoneHint', 'alikeCorrect', 'alikeGroupsTitle', 'alikeTop', 'alikeSilent', 'alikeNobody', 'alikeJoin', 'alikeSplit', 'summaryAlikes_one'];
   const ADDED_THINKALIKE_PLURALS = ['summaryAlikes_few', 'summaryAlikes_many'];
+  const ADDED_SPY = ['type_spy', 'typeShort_spy', 'typeHow_spy', 'buffWhy_off_spy', 'err_spy_word', 'err_spy_self', 'err_spy_spectator', 'problemSpyPlace', 'problemSpyTeams', 'problemSpySame', 'problemSpyLeak', 'problemSpyMedia', 'problemSpyWordLong', 'spyDefaultText', 'spyPlayersWord', 'spyPlayersWordHint', 'spySpyWord', 'spySpyWordHint', 'spyVoteTime', 'spyEditorHint', 'spyYourWord', 'spyWordPrompt', 'spyWaitVote', 'spyVoteTitle', 'spyVoteHint', 'spyVoted', 'spyGuessStage', 'spyCaughtYou', 'spySpectator', 'spyRevealSpy', 'spyRevealWords', 'spyCaught', 'spyHidden', 'spyGuessed', 'spyMissed', 'spyGone', 'spyYouWere', 'spyCorrect', 'spyNoWord', 'summarySpies_one'];
+  const ADDED_SPY_PLURALS = ['summarySpies_few', 'summarySpies_many', 'spyVotes_one', 'spyVotes_few', 'spyVotes_many'];
   const ADDED_29E_PLURALS = ['summaryMelodies_few', 'summaryMelodies_many'];
   /** 27a: раунд «Ставки» — назва, пояснення, помилки, редактор, обріз, історія. */
   const ADDED_27A = ['roundTypeBets', 'roundHow_bets', 'buffWhy_off_bets', 'scoreSource_bets', 'err_bet_skipped', 'err_bet_range', 'summaryBetsMinimum', 'summaryBetsMinimumFlat', 'summaryBetsMax', 'summaryBetsAll', 'betsHistoryLine', 'betsQuestionOf', 'betsTeaserLabel', 'betsPrompt', 'betsPlace', 'betsMinimumButton', 'betsMine', 'betsSkipLow', 'betsSkipLate', 'betsWon', 'betsLost', 'betsRefunded', 'betsKeptNoBank', 'betStartLabel', 'betStepLabel', 'betMaxLabel', 'betMaxPlaceholder', 'betsMinimumsNote', 'betsCutLabel', 'betsCutNone', 'betsCutAll', 'betsCutPreview', 'betsCutPreviewNone', 'betsCutHidden', 'betsSettingsNote', 'problemBetsMax', 'problemBetsCut', 'betsBank', 'betsPlacedNames', 'betsNobodyYet', 'betsMinimumStage', 'betsMaximumStage', 'betsSkipping', 'betsOpen', 'betsHostCut', 'betsHostLimit', 'betsHostCannot', 'betsRefundStage', 'betsRowStake'];
@@ -382,6 +384,29 @@ describe('uk golden (22a)', () => {
     }
   });
 
+  it('38 keys (spy) are in every language with the right plural forms', () => {
+    const locales: Record<string, Record<string, string>> = { en, pl, de, es, it: it_, ar };
+    for (const list of [ADDED_SPY, ADDED_SPY_PLURALS]) {
+      for (const key of list) expect(ukMessages, key).toHaveProperty(key);
+    }
+    for (const [lang, dict] of Object.entries(locales)) {
+      expect(ADDED_SPY.filter((key) => !(key in dict)), lang).toEqual([]);
+      expect(dict, lang).toHaveProperty('spyVotes_other');
+      expect(dict, lang).toHaveProperty('summarySpies_other');
+    }
+    expect(pl).toHaveProperty('spyVotes_few');
+    expect(es).toHaveProperty('summarySpies_many');
+    expect(ar).toHaveProperty('spyVotes_zero');
+    expect(ar).toHaveProperty('summarySpies_two');
+  });
+
+  it('spy help page is in every language', () => {
+    const pages: Record<string, Record<string, string>> = { en: enHelp, pl: plHelp, de: deHelp, es: esHelp, it: itHelp, ar: arHelp };
+    for (const [lang, dict] of Object.entries(pages)) {
+      for (const suffix of ['title', 'what', 'how.0', 'how.3', 'points.0', 'points.2', 'tip.0', 'tip.1', 'limits.0', 'limits.1']) expect(dict, lang).toHaveProperty('question.spy.' + suffix);
+    }
+  });
+
   it('thinkalike help page and the step and overshoot help lines are in every language', () => {
     const pages: Record<string, Record<string, string>> = { en: enHelp, pl: plHelp, de: deHelp, es: esHelp, it: itHelp, ar: arHelp };
     for (const [lang, dict] of Object.entries(pages)) {
@@ -401,7 +426,7 @@ describe('uk golden (22a)', () => {
 
   it('adds no uk keys beyond the agreed list', () => {
     const fresh = Object.keys(ukMessages).filter((key) => !(key in golden));
-    expect(fresh.filter((key) => !ADDED.includes(key) && !ADDED_LATER.includes(key) && !ADDED_23A.includes(key) && !ADDED_24A.includes(key) && !ADDED_24B.includes(key) && !ADDED_24C.includes(key) && !ADDED_24D.includes(key) && !ADDED_GRAIL.includes(key) && !ADDED_25C.includes(key) && !ADDED_25D.includes(key) && !ADDED_25E.includes(key) && !ADDED_26A.includes(key) && !ADDED_26B.includes(key) && !ADDED_26C.includes(key) && !ADDED_27A.includes(key) && !ADDED_27B.includes(key) && !ADDED_27C.includes(key) && !ADDED_27D.includes(key) && !ADDED_28A.includes(key) && !ADDED_28B.includes(key) && !ADDED_28C.includes(key) && !ADDED_28D.includes(key) && !ADDED_28D_PLURALS.includes(key) && !ADDED_29C.includes(key) && !ADDED_29C_PLURALS.includes(key) && !ADDED_29D.includes(key) && !ADDED_29D_PLURALS.includes(key) && !ADDED_29F.includes(key) && !ADDED_29F_PLURALS.includes(key) && !ADDED_29E.includes(key) && !ADDED_29E_PLURALS.includes(key) && !ADDED_29I.includes(key) && !ADDED_29H.includes(key) && !ADDED_29G.includes(key) && !ADDED_29G_PLURALS.includes(key) && !ADDED_30A.includes(key) && !ADDED_12J.includes(key) && !ADDED_12K.includes(key) && !ADDED_12K_PLURALS.includes(key) && !ADDED_12L.includes(key) && !ADDED_31.includes(key) && !ADDED_32.includes(key) && !ADDED_33.includes(key) && !ADDED_34.includes(key) && !ADDED_35.includes(key) && !ADDED_THEME.includes(key) && !ADDED_MEMORY_PEEK.includes(key) && !ADDED_TRUTH_RECAP.includes(key) && !ADDED_TRUTH_TEAM.includes(key) && !ADDED_THINK.includes(key) && !ADDED_VIDEOCLIP.includes(key) && !ADDED_VIDEOCLIP_PLURALS.includes(key) && !ADDED_MORELESS_STEP.includes(key) && !ADDED_OVERSHOOT.includes(key) && !ADDED_THINKALIKE.includes(key) && !ADDED_THINKALIKE_PLURALS.includes(key))).toEqual([]);
+    expect(fresh.filter((key) => !ADDED.includes(key) && !ADDED_LATER.includes(key) && !ADDED_23A.includes(key) && !ADDED_24A.includes(key) && !ADDED_24B.includes(key) && !ADDED_24C.includes(key) && !ADDED_24D.includes(key) && !ADDED_GRAIL.includes(key) && !ADDED_25C.includes(key) && !ADDED_25D.includes(key) && !ADDED_25E.includes(key) && !ADDED_26A.includes(key) && !ADDED_26B.includes(key) && !ADDED_26C.includes(key) && !ADDED_27A.includes(key) && !ADDED_27B.includes(key) && !ADDED_27C.includes(key) && !ADDED_27D.includes(key) && !ADDED_28A.includes(key) && !ADDED_28B.includes(key) && !ADDED_28C.includes(key) && !ADDED_28D.includes(key) && !ADDED_28D_PLURALS.includes(key) && !ADDED_29C.includes(key) && !ADDED_29C_PLURALS.includes(key) && !ADDED_29D.includes(key) && !ADDED_29D_PLURALS.includes(key) && !ADDED_29F.includes(key) && !ADDED_29F_PLURALS.includes(key) && !ADDED_29E.includes(key) && !ADDED_29E_PLURALS.includes(key) && !ADDED_29I.includes(key) && !ADDED_29H.includes(key) && !ADDED_29G.includes(key) && !ADDED_29G_PLURALS.includes(key) && !ADDED_30A.includes(key) && !ADDED_12J.includes(key) && !ADDED_12K.includes(key) && !ADDED_12K_PLURALS.includes(key) && !ADDED_12L.includes(key) && !ADDED_31.includes(key) && !ADDED_32.includes(key) && !ADDED_33.includes(key) && !ADDED_34.includes(key) && !ADDED_35.includes(key) && !ADDED_THEME.includes(key) && !ADDED_MEMORY_PEEK.includes(key) && !ADDED_TRUTH_RECAP.includes(key) && !ADDED_TRUTH_TEAM.includes(key) && !ADDED_THINK.includes(key) && !ADDED_VIDEOCLIP.includes(key) && !ADDED_VIDEOCLIP_PLURALS.includes(key) && !ADDED_MORELESS_STEP.includes(key) && !ADDED_OVERSHOOT.includes(key) && !ADDED_THINKALIKE.includes(key) && !ADDED_THINKALIKE_PLURALS.includes(key) && !ADDED_SPY.includes(key) && !ADDED_SPY_PLURALS.includes(key))).toEqual([]);
   });
 });
 

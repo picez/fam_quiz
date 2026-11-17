@@ -124,6 +124,8 @@ export function correctText(question: Question, presented?: { id: string }[]): s
       return question.accepted[0] ?? '';
     case 'thinkalike':
       return t('alikeCorrect');
+    case 'spy':
+      return t('spyCorrect');
     case 'drawing':
       // Слово, яке бачив художник.
       return question.accepted[0] ?? '';
@@ -279,6 +281,8 @@ export function answerText(answer: Answer | null, question: Question | null, pre
     case 'think':
     case 'thinkalike':
       return answer.value === '' ? '—' : answer.value;
+    case 'spy':
+      return answer.word === null || answer.word === '' ? t('spyNoWord') : answer.word;
     case 'puzzle':
       // Правильність — лише ціла сітка (у кросворді з ключем — ключове слово); заповненість — для статистики.
       return answer.solved ? t('puzzleAnswerSolved') : t('puzzleAnswerPart', { filled: answer.filled, total: answer.total });

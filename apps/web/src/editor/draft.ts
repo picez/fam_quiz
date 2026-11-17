@@ -386,6 +386,11 @@ function build(common: Common, type: QuestionType): Question {
       const { hint: _hint, reveal: _reveal, ...rest } = common;
       return { ...rest, type, text: rest.text === '' ? t('alikeDefaultText') : rest.text };
     }
+    case 'spy': {
+      // 38: «Шпигун» — без відео, звуку, «перевертання» й підказки (бафів немає); слова вписує ведучий (задача 6).
+      const { hint: _hint, audio: _audio, reveal: _reveal, ...rest } = common;
+      return { ...rest, video: null, type, text: rest.text === '' ? t('spyDefaultText') : rest.text, timeLimit: 40, voteTime: 30, accepted: [''], spyWord: '' };
+    }
     case 'bluff':
       return { ...common, video: null, type, timeLimit: LIMITS.defaultBluffTime, choiceTime: LIMITS.defaultChoiceTime, accepted: [''], lies: ['', ''] };
     case 'poll':

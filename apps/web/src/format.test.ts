@@ -39,6 +39,10 @@ describe('survey texts (10e)', () => {
   });
   it('answerText marks hits and misses, or lists the values without hits', () => {
     expect(answerText({ type: 'thinkalike', value: 'яблуко' }, null)).toBe('яблуко');
+    const spyAnswer = { type: 'spy', word: 'аромат', vote: 'Оля', spy: false, caught: false, guess: null, guessed: false } as const;
+    expect(answerText(spyAnswer, null)).toBe('аромат');
+    expect(answerText({ ...spyAnswer, word: null }, null)).toBe('—');
+    expect(correctText({ ...base, type: 'spy' } as never)).toBe('Шпигун і слово гравців');
     expect(answerText({ type: 'survey', values: ['яблучко', 'ананас'], rows: ['a', null] }, survey)).toBe('яблучко ✓, ананас ✗');
     expect(answerText({ type: 'survey', values: ['яблучко', 'ананас'] } as unknown as Answer, survey)).toBe('яблучко, ананас');
   });
