@@ -46,6 +46,7 @@ export * from './wall';
 export * from './votes';
 export * from './survey';
 export * from './bluff';
+export * from './spy';
 export * from './wipeout';
 export * from './quest';
 export * from './survival';

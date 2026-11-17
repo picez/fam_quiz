@@ -10,6 +10,7 @@ import { OptionImage } from './OptionImage';
 import { PinEditor } from './PinEditor';
 import { VideoField } from './VideoField';
 import { BluffEditor } from './BluffEditor';
+import { SpyEditor } from './SpyEditor';
 import { SurveyEditor } from './SurveyEditor';
 import { LetterWordsEditor } from './LetterWordsEditor';
 import { MoreLessEditor } from './MoreLessEditor';
@@ -844,6 +845,8 @@ function Body({ question, onChange, showPoints, cluesByHost, clouds, allowCloud,
       return <MelodyEditor question={question} onChange={onChange} />;
     case 'videoclip':
       return <VideoclipEditor question={question} onChange={onChange} />;
+    case 'spy':
+      return <SpyEditor question={question} onChange={onChange} />;
     case 'thinkalike':
       return <p className="meta">{t('alikeEditorHint')}</p>;
     case 'think':
@@ -910,7 +913,7 @@ export function QuestionEditor({ question, onChange, types, showPoints = true, s
             }}
           />
         )}
-        {showReveal && question.type !== 'thinkalike' && question.imageUrl !== null && question.video === null && (REVEAL_TYPES as readonly string[]).includes(question.type) && (
+        {showReveal && question.type !== 'thinkalike' && question.type !== 'spy' && question.imageUrl !== null && question.video === null && (REVEAL_TYPES as readonly string[]).includes(question.type) && (
           <div className="with-help">
             <div className="reveal-modes" role="group" aria-label={t('revealLabel')}>
               {([undefined, 'pixels', 'blur'] as const).map((mode) => (
@@ -928,7 +931,7 @@ export function QuestionEditor({ question, onChange, types, showPoints = true, s
             <HelpButton id="setting.reveal" />
           </div>
         )}
-        {showVideo && question.audio === undefined && question.type !== 'chain' && question.type !== 'wordladder' && question.type !== 'sort' && question.type !== 'clues' && question.type !== 'pin' && question.type !== 'wall' && question.type !== 'bluff' && question.type !== 'timedlist' && question.type !== 'letterwords' && question.type !== 'moreless' && question.type !== 'drawing' && question.type !== 'melody' && question.type !== 'videoclip' && question.type !== 'jigsaw' && question.type !== 'spotdiff' && question.type !== 'memory' && question.type !== 'think' && !isPuzzle(question) && (
+        {showVideo && question.audio === undefined && question.type !== 'chain' && question.type !== 'wordladder' && question.type !== 'sort' && question.type !== 'clues' && question.type !== 'pin' && question.type !== 'wall' && question.type !== 'bluff' && question.type !== 'spy' && question.type !== 'timedlist' && question.type !== 'letterwords' && question.type !== 'moreless' && question.type !== 'drawing' && question.type !== 'melody' && question.type !== 'videoclip' && question.type !== 'jigsaw' && question.type !== 'spotdiff' && question.type !== 'memory' && question.type !== 'think' && !isPuzzle(question) && (
           <VideoField
             key={question.id}
             video={question.video}
@@ -950,7 +953,7 @@ export function QuestionEditor({ question, onChange, types, showPoints = true, s
           />
         )}
         {/* У малюнку звуку немає: він видав би слово. У головоломках теж: сітці він ні до чого. */}
-        {showAudio && question.video === null && question.type !== 'think' && question.type !== 'drawing' && question.type !== 'melody' && question.type !== 'videoclip' && question.type !== 'jigsaw' && question.type !== 'spotdiff' && question.type !== 'memory' && !isPuzzle(question) && (
+        {showAudio && question.video === null && question.type !== 'think' && question.type !== 'spy' && question.type !== 'drawing' && question.type !== 'melody' && question.type !== 'videoclip' && question.type !== 'jigsaw' && question.type !== 'spotdiff' && question.type !== 'memory' && !isPuzzle(question) && (
           <AudioField
             audio={question.audio}
             timeLimit={question.timeLimit}
@@ -963,7 +966,7 @@ export function QuestionEditor({ question, onChange, types, showPoints = true, s
             onToVideo={(video) => {
               const { audio: _old, reveal: _reveal, ...rest } = latest.current.question;
               // У ланцюжку, сортуванні, «Хто я?» і точці відео немає: звук просто зникає.
-              const noVideo = rest.type === 'jigsaw' || rest.type === 'spotdiff' || rest.type === 'memory' || rest.type === 'chain' || rest.type === 'wordladder' || rest.type === 'sort' || rest.type === 'clues' || rest.type === 'pin' || rest.type === 'wall' || rest.type === 'bluff' || rest.type === 'timedlist' || rest.type === 'letterwords' || rest.type === 'moreless' || rest.type === 'drawing' || rest.type === 'melody' || rest.type === 'videoclip';
+              const noVideo = rest.type === 'jigsaw' || rest.type === 'spotdiff' || rest.type === 'memory' || rest.type === 'chain' || rest.type === 'wordladder' || rest.type === 'sort' || rest.type === 'clues' || rest.type === 'pin' || rest.type === 'wall' || rest.type === 'bluff' || rest.type === 'spy' || rest.type === 'timedlist' || rest.type === 'letterwords' || rest.type === 'moreless' || rest.type === 'drawing' || rest.type === 'melody' || rest.type === 'videoclip';
               latest.current.onChange((noVideo ? rest : { ...rest, video }) as Question);
             }}
           />
@@ -980,7 +983,7 @@ export function QuestionEditor({ question, onChange, types, showPoints = true, s
         </label>
         {betsCut && <BetsCutField text={question.text} cut={question.betsCut} phase={betsCut === 'auction' ? 'auction' : 'bets'} onChange={(cut) => onChange({ ...question, betsCut: cut })} />}
         {/* Підказка — для бафів; у «Більше чи менше», «Малюнку» й головоломках бафів немає. */}
-        {showHint && question.type !== 'think' && question.type !== 'thinkalike' && question.type !== 'moreless' && question.type !== 'drawing' && question.type !== 'melody' && question.type !== 'videoclip' && question.type !== 'jigsaw' && question.type !== 'spotdiff' && question.type !== 'memory' && !isPuzzle(question) && (
+        {showHint && question.type !== 'think' && question.type !== 'thinkalike' && question.type !== 'spy' && question.type !== 'moreless' && question.type !== 'drawing' && question.type !== 'melody' && question.type !== 'videoclip' && question.type !== 'jigsaw' && question.type !== 'spotdiff' && question.type !== 'memory' && !isPuzzle(question) && (
           <label className="field hint-field">
             <span>{t('hintLabel')}</span>
             <textarea

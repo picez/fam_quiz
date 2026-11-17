@@ -32,6 +32,7 @@ import { WallTable } from './WallTable';
 import { PollBars } from './PollBars';
 import { HostCloud } from './HostCloud';
 import { HostBluff } from './HostBluff';
+import { HostSpy } from './HostSpy';
 import { DecidingLabel, HostWipeout } from './HostWipeout';
 import { HostSurvival } from './HostSurvival';
 import { HostLadder } from './HostLadder';
@@ -848,7 +849,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
             </div>
           )}
           {/* «Більше чи менше»: правильні варіанти — у таблиці порівнянь нижче, рядок «—» нічого не каже. Головоломки (28d) — у панелі розв'язку, однаково для судоку й кросворду. */}
-          {correct !== null && correct.type !== 'wall' && correct.type !== 'poll' && correct.type !== 'wordcloud' && correct.type !== 'survey' && correct.type !== 'bluff' && correct.type !== 'moreless' && correct.type !== 'sudoku' && correct.type !== 'crossword' && correct.type !== 'jigsaw' && correct.type !== 'spotdiff' && correct.type !== 'memory' && correct.type !== 'think' && correct.type !== 'thinkalike' && <p className="answer">{t('correctAnswer', { answer: hostCorrectText(correct, view) })}</p>}
+          {correct !== null && correct.type !== 'wall' && correct.type !== 'poll' && correct.type !== 'wordcloud' && correct.type !== 'survey' && correct.type !== 'bluff' && correct.type !== 'moreless' && correct.type !== 'sudoku' && correct.type !== 'crossword' && correct.type !== 'jigsaw' && correct.type !== 'spotdiff' && correct.type !== 'memory' && correct.type !== 'think' && correct.type !== 'thinkalike' && correct.type !== 'spy' && <p className="answer">{t('correctAnswer', { answer: hostCorrectText(correct, view) })}</p>}
           {correct?.type === 'numeric' && view.overshoot !== undefined && <OvershootRows rows={view.overshoot} />}
           {correct?.hint !== undefined && <p className="meta hint-known">{t('hintKnown', { hint: correct.hint })}</p>}
         </section>
@@ -886,7 +887,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
           />
         </section>
       )}
-      {liveOn && !liveTrial && liveData !== null && thinkHost === null && <LiveAnswers view={view} live={liveData} blitz={liveData.kind === 'blitz' ? blitzLive : undefined} tilts={tilts} drafts={liveDrafts} collapsed={!watch} offsetMs={offsetMs} />}
+      {liveOn && !liveTrial && liveData !== null && thinkHost === null && view.spy === undefined && <LiveAnswers view={view} live={liveData} blitz={liveData.kind === 'blitz' ? blitzLive : undefined} tilts={tilts} drafts={liveDrafts} collapsed={!watch} offsetMs={offsetMs} />}
 
       {clip !== null && (phase === 'question' || phase === 'locked' || phase === 'reveal') && (
         <section className="panel host-audio">
@@ -1339,6 +1340,13 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
         <section className="panel host-bluff">
           {/* Заголовок «Блеф ⓘ» уже в рядку контексту запитання, тут його не повторюємо. */}
           <HostBluff info={bluff} act={step} busy={stepping || nextPace !== null} pace={nextPace} paused={view.paused} canRemove={phase === 'question'} />
+        </section>
+      )}
+
+      {/* «Шпигун» (38): шпигун, пара, асоціації й голоси наживо — замість «Відповідей наживо»; етапи перемикає «Закрити». */}
+      {view.spy !== undefined && (
+        <section className="panel host-spy">
+          <HostSpy spy={view.spy} />
         </section>
       )}
 

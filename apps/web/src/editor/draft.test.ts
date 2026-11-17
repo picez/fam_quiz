@@ -48,6 +48,8 @@ function filled(question: Question): Question {
       };
     case 'bluff':
       return { ...question, text, accepted: ['Правда'], lies: ['Вигадка 1', 'Вигадка 2'] };
+    case 'spy':
+      return { ...question, text, accepted: ['Кава'], spyWord: 'Чай' };
     case 'survey':
       return { ...question, text, rows: question.rows.map((row, i) => ({ ...row, text: `Відповідь ${i + 1}`, popularity: 10 + i })) };
     case 'timedlist':
@@ -402,7 +404,7 @@ describe('changeType', () => {
   it('keeps the question text, time and points', () => {
     const source = { ...newQuestion('single'), text: 'Скільки?', timeLimit: 45, points: 500 };
     // Сортування, стіна, блеф, опитування й хмара мають власні час чи бали: їх перевіряють окремі тести.
-    for (const type of QUESTION_TYPES.filter((candidate) => !['sort', 'wall', 'poll', 'wordcloud', 'bluff', 'wordladder', 'timedlist', 'letterwords', 'moreless', 'drawing', 'sudoku', 'crossword', 'jigsaw', 'spotdiff', 'memory', 'melody', 'videoclip', 'think'].includes(candidate))) {
+    for (const type of QUESTION_TYPES.filter((candidate) => !['sort', 'wall', 'poll', 'wordcloud', 'bluff', 'wordladder', 'timedlist', 'letterwords', 'moreless', 'drawing', 'sudoku', 'crossword', 'jigsaw', 'spotdiff', 'memory', 'melody', 'videoclip', 'spy', 'think'].includes(candidate))) {
       const changed = changeType(source, type);
       expect(changed.type).toBe(type);
       expect([changed.id, changed.text, changed.timeLimit, changed.points]).toEqual([source.id, 'Скільки?', 45, 500]);
@@ -3572,5 +3574,80 @@ describe('plan 37 editors: steps, no overshoot, thinkalike', () => {
     expect(stored('over-ok', overshoot()).noOvershoot).toBe(true);
     expect('noOvershoot' in stored('over-yes', { ...overshoot(), noOvershoot: 'yes' })).toBe(false);
     expect('hint' in stored('alike-hint', { ...alike(), hint: 'підказка' })).toBe(false);
+  });
+});
+
+describe('plan 38 editors: spy', () => {
+  const spy = (patch: Partial<Extract<Question, { type: 'spy' }>> = {}) => ({ ...(newQuestion('spy') as Extract<Question, { type: 'spy' }>), accepted: ['потяг'], spyWord: 'автобус', ...patch });
+  const blitz = (question: Question): Quiz => ({ ...quizWith(question), rounds: [{ ...newBlitzRound(), questions: [question] }] });
+  const withTeams = (quiz: Quiz): Quiz => ({ ...quiz, settings: { ...quiz.settings, teams: { count: 2, names: ['Лиси', 'Вовки'] } } });
+
+  it('a new spy is a 40 second question with a 30 second vote in classic only, right after thinkalike', () => {
+    expect(newQuestion('spy')).toMatchObject({ type: 'spy', text: t('spyDefaultText'), timeLimit: 40, voteTime: 30, points: LIMITS.defaultPoints, accepted: [''], spyWord: '' });
+    const classic = questionTypesFor('classic');
+    expect(classic.indexOf('spy')).toBe(classic.indexOf('thinkalike') + 1);
+    for (const type of ['blitz', 'final', 'board', 'bets', 'puzzles'] as const) expect(questionTypesFor(type), type).not.toContain('spy');
+  });
+
+  it('a filled spy is fine in classic, a problem in blitz and on a board cell', () => {
+    expect(problemsOf(quizWith(spy()))).toEqual([]);
+    expect(problemsOf(blitz(spy()))).toEqual([t('problemSpyPlace', { index: 1 })]);
+    const board = { ...newBoardRound(), categories: [{ ...newBoardRound().categories[0], title: 'К', cells: [{ ...newBoardRound().categories[0].cells[0], question: spy() }] }] };
+    expect(problemsOf({ ...quizWith(), rounds: [board as BoardRound] })).toContain(t('problemCell', { category: 1, problem: t('problemSpyPlace', { index: 1 }).charAt(0).toLowerCase() + t('problemSpyPlace', { index: 1 }).slice(1) }));
+  });
+
+  it('a spy used as a spare is a problem', () => {
+    const problems = problemsOf({ ...quizWith(filled(newQuestion('single'))), spares: [spy()] });
+    expect(problems).toEqual([t('problemSpare', { index: 1, problem: t('problemSpyPlace', { index: 1 }).replace(/^[^:]*:\s*/, '') })]);
+  });
+
+  it('teams with a spy question is a problem, without teams or without a spy it is not', () => {
+    expect(problemsOf(withTeams(quizWith(spy())))).toEqual([t('problemSpyTeams', { index: 1 })]);
+    expect(problemsOf(quizWith(spy()))).toEqual([]);
+    expect(problemsOf(withTeams(quizWith(filled(newQuestion('single')))))).toEqual([]);
+  });
+
+  it('the same words, a leaking text, empty words and a bad vote time are problems', () => {
+    expect(problemsOf(quizWith(spy({ spyWord: 'Потяг' })))).toEqual([t('problemSpySame', { index: 1 })]);
+    expect(problemsOf(quizWith(spy({ accepted: ['потяг', 'поїзд'], spyWord: 'Поїзд' })))).toEqual([t('problemSpySame', { index: 1 })]);
+    expect(problemsOf(quizWith(spy({ text: 'Тема: потяг' })))).toEqual([t('problemSpyLeak', { index: 1 })]);
+    expect(problemsOf(quizWith(spy({ text: 'Тема: автобуси' })))).toEqual([]);
+    expect(problemsOf(quizWith(spy({ accepted: [''] })))).toEqual([t('problemSpyWordEmpty', { index: 1 })]);
+    expect(problemsOf(quizWith(spy({ spyWord: ' ' })))).toEqual([t('problemSpyWordEmpty', { index: 1 })]);
+    expect(problemsOf(quizWith(spy({ accepted: ['а'.repeat(LIMITS.thinkWord + 1)] })))).toEqual([t('problemSpyWordLong', { index: 1 })]);
+    expect(problemsOf(quizWith(spy({ voteTime: 1 })))).toEqual([t('problemSpyVoteTime', { index: 1, min: LIMITS.minTime, max: LIMITS.maxTime })]);
+    expect(problemsOf(quizWith(spy({ voteTime: Number.NaN })))).toEqual([t('problemSpyVoteTime', { index: 1, min: LIMITS.minTime, max: LIMITS.maxTime })]);
+  });
+
+  it('cleaning drops hint, video and spare spellings of a spy', () => {
+    const dirty = { ...spy(), hint: 'підказка', accepted: ['потяг', ' ', ' поїзд '] } as Question;
+    const clean = roundQuestions(cleaned(quizWith(dirty)).rounds[0])[0] as Extract<Question, { type: 'spy' }>;
+    expect('hint' in clean).toBe(false);
+    expect(clean.accepted).toEqual(['потяг', 'поїзд']);
+  });
+
+  it('changing text to spy keeps the text; duplicating copies the spellings', () => {
+    const text = { ...newQuestion('text'), text: 'Назвіть слово' } as Question;
+    expect(changeType(text, 'spy')).toMatchObject({ type: 'spy', text: 'Назвіть слово', accepted: [''], spyWord: '', voteTime: 30 });
+    const original = spy({ accepted: ['потяг', 'поїзд'] });
+    const copy = duplicateQuestion(original) as typeof original;
+    expect(copy.id).not.toBe(original.id);
+    expect(copy.accepted).toEqual(['потяг', 'поїзд']);
+    expect(copy.accepted).not.toBe(original.accepted);
+  });
+
+  it('a draft drops hint and video and falls back to a 30 second vote', () => {
+    const stored = (id: string, question: unknown) => {
+      saveDraft(id, quizWith(question as Question));
+      return roundQuestions(loadDraft(id)!.rounds[0])[0] as unknown as Record<string, unknown>;
+    };
+    expect(stored('spy-ok', spy({ voteTime: 35 })).voteTime).toBe(35);
+    expect(stored('spy-x', { ...spy(), voteTime: 'x' }).voteTime).toBe(30);
+    expect(stored('spy-frac', { ...spy(), voteTime: 7.5 }).voteTime).toBe(30);
+    expect(stored('spy-big', { ...spy(), voteTime: 9999 }).voteTime).toBe(30);
+    const dropped = stored('spy-media', { ...spy(), hint: 'підказка', video: { url: 'https://youtu.be/dQw4w9WgXcQ', start: 0 } });
+    expect('hint' in dropped).toBe(false);
+    expect(dropped.video).toBeNull();
+    expect(stored('spy-words', { ...spy(), accepted: 5, spyWord: 7 })).toMatchObject({ accepted: [''], spyWord: '' });
   });
 });

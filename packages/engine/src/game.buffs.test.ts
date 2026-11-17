@@ -44,6 +44,7 @@ import {
   memory,
   melody,
   videoclip,
+  spy,
   thinkalike,
 } from './testing/fixtures';
 import { lobbyWith, must, startRound } from './testing/helpers';
@@ -337,6 +338,18 @@ describe('buffs', () => {
     for (let guard = 0; guard < 10 && !(s.phase === 'question' && s.plays[s.questionIndex].question.type === 'thinkalike'); guard++) s = s.phase === 'question' ? must(lock(s)) : must(next(s, T0, rng0));
     expect(s.plays[s.questionIndex].question.type).toBe('thinkalike');
     for (const kind of buffs) expect([kind, buffBlock(s, 'p1', kind)]).toEqual([kind, 'off_thinkalike']);
+    expect(takeBuff(s, 'p1', 'double', T0, rng0).ok).toBe(false);
+    expect(setDebuff(s, 'p1', 'fog')).toEqual({ ok: false, error: 'not_allowed' });
+    expect(s.debuffs.p2).toMatchObject({ kind: 'fog', firedAt: null });
+  });
+
+  it('a spy in a classic round has no buffs and no debuffs, a waiting debuff waits (38)', () => {
+    const quiz = makeRoundsQuiz([classicRound('c1', [single4, spy])], { buffs, debuffs: ['fog'] });
+    let s = must(next(must(start(lobbyWith(quiz, 'Оля', 'Петро', 'Віра'))), T0, rng0));
+    s = must(setDebuff(s, 'p2', 'fog'));
+    for (let guard = 0; guard < 10 && !(s.phase === 'question' && s.plays[s.questionIndex].question.type === 'spy'); guard++) s = s.phase === 'question' ? must(lock(s)) : must(next(s, T0, rng0));
+    expect(s.plays[s.questionIndex].question.type).toBe('spy');
+    for (const kind of buffs) expect([kind, buffBlock(s, 'p1', kind)]).toEqual([kind, 'off_spy']);
     expect(takeBuff(s, 'p1', 'double', T0, rng0).ok).toBe(false);
     expect(setDebuff(s, 'p1', 'fog')).toEqual({ ok: false, error: 'not_allowed' });
     expect(s.debuffs.p2).toMatchObject({ kind: 'fog', firedAt: null });

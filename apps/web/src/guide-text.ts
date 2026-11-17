@@ -72,6 +72,7 @@ export const TYPE_ICONS: Record<Question['type'], string> = {
   melody: '🎵',
   videoclip: '🎬',
   thinkalike: '🤝',
+  spy: '🕵️',
   think: '💭',
 };
 

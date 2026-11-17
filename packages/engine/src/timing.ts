@@ -1,4 +1,4 @@
-import { answerWindowMs, type ErrorCode, type Question } from '@quiz/shared';
+import { answerWindowMs, LIMITS, type ErrorCode, type Question } from '@quiz/shared';
 import type { GameState, Play, Result } from './game';
 
 const fail = (error: ErrorCode): Result => ({ ok: false, error });
@@ -19,9 +19,14 @@ export function timedPlay(play: Play): boolean {
   return isTimed(play.question) && play.ladder?.timed !== false;
 }
 
-/** Повний час запитання (з довшим фрагментом аудіо) з урахуванням змін ведучого; null — без таймера. У фазі вибору блефу — choiceTime. */
+/**
+ * Повний час запитання (з довшим фрагментом аудіо) з урахуванням змін ведучого; null — без таймера. У фазі вибору блефу — choiceTime;
+ * «Шпигун» (38): голосування — voteTime, останній шанс — LIMITS.spyGuessTime.
+ */
 export function limitMsOf(play: Play): number | null {
   if (play.bluff?.stage === 'choice' && play.question.type === 'bluff') return play.question.choiceTime * 1000 + play.extraMs;
+  if (play.spy?.stage === 'vote' && play.question.type === 'spy') return play.question.voteTime * 1000 + play.extraMs;
+  if (play.spy?.stage === 'guess') return LIMITS.spyGuessTime * 1000 + play.extraMs;
   return timedPlay(play) ? answerWindowMs(play.question) + play.extraMs : null;
 }
 

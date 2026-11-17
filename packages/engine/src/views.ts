@@ -247,6 +247,7 @@ import { wallOf, wallsHere } from './wall';
 import { isAuthor } from './autopilot';
 import { cloudTally, cloudVoters } from './votes';
 import { bluffOrder, bluffPlayOf, bluffShown, bluffShownText } from './bluff';
+import { hostSpy, playerSpy, spyInfo, spyPlayOf } from './spy';
 import { skippedSurveys, surveyShown } from './survey';
 import { duelCategoriesLeft, duelEnds, duelQuestionOf, duelWindowOpen } from './duel';
 import { BOARD_AWAY_MS, cellPlayed, chooserOf, turnSchedule } from './board-turns';
@@ -340,7 +341,8 @@ function withoutThinkWords(question: Question): Question {
 function publicAnswer<T extends Answer | null>(answer: T, revealed: boolean): T | Answer | null {
   if (answer === null) return answer;
   // «Головоломки» (28d): сітка гравця (grid) — значення, до розкриття її не бачить ніхто.
-  if (answer.type === 'bluff' || answer.type === 'moreless' || answer.type === 'puzzle' || answer.type === 'jigsaw' || answer.type === 'spotdiff' || answer.type === 'memory') return revealed ? answer : null;
+  // «Шпигун» (38): запис видає, хто шпигун і чи його викрито.
+  if (answer.type === 'bluff' || answer.type === 'spy' || answer.type === 'moreless' || answer.type === 'puzzle' || answer.type === 'jigsaw' || answer.type === 'spotdiff' || answer.type === 'memory') return revealed ? answer : null;
   return answer.type === 'survey' && !revealed ? { type: 'survey', values: answer.values } : answer;
 }
 
@@ -3230,6 +3232,8 @@ function base(state: GameState, forHost: boolean) {
     ...optional('overshoot', overshootRows(state)),
     // «Думай як усі» (37e): групи слів лише з reveal; пульт отримує свої з locked (hostAlike).
     ...optional('alike', alikeInfo(state)),
+    // «Шпигун» (38): слова пари, шпигун і голоси — лише з reveal; пульт отримує свій зріз з відкриття (hostSpy).
+    ...optional('spy', spyInfo(state)),
     ladder: ladderInfo(state, forHost),
     ...optional('wordladder', !forHost && inFinalRound(state) ? undefined : wordLadderInfo(state, forHost)),
     ...optional('timedlist', timedListInfo(state, forHost)),
@@ -3494,6 +3498,13 @@ function answeredCount(state: GameState): number {
   const bluff = currentBluff(state)?.play.bluff;
   if (bluff !== undefined && state.phase === 'question') {
     const own = bluff.stage === 'lies' ? bluff.lies : bluff.picks;
+    return state.players.filter((p) => Object.hasOwn(own, p.id)).length;
+  }
+  // «Шпигун» (38): лише те, що й так видно — хто написав (words), хто проголосував (vote, guess і далі). Записи не годяться:
+  // при закритті шпигун отримує запис і мовчки, тож лічильник видав би, що він серед мовчазних.
+  const spy = spyPlayOf(state);
+  if (spy !== null) {
+    const own = spy.spy.stage === 'words' ? spy.spy.words : spy.spy.votes;
     return state.players.filter((p) => Object.hasOwn(own, p.id)).length;
   }
   // Мовчання з «Ризиком» (12h) — штраф, а не відповідь.
@@ -3919,6 +3930,7 @@ function buildOwnView(state: GameState, playerId: string): Omit<PlayerView, 'tea
       wall: playerWall(state, playerId),
       survey: playerSurvey(state, playerId),
       bluff: playerBluff(state, playerId),
+      ...optional('spy', playerSpy(state, playerId)),
       debuff: playerDebuff(state, playerId),
       shop: playerShop(state, playerId),
       // «Прихований напад» (29h): лише в зрізі власника (у командах — зріз команди).
@@ -4049,7 +4061,7 @@ export function hostView(state: GameState): HostView {
   });
   const wards = wardsView(state);
   // Зріз «Ставок» для сцени й телефонів ведучому замінює повний (hostBets).
-  const { bets: _publicBets, auction: _publicAuction, truth: _publicTruth, quest: _publicQuest, drawing: _publicDrawing, spotdiff: _publicSpotdiff, memory: _publicMemory, think: _publicThink, alike: _publicAlike, ...shared } = base(state, true);
+  const { bets: _publicBets, auction: _publicAuction, truth: _publicTruth, quest: _publicQuest, drawing: _publicDrawing, spotdiff: _publicSpotdiff, memory: _publicMemory, think: _publicThink, alike: _publicAlike, spy: _publicSpy, ...shared } = base(state, true);
   return {
     ...shared,
     ...optional('spotdiff', spotdiffHostInfo(state)),
@@ -4078,6 +4090,7 @@ export function hostView(state: GameState): HostView {
     ...optional('drawing', hostDrawing(state)),
     ...optional('think', hostThink(state)),
     ...optional('alike', hostAlike(state)),
+    ...optional('spy', hostSpy(state)),
     chain: chainInfo(state),
     sort: sortInfo(state),
     duel: hostDuel(state),

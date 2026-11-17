@@ -86,6 +86,9 @@ import {
   answerTrial,
   pickDoor,
   writeLie,
+  writeSpyWord,
+  voteSpy,
+  guessSpy,
   takeBuff,
   chooseRetry,
   nextClue,
@@ -2016,6 +2019,28 @@ export class RoomManager {
     const who = this.act(room, playerId, 'answerer');
     if (!who.ok) return who;
     return this.apply(room, writeLie(room.state, who.id, text, this.now()));
+  }
+
+  /** «Шпигун» (38): асоціація, голос і останній шанс — усе фаза question, різні етапи. */
+  spyWord(room: Room, playerId: string, text: string): AckResult {
+    if (!this.alive(room)) return this.gone();
+    const who = this.act(room, playerId, 'answerer');
+    if (!who.ok) return who;
+    return this.apply(room, writeSpyWord(room.state, who.id, text, this.now()));
+  }
+
+  spyVote(room: Room, playerId: string, target: string): AckResult {
+    if (!this.alive(room)) return this.gone();
+    const who = this.act(room, playerId, 'answerer');
+    if (!who.ok) return who;
+    return this.apply(room, voteSpy(room.state, who.id, target, this.now()));
+  }
+
+  spyGuess(room: Room, playerId: string, text: string): AckResult {
+    if (!this.alive(room)) return this.gone();
+    const who = this.act(room, playerId, 'answerer');
+    if (!who.ok) return who;
+    return this.apply(room, guessSpy(room.state, who.id, text, this.now()));
   }
 
   bluff(room: Room, playerId: string, optionId: string): AckResult {

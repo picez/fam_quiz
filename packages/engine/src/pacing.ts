@@ -26,6 +26,7 @@ export function stepKey(state: GameState): string {
     play?.survey?.shown,
     play?.bluff?.stage,
     play?.bluff?.shown,
+    play?.spy?.stage,
     play?.survival?.trial?.stage,
     play?.ladder?.decision,
     play?.ladder?.outcome === null,

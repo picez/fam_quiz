@@ -249,6 +249,10 @@ export const thinkWordsEventSchema = z.object({ words: z.array(thinkWordSchema).
 export const alikeJoinSchema = z.object({ from: z.string().min(1).max(100), to: z.string().min(1).max(100) });
 /** «Думай як усі» (37e): ведучий виносить відповідь гравця в окрему групу. */
 export const alikeSplitSchema = z.object({ playerId: z.string().min(1).max(100) });
+/** «Шпигун» (38): асоціація до свого слова (words) чи слово останнього шансу (guess). */
+export const spyTextSchema = z.object({ text: z.string().max(LIMITS.thinkWord).refine(isStorable, UNSTORABLE) });
+/** «Шпигун» (38): голос — кого гравець вважає шпигуном. */
+export const spyVoteSchema = z.object({ playerId: z.string().min(1).max(100) });
 /** Ведучий ховає чи повертає факт гравця (28b). */
 export const truthHideSchema = z.object({ playerId, hidden: z.boolean() });
 /** Командна гра (10j): учасник вибирає команду в лобі. */
@@ -326,6 +330,12 @@ export interface ClientToServerEvents {
   'player:lie': (payload: z.infer<typeof lieSchema>, ack: Ack) => void;
   /** Блеф: вибір варіанта (10f). */
   'player:bluff': (payload: z.infer<typeof bluffOptionSchema>, ack: Ack) => void;
+  /** «Шпигун» (38): асоціація до свого слова (етап words); ack ok чи think_word / spy_word / spy_spectator / already_answered / wrong_phase. */
+  'player:spy-word': (payload: z.infer<typeof spyTextSchema>, ack: Ack) => void;
+  /** Голос: кого гравець вважає шпигуном (етап vote); ack ok чи spy_self / spy_spectator / not_found / already_answered / wrong_phase. */
+  'player:spy-vote': (payload: z.infer<typeof spyVoteSchema>, ack: Ack) => void;
+  /** Останній шанс викритого шпигуна: слово гравців (етап guess); ack ok чи think_word / not_allowed / already_answered / wrong_phase. */
+  'player:spy-guess': (payload: z.infer<typeof spyTextSchema>, ack: Ack) => void;
   /** «Ва-банк»: рішення після розкриття (10g). */
   'player:wipeout': (payload: z.infer<typeof wipeoutSchema>, ack: Ack) => void;
   /** «Мільйонер»: підказка драбини (10i). */

@@ -3402,3 +3402,52 @@ describe('StageScreen: thinkalike and no overshoot (37)', () => {
     expect(within(rows).getByText(t('overshootOver'))).toBeTruthy();
   });
 });
+
+describe('StageScreen: spy (38)', () => {
+  const spyQuestion = { ...question, type: 'spy' as const, text: 'Напишіть одне слово-асоціацію до свого слова', choices: [] };
+  const spyFull = { id: 'q1', type: 'spy' as const, text: spyQuestion.text, imageUrl: null, video: null, timeLimit: 40, points: 1000, accepted: ['кава'], spyWord: 'чай', voteTime: 30 } as Question;
+  const base = { written: 2, voted: 0, total: 3, playersWord: null, spyWord: null, spyName: null, caught: null, guess: null, guessed: null };
+  const rows = (full: boolean) => [
+    { id: 'p1', nickname: 'Оля', word: 'аромат', voters: full ? [] : null, spy: full ? false : null, points: full ? 1000 : null },
+    { id: 'p2', nickname: 'Петро', word: 'листя', voters: full ? ['Оля', 'Тарас', 'Ганна'] : null, spy: full ? true : null, points: full ? 0 : null },
+    { id: 'p3', nickname: 'Тарас', word: 'ранок', voters: full ? [] : null, spy: full ? false : null, points: full ? 1000 : null },
+  ];
+
+  it('the words stage shows no pair, only the progress', () => {
+    show(view({ phase: 'question', questionIndex: 0, question: spyQuestion as never, endsAt: Date.now() + 20_000, limitMs: 40_000, playerCount: 4, answeredCount: 2, spy: { ...base, stage: 'words', rows: null } }));
+    expect(document.body.textContent).not.toContain('кава');
+    expect(document.body.textContent).not.toContain('чай');
+    expect(screen.getByText(t('answeredOf', { answered: 2, total: 3 }))).toBeTruthy();
+    expect(document.querySelector('.spy-board')).toBeNull();
+  });
+
+  it('the vote shows associations with names and the voted count', () => {
+    show(view({ phase: 'question', questionIndex: 0, question: spyQuestion as never, endsAt: Date.now() + 20_000, limitMs: 30_000, spy: { ...base, stage: 'vote', written: 3, voted: 1, rows: rows(false) } }));
+    expect(screen.getByText(t('votedOf', { voted: 1, total: 3 }))).toBeTruthy();
+    expect(screen.getByText('аромат')).toBeTruthy();
+    expect(document.querySelector('.spy-votes')).toBeNull();
+    expect(document.body.textContent).not.toContain('кава');
+  });
+
+  it('locked shows the wait line instead of the vote title and hint', () => {
+    show(view({ phase: 'locked', questionIndex: 0, question: spyQuestion as never, spy: { ...base, stage: 'vote', written: 3, voted: 3, rows: rows(false) } }));
+    expect(screen.getByText(t('waitReveal'))).toBeTruthy();
+    expect(screen.queryByText(t('spyVoteTitle'))).toBeNull();
+    expect(screen.queryByText(t('spyVoteHint'))).toBeNull();
+    expect(screen.getByText('аромат')).toBeTruthy();
+  });
+
+  it('locked after the last chance does not repeat the last-chance line', () => {
+    show(view({ phase: 'locked', questionIndex: 0, question: spyQuestion as never, spy: { ...base, stage: 'guess', written: 3, voted: 3, rows: rows(false) } }));
+    expect(screen.getByText(t('waitReveal'))).toBeTruthy();
+    expect(screen.queryByText(t('spyGuessStage'))).toBeNull();
+  });
+
+  it('the reveal shows SpyBoard instead of the correct answer line', () => {
+    show(view({ phase: 'reveal', questionIndex: 0, question: spyQuestion as never, reveal: spyFull, spy: { ...base, stage: 'reveal', written: 3, voted: 3, rows: rows(true), playersWord: 'кава', spyWord: 'чай', spyName: 'Петро', caught: true, guess: null, guessed: false } }));
+    expect(document.querySelector('.stage-spy .spy-board')).toBeTruthy();
+    expect(screen.getByText(t('spyRevealSpy', { name: 'Петро' }))).toBeTruthy();
+    expect(screen.getByText(t('spyCaught'))).toBeTruthy();
+    expect(screen.queryByText(t('correctAnswer', { answer: t('spyCorrect') }))).toBeNull();
+  });
+});

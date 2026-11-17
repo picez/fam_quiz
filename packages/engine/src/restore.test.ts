@@ -92,6 +92,7 @@ import {
   type MemoryBoard,
   type MelodyPlay,
   type AlikePlay,
+  type SpyPlay,
 } from './game';
 import { stamp } from './pacing';
 import { GAME_STATE_VERSION, READABLE_STATE_VERSIONS, suspend } from './restore';
@@ -115,6 +116,7 @@ import {
   makeRoundsQuiz,
   overshoot,
   alikeQuiz,
+  spyQuiz,
   pin,
   single,
   single4,
@@ -161,6 +163,7 @@ import { spotdiffTap, type SpotTap } from './spotdiff';
 import { memoryFlip, type MemoryFlip } from './memory';
 import { melodyOpen } from './melody';
 import { alikeGroups, alikeSplit } from './alike';
+import { guessSpy, voteSpy, writeSpyWord } from './spy';
 import { acceptAll, lobbyWith, lobbyWithSplash, must, openAt, sendBlitz } from './testing/helpers';
 import { head, right, toSort, wrong } from './testing/sort';
 import { hostView, playerView, stageView } from './views';
@@ -369,7 +372,7 @@ const STATE_SHAPE: Record<string, string> = {
   Quiz: keysOf<Quiz>()(['title', 'description', 'settings', 'rounds', 'duels', 'spares'], true),
   QuizSettings: keysOf<QuizSettings>()(['leaderboard', 'debuffs', 'buffs', 'newcomers', 'family', 'debuffPrices', 'debuffShop', 'teams', 'awayPenalty', 'levelBonuses'], true),
   PlayerState: keysOf<PlayerState>()(['id', 'nickname', 'connected', 'score', 'totalTimeMs', 'streak'], true),
-  Play: keysOf<Play>()(['roundIndex', 'question', 'answers', 'blitz', 'extraMs', 'board', 'final', 'chain', 'wordladder', 'sort', 'buffs', 'overtime', 'clues', 'wall', 'cloudHidden', 'survey', 'bluff', 'wipeout', 'survival', 'ladder', 'buzzers', 'clueOpens', 'away', 'timedlist', 'letterwords', 'moreless', 'truth', 'drawing', 'puzzle', 'jigsaw', 'spotdiff', 'memory', 'melody', 'think', 'alike'], true),
+  Play: keysOf<Play>()(['roundIndex', 'question', 'answers', 'blitz', 'extraMs', 'board', 'final', 'chain', 'wordladder', 'sort', 'buffs', 'overtime', 'clues', 'wall', 'cloudHidden', 'survey', 'bluff', 'wipeout', 'survival', 'ladder', 'buzzers', 'clueOpens', 'away', 'timedlist', 'letterwords', 'moreless', 'truth', 'drawing', 'puzzle', 'jigsaw', 'spotdiff', 'memory', 'melody', 'think', 'alike', 'spy'], true),
   AnswerRecord: keysOf<AnswerRecord>()(
     ['answer', 'timeMs', 'accepted', 'accuracy', 'grade', 'basePoints', 'streakBonus', 'points', 'overridden', 'buff', 'spare'],
     true,
@@ -422,6 +425,9 @@ const STATE_SHAPE: Record<string, string> = {
   TruthPlay: keysOf<TruthPlay>()(['authorId', 'actorId', 'guessers', 'right'], true),
   ThinkPlay: keysOf<ThinkPlay>()(['words', 'lives', 'revealed', 'watch'], true),
   AlikePlay: keysOf<AlikePlay>()(['labels'], true),
+  SpyPlay: keysOf<SpyPlay>()(['stage', 'spyId', 'spyName', 'words', 'votes', 'guess'], true),
+  SpyWord: keysOf<SpyPlay['words'][string]>()(['text', 'at'], true),
+  SpyVote: keysOf<SpyPlay['votes'][string]>()(['target', 'timeMs'], true),
   DrawingPlay: keysOf<DrawingPlay>()(['drawerId', 'side', 'strokes', 'packed', 'rev', 'guessed', 'scored'], true),
   DrawingScored: keysOf<NonNullable<DrawingPlay['scored']>>()(['guessed', 'could'], true),
   Stroke: keysOf<Stroke>()(['c', 'w', 'p'], true),
@@ -1245,7 +1251,7 @@ const KEYS: Record<number, Record<string, string>> = {
     Quiz: 'description,duels,rounds,settings,spares,title',
     QuizSettings: 'awayPenalty,buffs,debuffPrices,debuffShop,debuffs,family,leaderboard,levelBonuses,newcomers,teams',
     PlayerState: 'connected,id,nickname,score,streak,totalTimeMs',
-    Play: 'alike,answers,away,blitz,bluff,board,buffs,buzzers,chain,cloudHidden,clueOpens,clues,drawing,extraMs,final,jigsaw,ladder,letterwords,melody,memory,moreless,overtime,puzzle,question,roundIndex,sort,spotdiff,survey,survival,think,timedlist,truth,wall,wipeout,wordladder',
+    Play: 'alike,answers,away,blitz,bluff,board,buffs,buzzers,chain,cloudHidden,clueOpens,clues,drawing,extraMs,final,jigsaw,ladder,letterwords,melody,memory,moreless,overtime,puzzle,question,roundIndex,sort,spotdiff,spy,survey,survival,think,timedlist,truth,wall,wipeout,wordladder',
     AnswerRecord: 'accepted,accuracy,answer,basePoints,buff,grade,overridden,points,spare,streakBonus,timeMs',
     BoardState: 'awaySince,circle,circleNo,dice,done',
     DiceState: 'throws,tour,tourNo,waiting',
@@ -1292,6 +1298,9 @@ const KEYS: Record<number, Record<string, string>> = {
     TruthPlay: 'actorId,authorId,guessers,right',
     ThinkPlay: 'lives,revealed,watch,words',
     AlikePlay: 'labels',
+    SpyPlay: 'guess,spyId,spyName,stage,votes,words',
+    SpyWord: 'at,text',
+    SpyVote: 'target,timeMs',
     DrawingPlay: 'drawerId,guessed,packed,rev,scored,side,strokes',
     DrawingScored: 'could,guessed',
     Stroke: 'c,p,w',
@@ -1660,6 +1669,7 @@ function representative(): GameState[] {
     ...questing(),
     thinkAsked(),
     alikeSplitOut(),
+    spyGuessed(),
   ];
 }
 
@@ -1668,6 +1678,14 @@ function alikeSplitOut(): GameState {
   let s = openAt(lobbyWith(alikeQuiz(), 'Оля', 'Петро', 'Іра'), T0);
   for (const id of ['p1', 'p2', 'p3']) s = must(submitAnswer(s, id, { type: 'thinkalike', value: 'яблуко' }, T0 + 1000));
   return must(alikeSplit(must(next(s, T0 + 2000, () => 0)), 'p3'));
+}
+
+/** 38: «Шпигун» (Оля, Тарас, Петро-шпигун, Ганна) — асоціації, голоси, викрито, здогадка «кава» закрила запитання. */
+function spyGuessed(): GameState {
+  let s = openAt(lobbyWith(spyQuiz(), 'Оля', 'Тарас', 'Петро', 'Ганна'), T0, () => 0.6);
+  ['аромат', 'ранок', 'зелений', 'чашка'].forEach((text, i) => (s = must(writeSpyWord(s, `p${i + 1}`, text, T0 + 1000))));
+  ['p3', 'p3', 'p1', 'p3'].forEach((target, i) => (s = must(voteSpy(s, `p${i + 1}`, target, T0 + 2000))));
+  return must(guessSpy(s, 'p3', 'кава', T0 + 3000));
 }
 
 /** 29g: «Квест із кодом» — команди з виданим бафом і спробами (by) на intro, соло з відкритим вікном коду. */
@@ -2535,6 +2553,9 @@ describe('the saved state', () => {
       add('TruthPlay', s.plays.map((p) => p.truth));
       add('ThinkPlay', s.plays.map((p) => p.think));
       add('AlikePlay', s.plays.map((p) => p.alike));
+      add('SpyPlay', s.plays.map((p) => p.spy));
+      add('SpyWord', s.plays.flatMap((p) => [...Object.values(p.spy?.words ?? {}), p.spy?.guess]));
+      add('SpyVote', s.plays.flatMap((p) => Object.values(p.spy?.votes ?? {})));
       add('DrawingPlay', s.plays.map((p) => p.drawing));
       add('DrawingScored', s.plays.map((p) => p.drawing?.scored));
       add('Stroke', s.plays.flatMap((p) => p.drawing?.strokes ?? []));
@@ -2591,5 +2612,42 @@ describe('37 snapshots', () => {
     const resumed = must(resume(back, T0 + 1000 + HOUR));
     const moved = must(submitAnswer(resumed, 'p1', { type: 'numeric', value: 85 }, T0 + 2000 + HOUR));
     expect(must(lock(moved, T0 + 3000 + HOUR)).players[0].score).toBe(1000);
+  });
+});
+
+describe('38 snapshots', () => {
+  it('a restored room keeps the spy', () => {
+    expect(GAME_STATE_VERSION).toBe(22);
+    // rng 0.6 → шпигун Петро (p3).
+    let words = openAt(lobbyWith(spyQuiz(), 'Оля', 'Тарас', 'Петро', 'Ганна'), T0, () => 0.6);
+    words = must(writeSpyWord(words, 'p1', 'аромат', T0 + 1000));
+    let vote = words;
+    ['ранок', 'зелений', 'чашка'].forEach((text, i) => (vote = must(writeSpyWord(vote, `p${i + 2}`, text, T0 + 2000))));
+    vote = must(voteSpy(vote, 'p1', 'p3', T0 + 3000));
+    let guess = vote;
+    ['p3', 'p1', 'p3'].forEach((target, i) => (guess = must(voteSpy(guess, `p${i + 2}`, target, T0 + 4000))));
+    // words: 40 с від T0; vote: 30 с від T0 + 2000; guess: 30 с від T0 + 4000; збереження — через 5 с після кожного кроку.
+    const cases: [GameState, number, 'words' | 'vote' | 'guess', number][] = [
+      [words, T0 + 6000, 'words', 34_000],
+      [vote, T0 + 8000, 'vote', 24_000],
+      [guess, T0 + 9000, 'guess', 25_000],
+    ];
+    for (const [s, at, stage, left] of cases) {
+      const back = roundTrip(suspend(roundTrip(s), at));
+      expect(back.plays[0].spy).toEqual(s.plays[0].spy);
+      expect([stage, back.plays[0].spy?.stage, back.plays[0].spy?.spyId, back.remainingMs]).toEqual([stage, stage, 'p3', left]);
+      // Після «Продовжити» tick з іншим rng шпигуна не перевибирає, етап і таймер ідуть далі.
+      const resumed = must(resume(back, at + HOUR));
+      expect(resumed.endsAt).toBe(at + HOUR + left);
+      const ticked = tick(resumed, at + HOUR + 1, () => 0);
+      expect([ticked.plays[0].spy?.spyId, ticked.plays[0].spy?.stage]).toEqual(['p3', stage]);
+      expect(ticked.plays[0].spy?.words).toEqual(s.plays[0].spy?.words);
+      expect(ticked.plays[0].spy?.votes).toEqual(s.plays[0].spy?.votes);
+    }
+    // Відновлений guess дограється: Петро вгадує, бали як без перезапуску.
+    const back = must(resume(roundTrip(suspend(roundTrip(guess), T0 + 9000)), T0 + 9000 + HOUR));
+    const done = must(guessSpy(back, 'p3', 'кава', T0 + 10_000 + HOUR));
+    expect(done.phase).toBe('locked');
+    expect(done.players.map((p) => p.score)).toEqual([1000, 1000, 500, 1000]);
   });
 });

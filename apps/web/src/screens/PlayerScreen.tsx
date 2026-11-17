@@ -62,6 +62,8 @@ import { SurveyBoard } from './SurveyBoard';
 import { BluffBoard } from './BluffBoard';
 import { BluffChoice } from './BluffChoice';
 import { BluffLieInput } from './BluffLieInput';
+import { SpyBoard } from './SpyBoard';
+import { SpyPhone } from './SpyPhone';
 import { DebuffStrip, DebuffZone, NoClock, useDebuffQuestion } from './Debuffs';
 import { DuelBanner, DuelButton, DuelPlay } from './DuelView';
 import { DuelistPicker } from './DuelistPicker';
@@ -310,6 +312,21 @@ function BluffResult({ view }: { view: PlayerView }) {
       ) : (
         <p className="lead">{t('bluffWaitTruth')}</p>
       )}
+    </section>
+  );
+}
+
+/** Розкриття «Шпигуна» (38): шпигун, обидва слова, голоси й бали; шпигунові — «Ви були шпигуном», кожному — свої бали. */
+function SpyResult({ view }: { view: PlayerView }) {
+  const { spy } = view;
+  if (spy === undefined) return null;
+  const { result } = view.me;
+  const tone = result === null ? '' : result.points > 0 ? ' is-correct' : ' is-wrong';
+  return (
+    <section className={`result${tone}`}>
+      {view.me.spy?.spy === true && <h2 className="spy-you-were">{t('spyYouWere')}</h2>}
+      {result !== null && result.points !== 0 && <p className="earned">{signed(result.points)}</p>}
+      <SpyBoard info={spy} />
     </section>
   );
 }
@@ -1209,6 +1226,14 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
             ) : auctionWatching ? (
               // Глядач проданого запитання: варіанти лише для читання, як на locked, — стежить за відповіддю й без сцени.
               <SpotlightChoices removed={view.removed} question={question} spotlight={null} reveal={null} placeholder={false} />
+            ) : question.type === 'spy' ? (
+              // «Шпигун» (38): своє слово й асоціація, потім голос за іменами, останній шанс — лише викритому шпигунові.
+              view.spy !== undefined &&
+              me.spy !== undefined && (
+                <fieldset className="inputs" disabled={locked}>
+                  <SpyPhone key={`${view.questionIndex}:${view.spy.stage}`} info={view.spy} mine={me.spy} meId={me.id} send={send} />
+                </fieldset>
+              )
             ) : question.type === 'moreless' ? (
               // Більше чи менше (28a): вибирає той, хто відповідає (у команді — відповідач), решта команди бачить поступ;
               // глядач клітинки поля бачить, хто вибирає, поточну пару й вибрані тексти — правильність лише на розкритті. Сплив час (з особистим додатковим) гасить кнопки ще до закриття.
@@ -1491,6 +1516,21 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
               <SortWinner view={view} />
               <p className="lead">{t('sortWaitResults')}</p>
             </section>
+          ) : question?.type === 'spy' && me.spy !== undefined ? (
+            // «Шпигун» (38): своя асоціація; слова пари й шпигун — лише на розкритті.
+            <section className="sent">
+              {me.spy.wrote !== null && (
+                <h2 className="spy-wrote" dir="auto">
+                  {me.spy.wrote}
+                </h2>
+              )}
+              {me.spy.guess !== null && (
+                <p className="spy-your-guess" dir="auto">
+                  {t('spyYourGuess', { guess: me.spy.guess })}
+                </p>
+              )}
+              <p className="lead">{t('waitReveal')}</p>
+            </section>
           ) : isBluff ? (
             <section className="sent">
               {me.bluff?.lie != null && <p>{t('bluffLieSent', { lie: me.bluff.lie })}</p>}
@@ -1632,6 +1672,8 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
               <TruthReveal truth={view.truth} />
               {!truthAuthor && <Result view={view} strokes={strokesOf(drawing, view.questionIndex)} />}
             </>
+          ) : question?.type === 'spy' && view.spy !== undefined ? (
+            <SpyResult view={view} />
           ) : isBluff ? (
             <BluffResult view={view} />
           ) : board !== null && !chooserIsMe && view.blitz === null ? (

@@ -1,7 +1,7 @@
 import type { AddressInfo } from 'node:net';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { io as connect, type Socket } from 'socket.io-client';
-import { auctionRound, betsRound, bluff, blitzRound, boardRound, bool, chain, classicRound, clues, cloud, duels, finalRound, makeQuiz, multi, makeRoundsQuiz, single, sortQ, survey, survivalQuestions, survivalRound, survivalTrials, text, wall, withAudio, withId, wipeoutLadder, wipeoutRound, ladderRound, letterwords, moreless, drawing, timedlist, truthRound, think, thinkRound, wordladder, puzzlesQuiz, sudoku, jigsaw, jigsawQuiz, spotdiff, spotdiffQuiz, memoryQuiz, melodyQuiz, videoclipQuiz, alikeQuiz, questQuiz } from '@quiz/engine/testing';
+import { auctionRound, betsRound, bluff, blitzRound, boardRound, bool, chain, classicRound, clues, cloud, duels, finalRound, makeQuiz, multi, makeRoundsQuiz, single, sortQ, survey, survivalQuestions, survivalRound, survivalTrials, text, wall, withAudio, withId, wipeoutLadder, wipeoutRound, ladderRound, letterwords, moreless, drawing, timedlist, truthRound, think, thinkRound, wordladder, puzzlesQuiz, sudoku, jigsaw, jigsawQuiz, spotdiff, spotdiffQuiz, memoryQuiz, melodyQuiz, videoclipQuiz, alikeQuiz, spyQuiz, questQuiz } from '@quiz/engine/testing';
 import { DEFAULT_RULES, defaultTeams, memoryLayout, STICKERS, SPLASH_MS, type AckResult, type ClientToServerEvents, type DrawingEvent, type GameView, type HostDrafts, type Reaction, type ServerToClientEvents, type SocketAuth, type SortTilt } from '@quiz/shared';
 import { eq, inArray } from 'drizzle-orm';
 import { buildApp } from './app';
@@ -1152,6 +1152,41 @@ describe('host presence', () => {
     expect(split.alike?.groups.every((g) => !g.top)).toBe(true);
     expect(await send(host, 'host:alike-join', { from: `solo:${tarasJoin.playerId}`, to: olenaJoin.playerId })).toEqual({ ok: true });
     await until(stage, (view) => view.alike?.groups.length === 1 && view.alike.groups[0]!.top);
+  });
+
+  it('player:spy-word, player:spy-vote and player:spy-guess are player-only and validated; a team quiz with a spy is not saved', async () => {
+    const created = (await startGame(ctx.app, spyQuiz())).game;
+    const { host, stage, olena, taras } = await lobby(created);
+    const petroJoin = await join(created.code, 'Петро');
+    const petro = open({ code: created.code, role: 'player', token: petroJoin.token });
+    await until(host, (view) => view.role === 'host' && view.players.filter((p) => p.connected).length === 3);
+    expect(await send(host, 'host:start')).toEqual({ ok: true });
+    expect(await send(host, 'host:next')).toEqual({ ok: true });
+    const opened = await until(host, (view) => view.phase === 'question' && view.role === 'host' && view.spy !== undefined);
+    const spyId = opened.role === 'host' ? opened.spy?.spyId : undefined;
+    for (const [event, body] of [['player:spy-word', { text: 'слово' }], ['player:spy-vote', { playerId: petroJoin.playerId }], ['player:spy-guess', { text: 'слово' }]] as const) {
+      expect(await send(host, event, body), event).toEqual({ ok: false, error: 'forbidden' });
+      expect(await send(stage, event, body), event).toEqual({ ok: false, error: 'forbidden' });
+    }
+    for (const payload of [undefined, { text: 5 }, { text: 'x'.repeat(80) }, {}]) {
+      expect(await send(olena, 'player:spy-word', payload)).toEqual({ ok: false, error: 'invalid_payload' });
+      expect(await send(olena, 'player:spy-guess', payload)).toEqual({ ok: false, error: 'invalid_payload' });
+    }
+    for (const payload of [undefined, { playerId: '' }, { playerId: 5 }]) expect(await send(olena, 'player:spy-vote', payload)).toEqual({ ok: false, error: 'invalid_payload' });
+    expect(await send(olena, 'player:spy-vote', { playerId: petroJoin.playerId })).toEqual({ ok: false, error: 'wrong_phase' });
+    const players = [olena, taras, petro];
+    const word = ['запах', 'ранок', 'тепло'];
+    for (const [i, who] of players.entries()) expect(await send(who, 'player:spy-word', { text: word[i] })).toEqual({ ok: true });
+    await until(stage, (view) => view.spy?.stage === 'vote');
+    expect(spyId).toBeDefined();
+    expect(await send(olena, 'player:spy-vote', { playerId: 'nobody' })).toEqual({ ok: false, error: 'not_found' });
+    const stageFrame = JSON.stringify(stage.last);
+    expect(stageFrame).not.toContain('кава');
+    expect(stageFrame).not.toContain('чай');
+    const quiz = spyQuiz({ teams: { count: 2, names: ['Ліс', 'Море'] } });
+    const { cookie } = await signUp(ctx.app, 'Ведуча команд');
+    const saved = await ctx.app.inject({ method: 'POST', url: '/api/quizzes', payload: quiz, headers: { cookie } });
+    expect(saved.statusCode).not.toBe(201);
   });
 
   it('player:sort is player-only and validated', async () => {

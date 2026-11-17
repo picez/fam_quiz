@@ -669,6 +669,37 @@ export function alikeQuiz(settings: Partial<QuizSettings> = {}): Quiz {
   return makeRoundsQuiz([classicRound('c1', [thinkalike, thinkalike2])], settings);
 }
 
+/** «Шпигун» (38): слово гравців «кава», слово шпигуна «чай», 40 с асоціацій, 30 с голосування, 1000. */
+export const spy = {
+  ...base,
+  id: 'sp1',
+  type: 'spy',
+  text: 'Напишіть одне слово-асоціацію до свого слова',
+  timeLimit: 40,
+  points: 1000,
+  accepted: ['кава'],
+  spyWord: 'чай',
+  voteTime: 30,
+} satisfies Question;
+
+/** «Шпигун» (38): «гітара» і «скрипка», 30 с асоціацій, 25 с голосування, 500. */
+export const spy2 = {
+  ...base,
+  id: 'sp2',
+  type: 'spy',
+  text: 'Напишіть одне слово-асоціацію до свого слова',
+  timeLimit: 30,
+  points: 500,
+  accepted: ['гітара'],
+  spyWord: 'скрипка',
+  voteTime: 25,
+} satisfies Question;
+
+/** Вікторина «Шпигун» (38): класика [spy, spy2]. */
+export function spyQuiz(settings: Partial<QuizSettings> = {}): Quiz {
+  return makeRoundsQuiz([classicRound('c1', [spy, spy2])], settings);
+}
+
 /** Вікторина «Не перебільш» (37d): класика з одним запитанням overshoot. */
 export function overshootQuiz(settings: Partial<QuizSettings> = {}): Quiz {
   return makeRoundsQuiz([classicRound('c1', [overshoot])], settings);

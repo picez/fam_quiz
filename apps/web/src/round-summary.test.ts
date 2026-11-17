@@ -58,6 +58,10 @@ describe('roundSummary', () => {
     expect(roundSummary({ ...emptyBrief('classic'), thinkalikes: 2 }).at(-1)).toBe('2 «Думай як усі»: бали отримує найбільша група однакових слів');
   });
 
+  it('a classic round with spy questions says how to play', () => {
+    expect(roundSummary({ ...emptyBrief('classic'), spies: 2 }).at(-1)).toBe('2 «Шпигун»: знайдіть того, хто має інше слово');
+  });
+
   it('a classic round with videoclips says how they score', () => {
     expect(roundSummary({ ...emptyBrief('classic'), videoclips: 2 }).at(-1)).toBe('2 відео: бали за найдовшим шматком, який переглянули');
   });

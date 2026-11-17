@@ -108,3 +108,14 @@ describe('QuestionEditor 37 editors', () => {
     expect(screen.queryByRole('group', { name: t('revealLabel') })).toBeNull();
   });
 });
+
+describe('QuestionEditor spy (38)', () => {
+  it('spy hides hint and media', () => {
+    render(<QuestionEditor question={newQuestion('spy')} onChange={vi.fn()} types={questionTypesFor('classic')} showReveal />);
+    expect(screen.getByText(t('spyEditorHint'))).toBeTruthy();
+    expect(screen.queryByLabelText(t('hintLabel'))).toBeNull();
+    expect(screen.queryByRole('group', { name: t('revealLabel') })).toBeNull();
+    expect(screen.queryByLabelText(t('videoLabel'))).toBeNull();
+    expect(screen.queryByText(t('addAudio'))).toBeNull();
+  });
+});
