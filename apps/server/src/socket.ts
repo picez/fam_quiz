@@ -623,6 +623,7 @@ export function attachSockets(
       return payload.success ? manager.memoryFlip(room, identity.playerId, payload.data) : INVALID;
     });
 
+    // «Мелодія» (29e) і «Відео за фрагментами» (36): шматок { questionIndex, step } — одна подія для обох типів; вміст — лише зрізом.
     on('player:melody', (args) => {
       if (identity.role !== 'player' || identity.playerId === null) return FORBIDDEN;
       const payload = melodyOpenSchema.safeParse(payloadOf(args));
