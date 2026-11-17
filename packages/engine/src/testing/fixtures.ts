@@ -93,6 +93,19 @@ export const numeric = {
   tolerance: 100,
 } satisfies Question;
 
+/** «Не перебільш» (37d): числове запитання, де перемагає найближче знизу; tolerance при цьому не діє. */
+export const overshoot = {
+  ...base,
+  id: 'ov1',
+  type: 'numeric',
+  text: 'Скільки клавіш у стандартного фортепіано?',
+  timeLimit: 30,
+  points: 1000,
+  correct: 88,
+  tolerance: 5,
+  noOvershoot: true,
+} satisfies Question;
+
 export const order = {
   ...base,
   id: 'q6',
@@ -629,6 +642,11 @@ export const videoclipLoud = {
  */
 export function videoclipQuiz(settings: Partial<QuizSettings> = {}): Quiz {
   return makeRoundsQuiz([classicRound('c1', [{ ...single, timeLimit: 30 }]), classicRound('c2', [videoclip, videoclipLoud])], settings);
+}
+
+/** Вікторина «Не перебільш» (37d): класика з одним запитанням overshoot. */
+export function overshootQuiz(settings: Partial<QuizSettings> = {}): Quiz {
+  return makeRoundsQuiz([classicRound('c1', [overshoot])], settings);
 }
 
 /** Адреса картинки для запитань, що проявляються. */

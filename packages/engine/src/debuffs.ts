@@ -1,4 +1,4 @@
-import { allowedDebuffs, debuffPrice, isUnscored, type DebuffKind, type DebuffNotice, type Phase, type ShopBlock } from '@quiz/shared';
+import { allowedDebuffs, debuffPrice, isUnscored, overshootOn, type DebuffKind, type DebuffNotice, type Phase, type ShopBlock } from '@quiz/shared';
 import { addAdjustment, afterQuestionNow, newAdjustment } from './adjust';
 // game.ts викликає цей файл, а цей файл — game.ts; обидва звертаються одне до одного лише під час виклику.
 import { wagerRound } from './bets';
@@ -20,7 +20,7 @@ export function debuffsOff(state: GameState): boolean {
 /** «Пазл» (29c), «Знайди відмінності» (29d), «Пам'ять» (29f), «Мелодія за нотами» (29e) і «Відео за фрагментами» (36): поки запитання відкрите чи закрите, дебафів немає (за типом запитання, а не раунду). */
 function noDebuffQuestion(state: GameState): boolean {
   const type = state.plays[state.questionIndex]?.question.type;
-  return (state.phase === 'question' || state.phase === 'locked') && (type === 'jigsaw' || type === 'spotdiff' || type === 'memory' || type === 'melody' || type === 'videoclip');
+  return (state.phase === 'question' || state.phase === 'locked') && (type === 'jigsaw' || type === 'spotdiff' || type === 'memory' || type === 'melody' || type === 'videoclip' || overshootOn(state.plays[state.questionIndex]?.question));
 }
 
 /** «Вибування»: ціль — привид на етапах раунду (крім round_end); дебаф на нього нічого не дає. */
@@ -184,7 +184,7 @@ export function fireDebuffs(state: GameState, now: number): GameState {
   // У «Ва-банк», «Мільйонері», «Правді про гравця» й «Головоломках» дебафів немає: той, що чекає, чекає наступного раунду.
   // У «Вибуванні» дебаф діє лише на живих: той, що чекає на привида, чекає наступного раунду.
   const answering = new Set(
-    play === undefined || isUnscored(play.question) || play.question.type === 'jigsaw' || play.question.type === 'spotdiff' || play.question.type === 'memory' || play.question.type === 'melody' || play.question.type === 'videoclip' || noDebuffRound(type) ? [] : type === 'survival' ? survivalAlive(state) : answerersOf(state, play),
+    play === undefined || isUnscored(play.question) || play.question.type === 'jigsaw' || play.question.type === 'spotdiff' || play.question.type === 'memory' || play.question.type === 'melody' || play.question.type === 'videoclip' || overshootOn(play.question) || noDebuffRound(type) ? [] : type === 'survival' ? survivalAlive(state) : answerersOf(state, play),
   );
   const connected = new Set(state.players.filter((p) => p.connected).map((p) => p.id));
   const debuffs: Record<string, DebuffState> = {};

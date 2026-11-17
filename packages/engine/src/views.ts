@@ -234,6 +234,7 @@ import { letterWordsOf } from './letterwords';
 import { chainDeadline, chainOf, hintMsOf, letterCount, maskWord } from './chain';
 import { drawingCould, drawingOf } from './drawing';
 import { moreLessOf, moreLessRight, rightOf } from './moreless';
+import { overshootRows } from './overshoot';
 import { jigsawOf, jigsawTotal, liveHolds } from './jigsaw';
 import { spotdiffOf } from './spotdiff';
 import { memoryOf, settleMemory } from './memory';
@@ -3225,6 +3226,7 @@ function base(state: GameState, forHost: boolean) {
     wipeout: wipeoutInfo(state, forHost),
     survival: survivalInfo(state, forHost),
     ...optional('think', thinkInfo(state)),
+    ...optional('overshoot', overshootRows(state)),
     ladder: ladderInfo(state, forHost),
     ...optional('wordladder', !forHost && inFinalRound(state) ? undefined : wordLadderInfo(state, forHost)),
     ...optional('timedlist', timedListInfo(state, forHost)),

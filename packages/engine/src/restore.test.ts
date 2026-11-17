@@ -112,6 +112,7 @@ import {
   ladderRound,
   makeQuiz,
   makeRoundsQuiz,
+  overshoot,
   pin,
   single,
   single4,
@@ -2554,5 +2555,17 @@ describe('the saved state', () => {
     // кожен вкладений тип справді трапився (крім ланцюжка, що потребує окремого раунду; кубики — з лобі команд)
     const missing = Object.keys(STATE_SHAPE).filter((name) => (seen[name]?.length ?? 0) === 0);
     expect(missing.sort()).toEqual(['ChainProgress']);
+  });
+});
+
+describe('37 snapshots', () => {
+  it('a restored room keeps a no-overshoot question', () => {
+    expect(GAME_STATE_VERSION).toBe(22);
+    const open = openAt(lobbyWith(makeRoundsQuiz([classicRound('r1', [overshoot])]), 'Оля', 'Петро'), T0);
+    const back = roundTrip(suspend(roundTrip(open), T0 + 1000));
+    expect(back.plays[0].question).toMatchObject({ type: 'numeric', noOvershoot: true, correct: 88 });
+    const resumed = must(resume(back, T0 + 1000 + HOUR));
+    const moved = must(submitAnswer(resumed, 'p1', { type: 'numeric', value: 85 }, T0 + 2000 + HOUR));
+    expect(must(lock(moved, T0 + 3000 + HOUR)).players[0].score).toBe(1000);
   });
 });
