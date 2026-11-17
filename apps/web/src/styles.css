@@ -21949,6 +21949,34 @@ input.sudoku-editor-cell:focus-visible {
   justify-self: start;
   min-height: 2.75rem;
 }
+
+/* Телефон: рамка на всю ширину поля (на 320 px — 296 × 166,5), під нею «🔇 Без звуку» і спільна з «Мелодією» драбинка (.melody-play). */
+.videoclip-play .videoclip-frame {
+  border-radius: 8px;
+}
+
+.videoclip-muted {
+  margin: 0;
+}
+
+/* Розкриття: «Переглянути ще раз» на телефоні, відео на сцені й пульті без сцени. */
+.player-videoclip {
+  width: 100%;
+  min-width: 0;
+  margin-top: 0.75rem;
+}
+
+.videoclip-reveal {
+  display: grid;
+  gap: 0.5rem;
+  width: 100%;
+  min-width: 0;
+}
+
+.videoclip-again {
+  justify-self: start;
+  min-height: 2.75rem;
+}
 /* «Відео за фрагментами»: кінець рамки */
 
 /* «Мелодія за нотами»: телефон (29e). Драбинка з п'яти комірок в один ряд (на 320 px — без прокрутки): відкриті — «▶ переслухати»,
