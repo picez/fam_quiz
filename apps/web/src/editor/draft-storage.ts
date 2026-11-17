@@ -170,8 +170,11 @@ function reviveMoreLess(base: Extract<Question, { type: 'moreless' }>): Question
     correct: pair.correct === 'b' ? ('b' as const) : ('a' as const),
     points: 'points' in pair ? numberOr(pair.points) : LIMITS.defaultMoreLessPoints,
   }));
+  const { step: rawStep, ...noStep } = base;
+  const step: unknown = rawStep;
   return {
-    ...base,
+    ...noStep,
+    ...(typeof step === 'number' && Number.isInteger(step) && step >= 0 && step <= LIMITS.maxPoints ? { step } : {}),
     video: null,
     pairs: pairs.length === 0 ? Array.from({ length: 3 }, () => blankMoreLessPair(LIMITS.defaultMoreLessPoints)) : pairs,
   };
@@ -209,6 +212,12 @@ function reviveThink(base: Extract<Question, { type: 'think' }>): Question {
         }))
     : [];
   return { ...rest, video: null, points: 0, words };
+}
+
+/** «Думай як усі» (37) з чернетки: лише основа — без «перевертання» й підказки. */
+function reviveThinkalike(base: Extract<Question, { type: 'thinkalike' }>): Question {
+  const { hint: _hint, reveal: _reveal, ...rest } = base;
+  return rest;
 }
 
 /** Малюнок з чернетки: написання — рядки (інакше одне порожнє слово); без відео, звуку, «перевертання» й підказки. */
@@ -359,7 +368,10 @@ function revive(stored: Question): Question {
     timeLimit: numberOr(question.timeLimit),
     points: numberOr(question.points),
   } as Question;
-  if (base.type === 'numeric') return { ...base, correct: numberOr(base.correct), tolerance: numberOr(base.tolerance) };
+  if (base.type === 'numeric') {
+    const { noOvershoot, ...rest } = base;
+    return { ...rest, correct: numberOr(rest.correct), tolerance: numberOr(rest.tolerance), ...(noOvershoot === true ? { noOvershoot } : {}) };
+  }
   if (base.type === 'slider') {
     const { unit, zeroBeyond, ...rest } = base;
     return {
@@ -420,6 +432,7 @@ function revive(stored: Question): Question {
   if (base.type === 'melody') return reviveMelody(base);
   if (base.type === 'videoclip') return reviveVideoclip(base);
   if (base.type === 'think') return reviveThink(base);
+  if (base.type === 'thinkalike') return reviveThinkalike(base);
   if (base.type === 'poll') {
     const options = Array.isArray(base.options)
       ? (base.options as unknown[]).filter(isObjectLike).map((option) => ({

@@ -487,14 +487,27 @@ function Body({ question, onChange, showPoints, cluesByHost, clouds, allowCloud,
               decimal
               onChange={(correct) => onChange({ ...question, correct })}
             />
-            <NumberField
-              label={t('tolerance')}
-              value={question.tolerance}
-              decimal
-              onChange={(tolerance) => onChange({ ...question, tolerance })}
-            />
+            {question.noOvershoot !== true && (
+              <NumberField
+                label={t('tolerance')}
+                value={question.tolerance}
+                decimal
+                onChange={(tolerance) => onChange({ ...question, tolerance })}
+              />
+            )}
           </div>
-          <p className="meta">{t('toleranceHint')}</p>
+          <label className="check">
+            <input
+              type="checkbox"
+              checked={question.noOvershoot === true}
+              onChange={(event) => {
+                const { noOvershoot: _off, ...rest } = question;
+                onChange(event.target.checked ? { ...rest, noOvershoot: true } : rest);
+              }}
+            />
+            <span>{t('overshootLabel')}</span>
+          </label>
+          <p className="meta">{t(question.noOvershoot === true ? 'overshootHint' : 'toleranceHint')}</p>
         </>
       );
     case 'match':
@@ -831,6 +844,8 @@ function Body({ question, onChange, showPoints, cluesByHost, clouds, allowCloud,
       return <MelodyEditor question={question} onChange={onChange} />;
     case 'videoclip':
       return <VideoclipEditor question={question} onChange={onChange} />;
+    case 'thinkalike':
+      return <p className="meta">{t('alikeEditorHint')}</p>;
     case 'think':
       return <ThinkWordsEditor words={question.words} onChange={(words) => onChange({ ...question, words })} />;
     case 'wordcloud':
@@ -895,7 +910,7 @@ export function QuestionEditor({ question, onChange, types, showPoints = true, s
             }}
           />
         )}
-        {showReveal && question.imageUrl !== null && question.video === null && (REVEAL_TYPES as readonly string[]).includes(question.type) && (
+        {showReveal && question.type !== 'thinkalike' && question.imageUrl !== null && question.video === null && (REVEAL_TYPES as readonly string[]).includes(question.type) && (
           <div className="with-help">
             <div className="reveal-modes" role="group" aria-label={t('revealLabel')}>
               {([undefined, 'pixels', 'blur'] as const).map((mode) => (
@@ -965,7 +980,7 @@ export function QuestionEditor({ question, onChange, types, showPoints = true, s
         </label>
         {betsCut && <BetsCutField text={question.text} cut={question.betsCut} phase={betsCut === 'auction' ? 'auction' : 'bets'} onChange={(cut) => onChange({ ...question, betsCut: cut })} />}
         {/* Підказка — для бафів; у «Більше чи менше», «Малюнку» й головоломках бафів немає. */}
-        {showHint && question.type !== 'think' && question.type !== 'moreless' && question.type !== 'drawing' && question.type !== 'melody' && question.type !== 'videoclip' && question.type !== 'jigsaw' && question.type !== 'spotdiff' && question.type !== 'memory' && !isPuzzle(question) && (
+        {showHint && question.type !== 'think' && question.type !== 'thinkalike' && question.type !== 'moreless' && question.type !== 'drawing' && question.type !== 'melody' && question.type !== 'videoclip' && question.type !== 'jigsaw' && question.type !== 'spotdiff' && question.type !== 'memory' && !isPuzzle(question) && (
           <label className="field hint-field">
             <span>{t('hintLabel')}</span>
             <textarea

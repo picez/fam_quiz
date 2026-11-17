@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
-import type { Question } from '@quiz/shared';
+import { LIMITS, type Question } from '@quiz/shared';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { t } from '../i18n';
 import { newQuestion } from './draft';
@@ -115,5 +115,64 @@ describe('MoreLessEditor', () => {
     const many: More = { ...named(), pairs: Array.from({ length: 20 }, (_, i) => ({ ...base, id: `x${i}` })) };
     rerender(<MoreLessEditor question={many} onChange={vi.fn()} />);
     expect((screen.getByRole('button', { name: t('addMoreLessPair') }) as HTMLButtonElement).disabled).toBe(true);
+  });
+});
+
+describe('MoreLessEditor step (37b)', () => {
+  const stepField = () => screen.getByLabelText(t('morelessStep')) as HTMLInputElement;
+  const pointsOf = (q: More) => q.pairs.map((pair) => pair.points);
+
+  it('a step fills the points upward', () => {
+    const onChange = vi.fn();
+    view(named(), onChange);
+    fireEvent.change(stepField(), { target: { value: '50' } });
+    expect(pointsOf(last(onChange))).toEqual([100, 150, 200]);
+    expect(last(onChange).step).toBe(50);
+    expect(last(onChange).points).toBe(450);
+  });
+
+  it('the first pair moves the ladder', () => {
+    const onChange = vi.fn();
+    view({ ...named(), step: 50 }, onChange);
+    fireEvent.change(within(card(1)).getByLabelText(t('morelessPoints')), { target: { value: '200' } });
+    expect(pointsOf(last(onChange))).toEqual([200, 250, 300]);
+  });
+
+  it('manual points stay until the step changes', () => {
+    const onChange = vi.fn();
+    const { rerender } = view({ ...named(), step: 50 }, onChange);
+    fireEvent.change(within(card(1)).getByLabelText(t('morelessPoints')), { target: { value: '200' } });
+    rerender(<MoreLessEditor question={last(onChange)} onChange={onChange} />);
+    fireEvent.change(within(card(3)).getByLabelText(t('morelessPoints')), { target: { value: '500' } });
+    expect(pointsOf(last(onChange))).toEqual([200, 250, 500]);
+    rerender(<MoreLessEditor question={last(onChange)} onChange={onChange} />);
+    fireEvent.click(screen.getByRole('button', { name: t('addMoreLessPair') }));
+    expect(pointsOf(last(onChange))).toEqual([200, 250, 500, 550]);
+    rerender(<MoreLessEditor question={last(onChange)} onChange={onChange} />);
+    fireEvent.change(stepField(), { target: { value: '10' } });
+    expect(pointsOf(last(onChange))).toEqual([200, 210, 220, 230]);
+  });
+
+  it('an empty step clears it', () => {
+    const onChange = vi.fn();
+    view({ ...named(), step: 50 }, onChange);
+    fireEvent.change(stepField(), { target: { value: '' } });
+    expect('step' in last(onChange)).toBe(false);
+    expect(pointsOf(last(onChange))).toEqual([100, 100, 100]);
+  });
+
+  it('points are capped', () => {
+    const onChange = vi.fn();
+    const base = named();
+    view({ ...base, pairs: base.pairs.slice(0, 2).map((pair, i) => ({ ...pair, points: i === 0 ? 1900 : 100 })) }, onChange);
+    fireEvent.change(stepField(), { target: { value: '200' } });
+    expect(pointsOf(last(onChange))).toEqual([1900, LIMITS.maxPoints]);
+  });
+
+  it('same for all clears the step', () => {
+    const onChange = vi.fn();
+    view({ ...named(), step: 50 }, onChange);
+    fireEvent.click(screen.getByRole('button', { name: t('morelessSameAll') }));
+    expect('step' in last(onChange)).toBe(false);
   });
 });

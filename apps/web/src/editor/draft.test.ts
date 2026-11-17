@@ -6,7 +6,7 @@ import { QUEST_TYPES, type QuestRound } from '@quiz/shared';
 import { newId } from './new-id';
 import { DEFAULT_RULES, LADDER_PRESETS, LIFELINES, LIMITS, ladderPresetSafe, type LadderRound, duelShortfall, duelThreshold, WIPEOUT_TYPES, SURVIVAL_TYPES, rulesOf, boardCells, quizSchema, roundSchema, questionSchema, isPuzzle, ROUND_TYPES, EMPTY_SUDOKU, generateSudoku, layoutCrossword, pickKeyCells, questionsOf, roundQuestions, type BoardRound, type ClassicRound, type Question, type Quiz, type Round, type Duels } from '@quiz/shared';
 import { t } from '../i18n';
-import { QUESTION_TYPES, boardReadiness, cellState, cloudSources, questionTypesFor, applyRoundTime, changeType, cleaned, fitCell, duplicateQuestion, firstProblem, moveItem, newBlitzRound, newBoardCategory, newBoardQuestion, newBoardRound, withDefaultMode, newClassicRound, newFinalRound, newBetsRound, newAuctionRound, newTruthRound, newPuzzlesRound, cleanedQuestion, newWipeoutRound, newSurvivalRound, newLadderRound, resizeLadder, newWipeoutQuestion, newQuestion, newQuiz, problemsOf, newDuels, newSpare, swapGaps, minTimeOf, maxTimeOf } from './draft';
+import { QUESTION_TYPES, boardReadiness, cellState, cloudSources, questionTypesFor, applyRoundTime, steppedPoints, changeType, cleaned, fitCell, duplicateQuestion, firstProblem, moveItem, newBlitzRound, newBoardCategory, newBoardQuestion, newBoardRound, withDefaultMode, newClassicRound, newFinalRound, newBetsRound, newAuctionRound, newTruthRound, newPuzzlesRound, cleanedQuestion, newWipeoutRound, newSurvivalRound, newLadderRound, resizeLadder, newWipeoutQuestion, newQuestion, newQuiz, problemsOf, newDuels, newSpare, swapGaps, minTimeOf, maxTimeOf } from './draft';
 
 /** Заповнює порожні поля нового запитання так, як це зробив би користувач. */
 function filled(question: Question): Question {
@@ -3522,5 +3522,49 @@ describe('think round in the editor (35)', () => {
     const problems = problemsOf(quiz);
     expect(problems).toContain(t('problemThinkCount', { min: LIMITS.minThinkQuestions, max: LIMITS.maxThinkQuestions }));
     expect(problems).toContain(t('problemThinkNumbers', { min: LIMITS.minThinkLives, max: LIMITS.maxThinkLives, points: LIMITS.maxThinkPoints }));
+  });
+});
+
+describe('plan 37 editors: steps, no overshoot, thinkalike', () => {
+  const alike = () => newQuestion('thinkalike');
+  const overshoot = () => ({ ...(newQuestion('numeric') as Extract<Question, { type: 'numeric' }>), text: 'Скільки?', noOvershoot: true as const });
+
+  it('steppedPoints climbs by the step and stops at the cap', () => {
+    expect(steppedPoints(100, 50, 3)).toEqual([100, 150, 200]);
+    expect(steppedPoints(1950, 100, 2)).toEqual([1950, 2000]);
+  });
+
+  it('a new thinkalike is a 30 second question with the default theme in classic only', () => {
+    expect(alike()).toMatchObject({ type: 'thinkalike', text: t('alikeDefaultText'), timeLimit: 30, points: LIMITS.defaultPoints });
+    expect(questionTypesFor('classic')).toContain('thinkalike');
+    for (const type of ['blitz', 'final', 'board', 'bets', 'puzzles'] as const) expect(questionTypesFor(type), type).not.toContain('thinkalike');
+  });
+
+  it('thinkalike and a no-overshoot numeric are problems outside classic', () => {
+    const blitz = (question: Question): Quiz => ({ ...quizWith(question), rounds: [{ ...newBlitzRound(), questions: [question] }] });
+    expect(problemsOf(quizWith(alike()))).toEqual([]);
+    expect(problemsOf(quizWith(overshoot()))).toEqual([]);
+    expect(problemsOf(blitz(alike()))).toEqual([t('problemAlikePlace', { index: 1 })]);
+    expect(problemsOf(blitz(overshoot()))).toEqual([t('problemOvershootPlace', { index: 1 })]);
+    expect(problemsOf(blitz({ ...newQuestion('numeric'), text: 'Скільки?' } as Question))).toEqual([]);
+  });
+
+  it('changing text to thinkalike keeps the text', () => {
+    const text = { ...newQuestion('text'), text: 'Назвіть овоч' } as Question;
+    expect(changeType(text, 'thinkalike')).toMatchObject({ type: 'thinkalike', text: 'Назвіть овоч' });
+  });
+
+  it('a draft drops a broken step, a broken noOvershoot and a thinkalike hint', () => {
+    const more = newQuestion('moreless') as Extract<Question, { type: 'moreless' }>;
+    const stored = (id: string, question: unknown) => {
+      saveDraft(id, quizWith(question as Question));
+      return roundQuestions(loadDraft(id)!.rounds[0])[0] as unknown as Record<string, unknown>;
+    };
+    expect(stored('step-ok', { ...more, step: 50 }).step).toBe(50);
+    expect('step' in stored('step-x', { ...more, step: 'x' })).toBe(false);
+    expect('step' in stored('step-big', { ...more, step: 3000 })).toBe(false);
+    expect(stored('over-ok', overshoot()).noOvershoot).toBe(true);
+    expect('noOvershoot' in stored('over-yes', { ...overshoot(), noOvershoot: 'yes' })).toBe(false);
+    expect('hint' in stored('alike-hint', { ...alike(), hint: 'підказка' })).toBe(false);
   });
 });
