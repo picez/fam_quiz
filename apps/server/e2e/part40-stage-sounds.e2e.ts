@@ -581,7 +581,7 @@ async function expectCorner40(stage: Page, name: string, strip: boolean) {
   })()`)) as { sound: { cls: string; left: number; top: number; right: number; bottom: number } | null; corner: string[]; others: string[]; out: string[]; pairs: string[]; covered: string[]; underText: string[] };
   const s = report.sound;
   console.log(`part 40: ${name} — sound ${s === null ? 'none' : `${s.cls} ${Math.round(s.left)},${Math.round(s.top)}..${Math.round(s.right)},${Math.round(s.bottom)}`}; corner [${report.corner.join(' | ')}]; others [${report.others.join(' | ')}]`);
-  if (report.underText.length > 0) console.log(`part 40: ${name} — corner over stage text (known, see the report): ${report.underText.join(' | ')}`);
+  expect(report.underText, `${name}: corner buttons over stage text`).toEqual([]);
   expect(s, `${name}: no sound button in the corner`).not.toBeNull();
   expect(report.others.some((o) => o.startsWith('reaction-strip')), `${name}: the reaction strip`).toBe(strip);
   expect(report.out, `${name}: corner buttons outside the window`).toEqual([]);

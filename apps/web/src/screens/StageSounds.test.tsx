@@ -49,6 +49,19 @@ describe('StageSoundsButton', () => {
     expect(screen.getByRole('button', { name: '🔔 Звуки' }).getAttribute('aria-pressed')).toBe('false');
     expect(screen.queryByRole('button', { name: '🔊 Увімкнути звуки' })).toBeNull();
   });
+  it('focus follows the unlock button to the toggle that replaces it', () => {
+    const { rerender } = render(<StageSoundsButton control={control()} />);
+    screen.getByRole('button', { name: '🔊 Увімкнути звуки' }).focus();
+    rerender(<StageSoundsButton control={control({ ready: true })} />);
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: '🔔 Звуки' }));
+  });
+
+  it('an unfocused unlock button does not steal focus when the toggle appears', () => {
+    const { rerender } = render(<StageSoundsButton control={control()} />);
+    rerender(<StageSoundsButton control={control({ ready: true })} />);
+    expect(document.activeElement).toBe(document.body);
+  });
+
   it('the unlock button never becomes the toggle: a click that wakes the sound mid-event does not turn the device off', () => {
     // Клік будить контекст ще в фазі перехоплення (жест на сторінці); якби React перевикористав ту саму кнопку з новим
     // onClick, той самий клік дійшов би до перемикача й вимкнув звук пристрою.

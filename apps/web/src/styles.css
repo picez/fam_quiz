@@ -12756,6 +12756,11 @@ button.wall-tile:disabled {
     padding-inline: 0.5rem;
   }
 
+  /* Сусідні значки в шапці на 360 px стоять упритул: їхні дотикові зони не мають перекриватися (ширина значка вже ≥ 44 px). */
+  .bar:has(.live-toggle) .live-toggle::after {
+    inset-inline: -0.125rem;
+  }
+
   .bar:has(.live-toggle) .code {
     font-size: 1rem;
   }
@@ -14039,6 +14044,12 @@ button.wall-tile:disabled {
    на 1280 × 720 це +4 px, а не +80. Сповіщення й значки, коли є, стоять над смугою; картка апеляції піднімається на її висоту. */
 .app.stage.has-reactions {
   padding-bottom: max(4vh, 4.75rem, var(--reaction-strip-h));
+}
+
+/* Кут (.stage-speech) стоїть над смугою, тож під рядком фактів розкриття запас — смуга + база банера + кут, а не лише смуга.
+   Лише для звичайного розкриття (правильна відповідь + рядок фактів) без картинки питання: щільні розкладки (кінець раунду, «Думай як усі», картинка ≈808 px) вже вписані в 720 з наявним запасом і не мають зростати (13a, 37). */
+.app.stage.has-reactions:has(> .stage-speech):has(.lead.answer + .reveal-facts):not(:has(.question-image)) {
+  padding-bottom: calc(var(--banner-base) + var(--reaction-strip-h) + 2.75rem);
 }
 
 .app.stage.has-reactions .live-notices,
