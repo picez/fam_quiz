@@ -195,6 +195,27 @@ describe('WordleView (48)', () => {
     expect(board.container.querySelector('.wordle-board.is-many')).not.toBeNull();
   });
 
+  it('the board passes boards per line, lines and letters to CSS; tag and score share one line on reveal', () => {
+    const style = (count: number) => {
+      const rows = Array.from({ length: count }, (_, n) => ({ ...info().rows[1], playerId: `p${n}`, nickname: `P${n}` }));
+      const { container, unmount } = render(<WordleBoard info={info({ rows })} reveal={false} />);
+      const ol = container.querySelector<HTMLElement>('.wordle-board')!;
+      const vars = ['--boards', '--lines', '--letters'].map((name) => ol.style.getPropertyValue(name));
+      unmount();
+      return vars;
+    };
+    expect(style(3)).toEqual(['3', '1', '5']);
+    expect(style(12)).toEqual(['12', '1', '5']);
+    expect(style(24)).toEqual(['12', '2', '5']);
+    expect(style(0)).toEqual(['1', '1', '5']);
+    const revealed = info({ word: 'колос', rows: info().rows.map((row) => ({ ...row, guesses: [letters('сосна')], points: row.solved ? 833 : 0 })) });
+    const { container } = render(<WordleBoard info={revealed} reveal />);
+    const results = [...container.querySelectorAll('.wordle-board > li > .wordle-result')];
+    expect(results.length).toBe(2);
+    expect(results[0]!.querySelector('.tag')?.textContent).toBe('вгадав за 2 спроби');
+    expect(results[0]!.querySelector('.score')?.textContent).toBe('+833');
+  });
+
   it('the host board shows the letters live with tries', () => {
     render(<WordleBoard info={info({ word: 'колос', rows: [{ ...info().rows[1], guesses: [letters('сосна')] }] })} reveal={false} />);
     expect(screen.getByLabelText('о — на місці')).toBeTruthy();

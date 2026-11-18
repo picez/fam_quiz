@@ -221,6 +221,11 @@ export function WordleOutcome({ wordle }: { wordle: PlayerWordle }) {
  * Сцена й пульт: міні-сітки всіх гравців (команд) з іменами. Літери — коли зріз їх дав (пульту з відкриття, сцені — на розкритті);
  * сцена до розкриття бачить лише кольори. На розкритті — слово великими, «вгадав за N спроби» / «не вгадав» і бали.
  */
+/** Рядів дошок по 12: --boards — у ряду, --lines — рядів, --letters — літер; з них CSS рахує розмір клітинки. */
+const BOARDS_PER_LINE = 12;
+const boardStyle = (info: WordleInfo) =>
+  ({ '--boards': Math.max(1, Math.min(info.rows.length, BOARDS_PER_LINE)), '--lines': Math.max(1, Math.ceil(info.rows.length / BOARDS_PER_LINE)), '--letters': info.letters }) as CSSProperties;
+
 export function WordleBoard({ info, reveal }: { info: WordleInfo; reveal: boolean }) {
   return (
     <section className="wordle-stage">
@@ -232,7 +237,7 @@ export function WordleBoard({ info, reveal }: { info: WordleInfo; reveal: boolea
           </p>
         </div>
       )}
-      <ol className={info.rows.length > 8 ? 'wordle-board is-many' : 'wordle-board'}>
+      <ol className={info.rows.length > 8 ? 'wordle-board is-many' : 'wordle-board'} style={boardStyle(info)}>
         {info.rows.map((row) => (
           <li key={row.playerId} className={reveal && !row.solved ? 'is-out' : undefined}>
             <WordleGrid letters={info.letters} tries={info.tries} rows={row.marks.map((marks, index) => ({ letters: row.guesses?.[index] ?? null, marks }))} />
@@ -240,14 +245,16 @@ export function WordleBoard({ info, reveal }: { info: WordleInfo; reveal: boolea
               {row.nickname}
             </span>
             {reveal ? (
-              <span className="tag">{row.solved ? countText('wordleSolvedIn', row.tries, { count: row.tries }) : t('wordleNotSolved')}</span>
+              <span className="wordle-result">
+                <span className="tag">{row.solved ? countText('wordleSolvedIn', row.tries, { count: row.tries }) : t('wordleNotSolved')}</span>
+                {row.points !== null && (
+                  <span className="score" dir="ltr">
+                    {signed(row.points)}
+                  </span>
+                )}
+              </span>
             ) : (
               row.guesses !== null && <span className="tag">{t('wordleLive', { tries: row.tries, total: info.tries })}</span>
-            )}
-            {reveal && row.points !== null && (
-              <span className="score" dir="ltr">
-                {signed(row.points)}
-              </span>
             )}
           </li>
         ))}
