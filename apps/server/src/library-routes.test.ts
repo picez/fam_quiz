@@ -3,7 +3,7 @@ import { blitzRound, bool, classicRound, makeRoundsQuiz, multi, numeric, order, 
 import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { buildApp } from './app';
-import { libraryEntry, profile, userBan, userLike } from './db/schema';
+import { libraryEntry, profile, userBan, userLike, userReport } from './db/schema';
 import { TEST_AUTH, signUp } from './testing/accounts';
 import { createTestDb } from './testing/test-db';
 
@@ -220,5 +220,29 @@ describe('library routes (38g)', () => {
     await db.insert(userBan).values({ userId: olena.id, reason: null, bannedBy: null, bannedAt: new Date() });
     expect((await call('GET', '/api/library')).json<LibraryPage>().items.map((i) => i.id)).not.toContain(entryId);
     expect((await call('GET', `/api/library/${entryId}`)).statusCode).toBe(404);
+  });
+
+  it('reports need an account and are rate-limited', async () => {
+    const olena = await person('Олена');
+    const taras = await person('Тарас');
+    const { entryId } = await opened(olena);
+    const body = { target: { kind: 'quiz', entryId }, reason: 'spam' };
+    expect((await call('POST', '/api/reports', undefined, body)).statusCode).toBe(401);
+    expect((await call('POST', '/api/reports', taras.cookie, { ...body, reason: 'ugly' })).statusCode).toBe(400);
+    const sent = await call('POST', '/api/reports', taras.cookie, { ...body, text: '  нісенітниця  ' });
+    expect(sent.statusCode).toBe(201);
+    expect(sent.json()).toEqual({ ok: true });
+    const [stored] = await db.select({ text: userReport.text }).from(userReport).where(eq(userReport.reporterId, taras.id));
+    expect(stored?.text).toBe('нісенітниця');
+    const again = await call('POST', '/api/reports', taras.cookie, body);
+    expect(again.statusCode).toBe(409);
+    expect(again.json()).toEqual({ error: 'already_reported' });
+    const self = await call('POST', '/api/reports', olena.cookie, body);
+    expect(self.statusCode).toBe(409);
+    expect(self.json()).toEqual({ error: 'cannot_report_self' });
+    // Тарас уже зробив 3 запити за хвилину; 4-й і 5-й доходять до логіки, 6-й — 429 (ліміт 5/хв).
+    expect((await call('POST', '/api/reports', taras.cookie, { target: { kind: 'profile', userId: olena.id }, reason: 'other' })).statusCode).toBe(201);
+    expect((await call('POST', '/api/reports', taras.cookie, body)).statusCode).toBe(409);
+    expect((await call('POST', '/api/reports', taras.cookie, body)).statusCode).toBe(429);
   });
 });

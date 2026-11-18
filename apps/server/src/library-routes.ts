@@ -1,10 +1,11 @@
-import { libraryCopySchema, libraryLikeSchema, libraryOpenSchema, libraryQuerySchema } from '@quiz/shared';
+import { libraryCopySchema, libraryLikeSchema, libraryOpenSchema, libraryQuerySchema, reportSchema } from '@quiz/shared';
 import { and, eq, sql } from 'drizzle-orm';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { CurrentUser } from './account-routes';
 import type { Db } from './db/client';
 import { userLike } from './db/schema';
 import { saveLike } from './like-store';
+import { fileReport } from './report-store';
 import { appealEntry, catalog, closeEntry, copyEntry, entryDetail, myEntries, openEntry, visibleEntry } from './library-store';
 
 export interface LibraryDeps {
@@ -36,6 +37,7 @@ export async function registerLibraryRoutes(app: FastifyInstance, deps: LibraryD
   const open = perUser('library-open', 20);
   const likeLimit = perUser('library-like', 30);
   const copyLimit = perUser('library-copy', 10);
+  const reportLimit = perUser('report', 5);
 
   const signedIn = async (request: FastifyRequest, reply: FastifyReply): Promise<CurrentUser | null> => {
     const user = await currentUser(request);
@@ -118,5 +120,16 @@ export async function registerLibraryRoutes(app: FastifyInstance, deps: LibraryD
     const result = await copyEntry(db, user.id, request.params.id, body.data.locale, now());
     if (!result.ok) return reply.code(result.error === 'not_found' ? 404 : 409).send({ error: result.error });
     return reply.code(201).send({ id: result.quizId });
+  });
+
+  app.post('/api/reports', reportLimit, async (request, reply) => {
+    const user = await signedIn(request, reply);
+    if (user === null) return reply;
+    const body = reportSchema.safeParse(request.body);
+    if (!body.success) return reply.code(400).send(INVALID);
+    const result = await fileReport(db, user.id, body.data, now());
+    if (result === 'not_found') return reply.code(404).send(NOT_FOUND);
+    if (result !== 'ok') return reply.code(409).send({ error: result });
+    return reply.code(201).send({ ok: true });
   });
 }
