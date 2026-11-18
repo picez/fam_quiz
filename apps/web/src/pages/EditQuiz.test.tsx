@@ -8,6 +8,7 @@ import { demoQuiz } from '../demo-quiz';
 import type { Question, Quiz } from '@quiz/shared';
 import { newClassicRound, newQuestion, newQuiz } from '../editor/draft';
 import { saveDraft, saveGroupDrafts } from '../editor/draft-storage';
+import { errorText, t } from '../i18n';
 import { EditQuiz } from './EditQuiz';
 
 vi.mock('../api', () => ({ me: vi.fn(), getQuiz: vi.fn(), createQuiz: vi.fn(), updateQuiz: vi.fn(), fetchQuizLikes: vi.fn(), markGroupUses: vi.fn() }));
@@ -110,6 +111,18 @@ describe('EditQuiz', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Зберегти' }));
     await waitFor(() => expect(screen.getByRole('alert').textContent).toContain('Немає зв’язку із сервером.'));
     expect((screen.getByLabelText('Назва вікторини') as HTMLInputElement).value).toBe('Гра');
+  });
+
+  it('shows the server refusal of a host word outside the dictionary (48)', async () => {
+    vi.mocked(createQuiz).mockResolvedValue({ ok: false, error: 'invalid_payload:wordle_unknown' });
+    open('/quizzes/new');
+    fireEvent.change(await screen.findByLabelText('Назва вікторини'), { target: { value: 'Гра' } });
+    fireEvent.change(screen.getByLabelText('Текст запитання'), { target: { value: 'Так?' } });
+    fireEvent.click(screen.getByRole('button', { name: 'так чи ні' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Зберегти' }));
+    await waitFor(() => expect(screen.getByRole('alert').textContent).toContain(errorText('invalid_payload:wordle_unknown')));
+    expect(errorText('invalid_payload:wordle_unknown')).toBe(t('err_invalid_payload_wordle_unknown'));
+    expect(errorText('invalid_payload')).toBe(t('err_invalid_payload'));
   });
 
   it('sends the host to sign in when the session has ended', async () => {

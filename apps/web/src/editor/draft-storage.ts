@@ -232,6 +232,12 @@ function reviveSpy(base: Extract<Question, { type: 'spy' }>): Question {
   };
 }
 
+/** «Вгадай слово» (48) з чернетки: слово — рядок (інакше порожнє); без відео, «перевертання» й підказки. */
+function reviveWordle(base: Extract<Question, { type: 'wordle' }>): Question {
+  const { hint: _hint, reveal: _reveal, ...rest } = base;
+  return { ...rest, video: null, word: typeof base.word === 'string' ? base.word : '' };
+}
+
 /** «Думай як усі» (37) з чернетки: лише основа — без «перевертання» й підказки. */
 function reviveThinkalike(base: Extract<Question, { type: 'thinkalike' }>): Question {
   const { hint: _hint, reveal: _reveal, ...rest } = base;
@@ -452,6 +458,7 @@ function revive(stored: Question): Question {
   if (base.type === 'think') return reviveThink(base);
   if (base.type === 'thinkalike') return reviveThinkalike(base);
   if (base.type === 'spy') return reviveSpy(base);
+  if (base.type === 'wordle') return reviveWordle(base);
   if (base.type === 'poll') {
     const options = Array.isArray(base.options)
       ? (base.options as unknown[]).filter(isObjectLike).map((option) => ({

@@ -51,6 +51,7 @@ import {
   roundQuestions,
   REVEAL_TYPES,
   ladderPathIssue,
+  wordleWordIssue,
   letterSet,
   questionPrice,
   isPuzzle,
@@ -1133,6 +1134,11 @@ const cleanBody = (question: Question): Question => {
       const [playersWord = '', ...others] = question.accepted.map((s) => s.trim());
       return { ...rest, text, video: null, accepted: [playersWord, ...others.filter((s) => s !== '')], spyWord: question.spyWord.trim() };
     }
+    case 'wordle': {
+      // Слово без зайвих пробілів; без відео, «перевертання» й підказки (бафів немає).
+      const { hint: _hint, reveal: _reveal, ...rest } = question;
+      return { ...rest, text, video: null, word: question.word.normalize('NFC').trim() };
+    }
     case 'think': {
       // Без відео, звуку, «перевертання» й підказки; ціна 0 (think_points), слова почищені.
       const { hint: _hint, audio: _audio, reveal: _reveal, ...rest } = question;
@@ -1286,19 +1292,21 @@ interface Place {
   thinkalike: boolean;
   /** «Шпигун»: лише класика (spy_place схеми); на клітинці поля й у запасних — ні. */
   spy: boolean;
+  /** «Вгадай слово»: лише класика (wordle_place схеми); на клітинці поля й у запасних — ні. */
+  wordle: boolean;
 }
 
-const ANYWHERE: Place = { reveal: true, clues: true, pin: true, wall: true, vote: true, bluff: true, survey: true, clouds: [], voice: false, sort: true, chain: true, wordladder: true, timedlist: true, letterwords: true, moreless: true, drawing: true, puzzle: false, onlyPuzzles: false, jigsaw: true, spotdiff: true, memory: true, melody: true, videoclip: true, thinkalike: true, spy: true };
+const ANYWHERE: Place = { reveal: true, clues: true, pin: true, wall: true, vote: true, bluff: true, survey: true, clouds: [], voice: false, sort: true, chain: true, wordladder: true, timedlist: true, letterwords: true, moreless: true, drawing: true, puzzle: false, onlyPuzzles: false, jigsaw: true, spotdiff: true, memory: true, melody: true, videoclip: true, thinkalike: true, spy: true, wordle: true };
 /** Бліц і фінал: нічого з нового. Класика — усе, а хмари для «100 до 1» — ті, що вище. */
 const roundPlace = (quiz: Quiz, roundIndex: number, questionIndex: number): Place =>
   quiz.rounds[roundIndex].type === 'classic'
     ? { ...ANYWHERE, clouds: cloudSources(quiz, roundIndex, questionIndex).map((cloud) => cloud.id) }
-    : { reveal: false, clues: false, pin: false, wall: false, vote: false, bluff: false, survey: false, clouds: null, voice: false, sort: true, chain: quiz.rounds[roundIndex].type !== 'blitz', wordladder: quiz.rounds[roundIndex].type === 'final' || quiz.rounds[roundIndex].type === 'bets' || quiz.rounds[roundIndex].type === 'auction', timedlist: false, letterwords: false, moreless: false, drawing: false, puzzle: quiz.rounds[roundIndex].type === 'puzzles', onlyPuzzles: quiz.rounds[roundIndex].type === 'puzzles', jigsaw: quiz.rounds[roundIndex].type === 'puzzles', spotdiff: quiz.rounds[roundIndex].type === 'puzzles', memory: quiz.rounds[roundIndex].type === 'puzzles', melody: false, videoclip: false, thinkalike: false, spy: false };
+    : { reveal: false, clues: false, pin: false, wall: false, vote: false, bluff: false, survey: false, clouds: null, voice: false, sort: true, chain: quiz.rounds[roundIndex].type !== 'blitz', wordladder: quiz.rounds[roundIndex].type === 'final' || quiz.rounds[roundIndex].type === 'bets' || quiz.rounds[roundIndex].type === 'auction', timedlist: false, letterwords: false, moreless: false, drawing: false, puzzle: quiz.rounds[roundIndex].type === 'puzzles', onlyPuzzles: quiz.rounds[roundIndex].type === 'puzzles', jigsaw: quiz.rounds[roundIndex].type === 'puzzles', spotdiff: quiz.rounds[roundIndex].type === 'puzzles', memory: quiz.rounds[roundIndex].type === 'puzzles', melody: false, videoclip: false, thinkalike: false, spy: false, wordle: false };
 /** Клітинка поля: усе — на звичайній з телефона; «Хто я?» — ще й на усній; бліц-клітинка — нічого. */
 const cellPlace = (round: BoardRound, cell: BoardCell): Place => {
   const normal = cell.kind === 'normal';
   const phone = normal && cellAnswerMode(round, cell) === 'phone';
-  return { reveal: phone, clues: normal, pin: phone, wall: phone, vote: false, bluff: false, survey: phone, clouds: null, voice: normal && !phone, sort: phone, chain: false, wordladder: false, timedlist: phone, letterwords: phone, moreless: phone, drawing: false, puzzle: false, onlyPuzzles: false, jigsaw: false, spotdiff: false, memory: false, melody: false, videoclip: false, thinkalike: false, spy: false };
+  return { reveal: phone, clues: normal, pin: phone, wall: phone, vote: false, bluff: false, survey: phone, clouds: null, voice: normal && !phone, sort: phone, chain: false, wordladder: false, timedlist: phone, letterwords: phone, moreless: phone, drawing: false, puzzle: false, onlyPuzzles: false, jigsaw: false, spotdiff: false, memory: false, melody: false, videoclip: false, thinkalike: false, spy: false, wordle: false };
 };
 
 /** Що заважає зберегти клітинку (уже почищену); null — клітинка готова. Одне джерело для problemsOf, firstProblem і cellState. */
@@ -1384,6 +1392,13 @@ function spyLeaks(question: Extract<Question, { type: 'spy' }>): boolean {
   });
 }
 
+/** Текст видно всім: слово цілим словом у тексті запитання (те саме правило, що wordle_leak схеми). */
+function wordleLeaks(question: Extract<Question, { type: 'wordle' }>): boolean {
+  const wordsOf = (value: string) => answerKey(value).split(/[^\p{L}\p{N}']+/u).filter(Boolean).join(' ');
+  const key = wordsOf(question.word);
+  return key !== '' && (' ' + wordsOf(question.text) + ' ').includes(' ' + key + ' ');
+}
+
 function problemKey(question: Question, place: Place = ANYWHERE): TextKey | null {
   if (question.text === '') return 'problemNoText';
   // Місце головоломок — раніше за їхні поля: судоку поза «Головоломками» не виправити цифрами.
@@ -1395,6 +1410,7 @@ function problemKey(question: Question, place: Place = ANYWHERE): TextKey | null
   if (question.type === 'videoclip' && !place.videoclip) return 'problemVideoclipPlace';
   if (question.type === 'thinkalike' && !place.thinkalike) return 'problemAlikePlace';
   if (question.type === 'spy' && !place.spy) return 'problemSpyPlace';
+  if (question.type === 'wordle' && !place.wordle) return 'problemWordlePlace';
   if (question.type === 'numeric' && question.noOvershoot === true && !place.thinkalike) return 'problemOvershootPlace';
   if (!fitsPuzzlesRound(question) && place.onlyPuzzles) return 'problemPuzzlesType';
   const { timeLimit, points } = question;
@@ -1620,6 +1636,12 @@ function problemKey(question: Question, place: Place = ANYWHERE): TextKey | null
       if (spares.truth !== '') return 'problemBluffSpareTruth';
       if (spares.twin !== '') return 'problemBluffSpareDuplicate';
       if (!Number.isInteger(question.choiceTime) || question.choiceTime < LIMITS.minTime || question.choiceTime > LIMITS.maxTime) return 'problemBluffChoiceTime';
+      break;
+    }
+    case 'wordle': {
+      if (wordleWordIssue(question.word) !== null) return 'problemWordleWord';
+      if (wordleLeaks(question)) return 'problemWordleLeak';
+      if (question.video !== null) return 'problemWordleVideo';
       break;
     }
     case 'spy': {
@@ -1889,8 +1911,8 @@ const problemText = (key: TextKey, index: number, question?: Question) =>
     text: question?.type === 'survey' ? duplicateSpelling(question) : question?.type === 'timedlist' ? duplicateListSpelling(question) : question?.type === 'bluff' ? bluffSpareText(question, key) : '',
     surveyMin: LIMITS.minSurveyRows,
     surveyMax: LIMITS.maxSurveyAnswers,
-    letterMin: LIMITS.minWordLadderLetters,
-    letterMax: LIMITS.maxWordLadderLetters,
+    letterMin: question?.type === 'wordle' ? LIMITS.minWordleLetters : LIMITS.minWordLadderLetters,
+    letterMax: question?.type === 'wordle' ? LIMITS.maxWordleLetters : LIMITS.maxWordLadderLetters,
     // Найменше кроків — 1 (та сама межа, що в перевірці maxSteps вище).
     stepsMin: 1,
     stepsMax: LIMITS.maxWordLadderSteps,
@@ -1934,7 +1956,7 @@ function duelProblems(duels: Duels): string[] {
 
 /** Запасне «Не перебільш» схема відхиляє (spare_type): редактор каже це наперед. */
 function spareKey(spare: Question): TextKey | null {
-  return problemKey(spare) ?? (overshootOn(spare) ? 'problemOvershootPlace' : spare.type === 'spy' ? 'problemSpyPlace' : null);
+  return problemKey(spare) ?? (overshootOn(spare) ? 'problemOvershootPlace' : spare.type === 'spy' ? 'problemSpyPlace' : spare.type === 'wordle' ? 'problemWordlePlace' : null);
 }
 
 /** Проблеми розділу «Запасні запитання»: кожне запасне перевіряється так само, як запитання. */

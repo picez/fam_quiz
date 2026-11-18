@@ -25,6 +25,7 @@ import { ThinkWordsEditor } from './ThinkWordsEditor';
 import { TimedListEditor } from './TimedListEditor';
 import { WallEditor } from './WallEditor';
 import { WordLadderEditor } from './WordLadderEditor';
+import { WordleEditor } from './WordleEditor';
 import { GroupDraftNotes } from './group-drafts';
 import { changeType, maxTimeOf, moveItem, type QuestionType } from './draft';
 import { newId } from './new-id';
@@ -845,6 +846,8 @@ function Body({ question, onChange, showPoints, cluesByHost, clouds, allowCloud,
       return <MelodyEditor question={question} onChange={onChange} />;
     case 'videoclip':
       return <VideoclipEditor question={question} onChange={onChange} />;
+    case 'wordle':
+      return <WordleEditor question={question} onChange={onChange} />;
     case 'spy':
       return <SpyEditor question={question} onChange={onChange} />;
     case 'thinkalike':
@@ -931,7 +934,7 @@ export function QuestionEditor({ question, onChange, types, showPoints = true, s
             <HelpButton id="setting.reveal" />
           </div>
         )}
-        {showVideo && question.audio === undefined && question.type !== 'chain' && question.type !== 'wordladder' && question.type !== 'sort' && question.type !== 'clues' && question.type !== 'pin' && question.type !== 'wall' && question.type !== 'bluff' && question.type !== 'spy' && question.type !== 'timedlist' && question.type !== 'letterwords' && question.type !== 'moreless' && question.type !== 'drawing' && question.type !== 'melody' && question.type !== 'videoclip' && question.type !== 'jigsaw' && question.type !== 'spotdiff' && question.type !== 'memory' && question.type !== 'think' && !isPuzzle(question) && (
+        {showVideo && question.audio === undefined && question.type !== 'chain' && question.type !== 'wordladder' && question.type !== 'wordle' && question.type !== 'sort' && question.type !== 'clues' && question.type !== 'pin' && question.type !== 'wall' && question.type !== 'bluff' && question.type !== 'spy' && question.type !== 'timedlist' && question.type !== 'letterwords' && question.type !== 'moreless' && question.type !== 'drawing' && question.type !== 'melody' && question.type !== 'videoclip' && question.type !== 'jigsaw' && question.type !== 'spotdiff' && question.type !== 'memory' && question.type !== 'think' && !isPuzzle(question) && (
           <VideoField
             key={question.id}
             video={question.video}
@@ -966,7 +969,7 @@ export function QuestionEditor({ question, onChange, types, showPoints = true, s
             onToVideo={(video) => {
               const { audio: _old, reveal: _reveal, ...rest } = latest.current.question;
               // У ланцюжку, сортуванні, «Хто я?» і точці відео немає: звук просто зникає.
-              const noVideo = rest.type === 'jigsaw' || rest.type === 'spotdiff' || rest.type === 'memory' || rest.type === 'chain' || rest.type === 'wordladder' || rest.type === 'sort' || rest.type === 'clues' || rest.type === 'pin' || rest.type === 'wall' || rest.type === 'bluff' || rest.type === 'spy' || rest.type === 'timedlist' || rest.type === 'letterwords' || rest.type === 'moreless' || rest.type === 'drawing' || rest.type === 'melody' || rest.type === 'videoclip';
+              const noVideo = rest.type === 'jigsaw' || rest.type === 'spotdiff' || rest.type === 'memory' || rest.type === 'chain' || rest.type === 'wordladder' || rest.type === 'wordle' || rest.type === 'sort' || rest.type === 'clues' || rest.type === 'pin' || rest.type === 'wall' || rest.type === 'bluff' || rest.type === 'spy' || rest.type === 'timedlist' || rest.type === 'letterwords' || rest.type === 'moreless' || rest.type === 'drawing' || rest.type === 'melody' || rest.type === 'videoclip';
               latest.current.onChange((noVideo ? rest : { ...rest, video }) as Question);
             }}
           />
@@ -983,7 +986,7 @@ export function QuestionEditor({ question, onChange, types, showPoints = true, s
         </label>
         {betsCut && <BetsCutField text={question.text} cut={question.betsCut} phase={betsCut === 'auction' ? 'auction' : 'bets'} onChange={(cut) => onChange({ ...question, betsCut: cut })} />}
         {/* Підказка — для бафів; у «Більше чи менше», «Малюнку» й головоломках бафів немає. */}
-        {showHint && question.type !== 'think' && question.type !== 'thinkalike' && question.type !== 'spy' && question.type !== 'moreless' && question.type !== 'drawing' && question.type !== 'melody' && question.type !== 'videoclip' && question.type !== 'jigsaw' && question.type !== 'spotdiff' && question.type !== 'memory' && !isPuzzle(question) && (
+        {showHint && question.type !== 'think' && question.type !== 'thinkalike' && question.type !== 'spy' && question.type !== 'wordle' && question.type !== 'moreless' && question.type !== 'drawing' && question.type !== 'melody' && question.type !== 'videoclip' && question.type !== 'jigsaw' && question.type !== 'spotdiff' && question.type !== 'memory' && !isPuzzle(question) && (
           <label className="field hint-field">
             <span>{t('hintLabel')}</span>
             <textarea

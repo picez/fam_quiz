@@ -3783,3 +3783,62 @@ describe('question bank', () => {
     }
   });
 });
+
+describe('plan 48 editors: wordle', () => {
+  const wordle = (patch: Partial<Extract<Question, { type: 'wordle' }>> = {}) => ({ ...(newQuestion('wordle') as Extract<Question, { type: 'wordle' }>), word: 'колос', ...patch });
+  const blitz = (question: Question): Quiz => ({ ...quizWith(question), rounds: [{ ...newBlitzRound(), questions: [question] }] });
+
+  it('is offered in classic rounds only, right after letter words; a new one has the default text and timer', () => {
+    const classic = questionTypesFor('classic');
+    expect(classic.indexOf('wordle')).toBe(classic.indexOf('letterwords') + 1);
+    for (const type of ['blitz', 'final', 'board', 'bets', 'puzzles'] as const) expect(questionTypesFor(type), type).not.toContain('wordle');
+    expect(newQuestion('wordle')).toMatchObject({ type: 'wordle', text: t('wordleDefaultText'), word: '', timeLimit: LIMITS.defaultWordleTime, points: LIMITS.defaultPoints });
+  });
+
+  it('a good word passes; outside a classic round it does not', () => {
+    expect(problemsOf(quizWith(wordle()))).toEqual([]);
+    expect(problemsOf(quizWith(wordle({ word: "м'ясо" })))).toEqual([]);
+    expect(problemsOf(blitz(wordle()))).toEqual([t('problemWordlePlace', { index: 1 })]);
+  });
+
+  it('a word of the wrong length or with foreign letters is a problem', () => {
+    const wrong = t('problemWordleWord', { index: 1, letterMin: LIMITS.minWordleLetters, letterMax: LIMITS.maxWordleLetters });
+    expect(problemsOf(quizWith(wordle({ word: 'кіт' })))).toEqual([wrong]);
+    expect(problemsOf(quizWith(wordle({ word: 'абрикоси' })))).toEqual([wrong]);
+    expect(problemsOf(quizWith(wordle({ word: 'cat1' })))).toEqual([wrong]);
+    expect(problemsOf(quizWith(wordle({ word: '' })))).toEqual([wrong]);
+    expect(wrong).toContain(`${LIMITS.minWordleLetters}`);
+  });
+
+  it('a text that gives the word away is a problem', () => {
+    expect(problemsOf(quizWith(wordle({ text: 'Це колос' })))).toEqual([t('problemWordleLeak', { index: 1 })]);
+    expect(problemsOf(quizWith(wordle({ text: 'Це колосок' })))).toEqual([]);
+  });
+
+  it('cleaning drops a video, so it never blocks saving', () => {
+    const video = { id: 'dQw4w9WgXcQ', start: 0 };
+    const clean = roundQuestions(cleaned(quizWith({ ...wordle(), video } as Question)).rounds[0])[0];
+    expect(clean.video).toBeNull();
+  });
+
+  it('changing the type keeps the text; cleaning trims the word; a draft drops a bad word and a video', () => {
+    const text = { ...newQuestion('text'), text: 'Назвіть слово' } as Question;
+    expect(changeType(text, 'wordle')).toMatchObject({ type: 'wordle', text: 'Назвіть слово', word: '' });
+    const clean = roundQuestions(cleaned(quizWith(wordle({ word: '  колос ' }))).rounds[0])[0] as Extract<Question, { type: 'wordle' }>;
+    expect(clean.word).toBe('колос');
+    const stored = (id: string, question: unknown) => {
+      saveDraft(id, quizWith(question as Question));
+      return roundQuestions(loadDraft(id)!.rounds[0])[0] as unknown as Record<string, unknown>;
+    };
+    expect(stored('wordle-ok', wordle()).word).toBe('колос');
+    expect(stored('wordle-num', { ...wordle(), word: 5 }).word).toBe('');
+    expect(stored('wordle-video', { ...wordle(), video: { id: 'dQw4w9WgXcQ', start: 0 } }).video).toBeNull();
+  });
+
+  it('duplicating keeps the word under a new id', () => {
+    const original = wordle();
+    const copy = duplicateQuestion(original) as typeof original;
+    expect(copy.id).not.toBe(original.id);
+    expect(copy.word).toBe('колос');
+  });
+});
