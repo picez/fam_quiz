@@ -6,7 +6,7 @@ import { QUEST_TYPES, type QuestRound } from '@quiz/shared';
 import { newId } from './new-id';
 import { DEFAULT_RULES, LADDER_PRESETS, LIFELINES, LIMITS, ladderPresetSafe, type LadderRound, duelShortfall, duelThreshold, WIPEOUT_TYPES, SURVIVAL_TYPES, rulesOf, boardCells, quizSchema, roundSchema, questionSchema, isPuzzle, ROUND_TYPES, EMPTY_SUDOKU, generateSudoku, layoutCrossword, pickKeyCells, questionsOf, roundQuestions, type BoardRound, type ClassicRound, type Question, type Quiz, type Round, type Duels } from '@quiz/shared';
 import { t } from '../i18n';
-import { QUESTION_TYPES, boardReadiness, cellState, cloudSources, questionTypesFor, applyRoundTime, steppedPoints, changeType, cleaned, fitCell, duplicateQuestion, firstProblem, moveItem, newBlitzRound, newBoardCategory, newBoardQuestion, newBoardRound, withDefaultMode, newClassicRound, newFinalRound, newBetsRound, newAuctionRound, newTruthRound, newPuzzlesRound, cleanedQuestion, newWipeoutRound, newSurvivalRound, newLadderRound, resizeLadder, newWipeoutQuestion, newQuestion, newQuiz, problemsOf, newDuels, newSpare, swapGaps, minTimeOf, maxTimeOf } from './draft';
+import { QUESTION_TYPES, boardReadiness, cellState, cloudSources, questionTypesFor, applyRoundTime, steppedPoints, changeType, cleaned, fitCell, duplicateQuestion, firstProblem, moveItem, newBlitzRound, newBoardCategory, newBoardQuestion, newBoardRound, withDefaultMode, newClassicRound, newFinalRound, newBetsRound, newAuctionRound, newTruthRound, newPuzzlesRound, cleanedQuestion, newWipeoutRound, newSurvivalRound, newLadderRound, resizeLadder, newWipeoutQuestion, newQuestion, newQuiz, roundCapacity, bankCopy, problemsOf, newDuels, newSpare, swapGaps, minTimeOf, maxTimeOf } from './draft';
 
 /** Заповнює порожні поля нового запитання так, як це зробив би користувач. */
 function filled(question: Question): Question {
@@ -3671,5 +3671,105 @@ describe('plan 38 editors: spy', () => {
     expect('hint' in dropped).toBe(false);
     expect(dropped.video).toBeNull();
     expect(stored('spy-words', { ...spy(), accepted: 5, spyWord: 7 })).toMatchObject({ accepted: [''], spyWord: '' });
+  });
+});
+
+describe('question bank', () => {
+  const quizOf = (round: Round): Quiz => ({ ...newQuiz(), rounds: [round] });
+
+  it('roundCapacity by round type', () => {
+    expect(roundCapacity(newClassicRound())).toBe(100);
+    expect(roundCapacity(newWipeoutRound())).toBe(15);
+    expect(roundCapacity(newSurvivalRound())).toBe(30);
+    expect(roundCapacity(newLadderRound())).toBe(15);
+    expect(roundCapacity(newPuzzlesRound())).toBe(10);
+    expect(roundCapacity(newQuestRound())).toBe(20);
+    expect(roundCapacity(newThinkRound())).toBe(30);
+  });
+
+  it('a copy is deep with new ids and the same media', () => {
+    const base = filled(newQuestion('single'));
+    if (base.type !== 'single') throw new Error('single expected');
+    const source: Question = { ...base, imageUrl: '/uploads/aaaaaaaaaaaaaaaaaaaa.jpg', options: base.options.map((o, i) => (i === 1 ? { ...o, imageUrl: '/uploads/bbbbbbbbbbbbbbbbbbbb.jpg' } : o)), correctId: base.options[1].id };
+    const before = structuredClone(source);
+    const fit = bankCopy(quizOf(newClassicRound()), 0, source, undefined);
+    if (!('question' in fit)) throw new Error('should fit: ' + fit.issue);
+    const copy = fit.question;
+    if (copy.type !== 'single') throw new Error('single expected');
+    expect(copy.id).not.toBe(source.id);
+    expect(copy.options.map((o) => o.id).filter((id) => base.options.some((o) => o.id === id))).toEqual([]);
+    expect(copy.correctId).toBe(copy.options[1].id);
+    expect(copy.imageUrl).toBe('/uploads/aaaaaaaaaaaaaaaaaaaa.jpg');
+    expect(copy.options[1].imageUrl).toBe('/uploads/bbbbbbbbbbbbbbbbbbbb.jpg');
+    copy.options[0].text = 'changed';
+    expect(source).toEqual(before);
+  });
+
+  it('a copy fits the round', () => {
+    const cut: Question = { ...filled(newQuestion('single')), betsCut: 3 };
+    const inClassic = bankCopy(quizOf(newClassicRound()), 0, cut, undefined);
+    expect('question' in inClassic && inClassic.question.betsCut).toBeUndefined();
+    const inBets = bankCopy(quizOf(newBetsRound()), 0, cut, undefined);
+    expect('question' in inBets && inBets.question.betsCut).toBe(3);
+    const revealing = { ...filled(newQuestion('single')), reveal: { kind: 'blur' } } as unknown as Question;
+    const inBlitz = bankCopy(quizOf(newBlitzRound()), 0, revealing, undefined);
+    expect('question' in inBlitz && inBlitz.question.reveal).toBeUndefined();
+    const survey = { ...filled(newQuestion('survey')), cloudId: 'c1' } as Question;
+    if (survey.type !== 'survey') throw new Error('survey expected');
+    const full = { ...survey, rows: [1, 2, 3, 4].map((n) => ({ ...survey.rows[0], id: 'r' + n, text: 'Рядок ' + n })) } as Question;
+    const fit = bankCopy(quizOf(newClassicRound()), 0, full, undefined);
+    expect('question' in fit).toBe(true);
+    if ('question' in fit && fit.question.type === 'survey') expect(fit.question.cloudId).toBeUndefined();
+  });
+
+  it('prices follow the round', () => {
+    const source: Question = { ...filled(newQuestion('single')), points: 750 };
+    const after: Question = { ...filled(newQuestion('single')), points: 300 };
+    const priced = (round: Round) => {
+      const fit = bankCopy(quizOf(round), 0, source, after);
+      return 'question' in fit ? fit.question.points : fit;
+    };
+    expect(priced(newWipeoutRound())).toBe(400);
+    expect(priced(newSurvivalRound())).toBe(100);
+    expect(priced(newClassicRound())).toBe(750);
+  });
+
+  it('what does not fit says why', () => {
+    const three = filled(newQuestion('single'));
+    if (three.type !== 'single') throw new Error('single expected');
+    const short: Question = { ...three, options: three.options.slice(0, 3) };
+    expect(bankCopy(quizOf(newLadderRound()), 0, short, undefined)).toMatchObject({ issue: 'bankNoFitLadder', vars: { count: 4 } });
+    expect(bankCopy(quizOf(newClassicRound()), 0, { ...newQuestion('sudoku'), text: 'Судоку' }, undefined)).toMatchObject({ issue: 'bankNoFitType' });
+    const empty = { ...filled(newQuestion('survey')), cloudId: 'c1', rows: [] } as unknown as Question;
+    const fit = bankCopy(quizOf(newClassicRound()), 0, empty, undefined);
+    expect('issue' in fit && fit.issue).toBeTruthy();
+  });
+
+  it('every reason is readable text without placeholders', () => {
+    const three = filled(newQuestion('single'));
+    if (three.type !== 'single') throw new Error('single expected');
+    const reasons = [
+      bankCopy(quizOf(newLadderRound()), 0, { ...three, options: three.options.slice(0, 3) }, undefined),
+      bankCopy(quizOf(newClassicRound()), 0, { ...newQuestion('sudoku'), text: 'Судоку' }, undefined),
+      bankCopy(quizOf(newClassicRound()), 0, { ...filled(newQuestion('survey')), rows: [] } as unknown as Question, undefined),
+      bankCopy(quizOf(newClassicRound()), 0, { ...filled(newQuestion('single')), text: '' }, undefined),
+      bankCopy(quizOf(newClassicRound()), 0, { ...filled(newQuestion('survey')), cloudId: 'c1', rows: [] } as unknown as Question, undefined),
+    ];
+    for (const reason of reasons) {
+      if (!('issue' in reason)) throw new Error('should not fit');
+      expect(reason.text).not.toContain('{');
+      expect(reason.text).not.toBe('');
+      expect(reason.text).not.toMatch(/^[^:]*:\s/);
+    }
+  });
+
+  it('a copy into a bets or auction round keeps its cut, or asks for one like a new question', () => {
+    const plain = filled(newQuestion('single'));
+    for (const round of [newBetsRound(), newAuctionRound()]) {
+      const fit = bankCopy(quizOf(round), 0, plain, undefined);
+      expect('question' in fit && fit.question.betsCut).toBeUndefined();
+      const kept = bankCopy(quizOf(round), 0, { ...plain, betsCut: 2 }, undefined);
+      expect('question' in kept && kept.question.betsCut).toBe(2);
+    }
   });
 });
