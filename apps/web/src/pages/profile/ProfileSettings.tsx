@@ -10,7 +10,7 @@ import { nickText } from '../../nick';
 import { Avatar } from '../../profile/Avatar';
 import { ProfileEditor } from '../../profile/ProfileEditor';
 import { SubpageData } from '../../profile/ProfileSubpage';
-import { forgetMyProfile, useMyProfile } from '../../profile/useMyProfile';
+import { useMyProfile } from '../../profile/useMyProfile';
 import { PushSettings } from '../../push/PushSettings';
 import { disablePush } from '../../push/push-client';
 
@@ -20,7 +20,7 @@ export function ProfileSettings(): JSX.Element {
   const [params] = useSearchParams();
   const [editing, setEditing] = useState(params.get('edit') === '1');
   const [leaving, setLeaving] = useState(false);
-  const { state, reload } = useMyProfile();
+  const { state, reload } = useMyProfile({ cached: false });
 
   const leave = async () => {
     if (leaving) return;
@@ -29,7 +29,6 @@ export function ProfileSettings(): JSX.Element {
     await Promise.race([disablePush().catch(() => undefined), new Promise<void>((done) => setTimeout(done, 3_000))]);
     await signOut();
     forgetAccount();
-    forgetMyProfile();
     navigate('/');
   };
 

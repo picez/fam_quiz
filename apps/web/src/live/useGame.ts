@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { io, type Socket } from 'socket.io-client';
 import { REACTION_SHOW_MS, type ClientToServerEvents, type CloseReason, type GameView, type HostDrafts, type Reaction, type ServerToClientEvents, type SocketAuth, type SortTilt } from '@quiz/shared';
 import { freshSplash } from '../clock';
+import { forgetMyProfile } from '../profile/my-profile-cache';
 import { dropReaction, upsertReaction } from '../reactions';
 import { emptyDrawing, needsSync, reduceDrawing, type DrawingModel } from './drawing';
 import { initialNet, isStale, NET_PING_EVERY_MS, NET_PING_TIMEOUT_MS, onPong, onReconnect, onTimeout, shouldForceReconnect, type NetState, type Quality } from './net-quality';
@@ -291,6 +292,8 @@ export function useGame(auth: SocketAuth | null) {
       settlePending(next);
       afterReconnect = false;
       setView(freshSplash(next, meta.serverNow));
+      // Гра скінчилася: після неї змінилися числа профілю, тож кешований показувати вже не можна.
+      if (next.phase === 'finished') forgetMyProfile();
       if (next.paused || (tiltsAt !== null && tiltsAt !== next.questionIndex)) setTilts({});
       if (tiltsAt !== null && tiltsAt !== next.questionIndex) setDrafts(null);
       tiltsAt = next.questionIndex;

@@ -3,6 +3,7 @@ import { isLocale } from '@quiz/shared';
 import { me, type Account } from './api';
 import { syncAccountEasy } from './easy-mode';
 import { syncAccountLocale } from './locales/choose';
+import { forgetMyProfile } from './profile/my-profile-cache';
 
 export type AccountState =
   | { status: 'loading' }
@@ -41,7 +42,11 @@ function check(): Promise<AccountState> {
     })
     .then((state) => {
       if (state.status === 'signed-in') known = state;
-      else if (state.status === 'anonymous') known = null;
+      else if (state.status === 'anonymous') {
+        known = null;
+        // Сесія скінчилася: чужий профіль не має дожити до наступного входу.
+        forgetMyProfile();
+      }
       return state;
     })
     .finally(() => {
@@ -54,6 +59,7 @@ function check(): Promise<AccountState> {
 export function forgetAccount(): void {
   known = null;
   pending = null;
+  forgetMyProfile();
   // «Легкий режим» із профілю (31) гасне одразу після виходу; вибір самого пристрою лишається.
   syncAccountEasy(false, null);
 }

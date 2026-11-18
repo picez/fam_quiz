@@ -15,7 +15,7 @@ const account = (id: string): AccountState => ({
   status: 'signed-in',
   account: { id, name: id, email: `${id}@example.com`, admin: false, locale: null, easyMode: false } as Account,
 });
-const profileOf = (games: number): OwnProfile => ({ stats: { games } }) as unknown as OwnProfile;
+const profileOf = (games: number, id = 'a'): OwnProfile => ({ id, stats: { games } }) as unknown as OwnProfile;
 
 function deferred() {
   let resolve!: (value: ApiData<OwnProfile>) => void;
@@ -61,8 +61,32 @@ describe('useMyProfile', () => {
     vi.mocked(getMyProfile).mockReturnValueOnce(pending.promise);
     const next = renderHook(() => useMyProfile());
     expect(next.result.current.state.status).toBe('loading');
-    await act(async () => pending.resolve({ ok: true, data: profileOf(7) }));
+    await act(async () => pending.resolve({ ok: true, data: profileOf(7, 'b') }));
     await waitFor(() => expect(gamesOf(next.result.current.state)).toBe(7));
+  });
+
+  it('the cache is labelled by the profile id, so a stale account never earns another profile', async () => {
+    // useAccount still says A, but the cookie belongs to B: the response is B's profile.
+    vi.mocked(getMyProfile).mockResolvedValueOnce({ ok: true, data: profileOf(5, 'b') });
+    const first = renderHook(() => useMyProfile());
+    await waitFor(() => expect(gamesOf(first.result.current.state)).toBe(5));
+    first.unmount();
+
+    // A signs in again later: B's data must not be served to A.
+    vi.mocked(getMyProfile).mockReturnValueOnce(new Promise(() => undefined));
+    const next = renderHook(() => useMyProfile());
+    expect(next.result.current.state.status).toBe('loading');
+  });
+
+  it('cached: false never starts from the cache', async () => {
+    vi.mocked(getMyProfile).mockResolvedValueOnce({ ok: true, data: profileOf(3) });
+    const first = renderHook(() => useMyProfile());
+    await waitFor(() => expect(gamesOf(first.result.current.state)).toBe(3));
+    first.unmount();
+
+    vi.mocked(getMyProfile).mockReturnValueOnce(new Promise(() => undefined));
+    const editor = renderHook(() => useMyProfile({ cached: false }));
+    expect(editor.result.current.state.status).toBe('loading');
   });
 
   it('forgetMyProfile drops the cache', async () => {
@@ -83,6 +107,19 @@ describe('useMyProfile', () => {
     await waitFor(() => expect(gamesOf(first.result.current.state)).toBe(3));
     vi.mocked(getMyProfile).mockReturnValueOnce(new Promise(() => undefined));
     act(() => first.result.current.reload());
+
+    vi.mocked(getMyProfile).mockReturnValueOnce(new Promise(() => undefined));
+    const other = renderHook(() => useMyProfile());
+    expect(other.result.current.state.status).toBe('loading');
+  });
+
+  it('an instance re-rendering with old data does not put it back in the cache after a reload', async () => {
+    vi.mocked(getMyProfile).mockResolvedValueOnce({ ok: true, data: profileOf(3) });
+    const first = renderHook(() => useMyProfile());
+    await waitFor(() => expect(gamesOf(first.result.current.state)).toBe(3));
+    vi.mocked(getMyProfile).mockReturnValueOnce(new Promise(() => undefined));
+    act(() => first.result.current.reload());
+    first.rerender();
 
     vi.mocked(getMyProfile).mockReturnValueOnce(new Promise(() => undefined));
     const other = renderHook(() => useMyProfile());
