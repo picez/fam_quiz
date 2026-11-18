@@ -12635,6 +12635,36 @@ button.wall-tile:disabled {
   gap: 0.5rem;
 }
 
+/* 44: вікно «🏁 Виклик» (аркуш; .challenge-card — картка сторінки виклику) і рядок про активний виклик у списку вікторин. */
+.challenge-sheet {
+  overflow-wrap: anywhere;
+}
+
+/* Останній ряд кнопок («Закрити») завжди видно: аркуш прокручується під ним. */
+.challenge-sheet > .autopilot-actions:last-child {
+  position: sticky;
+  bottom: -1rem;
+  margin-block-end: -1rem;
+  padding-block: 0.5rem 1rem;
+  background: var(--surface);
+}
+
+.challenge-link {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.challenge-link .field input {
+  min-width: 0;
+  font-size: 1rem;
+}
+
+.challenge-line {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
 /* 11h: лобі автора на телефоні */
 .author-lobby {
   display: grid;
@@ -25715,4 +25745,97 @@ input.sudoku-editor-cell:focus-visible {
   padding-inline-start: 1.25rem;
   overflow-y: auto;
   overflow-wrap: anywhere;
+}
+
+/* Сторінка виклику й телефон у грі (44) */
+.challenge-card {
+  display: grid;
+  justify-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+  padding: 1rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+
+.challenge-card h2,
+.challenge-card p {
+  margin: 0;
+}
+
+/* Автор пересилає посилання зі сторінки виклику. */
+.challenge-share {
+  display: grid;
+  justify-items: center;
+  gap: 0.25rem;
+}
+
+.challenge-share .autopilot-actions {
+  justify-content: center;
+}
+
+.challenge-results {
+  width: 100%;
+  margin-top: 1rem;
+  border-collapse: collapse;
+  table-layout: auto;
+}
+
+.challenge-results th,
+.challenge-results td {
+  padding: 0.5rem 0.5rem;
+  border-bottom: 1px solid var(--line);
+  text-align: start;
+  font-weight: 400;
+  vertical-align: top;
+}
+
+.challenge-results thead th {
+  color: var(--dim);
+  font-size: 0.875rem;
+}
+
+.challenge-results .cr-nick {
+  overflow-wrap: anywhere;
+  font-weight: 600;
+}
+
+.challenge-results .cr-mark {
+  margin-inline-start: 0.5rem;
+  color: var(--dim);
+  font-size: 0.8125rem;
+  font-weight: 400;
+}
+
+.challenge-results .cr-date-inline {
+  display: none;
+}
+
+/* Бали й час не переносяться («0,8» / «с»). */
+.challenge-results .cr-num {
+  white-space: nowrap;
+}
+
+.challenge-results tr.is-me {
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+}
+
+@media (max-width: 420px) {
+  .challenge-results .cr-date {
+    display: none;
+  }
+
+  .challenge-results .cr-date-inline {
+    display: block;
+    color: var(--dim);
+    font-size: 0.8125rem;
+    font-weight: 400;
+  }
+}
+
+.challenge-board-link {
+  justify-self: center;
 }

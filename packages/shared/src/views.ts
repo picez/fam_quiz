@@ -2008,6 +2008,8 @@ export interface AuthorView {
   resume: ResumeLobby | null;
   /** Кімната продовження збереженої гри (13b): місця; ставить сервер, рушій ключа не ставить. */
   continued?: ContinuedView;
+  /** Спроба виклику (44): код і назва виклику; ставить сервер, рушій ключа не ставить. */
+  challenge?: { code: string; title: string };
 }
 
 interface BaseView {

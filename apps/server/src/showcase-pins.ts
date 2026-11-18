@@ -2,17 +2,9 @@ import { SHOWCASE_PIN_LIMITS, type AchievementId, type ShowcasePin, type Showcas
 import { and, asc, eq, sql } from 'drizzle-orm';
 import type { Db } from './db/client';
 import { prizeAward, showcasePin, userAchievement } from './db/schema';
+import { isUniqueViolation } from './db/unique';
 
 type Tx = Parameters<Parameters<Db['transaction']>[0]>[0];
-
-const UNIQUE_VIOLATION = '23505';
-
-function isUniqueViolation(error: unknown): boolean {
-  for (let current = error; current && typeof current === 'object'; current = (current as { cause?: unknown }).cause) {
-    if ((current as { code?: unknown }).code === UNIQUE_VIOLATION) return true;
-  }
-  return false;
-}
 
 /** id нагороди текстом: item_id — text, тож порівняння без приведення тексту до uuid (застарілий рядок може бути будь-чим). */
 const awardIdText = sql`${prizeAward.id}::text`;

@@ -539,3 +539,106 @@ describe('easy mode column (31)', () => {
     expect(row).toMatchObject({ userId: 'u1', nickname: 'Ганна', locale: 'uk', hideAnti: false, easyMode: false });
   });
 });
+
+describe('challenges (38a)', () => {
+  const T = new Date('2026-11-18T10:00:00Z');
+  const later = new Date('2026-11-25T10:00:00Z');
+
+  async function seedChallenge() {
+    const { challenge } = await import('./schema');
+    const db = await createTestDb();
+    await db.insert(user).values([
+      { id: 'a', name: 'Автор', email: 'a@example.com' },
+      { id: 'b', name: 'Гравець', email: 'b@example.com' },
+    ]);
+    const source = makeQuiz([single]);
+    const [q] = await db
+      .insert(quiz)
+      .values({ ownerId: 'a', title: 'Q', description: '', settings: source.settings, rounds: source.rounds })
+      .returning();
+    const make = (over: Partial<typeof challenge.$inferInsert> = {}) => ({
+      code: 'abcdefghjkmn',
+      quizId: q.id,
+      ownerId: 'a',
+      title: 'Q',
+      quizSnapshot: source,
+      createdAt: T,
+      expiresAt: later,
+      ...over,
+    });
+    return { db, quizId: q.id, make, challenge };
+  }
+
+  it('migration 0038 lays the two tables over an older database, old data stays', async () => {
+    const { challenge, challengeAttempt } = await import('./schema');
+    const { game } = await import('./schema');
+    const { db, migrateRest } = await createTestDbUpTo('0037_cosmetics_34');
+    await db.insert(user).values({ id: 'a', name: 'Автор', email: 'a@example.com' });
+    const source = makeQuiz([single]);
+    await db.insert(quiz).values({ ownerId: 'a', title: 'Q', description: '', settings: source.settings, rounds: source.rounds });
+    await db.insert(game).values({
+      id: '11111111-1111-4111-8111-111111111111',
+      hostId: 'a',
+      code: 'ABCD',
+      status: 'finished',
+      title: 'Q',
+      quizSnapshot: source,
+      startedAt: T,
+    });
+
+    await migrateRest();
+
+    expect(await db.select().from(quiz)).toHaveLength(1);
+    expect(await db.select().from(game)).toHaveLength(1);
+    expect(await db.select().from(challenge)).toEqual([]);
+    expect(await db.select().from(challengeAttempt)).toEqual([]);
+  });
+
+  it('one attempt per account', async () => {
+    const { challengeAttempt } = await import('./schema');
+    const { db, make, challenge } = await seedChallenge();
+    const [c] = await db.insert(challenge).values(make()).returning();
+    const attempt = (gameId: string) => ({ challengeId: c.id, userId: 'b', gameId, nickname: 'Б', startedAt: T });
+    await db.insert(challengeAttempt).values(attempt('22222222-2222-4222-8222-222222222222'));
+    await expect(db.insert(challengeAttempt).values(attempt('33333333-3333-4333-8333-333333333333'))).rejects.toThrow();
+  });
+
+  it('one open challenge per quiz; an ended one does not count', async () => {
+    const { db, make, challenge, quizId } = await seedChallenge();
+    await db.insert(challenge).values(make());
+    await expect(db.insert(challenge).values(make({ code: 'bcdefghjkmnp' }))).rejects.toThrow();
+    await db.update(challenge).set({ endedAt: T }).where(eq(challenge.quizId, quizId));
+    await db.insert(challenge).values(make({ code: 'bcdefghjkmnp' }));
+    await db.insert(challenge).values(make({ code: 'cdefghjkmnpq', endedAt: T }));
+    expect(await db.select().from(challenge)).toHaveLength(3);
+  });
+
+  it('the code is unique', async () => {
+    const { db, make, challenge } = await seedChallenge();
+    await db.insert(challenge).values(make({ endedAt: T }));
+    await expect(db.insert(challenge).values(make({ endedAt: T }))).rejects.toThrow();
+  });
+
+  it('deleting the quiz keeps the challenge with quiz_id null', async () => {
+    const { db, make, challenge, quizId } = await seedChallenge();
+    await db.insert(challenge).values(make());
+    await db.delete(quiz).where(eq(quiz.id, quizId));
+    const rows = await db.select().from(challenge);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].quizId).toBeNull();
+  });
+
+  it('attempts go with the player account and with the challenge', async () => {
+    const { challengeAttempt } = await import('./schema');
+    const { db, make, challenge } = await seedChallenge();
+    const [c] = await db.insert(challenge).values(make()).returning();
+    await db.insert(challengeAttempt).values({ challengeId: c.id, userId: 'b', gameId: '22222222-2222-4222-8222-222222222222', nickname: 'Б', startedAt: T });
+    await db.delete(user).where(eq(user.id, 'b'));
+    expect(await db.select().from(challengeAttempt)).toEqual([]);
+
+    await db.insert(user).values({ id: 'b', name: 'Гравець', email: 'b@example.com' });
+    await db.insert(challengeAttempt).values({ challengeId: c.id, userId: 'b', gameId: '44444444-4444-4444-8444-444444444444', nickname: 'Б', startedAt: T });
+    await db.delete(challenge).where(eq(challenge.id, c.id));
+    expect(await db.select().from(challengeAttempt)).toEqual([]);
+  });
+});

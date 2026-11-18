@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState, type FormEvent } from 'react';
+import { Link } from 'react-router-dom';
 import { QUEST_WINDOW_MS, clueShare, isUnscored, melodyRevealClip, revealShare, type Answer, type Reaction, type DiceInfo, type SubmittedAnswer, type PlayerBlitz, type PlayerSurveyLine, type PlayerView, type PublicClues, type PublicQuestion, type Question, type SortTilt, type Spotlight, type Stroke } from '@quiz/shared';
 import { answerText, correctText, markText, pickedText, pinDistanceText, sliderValueText, shownChoices, num, questionClass, questionLabel, roundLabel, secondsText, signed } from '../format';
 import { roundGains } from '../score-table';
@@ -746,7 +747,10 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
   const showPrizesAtIntro = useShowPrizesAtIntro(view);
   // Церемонія призів (14a) у finished; далі «Твій приз» (диплом бере назву вікторини з кімнати) або хто що взяв.
   const ceremony = useCeremony(view);
-  const quizTitle = useQuizTitle(code, phase === 'finished');
+  // Спроба виклику (44): назва вже є в зрізі автора — кімнату не питаємо.
+  const challengeTitle = view.author?.challenge?.title;
+  const fetchedTitle = useQuizTitle(code, phase === 'finished' && challengeTitle === undefined);
+  const quizTitle = challengeTitle ?? fetchedTitle;
   // Аркуш «Підглянути» (12h) відкрито на цьому запитанні; нове запитання закриває його само.
   const [peekFor, setPeekFor] = useState<number | null>(null);
   const peekSlot = me.buffs?.slots.find((slot) => slot.kind === 'peek') ?? null;
@@ -1032,7 +1036,7 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
 
       {phase === 'lobby' && view.author === null && <p className="lead">{t('inLobby')}</p>}
       {phase === 'lobby' && view.author !== null && (
-        <AuthorLobby code={code} stageUrl={stageUrl} joinUrl={`${window.location.origin}/play/${code}`} send={send} onError={setError} resume={view.author.resume} continued={view.author.continued} levelBonuses={view.levelBonuses} family={view.family} />
+        <AuthorLobby code={code} stageUrl={stageUrl} joinUrl={`${window.location.origin}/play/${code}`} send={send} onError={setError} resume={view.author.resume} continued={view.author.continued} levelBonuses={view.levelBonuses} family={view.family} challenge={view.author.challenge} />
       )}
       {phase === 'lobby' && view.author === null && view.levelBonuses === 'off' && <p className="meta">{t('levelBonusesOffByHost')}</p>}
       {phase === 'lobby' && view.author === null && view.family === true && <p className="meta family-lobby">{t('familyLobby')}</p>}
@@ -1859,6 +1863,12 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
           {survivalStateLine(me.survival) !== null && <p className="lead survival-state">{survivalStateLine(me.survival)}</p>}
           {me.ladder?.won != null && <p className="lead ladder-state">{t('ladderWon', { points: num(me.ladder.won) })}</p>}
           {place}
+          {/* Спроба виклику (44): таблиця виклику одразу під місцем, без перезавантаження сторінки. */}
+          {view.author?.challenge !== undefined && (
+            <Link className="btn challenge-board-link" to={`/challenge/${view.author.challenge.code}`}>
+              {t('challengeBoardLink')}
+            </Link>
+          )}
           {ceremony === null && view.standings !== null && view.standings.length > 0 && <ResultImageButton className="btn result-image-button" build={() => resultFromPlayer(view, quizTitle, new Date(), location.host)} />}
           {/* «Думай інакше» останнім раундом: рушій іде з розкриття одразу на фініш — своє місце й таблиця місць тут. */}
           {me.think?.place != null && <p className="lead think-my-place">{`${t('thinkPlace', { place: me.think.place.place })} · ${signed(me.think.place.points)}`}</p>}

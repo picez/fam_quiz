@@ -7,6 +7,7 @@ import type { HostTokens } from './storage';
 import { loadDeviceId } from './storage';
 import type { Locale } from '@quiz/shared';
 import type { QuestionBankPage, QuestionType } from '@quiz/shared';
+import type { ChallengeAttemptStart, ChallengeCheck, ChallengeMine, ChallengePreview, ChallengeResultRow } from '@quiz/shared';
 import type { GroupDetail, GroupInput, GroupInviteCard, GroupItem, GroupItemInput, GroupJoinPreview, GroupsPage, GroupUsesInput } from '@quiz/shared';
 
 export type ApiResult<T> = ({ ok: true } & T) | { ok: false; error: string };
@@ -154,6 +155,15 @@ export const deleteQuiz = (id: string) => request<object>(quizUrl(id), { method:
 export const createGame = (quizId: string) =>
   request<{ gameId: string; code: string } & HostTokens>('/api/games', { body: { quizId } });
 export const getAutopilotCheck = (quizId: string) => request<AutopilotCheck>(`${quizUrl(quizId)}/autopilot`);
+
+// Виклик другові (44): код виклику — у шляху, відповіді цілі (ApiData).
+const challengePath = (code: string) => `/api/challenges/${encodeURIComponent(code)}`;
+export const getChallengeCheck = (quizId: string) => fetchData<ChallengeCheck>(`${quizUrl(quizId)}/challenge`);
+export const createChallenge = (quizId: string) => fetchData<ChallengeMine>(`${quizUrl(quizId)}/challenge`, { method: 'POST' });
+export const listMyChallenges = () => fetchData<ChallengeMine[]>('/api/challenges');
+export const getChallenge = (code: string) => fetchData<ChallengePreview>(challengePath(code));
+export const startChallenge = (code: string) => fetchData<ChallengeAttemptStart>(`${challengePath(code)}/attempt`, { method: 'POST' });
+export const getChallengeResults = (code: string) => fetchData<ChallengeResultRow[]>(`${challengePath(code)}/results`);
 export const createAutopilotGame = (quizId: string, nickname: string) =>
   request<{ gameId: string; code: string; stageToken: string; token: string; playerId: string }>('/api/games', {
     body: { quizId, autopilot: true, nickname },

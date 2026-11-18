@@ -785,3 +785,47 @@ export const groupItemUse = pgTable(
   },
   (table) => [primaryKey({ columns: [table.itemId, table.quizId] }), index('group_item_use_quiz_idx').on(table.quizId)],
 );
+
+/** Виклик другові (38a): вікторина зі знімком, посилання діє 7 діб; одна незавершена на вікторину. */
+export const challenge = pgTable(
+  'challenge',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    code: text('code').notNull().unique(),
+    /** Видалення вікторини виклику не чіпає: знімок самодостатній. */
+    quizId: uuid('quiz_id').references(() => quiz.id, { onDelete: 'set null' }),
+    ownerId: text('owner_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    title: text('title').notNull(),
+    /** Результат challengeQuiz; читати через upgradeQuiz. */
+    quizSnapshot: jsonb('quiz_snapshot').$type<unknown>().notNull(),
+    createdAt: at('created_at').notNull(),
+    expiresAt: at('expires_at').notNull(),
+    /** «Новий виклик» ставить «зараз»; null — не завершено вручну. */
+    endedAt: at('ended_at'),
+  },
+  (table) => [
+    index('challenge_owner_idx').on(table.ownerId),
+    uniqueIndex('challenge_active_idx').on(table.quizId).where(sql`ended_at is null`),
+  ],
+);
+
+/** Спроба виклику: один акаунт — одна спроба (первинний ключ). */
+export const challengeAttempt = pgTable(
+  'challenge_attempt',
+  {
+    challengeId: uuid('challenge_id')
+      .notNull()
+      .references(() => challenge.id, { onDelete: 'cascade' }),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    /** Id кімнати й рядка game; без зовнішнього ключа — рядок game з'являється лише після старту. */
+    gameId: uuid('game_id').notNull().unique(),
+    /** Нік на момент старту. */
+    nickname: text('nickname').notNull(),
+    startedAt: at('started_at').notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.challengeId, table.userId] }), index('challenge_attempt_user_idx').on(table.userId)],
+);

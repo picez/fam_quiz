@@ -276,6 +276,8 @@ export interface Room {
   continued: Continued | null;
   /** Хто бачить гру в списку й пароль входу (24c). Пароль іде лише ведучому. */
   lobby: LobbyState;
+  /** Спроба виклику (44): соло-автопілот, у який ніхто інший не входить; null — звичайна кімната. Іде в знімок кімнати. */
+  challenge: RoomChallenge | null;
   /** Призи на місцях (10): кладе лише ведучий/автор у лобі; резерв — у базі. Іде в знімок кімнати. */
   prizes: PlacedPrize[];
   /** Чинні титули акаунтів кімнати (15): userId → текст. Лише в пам'яті; заповнює attachTitles. */
@@ -288,6 +290,13 @@ export interface Room {
   likes: RoomLikes;
   /** «Нове досягнення!» (12j): userId → щойно отримані цією грою; hideAnti — хто ховає анти від сцени. null — ще не нагороджено. Лише в пам'яті; заповнює рекордер. */
   newAchievements: { byUser: Map<string, AchievementId[]>; hideAnti: Set<string> } | null;
+}
+
+/** Позначка кімнати спроби виклику (44): id виклику, його код і назва (для посилання «Таблиця виклику» на телефоні). */
+export interface RoomChallenge {
+  id: string;
+  code: string;
+  title: string;
 }
 
 /** Продовження збереженої гри (13b): лише рівень кімнати, у стані гри нічого нового. */
@@ -515,6 +524,8 @@ export interface SavedRoom {
   prizes?: PlacedPrize[];
   /** Видимість і пароль лобі (24c); немає чи зіпсовано — типові значення. */
   lobby?: LobbyState;
+  /** Спроба виклику (44); немає чи зіпсовано — звичайна кімната. */
+  challenge?: RoomChallenge;
 }
 
 /** Перевірка рядка з бази: та сама версія знімка, версія стану, що читається як поточна, на місці поля, без яких кімнату не підняти. */
@@ -561,6 +572,13 @@ function continuedOf(raw: unknown): Continued | null {
   return { bound: new Set(bound), carry: readable ? (carry as unknown as ResumeSetup) : null, replaces };
 }
 
+/** Позначка виклику з рядка бази (44): лише об'єкт з рядками id, code і title, інакше null. */
+function challengeOf(raw: unknown): RoomChallenge | null {
+  if (!isObjectLike(raw)) return null;
+  const { id, code, title } = raw;
+  return typeof id === 'string' && typeof code === 'string' && typeof title === 'string' ? { id, code, title } : null;
+}
+
 /** Лобі з рядка бази (24c): що читається — те й береться, інакше типове («Лише друзі», без ведучого — «Прихована»). */
 function lobbyOf(raw: unknown, hostUserId: string | null, savedAt: number): LobbyState {
   const fallback: LobbyState = { visibility: hostUserId === null ? 'hidden' : 'friends', password: null, openedAt: savedAt };
@@ -574,6 +592,8 @@ function lobbyOf(raw: unknown, hostUserId: string | null, savedAt: number): Lobb
 
 /** Чи можна зараз увійти нову людину в кімнату (24c): 'lobby' — лобі; 'late' — продовжена гра, що вже йде; інакше null. */
 export function joinableOf(room: Room): 'lobby' | 'late' | null {
+  // Спроба виклику (44): ніхто інший не входить.
+  if (room.challenge !== null) return null;
   if (room.state.phase === 'lobby') return 'lobby';
   if (room.continued !== null && room.state.phase !== 'finished') return 'late';
   return null;
@@ -724,12 +744,16 @@ export class RoomManager {
     return this.open(createGame(quiz, this.gameOptions(quiz)), hostUserId, quizId);
   }
 
-  /** Кімната-автопілот: createAutopilotGame з автором-гравцем (поза зв'язком до сокета), токен гравця; hostToken — випадковий і ніде не видається. */
+  /**
+   * Кімната-автопілот: createAutopilotGame з автором-гравцем (поза зв'язком до сокета), токен гравця; hostToken — випадковий і ніде не видається.
+   * options.id — id кімнати (спроба виклику: game_id спроби); options.challenge — позначка спроби виклику (44).
+   */
   createAutopilot(
     quiz: Quiz,
     hostUserId: string,
     quizId: string | null,
     nickname: string,
+    options: { id?: string; challenge?: RoomChallenge } = {},
   ): { ok: true; room: Room; token: string; playerId: string } | { ok: false; error: ErrorCode | 'restarting' } {
     if (this.isFrozen) return { ok: false, error: 'restarting' };
     const playerId = randomUUID();
@@ -738,7 +762,7 @@ export class RoomManager {
     // Автор стає підключеним, коли відкриє сокет.
     const offline = setConnected(created.state, playerId, false, this.now());
     if (!offline.ok) return offline;
-    const room = this.open(offline.state, hostUserId, quizId);
+    const room = this.open(offline.state, hostUserId, quizId, options.id, options.challenge);
     const token = newToken();
     room.playerTokens.set(token, playerId);
     room.playerUsers.set(playerId, hostUserId);
@@ -750,7 +774,8 @@ export class RoomManager {
     return { transitions: this.transitions, teamIds: Array.from({ length: quiz.settings.teams?.count ?? 0 }, () => randomUUID()) };
   }
 
-  private open(state: GameState, hostUserId: string | null, quizId: string | null, id: string = randomUUID()): Room {
+  /** challenge — позначка спроби виклику (44): ставиться тут, до першого commit; лобі такої кімнати завжди «Прихована». */
+  private open(state: GameState, hostUserId: string | null, quizId: string | null, id: string = randomUUID(), challenge: RoomChallenge | null = null): Room {
     const room: Room = {
       id,
       code: this.newCode(),
@@ -781,7 +806,8 @@ export class RoomManager {
       awayCredit: new Set(),
       checkpoint: null,
       continued: null,
-      lobby: { visibility: hostUserId === null ? 'hidden' : 'friends', password: null, openedAt: this.now() },
+      lobby: { visibility: hostUserId === null || challenge !== null ? 'hidden' : 'friends', password: null, openedAt: this.now() },
+      challenge,
       prizes: [],
       titles: new Map(),
       levels: new Map(),
@@ -814,12 +840,15 @@ export class RoomManager {
       ...(room.continued === null ? {} : { continued: { bound: [...room.continued.bound], carry: room.continued.carry, replaces: room.continued.replaces } }),
       ...(room.prizes.length === 0 ? {} : { prizes: room.prizes }),
       lobby: room.lobby,
+      ...(room.challenge === null ? {} : { challenge: room.challenge }),
     };
   }
 
   /** Піднімає збережену кімнату; null — код уже живий у пам'яті або менеджер заморожено. */
   restore(saved: SavedRoom): Room | null {
     if (this.isFrozen || this.live.has(saved.code)) return null;
+    const challenge = challengeOf(saved.challenge);
+    const lobby = lobbyOf(saved.lobby, saved.hostUserId, saved.savedAt);
     const room: Room = {
       id: saved.id,
       code: saved.code,
@@ -851,7 +880,8 @@ export class RoomManager {
       awayCredit: new Set(),
       checkpoint: checkpointOf(saved.checkpoint),
       continued: continuedOf(saved.continued),
-      lobby: lobbyOf(saved.lobby, saved.hostUserId, saved.savedAt),
+      lobby: challenge === null ? lobby : { ...lobby, visibility: 'hidden', password: null },
+      challenge,
       prizes: prizesOf(saved.prizes),
       titles: new Map(),
       levels: new Map(),
@@ -921,6 +951,7 @@ export class RoomManager {
   /** Видимість і пароль (24c): лише лобі (інакше wrong_phase), frozen → restarting; пише в кімнату й commit, щоб RoomStore записав. */
   setLobby(room: Room, settings: LobbySettings): AckResult {
     if (!this.alive(room)) return this.gone();
+    if (room.challenge !== null) return NOT_ALLOWED;
     if (room.state.phase !== 'lobby') return { ok: false, error: 'wrong_phase' };
     room.lobby = { ...room.lobby, visibility: settings.visibility, password: settings.password };
     this.commit(room, room.state);
@@ -930,6 +961,8 @@ export class RoomManager {
   /** Призи на місця (14a): лише лобі (інакше wrong_phase), frozen → restarting; кладе placed, emit changed. Резерв у базі — справа маршруту. */
   setPrizes(room: Room, placed: PlacedPrize[]): AckResult {
     if (!this.alive(room)) return this.gone();
+    // Спроба виклику (44): призів немає.
+    if (room.challenge !== null) return NOT_ALLOWED;
     if (room.state.phase !== 'lobby') return { ok: false, error: 'wrong_phase' };
     room.prizes = [...placed].sort((a, b) => a.place - b.place);
     this.emit(room, { type: 'changed' });
@@ -1088,7 +1121,8 @@ export class RoomManager {
     // На зупинці новий гравець не з'являється: стан уже не записався б у базу.
     if (this.isFrozen) return { ok: false, error: 'restarting' };
     const room = this.live.get(code);
-    if (room === undefined) return { ok: false, error: 'game_not_found' };
+    // Спроба виклику (44): як «немає гри» — нікого іншого, і автор повертається лише через authorToken.
+    if (room === undefined || room.challenge !== null) return { ok: false, error: 'game_not_found' };
     // Продовження (13b): акаунт зі своїм місцем займає його (нік з форми ігнорується); новенький між запитаннями — addLatePlayer.
     const mine = room.continued === null || userId === null ? undefined : this.boundSlot(room, userId);
     if (mine !== undefined) return this.claim(code, mine, userId);
@@ -1114,6 +1148,21 @@ export class RoomManager {
     return slotsOf(room.state).find((slot) => room.playerUsers.get(slot.id) === userId)?.id;
   }
 
+  /** Жива кімната з room.id === id; немає — undefined. */
+  roomById(id: string): Room | undefined {
+    return [...this.live.values()].find((room) => room.id === id);
+  }
+
+  /** Новий токен автора автопілота (44: повернення до спроби виклику) — той самий гравець autopilot.authorId, commit; не автопілот (чи кімната вже не жива / зупинка) — null. */
+  authorToken(room: Room): { token: string; playerId: string } | null {
+    const authorId = room.state.autopilot?.authorId;
+    if (authorId === undefined || !this.alive(room)) return null;
+    const token = newToken();
+    room.playerTokens.set(token, authorId);
+    this.commit(room, room.state);
+    return { token, playerId: authorId };
+  }
+
   /** Кімната з id === gameId або continued.replaces === gameId у пам'яті. */
   openFor(gameId: string): boolean {
     return [...this.live.values()].some((room) => room.id === gameId || room.continued?.replaces === gameId);
@@ -1124,10 +1173,10 @@ export class RoomManager {
    * не «зараз»; playerUsers з saved, playerTokens порожні, continued { bound ∅, carry null, replaces null }; openFor(gameId) → continue_open;
    * frozen → restarting. Автопілот: токен для autopilot.authorId → author. Як restore: hostLeft (з ведучим) і commit.
    */
-  continueSaved(gameId: string, hostUserId: string, saved: SavedGameData): ContinueResult {
+  continueSaved(gameId: string, hostUserId: string, saved: SavedGameData, challenge?: RoomChallenge): ContinueResult {
     if (this.isFrozen) return { ok: false, error: 'restarting' };
     if (this.openFor(gameId)) return { ok: false, error: 'continue_open' };
-    const room = this.open(continueFrom(saved.state, saved.at), hostUserId, saved.quizId, gameId);
+    const room = this.open(continueFrom(saved.state, saved.at), hostUserId, saved.quizId, gameId, challenge ?? null);
     for (const [playerId, userId] of saved.playerUsers) room.playerUsers.set(playerId, userId);
     room.continued = { bound: new Set(), carry: null, replaces: null };
     // Та сама гра — ті самі призи (14a): резерв за id гри лишився після збереження.
@@ -1227,7 +1276,7 @@ export class RoomManager {
   claim(code: string, slotId: string, userId: string | null): JoinResult {
     if (this.isFrozen) return { ok: false, error: 'restarting' };
     const room = this.live.get(code);
-    if (room === undefined) return { ok: false, error: 'game_not_found' };
+    if (room === undefined || room.challenge !== null) return { ok: false, error: 'game_not_found' };
     const continued = room.continued;
     if (continued === null || !slotsOf(room.state).some((slot) => slot.id === slotId)) return { ok: false, error: 'not_found' };
     const bound = room.playerUsers.get(slotId);
@@ -1249,7 +1298,7 @@ export class RoomManager {
   /** null — кімнати немає; не продовження → { slots: [], mine: null }; slots — гостьові без прив'язки й без токена; mine — слот, прив'язаний до userId. */
   slots(code: string, userId: string | null): SlotsResponse | null {
     const room = this.live.get(code);
-    if (room === undefined) return null;
+    if (room === undefined || room.challenge !== null) return null;
     if (room.continued === null) return { slots: [], mine: null };
     const taken = new Set(room.playerTokens.values());
     const all = slotsOf(room.state);
@@ -1461,8 +1510,12 @@ export class RoomManager {
     const own = playerView(room.state, identity.playerId, this.now());
     if (own === null) return null;
     const raw = passed ? closedTruth(own) : own;
-    // Автор продовження бачить місця у своєму меню (13b).
-    const view = continued === null || raw.author === null ? raw : { ...raw, author: { ...raw.author, continued: this.continuedView(room, continued) } };
+    // Автор продовження бачить місця у своєму меню (13b); автор спроби виклику (44) — код і назву виклику.
+    const challenge = room.challenge === null ? {} : { challenge: { code: room.challenge.code, title: room.challenge.title } };
+    const view =
+      raw.author === null || (continued === null && room.challenge === null)
+        ? raw
+        : { ...raw, author: { ...raw.author, ...(continued === null ? {} : { continued: this.continuedView(room, continued) }), ...challenge } };
     const team = view.team;
     if (team === null || team.teamId === null) return this.withPhoneClip(room, view);
     const draft = this.currentDraft(room, team.teamId, identity.playerId);
@@ -2238,6 +2291,8 @@ export class RoomManager {
     // Затримки 11b для дій автора немає: жодна з них не «Далі».
     switch (action.type) {
       case 'start':
+        // Спроба виклику (44): бали шляхом 12r не переносяться.
+        if (room.challenge !== null && action.resume !== undefined) return NOT_ALLOWED;
         return this.apply(room, autopilotStart(state, this.now(), this.rng, action.resume ?? this.carryFor(room)));
       case 'pause': {
         const paused = this.apply(room, authorPause(state, this.now()));

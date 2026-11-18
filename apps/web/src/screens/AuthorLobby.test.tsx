@@ -13,14 +13,32 @@ afterEach(() => {
 const joinUrl = 'https://quiz.example/play/123456';
 const stageUrl = 'https://quiz.example/stage/123456#tok';
 
-function show(options: { family?: true; levelBonuses?: 'off' | 'none'; stageUrl?: string | null; send?: Send; onError?: (m: string | null) => void } = {}) {
+function show(options: { challenge?: { code: string; title: string }; family?: true; levelBonuses?: 'off' | 'none'; stageUrl?: string | null; send?: Send; onError?: (m: string | null) => void } = {}) {
   const send: Send = options.send ?? vi.fn(async () => ({ ok: true as const }));
   const onError = options.onError ?? vi.fn();
-  render(<AuthorLobby code="123456" stageUrl={options.stageUrl === undefined ? stageUrl : options.stageUrl} joinUrl={joinUrl} send={send} onError={onError} levelBonuses={options.levelBonuses} family={options.family} />);
+  render(<AuthorLobby code="123456" stageUrl={options.stageUrl === undefined ? stageUrl : options.stageUrl} joinUrl={joinUrl} send={send} onError={onError} levelBonuses={options.levelBonuses} family={options.family} challenge={options.challenge} />);
   return { send, onError };
 }
 
 describe('AuthorLobby', () => {
+  it('a challenge lobby: title, hint and Start, no code, QR, stage link, prizes or resume panel', () => {
+    // Призи не просто сховані — їх навіть не питають у кімнати.
+    const fetchSpy = vi.fn(async (_url: RequestInfo | URL, _init?: RequestInit) => new Response('{}', { status: 404 }));
+    vi.stubGlobal('fetch', fetchSpy);
+    show({ challenge: { code: 'abcdefghjkmn', title: 'Річки України' } });
+    expect(screen.getByText('🏁 Виклик: Річки України')).toBeTruthy();
+    expect(screen.getByText('Граєш наодинці; запитання для кількох гравців пропущено.')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Почати гру' })).toBeTruthy();
+    expect(screen.queryByText('123 456')).toBeNull();
+    expect(screen.queryByText('Код кімнати')).toBeNull();
+    expect(document.querySelector('svg')).toBeNull();
+    expect(screen.queryByText(stageUrl)).toBeNull();
+    expect(screen.queryByText('Почніть, коли всі зайдуть.')).toBeNull();
+    expect(document.querySelector('.prize-places, .resume-panel')).toBeNull();
+    expect(fetchSpy.mock.calls.some(([url]) => String(url).includes('/prizes'))).toBe(false);
+    vi.unstubAllGlobals();
+  });
+
   it('shows the code as 123 456 and a QR of the join link', () => {
     show();
     expect(screen.getByText('123 456')).toBeTruthy();

@@ -4,6 +4,7 @@ import { and, desc, eq, gt, inArray, notInArray, sql } from 'drizzle-orm';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { CODE_LIMIT, type CurrentUser } from './account-routes';
+import { attemptByGame, isActive } from './challenges';
 import type { Db } from './db/client';
 import { game, liveRoom, participant, savedGame } from './db/schema';
 import { gateStatus, type LobbyGate } from './lobby-access';
@@ -11,7 +12,7 @@ import { releasePrizes, releaseUnsaved, reservedFor } from './prizes';
 import { gameQuestionCount, playerCounts, resumeRound, snapshotOf, teamGameIds } from './history';
 import { markAborted, saveSavedGame, trimToCheckpoint } from './recorder';
 import { isSavedGameData, SAVED_GAME_VERSION, type RestartParticipant, type SavedGameData } from './rooms/continuation';
-import { isSavedRoom, type RoomManager, type SavedRoom } from './rooms/manager';
+import { isSavedRoom, type RoomChallenge, type RoomManager, type SavedRoom } from './rooms/manager';
 import type { Located } from './rooms/store';
 
 /** Шлях 12r: старий збережений запис, який замінює кімната (поле continued.replaces конверта); null — немає. */
@@ -154,6 +155,40 @@ export function savedMode(input: { data: unknown; stateVersion: number | null; q
   return input.autopilot && !input.hasAuthor ? 'blocked' : 'restart';
 }
 
+/**
+ * Стан спроби виклику (44) за її грою: done — гру завершено чи перервано, або вона збережена, але точно не продовжується
+ * (немає контрольної точки, нечитабельний стан): шлях 12r для спроби закритий, тож «Продовжити» не спрацювало б ніколи.
+ * playing — гра йде, точно продовжується або рядка ще немає. status — сирий стан рядка гри (null — рядка немає).
+ */
+export async function attemptState(db: Db, gameId: string): Promise<{ state: 'playing' | 'done'; status: string | null }> {
+  const [row] = await db
+    .select({ status: game.status, quizSnapshot: game.quizSnapshot, data: savedGame.data, stateVersion: savedGame.stateVersion })
+    .from(game)
+    .leftJoin(savedGame, eq(savedGame.gameId, game.id))
+    .where(eq(game.id, gameId));
+  if (row === undefined) return { state: 'playing', status: null };
+  if (row.status === 'finished' || row.status === 'aborted') return { state: 'done', status: row.status };
+  if (row.status === 'saved') {
+    const mode = savedMode({ data: row.data, stateVersion: row.stateVersion, quizSnapshot: row.quizSnapshot, autopilot: true, hasAuthor: true });
+    if (mode !== 'exact') return { state: 'done', status: row.status };
+  }
+  return { state: 'playing', status: row.status };
+}
+
+/**
+ * Збережена спроба виклику, яку вже не продовжити (виклик закрито чи немає точної контрольної точки), стає «aborted»:
+ * бали й рядки гравця лишаються в таблиці (не завершено), а гра зникає зі збережених у «Моїх іграх» — інакше її не прибрати
+ * (продовження відмовляє, видалення заборонене). Відкрита кімната цієї гри (тут чи в іншому процесі) — нічого не чіпаємо.
+ */
+export async function abortParkedAttempt(db: Db, manager: RoomManager, gameId: string): Promise<void> {
+  if (manager.roomById(gameId) !== undefined || manager.openFor(gameId)) return;
+  if ((await openGameIds(db, manager)).has(gameId)) return;
+  await db
+    .update(game)
+    .set({ status: 'aborted', finishedAt: new Date() })
+    .where(and(eq(game.id, gameId), eq(game.status, 'saved')));
+}
+
 /** Усі 'saved' ведучого (без ліміту), найновіше збереження першим, як GameSummary + saved. */
 export async function savedSummaries(db: Db, hostId: string, open: Map<string, string>): Promise<GameSummary[]> {
   const rows = await db
@@ -213,80 +248,113 @@ export interface SavedGameRouteDeps {
 
 const UUID = z.string().uuid();
 
+/** Своя збережена гра (host_id — ведучий чи автор автопілота); інакше null (чужа, не збережена, не UUID). */
+async function ownSaved(db: Db, id: string, userId: string) {
+  if (!UUID.safeParse(id).success) return null;
+  const [row] = await db
+    .select({ game, data: savedGame.data, stateVersion: savedGame.stateVersion })
+    .from(game)
+    .leftJoin(savedGame, eq(savedGame.gameId, game.id))
+    .where(and(eq(game.id, id), eq(game.hostId, userId), eq(game.status, 'saved')));
+  return row ?? null;
+}
+
+export type ContinueOutcome = { ok: true; status: 201; body: ContinueResponse } | { ok: false; status: 404 | 409 | 503; error: string };
+
+/**
+ * Продовження своєї збереженої гри (13b, 12r): точне з контрольної точки чи з початку раунду.
+ * challenge — позначка спроби виклику (44): кімната знову закрита для інших; шлях 12r для неї — cannot_continue (новий id розірвав би зв'язок зі спробою).
+ */
+export async function continueSavedGame(
+  deps: Pick<SavedGameRouteDeps, 'db' | 'manager' | 'maxRooms'>,
+  userId: string,
+  gameId: string,
+  challenge?: RoomChallenge,
+): Promise<ContinueOutcome> {
+  const { db, manager, maxRooms } = deps;
+  const found = await ownSaved(db, gameId, userId);
+  if (found === null) return { ok: false, status: 404, error: 'not_found' };
+  const row = found.game;
+  if ((await openGameIds(db, manager)).has(row.id)) return { ok: false, status: 409, error: 'continue_open' };
+  if (manager.size >= maxRooms) return { ok: false, status: 503, error: 'server_busy' };
+  if (manager.frozen) return { ok: false, status: 503, error: 'restarting' };
+  const participants = await restartParticipants(db, row.id);
+  const mode = savedMode({
+    data: found.data,
+    stateVersion: found.stateVersion,
+    quizSnapshot: row.quizSnapshot,
+    autopilot: row.autopilot,
+    hasAuthor: participants.some((p) => !p.isTeam && p.userId === row.hostId),
+  });
+  if (mode === 'blocked' || (mode === 'restart' && challenge !== undefined)) return { ok: false, status: 409, error: 'cannot_continue' };
+  let result;
+  if (mode === 'exact') {
+    const stored = found.data as SavedGameData;
+    // Призи, яких уже немає в резерві за грою (приз видалили, поки гра лежала), не повертаються на місця.
+    const kept = await reservedFor(db, row.id);
+    const saved: SavedGameData = { ...stored, prizes: (stored.prizes ?? []).filter((p) => kept.has(p.id)) };
+    await trimToCheckpoint(db, row.id, saved.state);
+    // Поки обрізали, гру могли видалити чи завершити (інший запит, інший процес): тоді нічого не відкриваємо — 404, як для чужої чи вже не збереженої гри.
+    if ((await ownSaved(db, row.id, userId)) === null) return { ok: false, status: 404, error: 'not_found' };
+    result = manager.continueSaved(row.id, userId, saved, challenge);
+  } else {
+    const quiz = snapshotOf(row.quizSnapshot);
+    result = manager.restartSaved({
+      gameId: row.id,
+      quiz: quiz!,
+      quizId: row.quizId,
+      hostUserId: userId,
+      autopilot: row.autopilot,
+      roundIndex: resumeRound(quiz, row.plays, row.questionsPlayed),
+      participants,
+    });
+  }
+  if (!result.ok) return { ok: false, status: result.error === 'restarting' ? 503 : 409, error: result.error };
+  // Шлях 12r: нове лобі — нові місця; резерви старої гри повертаються на склад (14a).
+  if (mode === 'restart') await releasePrizes(db, row.id);
+  const { room, author } = result;
+  const body: ContinueResponse =
+    author === null
+      ? { gameId: room.id, code: room.code, hostToken: room.hostToken, stageToken: room.stageToken }
+      : { gameId: room.id, code: room.code, stageToken: room.stageToken, token: author.token, playerId: author.playerId };
+  return { ok: true, status: 201, body };
+}
+
 export async function registerSavedGameRoutes(app: FastifyInstance, deps: SavedGameRouteDeps): Promise<void> {
-  const { db, manager, locate, currentUser, maxRooms, gate } = deps;
+  const { db, manager, locate, currentUser, gate } = deps;
   const CREATE_LIMIT = { config: { rateLimit: { max: 20, timeWindow: '1 minute' } } };
   const UNAUTHORIZED = { error: 'unauthorized' };
   const NOT_FOUND = { error: 'not_found' };
   const RESTARTING = { error: 'restarting' };
 
-  /** Своя збережена гра (host_id — ведучий чи автор автопілота); інакше null (чужа, не збережена, не UUID). */
-  const ownSaved = async (id: string, userId: string) => {
-    if (!UUID.safeParse(id).success) return null;
-    const [row] = await db
-      .select({ game, data: savedGame.data, stateVersion: savedGame.stateVersion })
-      .from(game)
-      .leftJoin(savedGame, eq(savedGame.gameId, game.id))
-      .where(and(eq(game.id, id), eq(game.hostId, userId), eq(game.status, 'saved')));
-    return row ?? null;
-  };
-
   app.post<{ Params: { id: string } }>('/api/games/:id/continue', CREATE_LIMIT, async (request, reply) => {
     const user = await currentUser(request);
     if (user === null) return reply.code(401).send(UNAUTHORIZED);
-    const found = await ownSaved(request.params.id, user.id);
-    if (found === null) return reply.code(404).send(NOT_FOUND);
-    const row = found.game;
-    if ((await openGameIds(db, manager)).has(row.id)) return reply.code(409).send({ error: 'continue_open' });
-    if (manager.size >= maxRooms) return reply.code(503).send({ error: 'server_busy' });
-    if (manager.frozen) return reply.code(503).send(RESTARTING);
-    const participants = await restartParticipants(db, row.id);
-    const mode = savedMode({
-      data: found.data,
-      stateVersion: found.stateVersion,
-      quizSnapshot: row.quizSnapshot,
-      autopilot: row.autopilot,
-      hasAuthor: participants.some((p) => !p.isTeam && p.userId === row.hostId),
-    });
-    if (mode === 'blocked') return reply.code(409).send({ error: 'cannot_continue' });
-    let result;
-    if (mode === 'exact') {
-      const stored = found.data as SavedGameData;
-      // Призи, яких уже немає в резерві за грою (приз видалили, поки гра лежала), не повертаються на місця.
-      const kept = await reservedFor(db, row.id);
-      const saved: SavedGameData = { ...stored, prizes: (stored.prizes ?? []).filter((p) => kept.has(p.id)) };
-      await trimToCheckpoint(db, row.id, saved.state);
-      // Поки обрізали, гру могли видалити чи завершити (інший запит, інший процес): тоді нічого не відкриваємо — 404, як для чужої чи вже не збереженої гри.
-      if ((await ownSaved(row.id, user.id)) === null) return reply.code(404).send(NOT_FOUND);
-      result = manager.continueSaved(row.id, user.id, saved);
-    } else {
-      const quiz = snapshotOf(row.quizSnapshot);
-      result = manager.restartSaved({
-        gameId: row.id,
-        quiz: quiz!,
-        quizId: row.quizId,
-        hostUserId: user.id,
-        autopilot: row.autopilot,
-        roundIndex: resumeRound(quiz, row.plays, row.questionsPlayed),
-        participants,
-      });
+    // Чужа чи не збережена — 404 ще до того, як щось казати про виклик.
+    if ((await ownSaved(db, request.params.id, user.id)) === null) return reply.code(404).send(NOT_FOUND);
+    // Спроба виклику (44): позначки немає в збереженій грі — беремо її зі спроби; виклик завершено чи прострочено — не продовжується.
+    // Спроба, яку вже не продовжити, стає «aborted» і зникає зі збережених (бали лишаються в таблиці виклику).
+    const source = await attemptByGame(db, request.params.id);
+    if (source !== null && !isActive(source, new Date())) {
+      await abortParkedAttempt(db, manager, request.params.id);
+      return reply.code(409).send({ error: 'challenge_closed' });
     }
-    if (!result.ok) return reply.code(result.error === 'restarting' ? 503 : 409).send({ error: result.error });
-    // Шлях 12r: нове лобі — нові місця; резерви старої гри повертаються на склад (14a).
-    if (mode === 'restart') await releasePrizes(db, row.id);
-    const { room, author } = result;
-    const body: ContinueResponse =
-      author === null
-        ? { gameId: room.id, code: room.code, hostToken: room.hostToken, stageToken: room.stageToken }
-        : { gameId: room.id, code: room.code, stageToken: room.stageToken, token: author.token, playerId: author.playerId };
-    return reply.code(201).send(body);
+    if (source !== null && (await attemptState(db, request.params.id)).state === 'done') {
+      await abortParkedAttempt(db, manager, request.params.id);
+      return reply.code(409).send({ error: 'challenge_done' });
+    }
+    const mark = source === null ? undefined : { id: source.id, code: source.code, title: source.title };
+    const outcome = await continueSavedGame(deps, user.id, request.params.id, mark);
+    return outcome.ok ? reply.code(201).send(outcome.body) : reply.code(outcome.status).send({ error: outcome.error });
   });
 
   app.delete<{ Params: { id: string } }>('/api/games/:id', async (request, reply) => {
     const user = await currentUser(request);
     if (user === null) return reply.code(401).send(UNAUTHORIZED);
-    const found = await ownSaved(request.params.id, user.id);
+    const found = await ownSaved(db, request.params.id, user.id);
     if (found === null) return reply.code(404).send(NOT_FOUND);
+    // Спроба виклику (44): видалення відкрило б другу спробу.
+    if ((await attemptByGame(db, found.game.id)) !== null) return reply.code(409).send({ error: 'challenge_game' });
     if ((await openGameIds(db, manager)).has(found.game.id)) return reply.code(409).send({ error: 'continue_open' });
     // Перевірка вище чекала на базу: продовження могли відкрити за цей час — звіряємося ще раз без очікування перед самим видаленням.
     if (manager.openFor(found.game.id)) return reply.code(409).send({ error: 'continue_open' });

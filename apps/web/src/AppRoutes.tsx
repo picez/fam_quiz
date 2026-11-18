@@ -10,6 +10,7 @@ import { Home } from './pages/Home';
 import { Host } from './pages/Host';
 import { Login } from './pages/Login';
 import { MyGames } from './pages/MyGames';
+import { ChallengePage } from './pages/ChallengePage';
 import { Play } from './pages/Play';
 import { Prizes } from './pages/Prizes';
 import { Profile } from './pages/Profile';
@@ -70,6 +71,7 @@ export function AppRoutes() {
         <Route path="/profile/groups/:id/items/:itemId" element={<GroupItemPage />} />
         <Route path="/groups" element={<Groups />} />
         <Route path="/groups/join/:code" element={<GroupJoin />} />
+        <Route path="/challenge/:code" element={<ChallengePage />} />
         {/* Старі адреси — аліаси тих самих сторінок, не редірект. */}
         <Route path="/prizes" element={<Prizes />} />
         <Route path="/achievements" element={<Achievements />} />

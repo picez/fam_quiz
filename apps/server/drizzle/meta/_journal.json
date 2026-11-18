@@ -267,6 +267,13 @@
       "when": 1794670549989,
       "tag": "0037_cosmetics_34",
       "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1794988731130,
+      "tag": "0038_challenges",
+      "breakpoints": true
     }
   ]
 }

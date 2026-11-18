@@ -16,6 +16,7 @@ import {
 import { and, asc, count, desc, eq, inArray, sql, type SQL } from 'drizzle-orm';
 import type { Db } from './db/client';
 import { familyGroup, follow, groupInvite, groupMember, profile, userBan } from './db/schema';
+import { CODE_ATTEMPTS, isUniqueViolation } from './db/unique';
 import { notHidden } from './feed-store';
 import { countVisibleItems } from './group-items';
 import { ensureProfile } from './profiles';
@@ -24,30 +25,24 @@ type Tx = Parameters<Parameters<Db['transaction']>[0]>[0];
 type Fail<E extends string> = { ok: false; error: E };
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const UNIQUE_VIOLATION = '23505';
-const CODE_ATTEMPTS = 3;
 
-/** Код посилання: 10 символів з GROUP_CODE_ALPHABET; байти поза рівним діапазоном відкидаються (без перекосу). */
-export function newInviteCode(random: (n: number) => Uint8Array = (size) => randomBytes(size)): string {
+/** Код з GROUP_CODE_ALPHABET заданої довжини; байти поза рівним діапазоном відкидаються (без перекосу). */
+export function newCode(length: number, random: (n: number) => Uint8Array = (size) => randomBytes(size)): string {
   const size = GROUP_CODE_ALPHABET.length;
   const fair = Math.floor(256 / size) * size;
   let code = '';
-  while (code.length < 10) {
+  while (code.length < length) {
     for (const byte of random(16)) {
       if (byte >= fair) continue;
       code += GROUP_CODE_ALPHABET[byte % size];
-      if (code.length === 10) break;
+      if (code.length === length) break;
     }
   }
   return code;
 }
 
-function isUniqueViolation(error: unknown): boolean {
-  for (let current = error; current && typeof current === 'object'; current = (current as { cause?: unknown }).cause) {
-    if ((current as { code?: unknown }).code === UNIQUE_VIOLATION) return true;
-  }
-  return false;
-}
+/** Код посилання групи: 10 символів. */
+export const newInviteCode = (random?: (n: number) => Uint8Array): string => newCode(10, random);
 
 /** Картки людей у тому самому порядку; профіль, якого ще немає, створюється. Зниклого акаунта немає в результаті. */
 export async function profileCards(db: Db, ids: readonly string[]): Promise<Map<string, ProfileCard>> {
