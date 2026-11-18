@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { draftSchema, liveWatchSchema } from './events';
+import { draftSchema, liveWatchSchema, soundsSchema } from './events';
 import { DRAFT_TEXT_MAX, DRAFTS_PER_SECOND, HOST_DRAFTS_MS, clipDraft, draftQuestionType, draftValueSchema, isAnswerDraft } from './drafts';
 
 describe('live drafts', () => {
@@ -39,5 +39,13 @@ describe('live drafts', () => {
     expect([DRAFTS_PER_SECOND, HOST_DRAFTS_MS, DRAFT_TEXT_MAX]).toEqual([8, 300, 100]);
     expect(liveWatchSchema.safeParse({ on: false }).success).toBe(true);
     expect(liveWatchSchema.safeParse({ on: 'yes' }).success).toBe(false);
+  });
+});
+
+describe('stage sounds switch', () => {
+  it('soundsSchema takes only a boolean', () => {
+    expect(soundsSchema.safeParse({ on: true }).success).toBe(true);
+    expect(soundsSchema.safeParse({ on: false }).success).toBe(true);
+    for (const bad of [{}, { on: 'yes' }, { on: 1 }]) expect(soundsSchema.safeParse(bad).success).toBe(false);
   });
 });

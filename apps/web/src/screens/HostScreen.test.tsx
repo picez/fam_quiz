@@ -3155,6 +3155,23 @@ describe('undo button (12a)', () => {
     expect(screen.getByRole('dialog', { name: 'Скасування балів' })).toBeTruthy();
   });
 
+  it('the host switches the stage sounds', () => {
+    const send = vi.fn(async () => ({ ok: true as const }));
+    render(<HostScreen view={view()} code="123456" stageUrl="http://quiz.test/stage/123456#s" joinUrl="http://quiz.test/play/123456" send={send} />);
+    const bar = within(document.querySelector('header.bar') as HTMLElement);
+    const button = bar.getByRole('button', { name: 'Звуки на сцені' });
+    expect(button.getAttribute('aria-pressed')).toBe('true');
+    fireEvent.click(button);
+    expect(send).toHaveBeenCalledWith('host:sounds', { on: false });
+    cleanup();
+    send.mockClear();
+    render(<HostScreen view={view({ soundsOff: true })} code="123456" stageUrl="http://quiz.test/stage/123456#s" joinUrl="http://quiz.test/play/123456" send={send} />);
+    const off = within(document.querySelector('header.bar') as HTMLElement).getByRole('button', { name: 'Звуки на сцені' });
+    expect(off.getAttribute('aria-pressed')).toBe('false');
+    fireEvent.click(off);
+    expect(send).toHaveBeenCalledWith('host:sounds', { on: true });
+  });
+
   it('is not there in the lobby or after the end', () => {
     show(view());
     expect(screen.queryByRole('button', { name: '↶ Бали' })).toBeNull();

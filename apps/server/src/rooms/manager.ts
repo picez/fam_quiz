@@ -76,6 +76,7 @@ import {
   tiltRefusal,
   guessWall,
   hideCloudWord,
+  setSounds,
   revealSurveyAll,
   revealBluffAll,
   removeBluffOption,
@@ -397,6 +398,8 @@ export type HostAction =
   | { type: 'duel-category'; categoryId: string }
   | { type: 'order'; playerIds: string[] }
   | { type: 'cloud-hide'; key: string; hidden: boolean }
+  /** Звуки сцени (40): ведучий вимикає чи вмикає для кімнати. Лише ведучий: автор кімнати-автопілота — forbidden (вимикача там немає). */
+  | { type: 'sounds'; on: boolean }
   | { type: 'bluff-remove'; optionId: string }
   | { type: 'time'; seconds: -15 | 15 }
   | { type: 'team-form'; form: TeamForm }
@@ -2321,6 +2324,8 @@ export class RoomManager {
         return this.apply(room, setOrder(state, action.playerIds));
       case 'cloud-hide':
         return this.apply(room, hideCloudWord(state, action.key, action.hidden));
+      case 'sounds':
+        return this.apply(room, setSounds(state, action.on));
       case 'kick':
         return this.kick(room, action.playerId);
       case 'release':

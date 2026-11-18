@@ -104,6 +104,11 @@ const STAGE_SPEECH = 'quiz:stage-speech';
 export const loadStageSpeech = (): boolean => read(STAGE_SPEECH) === 'on';
 export const saveStageSpeech = (on: boolean): void => write(STAGE_SPEECH, on ? 'on' : null);
 
+const STAGE_SOUNDS = 'quiz:stage-sounds';
+/** Звуки сцени (40) на цьому пристрої; типово увімкнено, 'off' — вимкнено. */
+export const loadStageSounds = (): boolean => read(STAGE_SOUNDS) !== 'off';
+export const saveStageSounds = (on: boolean): void => write(STAGE_SOUNDS, on ? null : 'off');
+
 const LAST_GAME = 'quiz:last-game';
 
 /** Код гри, яку ведучий запустив останньою з цього пристрою. */

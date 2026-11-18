@@ -639,6 +639,9 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
             👁<span className="live-toggle-label"> {t('liveToggle')}</span>
           </button>
         )}
+        <button type="button" className="btn btn-small live-toggle" aria-pressed={view.soundsOff !== true} aria-label={t('hostSounds')} title={t('hostSoundsHint')} onClick={() => void act('host:sounds', { on: view.soundsOff === true })}>
+          🔔<span className="live-toggle-label"> {t('hostSounds')}</span>
+        </button>
         {view.undo !== null && <UndoButton undo={view.undo} teams={view.teams !== null} send={send} />}
         <ThemeToggle className="bar-theme" />
         <ReactionButton shown={reactionAllowed(phase)} level={Infinity} event="host:react" send={send} />

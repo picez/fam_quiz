@@ -4345,5 +4345,10 @@
   "guideDuelsBets": "Gli altri giocatori possono puntare su un duellante: indovinato — +{stake}, sbagliato — −{stake}.",
   "duelBetsCount_one": "Ha puntato {count}",
   "duelBetsCount_many": "Hanno puntato {count}",
-  "duelBetsCount_other": "Hanno puntato {count}"
+  "duelBetsCount_other": "Hanno puntato {count}",
+  "stageSoundsUnlock": "🔊 Attiva i suoni",
+  "stageSoundsToggle": "🔔 Suoni",
+  "stageSoundsOffByHost": "Il conduttore ha disattivato i suoni",
+  "hostSounds": "Suoni sul palco",
+  "hostSoundsHint": "Suoni brevi sul palco: la rivelazione, gli ultimi secondi, un gong, una fanfara"
 }

@@ -76,6 +76,8 @@ import { Ceremony, useCeremony } from '../trophy/Ceremony';
 import { AppealCard } from './AppealCard';
 import { ReactionMain } from '../live/Reactions';
 import { StageSpeech } from './StageSpeech';
+import { StageSoundsButton } from './StageSounds';
+import { useStageSounds } from '../live/useStageSounds';
 import { ThemeToggle } from '../ThemeToggle';
 import { AlikeGroups } from './AlikeView';
 import { OvershootRows } from './OvershootRows';
@@ -1066,6 +1068,8 @@ function StandingsBoard({ view, standings, awardsSeq, splashing, ceremony = null
 export function StageScreen({ view: live, code, joinUrl, offsetMs, hostOnline, audioCommand = null, tilts = NO_TILTS, awardsSeq = null, reactions = NO_REACTIONS, drawing = null }: Props) {
   // Напруга перед вердиктом (беклог 19): після оцінки ведучого ще мить видно помаранчеву відповідь.
   const { view, suspense } = useVerdictSuspense(live);
+  // Звуки сцени (40): за показаним зрізом, після затримки вердикту; хук на рівні екрана, тож кут, що перемонтовується, не скидає зіграних.
+  const sounds = useStageSounds(view, offsetMs);
   const { phase, standings } = view;
   // Хук на рівні екрана: миготіння має пережити зміну етапу question → reveal.
   const blink = useVerdictBlink(view.spotlight);
@@ -1098,12 +1102,15 @@ export function StageScreen({ view: live, code, joinUrl, offsetMs, hostOnline, a
       </div>
       {/* «Читати вголос» (31): кут сцени, inline-start знизу; на фініші там меню. */}
       {phase !== 'finished' ? (
-        <StageSpeech view={view} splashing={splashNow !== null} />
+        <StageSpeech view={view} splashing={splashNow !== null}>
+          <StageSoundsButton control={sounds} />
+        </StageSpeech>
       ) : (
         // На фініші «Читати вголос» немає, а перемикач теми лишається в тому самому куті.
         <div className="stage-speech">
           <div className="stage-speech-buttons">
             <ThemeToggle className="stage-theme" />
+            <StageSoundsButton control={sounds} />
           </div>
         </div>
       )}

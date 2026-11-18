@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { clearAuthor, clearPlayer, loadAlarmSeen, loadAuthor, loadDeviceId, loadHost, loadPlayer, saveAlarmSeen, saveAuthor, saveHost, savePlayer } from './storage';
+import { clearAuthor, clearPlayer, loadAlarmSeen, loadAuthor, loadDeviceId, loadHost, loadPlayer, loadStageSounds, saveAlarmSeen, saveAuthor, saveHost, savePlayer, saveStageSounds } from './storage';
 
 beforeEach(() => localStorage.clear());
 
@@ -89,5 +89,15 @@ describe('storage', () => {
     expect(loadDeviceId()).toBe(first);
     localStorage.clear();
     expect(loadDeviceId()).not.toBe(first);
+  });
+
+  it('stage sounds (40) are on until this device turns them off', () => {
+    expect(loadStageSounds()).toBe(true);
+    saveStageSounds(false);
+    expect(localStorage.getItem('quiz:stage-sounds')).toBe('off');
+    expect(loadStageSounds()).toBe(false);
+    saveStageSounds(true);
+    expect(localStorage.getItem('quiz:stage-sounds')).toBeNull();
+    expect(loadStageSounds()).toBe(true);
   });
 });

@@ -3,6 +3,7 @@ import { useLocation, useParams } from 'react-router-dom';
 import type { SocketAuth } from '@quiz/shared';
 import { t } from '../i18n';
 import { statusTextKey, useGame } from '../live/useGame';
+import { useSirenUnlock } from '../live/useSirenUnlock';
 import { useWakeLock } from '../live/useWakeLock';
 import { StageScreen } from '../screens/StageScreen';
 
@@ -14,6 +15,8 @@ export function Stage() {
   // Сцена (планшет, телефон, ноутбук) за довгу гру гасне й засинає: сокет рветься, пульт бачить «сцена не підключена»
   // і не може показати нагороди. Екран тримається, поки йде гра, і в finished — там церемонія й нагороди.
   useWakeLock(game.view !== null && game.view.role === 'stage');
+  // Звуки сцени (40): спільний контекст будить будь-який жест на сторінці (дотик, клік, клавіша пульта ТВ), не лише кнопка в куті.
+  useSirenUnlock();
 
   if (token === '' || game.status === 'unauthorized' || game.closed !== null) {
     return (

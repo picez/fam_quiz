@@ -38,6 +38,7 @@ export * from './moreless';
 export * from './drawing';
 export * from './puzzles';
 export * from './truth';
+export * from './sounds';
 export * from './think';
 export * from './alike';
 export * from './wordladder';

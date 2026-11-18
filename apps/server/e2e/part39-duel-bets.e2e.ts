@@ -598,9 +598,11 @@ async function tie39() {
   const [olya, petro, ira, taras] = phones as [Page, Page, Page, Page];
   await stage.getByText('Тарас').waitFor();
   await startRound39(host, stage, phones);
-  // Тарас не відповідає: 0 балів.
+  // Тарас помиляється: 0 балів (відповідь дає кнопку «Показати відповідь» одразу, а не на таймауті запитання).
   for (const n of [1, 2]) {
     await olya.locator('h1', { hasText: `Запитання ${n}:` }).waitFor();
+    await taras.getByRole('button', { name: /Львів/ }).click();
+    await taras.getByText(/^(Відповідь прийнято|Чекаємо на правильну відповідь)$/).first().waitFor();
     await answerAll(host, [olya, petro, ira]);
     if (n === 1) await step27a(host, 'Далі');
   }

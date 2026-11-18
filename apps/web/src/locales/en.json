@@ -4286,5 +4286,10 @@
   "historyDuelBet": "{name} {points} (on {target})",
   "guideDuelsBets": "Other players can bet on a duellist: guess right — +{stake}, wrong — −{stake}.",
   "duelBetsCount_one": "Backed by {count}",
-  "duelBetsCount_other": "Backed by {count}"
+  "duelBetsCount_other": "Backed by {count}",
+  "stageSoundsUnlock": "🔊 Turn the sounds on",
+  "stageSoundsToggle": "🔔 Sounds",
+  "stageSoundsOffByHost": "The host turned the sounds off",
+  "hostSounds": "Stage sounds",
+  "hostSoundsHint": "Short sounds on the stage: the reveal, the last seconds, a gong, a fanfare"
 }

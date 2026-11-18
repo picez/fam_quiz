@@ -4522,5 +4522,10 @@
   "duelBetsCount_two": "راهن لاعبان",
   "duelBetsCount_few": "راهن {count} لاعبين",
   "duelBetsCount_many": "راهن {count} لاعبًا",
-  "duelBetsCount_other": "راهن {count} لاعب"
+  "duelBetsCount_other": "راهن {count} لاعب",
+  "stageSoundsUnlock": "🔊 تشغيل الأصوات",
+  "stageSoundsToggle": "🔔 الأصوات",
+  "stageSoundsOffByHost": "أوقف المضيف الأصوات",
+  "hostSounds": "أصوات المسرح",
+  "hostSoundsHint": "أصوات قصيرة على المسرح: الكشف، الثواني الأخيرة، غونغ، فانفار"
 }

@@ -1408,6 +1408,50 @@ describe('host presence', () => {
     await until(stage, (v) => v.role === 'stage' && v.cloud?.some((w) => w.key === 'лайка') === true);
   });
 
+  it('host:sounds is host-only, validated and reaches the stage', async () => {
+    const created = (await startGame(ctx.app, makeQuiz([single, text]))).game;
+    const { host, stage, olena } = await lobby(created);
+    expect(await send(olena, 'host:sounds', { on: false })).toEqual({ ok: false, error: 'forbidden' });
+    expect(await send(stage, 'host:sounds', { on: false })).toEqual({ ok: false, error: 'forbidden' });
+    expect(await send(host, 'host:sounds', {})).toEqual({ ok: false, error: 'invalid_payload' });
+    expect(await send(host, 'host:sounds', { on: 'no' })).toEqual({ ok: false, error: 'invalid_payload' });
+    expect(await send(host, 'host:sounds', { on: false })).toEqual({ ok: true });
+    const off = await until(stage, (v) => v.role === 'stage' && v.soundsOff === true);
+    expect(off.role).toBe('stage');
+    await until(host, (v) => v.role === 'host' && v.soundsOff === true);
+    expect(await send(host, 'host:sounds', { on: true })).toEqual({ ok: true });
+    const on = await until(stage, (v) => v.role === 'stage' && !('soundsOff' in v));
+    expect('soundsOff' in on).toBe(false);
+  });
+
+  it('host:sounds in an autopilot room', async () => {
+    const account = await signUp(ctx.app, 'Марта');
+    const saved = await ctx.app.inject({ method: 'POST', url: '/api/quizzes', payload: makeQuiz([single, text]), headers: { cookie: account.cookie } });
+    const { id: quizId } = saved.json() as { id: string };
+    const created = await ctx.app.inject({ method: 'POST', url: '/api/games', payload: { quizId, autopilot: true, nickname: 'Марта' }, headers: { cookie: account.cookie } });
+    const game = created.json() as { code: string; token: string; stageToken: string };
+    const author = open({ code: game.code, role: 'player', token: game.token });
+    const stage = open({ code: game.code, role: 'stage', token: game.stageToken });
+    await until(stage, (v) => v.role === 'stage' && v.phase === 'lobby');
+    await until(author, (v) => v.role === 'player');
+    expect(await send(author, 'host:sounds', { on: false })).toEqual({ ok: false, error: 'forbidden' });
+    const view = await until(stage, (v) => v.role === 'stage');
+    expect('soundsOff' in view).toBe(false);
+  });
+
+  it('host:sounds on a pause', async () => {
+    const created = (await startGame(ctx.app, makeQuiz([single, text]))).game;
+    const { host, stage, olena } = await lobby(created);
+    expect(await send(host, 'host:start')).toEqual({ ok: true });
+    expect(await send(host, 'host:next')).toEqual({ ok: true });
+    await until(olena, inPhase('question'));
+    expect(await send(host, 'host:pause')).toEqual({ ok: true });
+    await until(host, (v) => v.role === 'host' && v.paused);
+    expect(await send(host, 'host:sounds', { on: false })).toEqual({ ok: true });
+    const off = await until(stage, (v) => v.role === 'stage' && v.soundsOff === true);
+    expect(off.paused).toBe(true);
+  });
+
   it('buff events are role-checked and validated', async () => {
     const rules = { ...DEFAULT_RULES, penalty: 'minus' as const };
     const quiz = makeQuiz([single, text], { buffs: ['double', 'shield', 'retry'], rules });

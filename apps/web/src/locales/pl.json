@@ -4352,5 +4352,10 @@
   "duelBetsCount_one": "Postawił {count}",
   "duelBetsCount_few": "Postawiło {count}",
   "duelBetsCount_many": "Postawiło {count}",
-  "duelBetsCount_other": "Postawiło {count}"
+  "duelBetsCount_other": "Postawiło {count}",
+  "stageSoundsUnlock": "🔊 Włącz dźwięki",
+  "stageSoundsToggle": "🔔 Dźwięki",
+  "stageSoundsOffByHost": "Prowadzący wyłączył dźwięki",
+  "hostSounds": "Dźwięki na scenie",
+  "hostSoundsHint": "Krótkie dźwięki na scenie: odsłonięcie, ostatnie sekundy, gong, fanfara"
 }

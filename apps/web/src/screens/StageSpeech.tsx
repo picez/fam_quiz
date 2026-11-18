@@ -1,4 +1,4 @@
-import { useId, useState } from 'react';
+import { useId, useState, type ReactNode } from 'react';
 import type { StageView } from '@quiz/shared';
 import { t } from '../i18n';
 import { speechSupported, useStageSpeech } from '../live/speech';
@@ -19,7 +19,7 @@ function unlockSpeech(): void {
  * «🔊 Читати вголос» у куті сцени (31): лише тут, бо браузер дозволяє мову тільки після дотику саме на цій сторінці.
  * Вибір пам'ятає пристрій; після перезавантаження без дотику кнопка просить торкнутися ще раз.
  */
-export function StageSpeech({ view, splashing }: { view: StageView; splashing: boolean }) {
+export function StageSpeech({ view, splashing, children }: { view: StageView; splashing: boolean; children?: ReactNode }) {
   const [stored, setStored] = useState(loadStageSpeech);
   // Дотик у цій сесії: перший клік або сторінка вже мала дотик (збережене вмикається одразу).
   const [armed, setArmed] = useState(() => stored && touched());
@@ -48,6 +48,7 @@ export function StageSpeech({ view, splashing }: { view: StageView; splashing: b
       <div className="stage-speech-buttons">
         {/* Швидкий перемикач теми сцени: малий значок у тому ж куті, приглушений, поки на нього не наведуть чи не сфокусують. */}
         <ThemeToggle className="stage-theme" />
+        {children}
         <button
           type="button"
           className="btn btn-small"

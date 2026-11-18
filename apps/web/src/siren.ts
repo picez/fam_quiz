@@ -1,3 +1,5 @@
+import { audioContextClass, audioReady, audioSupported, playbackSession, quietly, sharedAudio, unlockAudio } from './audio';
+
 /** Півперіод сирени: частота доходить від 600 до 1200 Гц (і назад) за стільки секунд. */
 const HALF_S = 0.4;
 const LOW_HZ = 600;
@@ -6,75 +8,7 @@ const VOLUME = 0.2;
 /** Наростання й згасання гучності, с: без клацання на початку й у кінці. */
 const EDGE_S = 0.02;
 
-type AudioContextClass = new () => AudioContext;
-
-/**
- * Спільний контекст, створений і розблокований жестом (unlockSiren). iOS лишає контекст, створений поза жестом, призупиненим,
- * і resume() поза жестом відмовляє — тож сирена грає через нього. Його ніколи не закриваємо.
- */
-let shared: AudioContext | null = null;
-
-function audioContextClass(): AudioContextClass | null {
-  const scope = globalThis as { AudioContext?: AudioContextClass; webkitAudioContext?: AudioContextClass };
-  return scope.AudioContext ?? scope.webkitAudioContext ?? null;
-}
-
-/** Обіцянка Web Audio (resume, close), що може відхилитися чи бути відсутньою в старому браузері: лише без помилки. */
-function quietly(run: () => unknown): void {
-  try {
-    void Promise.resolve(run()).catch(() => undefined);
-  } catch {
-    // Браузер не дозволив — тиша.
-  }
-}
-
-/** Safari 16.4+: звук як відтворення, тож сирену чути й з перемикачем «без звуку». Інші браузери — нічого. */
-function playbackSession(): void {
-  try {
-    const session = (navigator as Navigator & { audioSession?: { type: string } }).audioSession;
-    if (session !== undefined) session.type = 'playback';
-  } catch {
-    // Немає чи не дозволено — системна поведінка.
-  }
-}
-
-/** Чи спільний контекст уже грає: тоді жести більше нічого не розблоковують. */
-/** Чи браузер узагалі вміє Web Audio. */
-export function sirenSupported(): boolean {
-  return audioContextClass() !== null;
-}
-
-export function sirenReady(): boolean {
-  return shared !== null && shared.state === 'running';
-}
-
-/**
- * Розблокування сирени (12e) — лише всередині жесту (дотик, клік, клавіша): створює спільний контекст, будить його
- * (resume, якщо не running — iOS призупиняє чи перериває його після фону) і грає тихий буфер з одного семпла, що відмикає звук на iOS.
- */
-export function unlockSiren(): void {
-  const Context = audioContextClass();
-  if (Context === null) return;
-  try {
-    playbackSession();
-    if (shared === null) shared = new Context();
-    const ctx = shared;
-    if (ctx.state !== 'running') quietly(() => ctx.resume());
-    const source = ctx.createBufferSource();
-    source.buffer = ctx.createBuffer(1, 1, 22050);
-    source.connect(ctx.destination);
-    source.onended = () => {
-      try {
-        source.disconnect();
-      } catch {
-        // Уже від'єднано.
-      }
-    };
-    source.start(0);
-  } catch {
-    // Браузер не дозволив — сирена спробує власний контекст.
-  }
-}
+export { audioSupported as sirenSupported, audioReady as sirenReady, unlockAudio as unlockSiren };
 
 /**
  * Сирена тривоги (12e): Web Audio без файлу — пилка через гучність 0,2 (наростання й згасання 0,02 с), частота 600 ↔ 1200 Гц
@@ -83,8 +17,8 @@ export function unlockSiren(): void {
  * Повертає функцію, що зупиняє звук достроково. Власного перемикача звуку в застосунку немає: діє системна гучність пристрою.
  */
 export function playSiren(ms: number): () => void {
-  const own = shared === null;
-  let context: AudioContext | null = shared;
+  let context: AudioContext | null = sharedAudio();
+  const own = context === null;
   try {
     if (context === null) {
       const Context = audioContextClass();

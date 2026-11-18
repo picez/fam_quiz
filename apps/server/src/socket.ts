@@ -56,6 +56,7 @@ import {
   teamAssignSchema,
   captainSchema,
   liveWatchSchema,
+  soundsSchema,
   startSchema,
   reactSchema,
   likeSchema,
@@ -953,6 +954,12 @@ export function attachSockets(
       if (!hostSide) return FORBIDDEN;
       const payload = orderSchema.safeParse(payloadOf(args));
       return payload.success ? run({ type: 'order', ...payload.data }) : INVALID;
+    });
+
+    on('host:sounds', (args) => {
+      if (!isHost) return FORBIDDEN;
+      const payload = soundsSchema.safeParse(payloadOf(args));
+      return payload.success ? run({ type: 'sounds', on: payload.data.on }) : INVALID;
     });
 
     on('host:cloud-hide', (args) => {
