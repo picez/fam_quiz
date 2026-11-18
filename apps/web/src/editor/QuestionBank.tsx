@@ -1,8 +1,7 @@
 import { useEffect, useId, useRef, useState } from 'react';
-import type { Question, QuestionBankItem, QuestionType } from '@quiz/shared';
+import { QUESTION_BANK_QUERY_MAX, type Question, type QuestionBankItem, type QuestionType } from '@quiz/shared';
 import { searchQuestionBank } from '../api';
 import { errorText, t } from '../i18n';
-import { typeIcon } from '../guide-text';
 import { HelpButton } from '../help/HelpButton';
 import type { BankFit } from './draft';
 
@@ -133,14 +132,23 @@ export function QuestionBank({
         </header>
         <div className="group-picker-body">
           <div className="question-bank-filters">
-            <input type="search" value={query} placeholder={t('bankSearch')} aria-label={t('bankSearch')} onChange={(event) => setQuery(event.target.value)} />
-            <label className="question-bank-type">
+            <div className="field">
+              <input
+                type="search"
+                value={query}
+                maxLength={QUESTION_BANK_QUERY_MAX}
+                placeholder={t('bankSearch')}
+                aria-label={t('bankSearch')}
+                onChange={(event) => setQuery(event.target.value)}
+              />
+            </div>
+            <label className="field">
               <span>{t('bankType')}</span>
               <select value={typeChoice} onChange={(event) => setTypeChoice(event.target.value as QuestionType | '')}>
                 <option value="">{t('bankAllTypes')}</option>
                 {types.map((type) => (
                   <option key={type} value={type}>
-                    {typeIcon(type)} {t(`type_${type}`)}
+                    {t(`type_${type}`)}
                   </option>
                 ))}
               </select>
@@ -165,9 +173,11 @@ export function QuestionBank({
                       />
                       <span className="question-bank-body">
                         <span className="group-picker-item-text">
-                          <span aria-hidden="true">{typeIcon(item.question.type)}</span> {item.question.text}
+                          {item.question.text}
                         </span>
                         <span className="meta">
+                          <span className="question-item-type">{t(`typeShort_${item.question.type}`)}</span>
+                          {' · '}
                           «{item.quizTitle}» · {item.roundTitle === '' ? t('roundN', { index: item.roundIndex + 1 }) : item.roundTitle}
                           {item.quizId === quizId && (
                             <>
@@ -193,7 +203,7 @@ export function QuestionBank({
             </p>
           )}
           {!loading && error === null && items.length === 0 && <p className="meta">{q !== '' ? t('bankEmpty') : t('bankNone')}</p>}
-          {!loading && error === null && page < pages && (
+          {!loading && page < pages && (
             <button type="button" className="btn" onClick={more}>
               {t('bankMore')}
             </button>

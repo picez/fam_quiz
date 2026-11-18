@@ -101,6 +101,19 @@ describe('QuestionBank', () => {
     expect(screen.queryByRole('button', { name: t('bankMore') })).toBeNull();
   });
 
+  it('a failed next page keeps the list and the retry button', async () => {
+    reply(page([item('Перше')], { pages: 2, total: 2 }));
+    open();
+    await screen.findByText('Перше');
+    vi.mocked(searchQuestionBank).mockResolvedValueOnce({ ok: false, error: 'offline' });
+    fireEvent.click(screen.getByRole('button', { name: t('bankMore') }));
+    expect((await screen.findByRole('alert')).textContent).toBe(errorText('offline'));
+    reply(page([item('Друге')], { page: 2, pages: 2, total: 2 }));
+    fireEvent.click(screen.getByRole('button', { name: t('bankMore') }));
+    await screen.findByText('Друге');
+    expect(screen.getByText('Перше')).toBeTruthy();
+  });
+
   it('a question that does not fit is disabled with the reason', async () => {
     reply(page([item('Не влізе')]));
     const reason = t('bankNoFitLadder', { count: 4 });

@@ -61,8 +61,10 @@ function collect(value: unknown, out: string[]): void {
     if (SKIP_KEYS.has(key)) continue;
     if (TEXT_KEYS.has(key) && typeof child === 'string') out.push(child);
     else if (LIST_KEYS.has(key) && Array.isArray(child)) {
-      for (const item of child) if (typeof item === 'string') out.push(item);
+      for (const item of child) {
+        if (typeof item === 'string') out.push(item);
         else collect(item, out);
+      }
     } else collect(child, out);
   }
 }

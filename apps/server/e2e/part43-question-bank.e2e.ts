@@ -149,13 +149,13 @@ async function questionBank43() {
   expect(found.some((text) => text.includes('Як називається найвища гора України?'))).toBe(true);
   expect(found.some((text) => text.includes('Скільки метрів має Говерла?'))).toBe(true);
   expect(found.some((text) => text.includes('Говерла вища за Монблан?'))).toBe(true);
-  await dialog.locator('.question-bank-type select').selectOption('boolean');
+  await dialog.locator('.question-bank-filters select').selectOption('boolean');
   await expect.poll(() => items.count()).toBe(1);
   expect(await items.first().innerText()).toContain('Говерла вища за Монблан?');
   await shot(author, 'p43-bank-filter');
 
   // ── 5. Позначити два запитання (з мініатюрою) → скопіювати; потім ще одне. ──
-  await dialog.locator('.question-bank-type select').selectOption('');
+  await dialog.locator('.question-bank-filters select').selectOption('');
   await find('річка');
   await expect.poll(() => items.count()).toBe(2);
   await pick('Яка річка найдовша в Україні?').check();
@@ -180,7 +180,7 @@ async function questionBank43() {
   await bankButton.click();
   await dialog.waitFor();
   await items.first().waitFor();
-  const blitzTypes = await dialog.locator('.question-bank-type select').locator('option').allTextContents();
+  const blitzTypes = await dialog.locator('.question-bank-filters select').locator('option').allTextContents();
   expect(blitzTypes[0]).toBe('Усі дозволені типи');
   expect(blitzTypes.join('|')).not.toContain('Точка на мапі');
   expect(blitzTypes.join('|')).toContain('Так чи ні');

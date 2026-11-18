@@ -113,6 +113,6 @@ describe('QuizEditor question bank', () => {
       expect(round.questions.some((q) => q.text === 'Для драбини')).toBe(true);
       expect(round.levels.length).toBe(round.questions.length);
     }
-    expect(newLadderRound().questions.length).toBeGreaterThan(0);
+    if (round.type === 'ladder') expect(round.questions.at(-1)!.text).toBe('Для драбини');
   });
 });

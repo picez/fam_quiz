@@ -23775,6 +23775,7 @@ input.sudoku-editor-cell:focus-visible {
   overscroll-behavior: contain;
 }
 .group-picker > .actions {
+  position: static;
   padding: 0.75rem 1rem;
   background: var(--stage);
   border-block-start: 1px solid var(--line);
@@ -23893,17 +23894,6 @@ input.sudoku-editor-cell:focus-visible {
   gap: 0.5rem;
   min-width: 0;
 }
-.question-bank-filters input,
-.question-bank-filters select {
-  width: 100%;
-  min-width: 0;
-  box-sizing: border-box;
-}
-.question-bank-type {
-  display: grid;
-  gap: 0.25rem;
-  min-width: 0;
-}
 .question-bank-list {
   display: grid;
   gap: 0.5rem;
@@ -23954,7 +23944,9 @@ input.sudoku-editor-cell:focus-visible {
   color: var(--correct);
 }
 .question-bank-room {
-  margin: 0.5rem 0 0;
+  flex: 1 1 100%;
+  margin: 0;
+  order: -1;
 }
 
 /* Чипи виду поруч із «Ще не використані» (12l): у тому самому рядку з прокруткою. */
