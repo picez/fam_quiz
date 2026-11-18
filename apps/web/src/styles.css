@@ -26069,3 +26069,20 @@ a.library-card:focus-visible {
 .report-count {
   text-align: end;
 }
+
+/* 47: скарги в адмінці */
+.admin-reasons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.75rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.admin-note {
+  margin: 0;
+  padding-inline-start: 0.75rem;
+  border-inline-start: 3px solid var(--line);
+  overflow-wrap: anywhere;
+}

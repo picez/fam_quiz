@@ -31,6 +31,23 @@ describe('logLine', () => {
   });
 });
 
+describe('logLine for moderation', () => {
+  it('writes the library and report lines', () => {
+    expect(logLine(entry({ kind: 'library_hide', details: { title: 'Карпати' } }))).toBe('Адмін сховав(-ла) вікторину «Карпати» (Богдан)');
+    expect(logLine(entry({ kind: 'library_restore', details: { title: 'Карпати' } }))).toBe('Адмін повернув(-ла) вікторину «Карпати» (Богдан) у каталог');
+    expect(logLine(entry({ kind: 'report_dismiss' }))).toBe('Адмін відхилив(-ла) скаргу на Богдан');
+    expect(logLine(entry({ kind: 'appeal_reject', details: { title: 'Карпати' } }))).toBe('Адмін відхилив(-ла) оскарження «Карпати» (Богдан)');
+    expect(logLine(entry({ kind: 'avatar_reset' }))).toBe('Адмін скинув(-ла) аватар Богдан');
+  });
+  it('adds the old nickname to a nickname reset', () => {
+    expect(logLine(entry({ kind: 'nickname_reset', details: { text: 'Ірися' } }))).toBe('Адмін скинув(-ла) нік Богдан (було: «Ірися»)');
+    expect(logLine(entry({ kind: 'nickname_reset', details: {} }))).toBe('Адмін скинув(-ла) нік Богдан');
+  });
+  it('shows a player without a nickname as the default name', () => {
+    expect(logLine(entry({ kind: 'avatar_reset', target: '' }))).toBe('Адмін скинув(-ла) аватар Гравець');
+  });
+});
+
 describe('questionLines', () => {
   it('lists the text and the options', () => {
     expect(questionLines(single)).toEqual([single.text, ...single.options.map((o) => o.text)]);
