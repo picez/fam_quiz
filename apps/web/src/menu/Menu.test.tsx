@@ -56,10 +56,10 @@ function show(path: string) {
 }
 
 describe('Menu', () => {
-  it('a visitor sees only join and sign in, and sign in returns to the page', async () => {
+  it('a visitor sees join, the library and sign in, and sign in returns to the page', async () => {
     vi.mocked(me).mockResolvedValue(OUT);
     show('/history/abc');
-    await vi.waitFor(() => expect(items()).toEqual(['🎮Меню', '🔑Увійти']));
+    await vi.waitFor(() => expect(items()).toEqual(['🎮Меню', '📚Бібліотека', '🔑Увійти']));
     expect(screen.getByRole('link', { name: 'Увійти' }).getAttribute('href')).toBe('/login?next=%2Fhistory%2Fabc');
   });
 
@@ -93,10 +93,27 @@ describe('Menu', () => {
     expect(items()).toHaveLength(5);
   });
 
+  it('a visitor gets the library in the menu with its address', async () => {
+    vi.mocked(me).mockResolvedValue(OUT);
+    show('/library');
+    await vi.waitFor(() => expect(items()).toEqual(['🎮Меню', '📚Бібліотека', '🔑Увійти']));
+    expect(screen.getByRole('link', { name: 'Бібліотека' }).getAttribute('href')).toBe('/library');
+    expect(screen.getByRole('link', { name: 'Бібліотека' }).getAttribute('data-short')).toBe('Бібліо');
+  });
+
+  it.each(['/library', '/library/e1'])('a signed-in person keeps five items and sees My quizzes marked on %s', async (path) => {
+    vi.mocked(me).mockResolvedValue(OK);
+    show(path);
+    await screen.findByRole('link', { name: 'Профіль' });
+    expect(items()).toHaveLength(5);
+    expect(screen.queryByRole('link', { name: 'Бібліотека' })).toBeNull();
+    expect(screen.getByRole('link', { name: 'Мої вікторини' }).getAttribute('aria-current')).toBe('page');
+  });
+
   it('a visitor on the prizes page still sees only join and sign in', async () => {
     vi.mocked(me).mockResolvedValue(OUT);
     show('/prizes');
-    await vi.waitFor(() => expect(items()).toEqual(['🎮Меню', '🔑Увійти']));
+    await vi.waitFor(() => expect(items()).toEqual(['🎮Меню', '📚Бібліотека', '🔑Увійти']));
   });
 
   it('while it is unknown who is here, only join is offered', async () => {
@@ -108,13 +125,13 @@ describe('Menu', () => {
   it('the menu follows sign-in and sign-out without a reload', async () => {
     vi.mocked(me).mockResolvedValue(OUT);
     show('/login');
-    await vi.waitFor(() => expect(items()).toEqual(['🎮Меню', '🔑Увійти']));
+    await vi.waitFor(() => expect(items()).toEqual(['🎮Меню', '📚Бібліотека', '🔑Увійти']));
     vi.mocked(me).mockResolvedValue(OK);
     fireEvent.click(screen.getByRole('button', { name: 'далі' }));
     expect(await screen.findByRole('link', { name: 'Профіль' })).toBeTruthy();
     vi.mocked(me).mockResolvedValue(OUT);
     fireEvent.click(screen.getByRole('button', { name: 'далі' }));
-    await vi.waitFor(() => expect(items()).toEqual(['🎮Меню', '🔑Увійти']));
+    await vi.waitFor(() => expect(items()).toEqual(['🎮Меню', '📚Бібліотека', '🔑Увійти']));
   });
 
   it('sign in keeps the query of the page, and on the login page does not nest itself', async () => {
@@ -164,7 +181,7 @@ describe('Menu', () => {
     it('a visitor does not see the feed and the badge is not requested', async () => {
       vi.mocked(me).mockResolvedValue(OUT);
       show('/quizzes');
-      await vi.waitFor(() => expect(items()).toEqual(['🎮Меню', '🔑Увійти']));
+      await vi.waitFor(() => expect(items()).toEqual(['🎮Меню', '📚Бібліотека', '🔑Увійти']));
       expect(getFeedBadge).not.toHaveBeenCalled();
     });
   });
@@ -187,7 +204,7 @@ describe('Menu', () => {
       forgetAccount();
       vi.mocked(me).mockResolvedValue(OUT);
       show('/quizzes');
-      await vi.waitFor(() => expect(items()).toEqual(['🎮Меню', '🔑Увійти']));
+      await vi.waitFor(() => expect(items()).toEqual(['🎮Меню', '📚Бібліотека', '🔑Увійти']));
       expect(getMyInvites).not.toHaveBeenCalled();
     });
 

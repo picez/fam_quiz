@@ -39,6 +39,8 @@ vi.mock('./pages/profile/ProfileStats', () => ({ ProfileStats: () => <p>ProfileS
 vi.mock('./pages/profile/ProfileLikes', () => ({ ProfileLikes: () => <p>ProfileLikes</p> }));
 vi.mock('./pages/profile/ProfileLooks', () => ({ ProfileLooks: () => <p>ProfileLooks</p> }));
 vi.mock('./pages/profile/ProfileSettings', () => ({ ProfileSettings: () => <p>ProfileSettings</p> }));
+vi.mock('./pages/Library', () => ({ Library: () => <p>Library</p> }));
+vi.mock('./pages/LibraryQuiz', () => ({ LibraryQuiz: () => <p>LibraryQuiz</p> }));
 vi.mock('./pages/Quizzes', () => ({ Quizzes: () => <p>Quizzes</p> }));
 vi.mock('./pages/Stage', () => ({ Stage: () => <p>Stage</p> }));
 vi.mock('./pages/Groups', () => ({ Groups: () => <p>Groups</p> }));
@@ -100,6 +102,8 @@ describe('AppRoutes', () => {
     ['/profile/groups/g1/items/i1', 'GroupItemPage'],
     ['/groups/join/abcdefghjk', 'GroupJoin'],
     ['/challenge/abcdefghjkmn', 'ChallengePage'],
+    ['/library', 'Library'],
+    ['/library/e1', 'LibraryQuiz'],
   ])('%s draws %s with the menu', async (path, page) => {
     vi.mocked(me).mockResolvedValue({ ok: false, error: 'unauthorized' });
     open(path);

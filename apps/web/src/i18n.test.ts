@@ -195,8 +195,8 @@ describe('uk golden (22a)', () => {
   const ADDED_LEAGUE = ['leaguePickTitle', 'leaguePickLabel', 'leaguePickNone', 'leaguePickHint', 'leaguePickNoGroups', 'leaguePickSaved', 'leagueLobbyMark', 'leagueTooFew', 'leagueHostTitle', 'groupTabLeague', 'leagueMonthLabel', 'leagueCurrentMonth', 'leagueEmpty', 'leaguePlace', 'leaguePlayer', 'leaguePoints', 'leagueGames', 'leagueFirsts', 'leagueFormer', 'leagueRules', 'leagueHall', 'leagueHallEmpty', 'leagueChampionTitle', 'leagueTitlesHeading'];
   const ADDED_LEAGUE_PLURALS = ['leagueGained_one', 'leagueGained_few', 'leagueGained_many', 'leagueHostRow_one', 'leagueHostRow_few', 'leagueHostRow_many'];
   /** 47: «Бібліотека вікторин» — аркуш «Відкрити для всіх» у «Моїх вікторинах»; решта ключів і множини — у наступних задачах. */
-  const ADDED_LIBRARY = ['libraryTitle', 'libraryButton', 'libraryShareTitle', 'libraryShareWarning', 'libraryShareLanguage', 'libraryOpen', 'libraryUpdate', 'libraryClose', 'libraryCloseConfirm', 'librarySnapshotHint', 'libraryStatusOpen', 'libraryStatusClosed', 'libraryStatusAuto', 'libraryStatusHidden', 'libraryAppeal', 'libraryAppealSent', 'libraryAppealUsed', 'err_library_invalid', 'err_library_too_few', 'err_library_hidden', 'err_library_not_hidden', 'err_library_appeal_used'];
-  const ADDED_LIBRARY_PLURALS: string[] = [];
+  const ADDED_LIBRARY = ['libraryTitle', 'libraryButton', 'libraryShareTitle', 'libraryShareWarning', 'libraryShareLanguage', 'libraryOpen', 'libraryUpdate', 'libraryClose', 'libraryCloseConfirm', 'librarySnapshotHint', 'libraryStatusOpen', 'libraryStatusClosed', 'libraryStatusAuto', 'libraryStatusHidden', 'libraryAppeal', 'libraryAppealSent', 'libraryAppealUsed', 'err_library_invalid', 'err_library_too_few', 'err_library_hidden', 'err_library_not_hidden', 'err_library_appeal_used', 'menuLibrary', 'menuShortLibrary', 'libraryGuestLink', 'librarySearch', 'librarySort', 'librarySortPopular', 'librarySortNew', 'libraryLanguage', 'libraryAnyLanguage', 'libraryEmpty', 'libraryMore', 'libraryBy', 'libraryRounds', 'libraryLike', 'libraryLiked', 'libraryCopy', 'libraryCopied', 'libraryOpenCopy', 'librarySignIn', 'libraryNoAnswers', 'err_library_own'];
+  const ADDED_LIBRARY_PLURALS = ['libraryQuestions_one', 'libraryQuestions_few', 'libraryQuestions_many', 'libraryPlays_one', 'libraryPlays_few', 'libraryPlays_many'];
   const ADDED_CHALLENGE_PLURALS = ['challengeDaysLeft_one', 'challengeDaysLeft_few', 'challengeDaysLeft_many', 'challengePlayed_one', 'challengePlayed_few', 'challengePlayed_many', 'challengeSkipQuestions_one', 'challengeSkipQuestions_few', 'challengeSkipQuestions_many'];
   const ADDED_STAGE_SOUNDS = ['stageSoundsUnlock', 'stageSoundsToggle', 'stageSoundsOffByHost', 'hostSounds', 'hostSoundsHint'];
   const ADDED_DUEL_BETS_PLURALS = ['duelBetsCount_one', 'duelBetsCount_few', 'duelBetsCount_many'];
@@ -436,7 +436,13 @@ describe('uk golden (22a)', () => {
   it('47 keys (library) are in every language', () => {
     const locales: Record<string, Record<string, string>> = { en, pl, de, es, it: it_, ar };
     for (const key of [...ADDED_LIBRARY, ...ADDED_LIBRARY_PLURALS]) expect(ukMessages, key).toHaveProperty(key);
-    for (const [lang, dict] of Object.entries(locales)) expect([...ADDED_LIBRARY, ...ADDED_LIBRARY_PLURALS].filter((key) => !(key in dict)), lang).toEqual([]);
+    for (const [lang, dict] of Object.entries(locales)) {
+      expect(ADDED_LIBRARY.filter((key) => !(key in dict)), lang).toEqual([]);
+      for (const base of ['libraryQuestions', 'libraryPlays']) {
+        expect(dict, lang).toHaveProperty(`${base}_one`);
+        expect(dict, lang).toHaveProperty(`${base}_other`);
+      }
+    }
   });
 
   it('44 keys (challenge a friend) are in every language with the right plural forms', () => {

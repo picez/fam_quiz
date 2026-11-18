@@ -139,6 +139,7 @@ function StartMenu({ initialCode }: { initialCode: string }): JSX.Element {
           name={feedLabel ? `${t('menuFeed')}, ${t('feedBadge', { count: feedTotal })}` : undefined}
         />
         <TileLink to="/quizzes" icon="📝" label="menuQuizzes" />
+        <TileLink to="/library" icon="📚" label="libraryTitle" />
         <TileLink to="/history" icon="🕘" label="menuHistory" />
         <TileLink
           to="/profile"
@@ -179,6 +180,11 @@ export function Home() {
       {known && (
         <Link className="quiet-link" to="/quizzes">
           {t('hostEntry')}
+        </Link>
+      )}
+      {known && (
+        <Link className="quiet-link" to="/library">
+          {t('libraryGuestLink')}
         </Link>
       )}
       {/* Гість обирає тему просто тут (повний вибір, з «Як у системі»); швидкий ☀/☾ — ще й у меню. */}

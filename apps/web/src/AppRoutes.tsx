@@ -8,6 +8,8 @@ import { Friends } from './pages/Friends';
 import { History } from './pages/History';
 import { Home } from './pages/Home';
 import { Host } from './pages/Host';
+import { Library } from './pages/Library';
+import { LibraryQuiz } from './pages/LibraryQuiz';
 import { Login } from './pages/Login';
 import { MyGames } from './pages/MyGames';
 import { ChallengePage } from './pages/ChallengePage';
@@ -46,6 +48,8 @@ export function AppRoutes() {
         <Route path="/quizzes" element={<Quizzes />} />
         <Route path="/quizzes/new" element={<EditQuiz />} />
         <Route path="/quizzes/:id" element={<EditQuiz />} />
+        <Route path="/library" element={<Library />} />
+        <Route path="/library/:id" element={<LibraryQuiz />} />
         <Route path="/feed" element={<Feed />} />
         <Route path="/feed/calendar" element={<Calendar />} />
         <Route path="/history" element={<History />} />

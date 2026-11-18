@@ -13,7 +13,9 @@ const under = (base: string) => (path: string) => path === base || path.startsWi
 
 const JOIN: Item = { label: 'menuJoin', short: 'menuShortJoin', icon: '🎮', to: '/', active: (path) => path === '/' };
 const FEED: Item = { label: 'menuFeed', short: 'menuShortFeed', icon: '📰', to: '/feed', active: under('/feed') };
-const QUIZZES: Item = { label: 'menuQuizzes', short: 'menuShortQuizzes', icon: '📝', to: '/quizzes', active: under('/quizzes') };
+// Бібліотека — самостійний пункт лише для гостя; з акаунтом лишається п'ять пунктів, а «Мої вікторини» світяться й на /library.
+const QUIZZES: Item = { label: 'menuQuizzes', short: 'menuShortQuizzes', icon: '📝', to: '/quizzes', active: (path) => under('/quizzes')(path) || under('/library')(path) };
+const LIBRARY: Item = { label: 'menuLibrary', short: 'menuShortLibrary', icon: '📚', to: '/library', active: under('/library') };
 const HISTORY: Item = { label: 'menuHistory', short: 'menuShortHistory', icon: '🕘', to: '/history', active: (path) => under('/history')(path) || path === '/me' };
 const PROFILE: Item = { label: 'menuProfile', short: 'menuShortProfile', icon: '👤', to: '/profile', active: (path) => ['/profile', '/prizes', '/achievements', '/friends', '/groups'].some((base) => under(base)(path)) };
 
@@ -34,7 +36,7 @@ export function Menu() {
     active: (path) => path === '/login',
   };
   const items =
-    account.status === 'signed-in' ? [JOIN, FEED, QUIZZES, HISTORY, PROFILE] : account.status === 'anonymous' ? [JOIN, signIn] : [JOIN];
+    account.status === 'signed-in' ? [JOIN, FEED, QUIZZES, HISTORY, PROFILE] : account.status === 'anonymous' ? [JOIN, LIBRARY, signIn] : [JOIN];
 
   const name = (item: Item) =>
     item === PROFILE && total > 0
