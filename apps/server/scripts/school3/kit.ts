@@ -21,6 +21,9 @@ export const clip = (text: string, id: string, start: number, accepted: string[]
   accepted,
 });
 
+/** «Вгадай слово» (48): шість спроб, слово 4–7 літер зі словника драбини. */
+export const wordle = (text: string, word: string, points: number, time = 100): Question => ({ ...blank(text, points, time), type: 'wordle', word });
+
 /** «Не перебільш» (37d): перемагає найближча відповідь знизу; більша за правильну — нуль. */
 export const noOver = (text: string, correct: number, points: number, time = 35): Question => ({
   ...blank(text, points, time),

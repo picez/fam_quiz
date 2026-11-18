@@ -4,7 +4,7 @@ import { scatter, type Cell } from './mix-quiz';
 import { BOARD } from './school3/board';
 import type { Slot } from './school3/kit';
 import { ALIKE, PUZZLES, SPIES, THINK } from './school3/play';
-import { AUCTION, BETS, DUELS, FINAL, NO_OVERSHOOT, SCREEN, SPARES, WARMUP } from './school3/rounds';
+import { AUCTION, BETS, DUELS, FINAL, NO_OVERSHOOT, SCREEN, SPARES, WARMUP, WORDLES } from './school3/rounds';
 
 /**
  * «Великий шкільний марафон ІІІ: нові правила гри» — велика вікторина з ведучим: шкільна програма, логіка, найвідоміше кіно
@@ -108,13 +108,13 @@ export const school3Quiz = (): Quiz => {
       {
         id: 's3-overshoot',
         type: 'classic',
-        title: 'Не перебільш',
+        title: 'Не перебільш і «Вгадай слово»',
         description:
-          'Числа зі школи, музики й літератури. Відповідь більша за правильну — нуль балів, а повну ціну отримує найближча відповідь знизу. Наостанок «Більше чи менше», де кожне наступне порівняння дорожче на 100.',
+          'Числа зі школи, музики й літератури. Відповідь більша за правильну — нуль балів, а повну ціну отримує найближча відповідь знизу. Далі «Більше чи менше», де кожне наступне порівняння дорожче на 100. Наостанок «Вгадай слово»: шість спроб на слово зі шкільної теми — пишіть справжні іменники, а кольори клітинок підкажуть, які літери на місці.',
         speedBonus: false,
         shuffleOptions: false,
         rules: DEFAULT_RULES,
-        questions: NO_OVERSHOOT.map(tag('over')),
+        questions: [...NO_OVERSHOOT.map(tag('over')), ...WORDLES.map(tag('word'))],
       },
       {
         id: 's3-think',
