@@ -37,7 +37,10 @@ export async function fileReport(
       if (entry.ownerId === reporterId) return 'cannot_report_self';
       await tx.insert(userReport).values({ reporterId, targetKind: 'quiz', entryId: entry.id, targetUserId: entry.ownerId, reason, text, createdAt: now });
       // Блокуємо запис після вставки: паралельні скарги рахують по черзі, кожна бачить уже зафіксовані інші.
-      await tx.select({ id: libraryEntry.id }).from(libraryEntry).where(eq(libraryEntry.id, entry.id)).for('update');
+      // Саме 'no key update', а не 'update': вставка скарги тримає FOR KEY SHARE на рядку запису (зовнішній ключ),
+      // і два FOR UPDATE від двох паралельних скарг взаємно чекали б одне одного — deadlock (40P01), скарга втрачена.
+      // 'no key update' із KEY SHARE сумісний, а між собою такі блокування конфліктують — підрахунки йдуть по черзі.
+      await tx.select({ id: libraryEntry.id }).from(libraryEntry).where(eq(libraryEntry.id, entry.id)).for('no key update');
       const [row] = await tx
         .select({ reporters: sql<number>`count(distinct ${userReport.reporterId})::int` })
         .from(userReport)

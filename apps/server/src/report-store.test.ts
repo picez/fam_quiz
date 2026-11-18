@@ -86,17 +86,16 @@ describe('reports (39-A2)', () => {
     expect(await quizReport('u-maria')).toBe('not_found');
   });
 
-  it('two parallel third reports switch once', async () => {
+  it('two third reports in a row switch once (serial path)', async () => {
     const { quizReport, moderation, db } = await setup();
     await quizReport('u-taras');
     await quizReport('u-iryna');
     const results = await Promise.all([quizReport('u-petro'), quizReport('u-maria')]);
-    // Тестова БД (PGlite) виконує транзакції по черзі: друга скарга або теж пройшла, або вже бачить приховану ціль.
-    // Головне — без помилок, рівно один перехід, і кожна прийнята скарга збережена.
-    expect(results[0]).toBe('ok');
-    expect(['ok', 'not_found']).toContain(results[1]);
+    // PGlite виконує транзакції по черзі, тож це послідовний шлях: перша скарга ховає запис, друга вже бачить
+    // приховану ціль (not_found). Справжню паралельність (блокування, deadlock) тут не перевірити — потрібен справжній Postgres.
+    expect(results).toEqual(['ok', 'not_found']);
     expect(await moderation()).toBe('auto_hidden');
-    expect(await db.select().from(userReport)).toHaveLength(2 + results.filter((r) => r === 'ok').length);
+    expect(await db.select().from(userReport)).toHaveLength(3);
   });
 
   it('dismissed reports do not count', async () => {
