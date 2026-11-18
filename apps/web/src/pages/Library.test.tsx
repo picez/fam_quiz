@@ -3,6 +3,7 @@ import { act, cleanup, fireEvent, render, screen, within } from '@testing-librar
 import type { LibraryCard } from '@quiz/shared';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { t } from '../i18n';
 import { libraryCatalog } from '../library/library-api';
 import { Library } from './Library';
 
@@ -146,5 +147,10 @@ describe('Library', () => {
     vi.mocked(libraryCatalog).mockResolvedValue({ ok: false, error: 'network' });
     show();
     expect((await screen.findByRole('alert')).textContent).not.toBe('');
+  });
+  it('the heading has the ⓘ help with the library entry', async () => {
+    show();
+    fireEvent.click(await screen.findByRole('button', { name: t('helpOpen', { title: 'Бібліотека вікторин' }) }));
+    expect(document.querySelector('.help-pop')!.textContent).toContain('Бібліотека вікторин');
   });
 });

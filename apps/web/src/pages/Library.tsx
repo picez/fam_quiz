@@ -2,6 +2,7 @@ import { LIBRARY_SORTS, isLocale, type LibraryCard, type LibrarySort, type Local
 import { useEffect, useRef, useState, type JSX } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { errorText, t, type TextKey } from '../i18n';
+import { HelpButton } from '../help/HelpButton';
 import { LibraryCardView } from '../library/LibraryCardView';
 import { libraryCatalog } from '../library/library-api';
 import { ENABLED_LOCALES, LOCALE_NAMES } from '../locales/locales';
@@ -90,7 +91,10 @@ export function Library(): JSX.Element {
 
   return (
     <main className="app wide">
-      <h1>{t('libraryTitle')}</h1>
+      <div className="autopilot-head">
+        <h1>{t('libraryTitle')}</h1>
+        <HelpButton id="setting.library" />
+      </div>
       <div className="library-filters">
         <label className="field library-search">
           <span>{t('librarySearch')}</span>

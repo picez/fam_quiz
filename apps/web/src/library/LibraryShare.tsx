@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent }
 import { createPortal } from 'react-dom';
 import { LOCALES, type LibraryMine, type Locale } from '@quiz/shared';
 import type { QuizSummary } from '../api';
+import { HelpButton } from '../help/HelpButton';
 import { errorText, t } from '../i18n';
 import { currentLocale } from '../locales/current';
 import { LOCALE_NAMES } from '../locales/locales';
@@ -116,7 +117,10 @@ export function LibraryShare({
   return createPortal(
     <div className="table-sheet" role="dialog" aria-modal="true" aria-label={t('libraryShareTitle')} tabIndex={-1} onClick={close} onKeyDown={onKeyDown}>
       <div ref={cardRef} className="table-card autopilot-card challenge-sheet library-sheet" onClick={(event) => event.stopPropagation()}>
-        <h2>{t('libraryShareTitle')}</h2>
+        <div className="autopilot-head">
+          <h2>{t('libraryShareTitle')}</h2>
+          <HelpButton id="setting.library" />
+        </div>
         <p className="meta" dir="auto">
           {quiz.title}
         </p>

@@ -157,4 +157,13 @@ describe('libraryStatusText', () => {
     expect(libraryStatusText(entry({ moderation: 'auto_hidden' }))).toBe(t('libraryStatusAuto'));
     expect(libraryStatusText(entry({ moderation: 'hidden' }))).toBe(t('libraryStatusHidden'));
   });
+  it('the header has the ⓘ help with the library entry', () => {
+    open(null);
+    fireEvent.click(screen.getByRole('button', { name: t('helpOpen', { title: 'Бібліотека вікторин' }) }));
+    const pop = document.querySelector('.help-pop');
+    expect(pop).not.toBeNull();
+    expect(pop!.textContent).toContain('Бібліотека вікторин');
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(onClose).not.toHaveBeenCalled();
+  });
 });
