@@ -33,6 +33,8 @@ import { BlitzQueue } from './BlitzQueue';
 import { PlayingFor, useShowPrizesAtIntro } from './PlayingFor';
 import { MyPrize, PrizeResults, useQuizTitle } from './MyPrize';
 import { Ceremony, useCeremony } from '../trophy/Ceremony';
+import { ResultImageButton } from '../result-image/ResultImage';
+import { resultFromPlayer } from '../result-image/data';
 import { Standings } from './Standings';
 import { Nick } from './Nick';
 import { FactCards, GameCardView, OwnRevealLine, RoundCardView } from './FactCards';
@@ -744,7 +746,7 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
   const showPrizesAtIntro = useShowPrizesAtIntro(view);
   // Церемонія призів (14a) у finished; далі «Твій приз» (диплом бере назву вікторини з кімнати) або хто що взяв.
   const ceremony = useCeremony(view);
-  const quizTitle = useQuizTitle(code, phase === 'finished' && view.prizes?.mine != null);
+  const quizTitle = useQuizTitle(code, phase === 'finished');
   // Аркуш «Підглянути» (12h) відкрито на цьому запитанні; нове запитання закриває його само.
   const [peekFor, setPeekFor] = useState<number | null>(null);
   const peekSlot = me.buffs?.slots.find((slot) => slot.kind === 'peek') ?? null;
@@ -1857,6 +1859,7 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
           {survivalStateLine(me.survival) !== null && <p className="lead survival-state">{survivalStateLine(me.survival)}</p>}
           {me.ladder?.won != null && <p className="lead ladder-state">{t('ladderWon', { points: num(me.ladder.won) })}</p>}
           {place}
+          {ceremony === null && view.standings !== null && view.standings.length > 0 && <ResultImageButton className="btn result-image-button" build={() => resultFromPlayer(view, quizTitle, new Date(), location.host)} />}
           {/* «Думай інакше» останнім раундом: рушій іде з розкриття одразу на фініш — своє місце й таблиця місць тут. */}
           {me.think?.place != null && <p className="lead think-my-place">{`${t('thinkPlace', { place: me.think.place.place })} · ${signed(me.think.place.points)}`}</p>}
           {view.think?.places != null && view.think.places.length > 0 && <ThinkPlaces think={view.think} me={thinkId} />}

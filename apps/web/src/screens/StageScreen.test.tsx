@@ -3469,3 +3469,10 @@ describe('StageScreen: spy (38)', () => {
     expect(screen.queryByText(t('correctAnswer', { answer: t('spyCorrect') }))).toBeNull();
   });
 });
+
+describe('StageScreen result image (38c)', () => {
+  it('finished: the stage has no result image button', () => {
+    show(view({ phase: 'finished', questionIndex: 2, standings: [{ participantId: 'p1', nickname: 'Олена', score: 500, totalTimeMs: 1, rank: 1 }] }));
+    expect(screen.queryByRole('button', { name: '📸 Підсумок картинкою' })).toBeNull();
+  });
+});

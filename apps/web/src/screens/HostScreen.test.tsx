@@ -7,9 +7,13 @@ import type { Send } from '../live/types';
 import { HostScreen } from './HostScreen';
 import { ladderInfo } from './ladder-fixtures';
 import { teamsView } from './team-test-view';
+import { renderResultImage } from '../result-image/render';
+
+vi.mock('../result-image/render', () => ({ renderResultImage: vi.fn(async () => new Blob(['x'], { type: 'image/png' })) }));
 
 vi.mock('../api', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../api')>()),
+  checkCode: vi.fn(async () => ({ ok: true as const, title: 'Зимова вікторина' })),
   gamePrizes: vi.fn(async () => ({ ok: true as const, data: { options: [], places: [null, null, null] } })),
   getLobbySettings: vi.fn(async () => ({ ok: true as const, visibility: 'friends' as const, password: null })),
   saveLobbySettings: vi.fn(),
@@ -4136,5 +4140,32 @@ describe('HostScreen: spy (38)', () => {
     expect(screen.queryByText(t('correctAnswer', { answer: t('spyCorrect') }))).toBeNull();
     fireEvent.click(button(t('lock')));
     await waitFor(() => expect(send).toHaveBeenCalledWith('host:lock', undefined));
+  });
+});
+
+describe('HostScreen result image (38c)', () => {
+  const standings = [{ participantId: 'p1', nickname: 'Олена', score: 750, totalTimeMs: 1, rank: 1 }];
+  const button = () => screen.queryByRole('button', { name: '📸 Підсумок картинкою' });
+
+  it('finished: the button is in the final panel; the data has no «me» and the room achievements', async () => {
+    vi.mocked(renderResultImage).mockClear();
+    URL.createObjectURL = vi.fn(() => 'blob:x');
+    URL.revokeObjectURL = vi.fn();
+    show(view({ phase: 'finished', questionIndex: 1, standings, newAchievements: { people: [{ nickname: 'Олена', ids: ['fast_answer'] }] } }));
+    await act(async () => {});
+    fireEvent.click(button()!);
+    await waitFor(() => expect(renderResultImage).toHaveBeenCalledTimes(1));
+    const data = vi.mocked(renderResultImage).mock.calls[0]![0];
+    expect(data.me).toBeNull();
+    expect(data.achievements).toEqual([{ id: 'fast_answer', nickname: 'Олена' }]);
+    expect(data.quizTitle).toBe('Зимова вікторина');
+  });
+
+  it('no button in the lobby or without a table', () => {
+    show(view());
+    expect(button()).toBeNull();
+    cleanup();
+    show(view({ phase: 'finished', questionIndex: 1, standings: [] }));
+    expect(button()).toBeNull();
   });
 });

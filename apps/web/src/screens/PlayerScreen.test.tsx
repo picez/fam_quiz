@@ -9,6 +9,9 @@ import { PlayerScreen } from './PlayerScreen';
 import { BLINK_MS, SUSPENSE_MS } from './verdict-blink';
 import { YOUTUBE_ORIGIN } from './YouTubePlayer';
 import { baseMe, teamPlayerView } from './team-test-view';
+import { renderResultImage } from '../result-image/render';
+
+vi.mock('../result-image/render', () => ({ renderResultImage: vi.fn(async () => new Blob(['x'], { type: 'image/png' })) }));
 
 afterEach(cleanup);
 
@@ -5426,5 +5429,48 @@ describe('PlayerScreen: spy (38)', () => {
     expect(screen.getByText('листя')).toBeTruthy();
     expect(screen.getByText(t('waitReveal'))).toBeTruthy();
     expect(document.body.textContent).not.toContain('кава');
+  });
+});
+
+describe('PlayerScreen result image (38c)', () => {
+  afterEach(() => vi.useRealTimers());
+  const standings = [
+    { participantId: 'p9', nickname: 'Аня', score: 900, totalTimeMs: 1, rank: 1 },
+    { participantId: 'p8', nickname: 'Богдан', score: 800, totalTimeMs: 1, rank: 2 },
+    { participantId: 'p7', nickname: 'Віра', score: 700, totalTimeMs: 1, rank: 3 },
+    { participantId: 'p1', nickname: 'Олена', score: 600, totalTimeMs: 1, rank: 4 },
+  ];
+  const button = () => screen.queryByRole('button', { name: '📸 Підсумок картинкою' });
+
+  it('finished with a table: the button is there, and a click draws me outside the podium with my achievements', async () => {
+    vi.mocked(renderResultImage).mockClear();
+    URL.createObjectURL = vi.fn(() => 'blob:x');
+    URL.revokeObjectURL = vi.fn();
+    show(view({ phase: 'finished', questionIndex: 1, standings, me: { ...me, id: 'p1', score: 600, rank: 4 }, newAchievements: { account: true, ids: ['fast_answer'] } }));
+    fireEvent.click(button()!);
+    await waitFor(() => expect(renderResultImage).toHaveBeenCalledTimes(1));
+    const data = vi.mocked(renderResultImage).mock.calls[0]![0];
+    expect(data.me).toEqual({ place: 4, total: 4, score: 600 });
+    expect(data.podium.map((row) => row.name)).toEqual(['Аня', 'Богдан', 'Віра']);
+    expect(data.achievements.map((a) => a.id)).toEqual(['fast_answer']);
+  });
+
+  it('no button during the prize ceremony, it appears after it', () => {
+    vi.useFakeTimers();
+    const content = { trophy: null, engraving: 'Чемпіон', real: { text: 'Піца', photoUrl: null }, title: null, diploma: true };
+    show(view({ phase: 'finished', questionIndex: 1, standings, prizes: { mine: null, places: [{ place: 1, content, winner: { name: 'Аня', members: [] } }] } }));
+    expect(button()).toBeNull();
+    act(() => {
+      vi.advanceTimersByTime(6000);
+    });
+    expect(button()).not.toBeNull();
+  });
+
+  it('no button on a question, and none without a table', () => {
+    show(onQuestion());
+    expect(button()).toBeNull();
+    cleanup();
+    show(view({ phase: 'finished', questionIndex: 1, standings: [] }));
+    expect(button()).toBeNull();
   });
 });
