@@ -25,7 +25,7 @@ export const TABLE_WORDS: Record<Locale, TableWords> = {
       option: ['Варіант'],
       points: ['Бали', 'Очки'],
       timer: ['Таймер (с)', 'Таймер', 'Час'],
-      hint: ['Підказка', 'Пояснення'],
+      hint: ['Підказка'],
     },
     types: {
       single: ['варіанти', 'варіант'],
@@ -45,7 +45,7 @@ export const TABLE_WORDS: Record<Locale, TableWords> = {
       option: ['Option'],
       points: ['Points'],
       timer: ['Timer (s)', 'Timer', 'Time'],
-      hint: ['Hint', 'Explanation'],
+      hint: ['Hint'],
     },
     types: {
       single: ['choice', 'options', 'single'],
@@ -65,7 +65,7 @@ export const TABLE_WORDS: Record<Locale, TableWords> = {
       option: ['Opcja', 'Wariant'],
       points: ['Punkty'],
       timer: ['Czasomierz (s)', 'Czasomierz', 'Czas'],
-      hint: ['Podpowiedź', 'Wyjaśnienie'],
+      hint: ['Podpowiedź'],
     },
     types: {
       single: ['wybór', 'wybor'],
@@ -85,7 +85,7 @@ export const TABLE_WORDS: Record<Locale, TableWords> = {
       option: ['Option', 'Variante'],
       points: ['Punkte'],
       timer: ['Timer (s)', 'Timer', 'Zeit'],
-      hint: ['Hinweis', 'Erklärung'],
+      hint: ['Hinweis'],
     },
     types: {
       single: ['auswahl', 'optionen'],
@@ -105,7 +105,7 @@ export const TABLE_WORDS: Record<Locale, TableWords> = {
       option: ['Opción', 'Opcion'],
       points: ['Puntos'],
       timer: ['Temporizador (s)', 'Temporizador', 'Tiempo'],
-      hint: ['Pista', 'Explicación'],
+      hint: ['Pista'],
     },
     types: {
       single: ['opciones', 'elección'],
@@ -125,7 +125,7 @@ export const TABLE_WORDS: Record<Locale, TableWords> = {
       option: ['Opzione', 'Variante'],
       points: ['Punti'],
       timer: ['Timer (s)', 'Timer', 'Tempo'],
-      hint: ['Suggerimento', 'Spiegazione'],
+      hint: ['Suggerimento'],
     },
     types: {
       single: ['opzioni', 'scelta'],
@@ -145,7 +145,7 @@ export const TABLE_WORDS: Record<Locale, TableWords> = {
       option: ['الخيار'],
       points: ['النقاط'],
       timer: ['المؤقت (ث)', 'المؤقت', 'الوقت'],
-      hint: ['تلميح', 'شرح'],
+      hint: ['تلميح'],
     },
     types: {
       single: ['اختيار من متعدد', 'خيارات'],

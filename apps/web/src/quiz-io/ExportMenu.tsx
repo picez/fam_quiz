@@ -1,4 +1,4 @@
-import { useRef, useState, type JSX } from 'react';
+import { useEffect, useRef, useState, type JSX } from 'react';
 import { countText, errorText, t } from '../i18n';
 import type { IoProgress } from './actions';
 
@@ -26,6 +26,23 @@ export function ExportMenu({ quizId, disabled }: { quizId: string; disabled?: bo
   const [skipped, setSkipped] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
+  // Відкрите меню закривається кліком поза ним і Escape.
+  useEffect(() => {
+    const close = (event: Event) => {
+      const el = menu.current;
+      if (el === null || !el.open) return;
+      if (event.type === 'keydown' && (event as KeyboardEvent).key !== 'Escape') return;
+      if (event.type === 'pointerdown' && el.contains(event.target as Node)) return;
+      el.open = false;
+    };
+    document.addEventListener('pointerdown', close);
+    document.addEventListener('keydown', close);
+    return () => {
+      document.removeEventListener('pointerdown', close);
+      document.removeEventListener('keydown', close);
+    };
+  }, []);
+
   const run = async (kind: 'file' | 'table') => {
     if (busy) return;
     if (menu.current !== null) menu.current.open = false;
@@ -52,8 +69,20 @@ export function ExportMenu({ quizId, disabled }: { quizId: string; disabled?: bo
 
   return (
     <div className="io-export-wrap">
-      <details ref={menu} className="io-export">
-        <summary className="btn" aria-disabled={disabled === true || busy}>
+      <details
+        ref={menu}
+        className="io-export"
+        onToggle={(event) => {
+          if (event.currentTarget.open) event.currentTarget.querySelector('.io-export-menu')?.scrollIntoView?.({ block: 'nearest' });
+        }}
+      >
+        <summary
+          className="btn"
+          aria-disabled={disabled === true || busy}
+          onClick={(event) => {
+            if (disabled === true || busy) event.preventDefault();
+          }}
+        >
           {t('ioExport')}
         </summary>
         <div className="io-export-menu">

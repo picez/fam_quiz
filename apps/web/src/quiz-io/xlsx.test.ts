@@ -63,6 +63,25 @@ describe('xlsx', () => {
     expect(readXlsx(bytes)).toEqual({ ok: true, rows: [['Меркурій']] });
   });
 
+  it('an empty shared-string value is an empty cell, not string 0', () => {
+    const bytes = book({
+      'xl/workbook.xml': WORKBOOK,
+      'xl/_rels/workbook.xml.rels': rels('worksheets/sheet1.xml'),
+      'xl/sharedStrings.xml': `<?xml version="1.0"?><sst xmlns="${NS}"><si><t>first</t></si></sst>`,
+      'xl/worksheets/sheet1.xml': sheet('<row r="1"><c r="A1" t="s"><v></v></c><c r="B1" t="s"><v>0</v></c></row>'),
+    });
+    expect(readXlsx(bytes)).toEqual({ ok: true, rows: [['', 'first']] });
+  });
+
+  it('columns far to the right are ignored (no huge padding)', () => {
+    const bytes = book({
+      'xl/workbook.xml': WORKBOOK,
+      'xl/_rels/workbook.xml.rels': rels('worksheets/sheet1.xml'),
+      'xl/worksheets/sheet1.xml': sheet('<row r="1"><c r="A1" t="inlineStr"><is><t>a</t></is></c><c r="XFD1" t="inlineStr"><is><t>far</t></is></c></row>'),
+    });
+    expect(readXlsx(bytes)).toEqual({ ok: true, rows: [['a']] });
+  });
+
   it('reads numbers, booleans, formulas and gaps like Google Sheets', () => {
     const bytes = book({
       'xl/workbook.xml': WORKBOOK,

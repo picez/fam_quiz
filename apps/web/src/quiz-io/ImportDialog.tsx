@@ -88,8 +88,8 @@ export function ImportDialog({ onClose, onImported }: { onClose: () => void; onI
         <h2 id="io-dialog-title" className="io-dialog-title">
           {t('ioImportTitle')}
         </h2>
-        <p className="meta">
-          {t('ioImportHint')} <HelpButton id="setting.importExport" />
+        <p className="meta io-hint">
+          <span>{t('ioImportHint')}</span> <HelpButton id="setting.importExport" className="io-hint-help" />
         </p>
         <input
           ref={input}
@@ -122,7 +122,9 @@ export function ImportDialog({ onClose, onImported }: { onClose: () => void; onI
         )}
         {rowErrors.length > 0 && (
           <div className="io-errors-box">
-            <p className="error">{t('ioErrorsTitle')}</p>
+            <p className="error" role="alert">
+              {t('ioErrorsTitle')}
+            </p>
             <ul className="io-errors">
               {rowErrors.slice(0, SHOWN_ERRORS).map((text, index) => (
                 <li key={index}>{text}</li>

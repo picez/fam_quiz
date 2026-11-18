@@ -164,8 +164,11 @@ function readColumns(header: string[]): Columns {
 
 /** Число з клітинки: пробіли прибрано, кома — десяткова; не число — undefined. */
 function parseNumber(raw: string): number | undefined {
-  const text = raw.replace(/\s+/g, '').replace(',', '.');
-  if (!/^[+-]?(?:\d+\.?\d*|\.\d+)$/.test(text)) return undefined;
+  const compact = raw.replace(/\s+/g, '');
+  // «1,000» — англійський роздільник тисяч, а не десяткова кома: відмовляємо, а не читаємо як 1.
+  if (/^[+-]?\d{1,3}(?:,\d{3})+$/.test(compact)) return undefined;
+  const text = compact.replace(',', '.');
+  if (!/^[+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?$/.test(text)) return undefined;
   const value = Number(text);
   return Number.isFinite(value) ? value : undefined;
 }

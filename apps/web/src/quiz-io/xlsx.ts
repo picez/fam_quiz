@@ -5,7 +5,8 @@ export type XlsxCell = string | number | null;
 export const XLSX_LIMITS = { maxPartBytes: 20 * 1024 * 1024, maxRow: 100_000 } as const;
 
 const MAX_ENTRIES = 2000;
-const MAX_COLUMN = 16_384;
+/** Таблиця вікторини має 13 колонок; більша ширина лише роздуває пам’ять (рядки ×100k). */
+const MAX_COLUMN = 64;
 const FALLBACK_SHEET = 'xl/worksheets/sheet1.xml';
 const SHEET_NAME = 'Quiz';
 
@@ -243,7 +244,7 @@ export function readXlsx(
         const valueEl = Array.from(cellEl.children).find((el) => el.localName === 'v');
         const value = valueEl?.textContent ?? '';
         let text: string;
-        if (type === 's') text = shared[Number(value)] ?? '';
+        if (type === 's') text = value.trim() === '' ? '' : (shared[Number(value)] ?? '');
         else if (type === 'inlineStr') {
           const is = Array.from(cellEl.children).find((el) => el.localName === 'is');
           text = is ? joinedText(is) : '';

@@ -120,6 +120,9 @@ async function importExport42() {
   await row(oldId).waitFor();
   await row(oldId).locator('summary', { hasText: 'Експорт' }).click();
   await row(oldId).getByRole('button', { name: 'Файл вікторини', ...exact }).waitFor();
+  const lastItem = await row(oldId).getByRole('button', { name: 'Таблиця (Excel)', ...exact }).boundingBox();
+  const navBox = await author.locator('.menu').boundingBox();
+  expect(lastItem && navBox && lastItem.y + lastItem.height <= navBox.y, 'the opened export menu ends above the bottom nav').toBe(true);
   await expectNoSideScroll(author, 'p42-export-menu');
   const file = await pickedDownload(author, () => row(oldId).getByRole('button', { name: 'Файл вікторини', ...exact }).click());
   expect(file.name).toBe(`${FILE_BASE}.quiz`);

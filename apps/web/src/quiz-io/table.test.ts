@@ -139,9 +139,23 @@ describe('rowsToQuiz', () => {
     expect((quiz.rounds[0] as ClassicRound).questions).toHaveLength(2);
     const polish = [['pytanie', 'TYP', 'poprawna odpowiedź'], ['Ile nóg?', 'liczba', '8'], ['Ile łap?', 'single', 'a']];
     expect(rowsToQuiz(polish, 'f')).toMatchObject({ ok: false, errors: [{ row: 3, code: 'few_options' }] });
-    const named = [['Запитання', 'Тип', 'Відповідь', 'Таймер', 'Пояснення'], ['Q', 'текст', 'a', '40', 'Підказка']];
+    const named = [['Запитання', 'Тип', 'Відповідь', 'Таймер', 'Підказка'], ['Q', 'текст', 'a', '40', 'Підказка']];
     const q = (ok(rowsToQuiz(named, 'f')).rounds[0] as ClassicRound).questions[0]!;
     expect(q).toMatchObject({ timeLimit: 40, hint: 'Підказка' });
+  });
+
+  it('an «Explanation»-like column is not the hint (it could leak the answer)', () => {
+    const rows = [['Запитання', 'Тип', 'Відповідь', 'Пояснення'], ['Q', 'текст', 'a', 'секрет']];
+    expect((ok(rowsToQuiz(rows, 'f')).rounds[0] as ClassicRound).questions[0]!.hint).toBeUndefined();
+    const english = [['Question', 'Type', 'Answer', 'Explanation'], ['Q', 'text', 'a', 'secret']];
+    expect((ok(rowsToQuiz(english, 'f')).rounds[0] as ClassicRound).questions[0]!.hint).toBeUndefined();
+  });
+
+  it('number cells: a thousands separator is refused, an exponent is accepted', () => {
+    const head = ['Question', 'Type', 'Answer'];
+    expect(rowsToQuiz([head, ['Q', 'number', '1,000']], 'f')).toMatchObject({ ok: false, errors: [{ row: 2, code: 'bad_number' }] });
+    const questions = (ok(rowsToQuiz([head, ['Q1', 'number', '1e+21'], ['Q2', 'number', '1,5'], ['Q3', 'number', '1E-7']], 'f')).rounds[0] as ClassicRound).questions;
+    expect(questions.map((q) => (q as { correct: number }).correct)).toEqual([1e21, 1.5, 1e-7]);
   });
 
   it('missing required columns', () => {
