@@ -163,10 +163,11 @@ export async function buildApp(options: AppOptions) {
   app.get<{ Params: { code: string } }>('/api/games/by-code/:code', CODE_LIMIT, async (request, reply) => {
     if ((await locate(request.params.code)) === 'restarting') return reply.code(503).send(RESTARTING);
     const room = manager.get(request.params.code);
-    // Спроба виклику (44): як невідомий код — кімнати ніби немає.
-    if (room === undefined || room.challenge !== null) return reply.code(404).send({ error: 'game_not_found' });
-    // locked — для того, хто питає: ведучий, гравець кімнати, запрошений чи схвалений учасник події входять без пароля. Сам пароль сюди не йде.
     const account = await currentUser(request);
+    // Спроба виклику (44): чужому й гостю — як невідомий код (кімнати ніби немає); власному гравцеві спроби — як завжди.
+    if (room === undefined || (room.challenge !== null && (account === null || ![...room.playerUsers.values()].includes(account.id))))
+      return reply.code(404).send({ error: 'game_not_found' });
+    // locked — для того, хто питає: ведучий, гравець кімнати, запрошений чи схвалений учасник події входять без пароля. Сам пароль сюди не йде.
     const locked = room.lobby.password !== null && !(await gate.trusted(room, account?.id ?? null));
     const info: CodeInfo = { phase: room.state.phase, title: room.state.quiz.title, locked, late: joinableOf(room) === 'late' };
     return info;

@@ -173,4 +173,31 @@ describe('challenge store (38a)', () => {
     expect(rows[1].at).toBe(new Date(T.getTime() + 3 * 60_000).toISOString());
     expect(await db.select().from(challengeAttempt)).toBeTruthy();
   });
+
+  it('on equal score a finished game outranks an unfinished one, even a faster one', async () => {
+    const owner = await person('Автор');
+    const early = await person('Рано');
+    const done = await person('Зіграв');
+    const { challenge } = await ready(owner);
+    // Ще не зіграв нічого: 0 балів і 0 мс, почав раніше.
+    await claimAttempt(db, challenge.id, early, `нік-${early}`, new Date(T.getTime() + 60_000));
+    const at = new Date(T.getTime() + 2 * 60_000);
+    const claimed = await claimAttempt(db, challenge.id, done, `нік-${done}`, at);
+    await db.insert(game).values({
+      id: claimed.gameId,
+      hostId: done,
+      code: 'ABCD',
+      status: 'finished',
+      title: 'Q',
+      quizSnapshot: challenge.snapshot,
+      startedAt: at,
+      finishedAt: new Date(at.getTime() + 60_000),
+    });
+    await db.insert(participant).values({ id: crypto.randomUUID(), gameId: claimed.gameId, nickname: 'Зіграв', userId: done, score: 0, totalTimeMs: 25_000 });
+    const rows = await challengeResults(db, challenge, owner);
+    expect(rows.map((r) => [r.place, r.nickname, r.done])).toEqual([
+      [1, 'Зіграв', true],
+      [2, `нік-${early}`, false],
+    ]);
+  });
 });

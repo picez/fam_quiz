@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   CHALLENGE_CODE,
   CHALLENGE_DAYS,
+  CHALLENGE_SKIP_BUFFS,
   CHALLENGE_SKIP_ROUNDS,
   CHALLENGE_SKIP_SETTINGS,
   CHALLENGE_SKIP_TYPES,
@@ -220,6 +221,30 @@ describe('challengeQuiz', () => {
     expect(plain.skipped.settings).toEqual([]);
   });
 
+  it('a debuff shop the author already turned off is not listed as skipped', () => {
+    const rounds = [classic('r0', [single('a'), single('b')])];
+    const out = challengeQuiz(quiz(rounds, { debuffs: ['freeze'], debuffShop: false }));
+    expect(out.quiz?.settings.debuffShop).toBe(false);
+    expect(out.skipped.settings).toEqual([]);
+  });
+
+  it('drops the buffs that need other players and keeps the rest', () => {
+    const rounds = [classic('r0', [single('a'), single('b')])];
+    const q = quiz(rounds, { buffs: ['stealth', 'fifty', 'peek', 'audience', 'double', 'guard'] });
+    const out = challengeQuiz(q);
+    expect(out.quiz?.settings.buffs).toEqual(['fifty', 'double']);
+    expect(out.skipped.settings).toEqual(['audience', 'peek', 'guard', 'stealth']);
+    expect(q.settings.buffs).toHaveLength(6);
+    expect(quizSchema.safeParse(out.quiz).success).toBe(true);
+
+    const kept = challengeQuiz(quiz(rounds, { buffs: ['fifty', 'shield'] }));
+    expect(kept.quiz?.settings.buffs).toEqual(['fifty', 'shield']);
+    expect(kept.skipped.settings).toEqual([]);
+    const lone = challengeQuiz(quiz(rounds, { buffs: ['audience'] }));
+    expect(lone.quiz?.settings.buffs).toEqual([]);
+    expect(lone.skipped.settings).toEqual(['audience']);
+  });
+
   it('the snapshot is valid and the autopilot can run it', () => {
     const q = quiz(
       [
@@ -251,6 +276,7 @@ describe('challengeQuiz', () => {
     expect([...CHALLENGE_SKIP_ROUNDS]).toEqual(['truth', 'think', 'auction']);
     expect([...CHALLENGE_SKIP_TYPES]).toEqual(['poll', 'wordcloud', 'thinkalike', 'spy', 'bluff', 'drawing']);
     expect([...CHALLENGE_SKIP_SETTINGS]).toEqual(['teams', 'duels', 'debuffShop']);
+    expect([...CHALLENGE_SKIP_BUFFS]).toEqual(['audience', 'peek', 'guard', 'stealth']);
   });
 });
 

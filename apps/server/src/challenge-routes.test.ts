@@ -4,7 +4,7 @@ import { classicRound, makeQuiz, makeRoundsQuiz, poll, single, truthRound, withI
 import type { ChallengeAttemptStart, ChallengeCheck, ChallengeMine, ChallengePreview, ChallengeResultRow, ContinueResponse } from '@quiz/shared';
 import { buildApp } from './app';
 import type { Db } from './db/client';
-import { challenge, challengeAttempt, game, user } from './db/schema';
+import { challenge, challengeAttempt, game, savedGame, user } from './db/schema';
 import { TEST_AUTH, signUp } from './testing/accounts';
 import { FakeScheduler } from './testing/fake-scheduler';
 import { createTestDb } from './testing/test-db';
@@ -31,7 +31,7 @@ const nextAddress = () => {
   ip = `10.0.${Math.floor(address / 250)}.${(address % 250) + 1}`;
 };
 
-type Method = 'GET' | 'POST' | 'DELETE';
+type Method = 'GET' | 'POST' | 'PUT' | 'DELETE';
 const call = (method: Method, url: string, cookie?: string, payload?: object) =>
   ctx.app.inject({ method, url, payload, remoteAddress: ip, headers: cookie === undefined ? {} : { cookie } });
 
@@ -69,6 +69,11 @@ async function gameIdOf(code: string, who: Account): Promise<string> {
     .where(and(eq(challenge.code, code), eq(challengeAttempt.userId, who.id)));
   return row.gameId;
 }
+
+const statusOf = async (gameId: string) => (await db.select({ status: game.status }).from(game).where(eq(game.id, gameId)))[0]?.status;
+/** id збережених ігор у «Моїх іграх». */
+const savedIds = async (who: Account) =>
+  ((await call('GET', '/api/games', who.cookie)).json() as { id: string; status: string }[]).filter((g) => g.status === 'saved').map((g) => g.id);
 
 /** Старт спроби й гра до першого закритого запитання (контрольна точка є, гра не скінчилась). */
 function playToCheckpoint(room: Room, playerId: string) {
@@ -185,17 +190,22 @@ describe('the challenge by its code (44)', () => {
     expect((await preview(mine.code, taras)).mine).toBe('playing');
   });
 
-  it('the code of a challenge room says nothing: the code info is 404 like an unknown code', async () => {
+  it('the code of a challenge room says nothing to strangers and guests; its own player gets the usual code info', async () => {
     nextAddress();
     const olena = await account('Олена');
     const taras = await account('Тарас');
     const { mine } = await ready(olena);
     const start = (await attempt(mine.code, taras)).json() as ChallengeAttemptStart;
-    for (const who of [undefined, olena.cookie, taras.cookie]) {
+    // Гість і чужий (навіть автор виклику) — однаковий 404, як невідомий код.
+    for (const who of [undefined, olena.cookie]) {
       const info = await call('GET', `/api/games/by-code/${start.code}`, who);
       expect(info.statusCode).toBe(404);
       expect(info.json()).toEqual({ error: 'game_not_found' });
     }
+    // Свій гравець — назва вікторини (картинка підсумку, банер «Повернутися до гри»).
+    const own = await call('GET', `/api/games/by-code/${start.code}`, taras.cookie);
+    expect(own.statusCode).toBe(200);
+    expect(own.json()).toMatchObject({ phase: 'lobby', title: soloQuiz().title, locked: false });
     const joined = await call('POST', `/api/games/by-code/${start.code}/join`, olena.cookie, { nickname: 'Олена' });
     expect(joined.statusCode).toBe(404);
   });
@@ -241,12 +251,16 @@ describe('the challenge by its code (44)', () => {
     const taras = await account('Тарас');
     const iryna = await account('Ірина');
     const { mine } = await ready(olena);
-    await attempt(mine.code, taras);
+    const tarasStart = (await attempt(mine.code, taras)).json() as ChallengeAttemptStart;
     await attempt(mine.code, olena);
 
     const hidden = await call('GET', `/api/challenges/${mine.code}/results`, iryna.cookie);
     expect(hidden.statusCode).toBe(403);
     expect(hidden.json()).toEqual({ error: 'challenge_hidden' });
+    // Той, хто лише грає (ще не дограв), таблиці теж не бачить.
+    const playing = await call('GET', `/api/challenges/${mine.code}/results`, taras.cookie);
+    expect(playing.statusCode).toBe(403);
+    expect(await preview(mine.code, taras)).toMatchObject({ mine: 'playing', canSeeResults: false });
     const seen = await preview(mine.code, iryna);
     expect(seen).toMatchObject({ title: soloQuiz().title, active: true, played: 2, isAuthor: false, mine: 'none', canSeeResults: false, endedAt: null });
     expect(seen.author?.id).toBe(olena.id);
@@ -259,6 +273,11 @@ describe('the challenge by its code (44)', () => {
     expect(authorRows.find((r) => r.me)).toMatchObject({ author: true, done: false, nickname: seen.author?.nickname });
     expect((await preview(mine.code, olena)).isAuthor).toBe(true);
 
+    // Тарас дограв — тепер бачить.
+    const room = ctx.manager.get(tarasStart.code)!;
+    playToCheckpoint(room, tarasStart.playerId);
+    expect(ctx.manager.author(room, tarasStart.playerId, { type: 'end' })).toEqual({ ok: true });
+    await ctx.recorder.idle();
     const theirs = await call('GET', `/api/challenges/${mine.code}/results`, taras.cookie);
     expect(theirs.statusCode).toBe(200);
     const rows = theirs.json() as ChallengeResultRow[];
@@ -275,6 +294,7 @@ describe('the challenge by its code (44)', () => {
     const iryna = await account('Ірина');
     const { quizId, mine } = await ready(olena);
     expect((await attempt(mine.code, taras)).statusCode).toBe(201);
+    expect((await call('GET', `/api/challenges/${mine.code}/results`, taras.cookie)).statusCode).toBe(403);
 
     await db.update(challenge).set({ expiresAt: new Date(Date.now() - 1000) }).where(eq(challenge.code, mine.code));
     for (const who of [iryna, taras]) {
@@ -347,10 +367,94 @@ describe('the challenge by its code (44)', () => {
     const late = await attempt(mine.code, taras);
     expect(late.statusCode).toBe(409);
     expect(late.json()).toEqual({ error: 'challenge_closed' });
+    // Виклик закрито: збережена спроба стає «aborted» і зникає з «Моїх ігор», бали лишаються в таблиці (не завершено).
+    expect(await statusOf(gameId)).toBe('aborted');
+    expect(await savedIds(taras)).not.toContain(gameId);
     const lateGames = await call('POST', `/api/games/${gameId}/continue`, taras.cookie);
-    expect(lateGames.statusCode).toBe(409);
-    expect(lateGames.json()).toEqual({ error: 'challenge_closed' });
+    expect(lateGames.statusCode).toBe(404);
     expect(ctx.manager.roomById(gameId)).toBeUndefined();
+    const table = (await call('GET', `/api/challenges/${mine.code}/results`, taras.cookie)).json() as ChallengeResultRow[];
+    expect(table.find((r) => r.me)).toMatchObject({ done: false });
+    expect((await preview(mine.code, taras)).mine).toBe('done');
+  });
+
+  it('a saved attempt closed while it sat in my games leaves the saved list on continue', async () => {
+    nextAddress();
+    const olena = await account('Олена');
+    const taras = await account('Тарас');
+    const { mine } = await ready(olena);
+    const start = (await attempt(mine.code, taras)).json() as ChallengeAttemptStart;
+    const room = ctx.manager.get(start.code)!;
+    playToCheckpoint(room, start.playerId);
+    expect(ctx.manager.author(room, start.playerId, { type: 'save' })).toEqual({ ok: true });
+    await ctx.recorder.idle();
+    expect(await savedIds(taras)).toContain(room.id);
+    await db.update(challenge).set({ endedAt: new Date() }).where(eq(challenge.code, mine.code));
+    const closed = await call('POST', `/api/games/${room.id}/continue`, taras.cookie);
+    expect(closed.statusCode).toBe(409);
+    expect(closed.json()).toEqual({ error: 'challenge_closed' });
+    expect(await statusOf(room.id)).toBe('aborted');
+    expect(await savedIds(taras)).not.toContain(room.id);
+  });
+
+  it('a saved attempt without an exact checkpoint is done: no Continue that always fails, and it leaves my games', async () => {
+    nextAddress();
+    const olena = await account('Олена');
+    const taras = await account('Тарас');
+    const { mine } = await ready(olena);
+    const start = (await attempt(mine.code, taras)).json() as ChallengeAttemptStart;
+    const room = ctx.manager.get(start.code)!;
+    playToCheckpoint(room, start.playerId);
+    expect(ctx.manager.author(room, start.playerId, { type: 'save' })).toEqual({ ok: true });
+    await ctx.recorder.idle();
+    const gameId = room.id;
+    // Збереження без точної контрольної точки (нечитабельний чи порожній запис).
+    await db.update(savedGame).set({ data: null }).where(eq(savedGame.gameId, gameId));
+    expect(await preview(mine.code, taras)).toMatchObject({ mine: 'done', canSeeResults: true });
+    const table = (await call('GET', `/api/challenges/${mine.code}/results`, taras.cookie)).json() as ChallengeResultRow[];
+    expect(table.find((r) => r.me)).toMatchObject({ done: false });
+    expect(table.find((r) => r.me)?.score).toBe(room.state.players[0].score);
+
+    const fromLink = await attempt(mine.code, taras);
+    expect(fromLink.statusCode).toBe(409);
+    expect(fromLink.json()).toEqual({ error: 'challenge_done' });
+    expect(await statusOf(gameId)).toBe('aborted');
+    expect(await savedIds(taras)).not.toContain(gameId);
+    expect(ctx.manager.roomById(gameId)).toBeUndefined();
+  });
+
+  it('the same from my games: continue answers challenge_done and the game leaves the saved list', async () => {
+    nextAddress();
+    const olena = await account('Олена');
+    const taras = await account('Тарас');
+    const { mine } = await ready(olena);
+    const start = (await attempt(mine.code, taras)).json() as ChallengeAttemptStart;
+    const room = ctx.manager.get(start.code)!;
+    playToCheckpoint(room, start.playerId);
+    expect(ctx.manager.author(room, start.playerId, { type: 'save' })).toEqual({ ok: true });
+    await ctx.recorder.idle();
+    await db.update(savedGame).set({ data: null }).where(eq(savedGame.gameId, room.id));
+    const fromGames = await call('POST', `/api/games/${room.id}/continue`, taras.cookie);
+    expect(fromGames.statusCode).toBe(409);
+    expect(fromGames.json()).toEqual({ error: 'challenge_done' });
+    expect(await statusOf(room.id)).toBe('aborted');
+    expect(await savedIds(taras)).not.toContain(room.id);
+  });
+
+  it('no prizes and no invites in a challenge room', async () => {
+    nextAddress();
+    const olena = await account('Олена');
+    const taras = await account('Тарас');
+    const { mine } = await ready(olena);
+    const start = (await attempt(mine.code, taras)).json() as ChallengeAttemptStart;
+    const room = ctx.manager.get(start.code)!;
+    const prizes = await call('PUT', `/api/games/by-code/${start.code}/prizes`, taras.cookie, { places: [] });
+    expect(prizes.statusCode).toBe(403);
+    expect(prizes.json()).toEqual({ error: 'not_allowed' });
+    expect(ctx.manager.setPrizes(room, [])).toEqual({ ok: false, error: 'not_allowed' });
+    const invited = await call('POST', `/api/games/by-code/${start.code}/invites`, taras.cookie, { userIds: [olena.id] });
+    expect(invited.statusCode).toBe(403);
+    expect(invited.json()).toEqual({ error: 'not_allowed' });
   });
 
   it('a stranger cannot continue somebody else’s attempt: 404 like any other game', async () => {

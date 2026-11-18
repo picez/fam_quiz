@@ -21,6 +21,7 @@ import { achievementList, antiHidden, careerInputs, syncAchievements } from './a
 import { isBanned } from './bans';
 import type { Db } from './db/client';
 import { follow, game, profile, user } from './db/schema';
+import { isUniqueViolation } from './db/unique';
 import { notHidden } from './feed-store';
 import { likeTotals } from './like-store';
 import { showcaseOf } from './prizes';
@@ -29,8 +30,6 @@ import { ownLevel, publicLevel } from './xp-store';
 
 /** Ключ унікальності: без різниці регістру, пробілів і апострофів. */
 export const nicknameKey = (nickname: string) => normalizeText(nickname);
-
-const UNIQUE_VIOLATION = '23505';
 
 /** Скільки разів пробувати наступний номер, перш ніж здатися (захист від нескінченного циклу). */
 const MAX_ATTEMPTS = 1000;
@@ -107,13 +106,6 @@ export async function saveProfile(
     if (isUniqueViolation(error)) return { ok: false, error: 'nickname_taken' };
     throw error;
   }
-}
-
-function isUniqueViolation(error: unknown): boolean {
-  for (let current = error; current && typeof current === 'object'; current = (current as { cause?: unknown }).cause) {
-    if ((current as { code?: unknown }).code === UNIQUE_VIOLATION) return true;
-  }
-  return false;
 }
 
 export const WINS_SHOWN = 20;

@@ -127,6 +127,8 @@ export async function registerInviteRoutes(app: FastifyInstance, deps: InviteDep
     if (user === null) return reply.code(401).send(UNAUTHORIZED);
     const room = hostedRoom(request.params.code, user);
     if (room === null) return reply.code(404).send(NOT_FOUND);
+    // Спроба виклику (44): гра наодинці, кімната закрита для інших.
+    if (room.challenge !== null) return reply.code(403).send({ error: 'not_allowed' });
     const body = inviteSchema.safeParse(request.body);
     if (!body.success) return reply.code(400).send({ error: 'invalid_payload' });
     if (room.state.phase !== 'lobby') return reply.code(409).send({ error: 'wrong_phase' });

@@ -155,6 +155,40 @@ export function savedMode(input: { data: unknown; stateVersion: number | null; q
   return input.autopilot && !input.hasAuthor ? 'blocked' : 'restart';
 }
 
+/**
+ * Стан спроби виклику (44) за її грою: done — гру завершено чи перервано, або вона збережена, але точно не продовжується
+ * (немає контрольної точки, нечитабельний стан): шлях 12r для спроби закритий, тож «Продовжити» не спрацювало б ніколи.
+ * playing — гра йде, точно продовжується або рядка ще немає. status — сирий стан рядка гри (null — рядка немає).
+ */
+export async function attemptState(db: Db, gameId: string): Promise<{ state: 'playing' | 'done'; status: string | null }> {
+  const [row] = await db
+    .select({ status: game.status, quizSnapshot: game.quizSnapshot, data: savedGame.data, stateVersion: savedGame.stateVersion })
+    .from(game)
+    .leftJoin(savedGame, eq(savedGame.gameId, game.id))
+    .where(eq(game.id, gameId));
+  if (row === undefined) return { state: 'playing', status: null };
+  if (row.status === 'finished' || row.status === 'aborted') return { state: 'done', status: row.status };
+  if (row.status === 'saved') {
+    const mode = savedMode({ data: row.data, stateVersion: row.stateVersion, quizSnapshot: row.quizSnapshot, autopilot: true, hasAuthor: true });
+    if (mode !== 'exact') return { state: 'done', status: row.status };
+  }
+  return { state: 'playing', status: row.status };
+}
+
+/**
+ * Збережена спроба виклику, яку вже не продовжити (виклик закрито чи немає точної контрольної точки), стає «aborted»:
+ * бали й рядки гравця лишаються в таблиці (не завершено), а гра зникає зі збережених у «Моїх іграх» — інакше її не прибрати
+ * (продовження відмовляє, видалення заборонене). Відкрита кімната цієї гри (тут чи в іншому процесі) — нічого не чіпаємо.
+ */
+export async function abortParkedAttempt(db: Db, manager: RoomManager, gameId: string): Promise<void> {
+  if (manager.roomById(gameId) !== undefined || manager.openFor(gameId)) return;
+  if ((await openGameIds(db, manager)).has(gameId)) return;
+  await db
+    .update(game)
+    .set({ status: 'aborted', finishedAt: new Date() })
+    .where(and(eq(game.id, gameId), eq(game.status, 'saved')));
+}
+
 /** Усі 'saved' ведучого (без ліміту), найновіше збереження першим, як GameSummary + saved. */
 export async function savedSummaries(db: Db, hostId: string, open: Map<string, string>): Promise<GameSummary[]> {
   const rows = await db
@@ -299,8 +333,16 @@ export async function registerSavedGameRoutes(app: FastifyInstance, deps: SavedG
     // Чужа чи не збережена — 404 ще до того, як щось казати про виклик.
     if ((await ownSaved(db, request.params.id, user.id)) === null) return reply.code(404).send(NOT_FOUND);
     // Спроба виклику (44): позначки немає в збереженій грі — беремо її зі спроби; виклик завершено чи прострочено — не продовжується.
+    // Спроба, яку вже не продовжити, стає «aborted» і зникає зі збережених (бали лишаються в таблиці виклику).
     const source = await attemptByGame(db, request.params.id);
-    if (source !== null && !isActive(source, new Date())) return reply.code(409).send({ error: 'challenge_closed' });
+    if (source !== null && !isActive(source, new Date())) {
+      await abortParkedAttempt(db, manager, request.params.id);
+      return reply.code(409).send({ error: 'challenge_closed' });
+    }
+    if (source !== null && (await attemptState(db, request.params.id)).state === 'done') {
+      await abortParkedAttempt(db, manager, request.params.id);
+      return reply.code(409).send({ error: 'challenge_done' });
+    }
     const mark = source === null ? undefined : { id: source.id, code: source.code, title: source.title };
     const outcome = await continueSavedGame(deps, user.id, request.params.id, mark);
     return outcome.ok ? reply.code(201).send(outcome.body) : reply.code(outcome.status).send({ error: outcome.error });

@@ -1,5 +1,4 @@
 import { challengeQuiz, LIMITS, type ChallengeAttemptStart, type ChallengeCheck, type ChallengeMine, type ChallengePreview } from '@quiz/shared';
-import { eq } from 'drizzle-orm';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { CODE_LIMIT, type CurrentUser } from './account-routes';
 import {
@@ -15,11 +14,10 @@ import {
   type ChallengeRow,
 } from './challenges';
 import type { Db } from './db/client';
-import { game } from './db/schema';
 import { ensureProfile } from './profiles';
 import { getQuiz } from './quizzes';
 import type { RoomChallenge, RoomManager } from './rooms/manager';
-import { continueSavedGame, openGameIds } from './saved-games';
+import { abortParkedAttempt, attemptState, continueSavedGame, openGameIds } from './saved-games';
 
 export interface ChallengeRouteDeps {
   db: Db;
@@ -38,14 +36,6 @@ const CHALLENGE_NOT_FOUND = { error: 'challenge_not_found' };
 type Outcome = { ok: true; body: ChallengeAttemptStart } | { ok: false; status: 404 | 409 | 503; error: string };
 
 const markOf = (row: ChallengeRow): RoomChallenge => ({ id: row.id, code: row.code, title: row.title });
-
-/** Стан гри спроби в базі: рядка може й не бути (кімнату закрито ще в лобі чи рекордер його ще не записав). */
-async function gameStatus(db: Db, gameId: string): Promise<string | null> {
-  const [row] = await db.select({ status: game.status }).from(game).where(eq(game.id, gameId));
-  return row?.status ?? null;
-}
-
-const isDone = (status: string | null) => status === 'finished' || status === 'aborted';
 
 export async function registerChallengeRoutes(app: FastifyInstance, deps: ChallengeRouteDeps): Promise<void> {
   const { db, manager, currentUser, maxRooms } = deps;
@@ -78,12 +68,15 @@ export async function registerChallengeRoutes(app: FastifyInstance, deps: Challe
     return { user, row };
   };
 
-  /** Що бачить акаунт: свою спробу (none / playing / done) і чи можна дивитись таблицю. */
+  /**
+   * Що бачить акаунт: свою спробу (none / playing / done; збережена без точної контрольної точки — done) і чи можна дивитись таблицю:
+   * автору, тим, хто дограв, і тим, чий виклик закрився посеред незавершеної гри; тому, хто лише грає, — ні.
+   */
   const standing = async (row: ChallengeRow, userId: string) => {
     const mine = await attemptOf(db, row.id, userId);
-    const state: ChallengePreview['mine'] = mine === null ? 'none' : isDone(await gameStatus(db, mine.gameId)) ? 'done' : 'playing';
+    const state: ChallengePreview['mine'] = mine === null ? 'none' : (await attemptState(db, mine.gameId)).state;
     const isAuthor = row.ownerId === userId;
-    return { mine: state, isAuthor, canSeeResults: isAuthor || state !== 'none' };
+    return { mine: state, isAuthor, canSeeResults: isAuthor || state === 'done' || (state === 'playing' && !isActive(row, now())) };
   };
 
   /** Нова кімната спроби з id гри спроби. */
@@ -95,11 +88,21 @@ export async function registerChallengeRoutes(app: FastifyInstance, deps: Challe
     return { ok: true, body: { code: made.room.code, token: made.token, playerId: made.playerId, stageToken: made.room.stageToken } };
   };
 
-  /** Повернення до наявної спроби: зіграна — done; виклик закрито — closed; жива кімната — новий токен; збережена — продовження; нічого — нова кімната. */
+  /**
+   * Повернення до наявної спроби: зіграна чи збережена без точної контрольної точки — done; виклик закрито — closed
+   * (збережена спроба, якої вже не продовжити, стає «aborted» і зникає з «Моїх ігор»); жива кімната — новий токен;
+   * збережена — продовження; нічого — нова кімната.
+   */
   const resume = async (row: ChallengeRow, userId: string, nickname: string, gameId: string): Promise<Outcome> => {
-    const status = await gameStatus(db, gameId);
-    if (isDone(status)) return { ok: false, status: 409, error: 'challenge_done' };
-    if (!isActive(row, now())) return { ok: false, status: 409, error: 'challenge_closed' };
+    const { state, status } = await attemptState(db, gameId);
+    if (state === 'done') {
+      if (status === 'saved') await abortParkedAttempt(db, manager, gameId);
+      return { ok: false, status: 409, error: 'challenge_done' };
+    }
+    if (!isActive(row, now())) {
+      if (status === 'saved') await abortParkedAttempt(db, manager, gameId);
+      return { ok: false, status: 409, error: 'challenge_closed' };
+    }
     const room = manager.roomById(gameId);
     if (room !== undefined) {
       // Гра вже скінчилась, а рекордер ще не записав рядок.
@@ -168,7 +171,7 @@ export async function registerChallengeRoutes(app: FastifyInstance, deps: Challe
     const loaded = await load(request, reply);
     if (loaded === null) return reply;
     const { user, row } = loaded;
-    // Таблицю видно автору й тим, хто вже має свою спробу; іншим — жодного рядка.
+    // Таблицю видно автору, тим, хто дограв, і тим, чий виклик закрився посеред гри; іншим — жодного рядка.
     if (!(await standing(row, user.id)).canSeeResults) return reply.code(403).send({ error: 'challenge_hidden' });
     return challengeResults(db, row, user.id);
   });

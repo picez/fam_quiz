@@ -132,6 +132,8 @@ export async function registerPrizeRoutes(app: FastifyInstance, deps: PrizeRoute
     const found = await ownRoom(request, reply);
     if (found === null) return;
     const { user, room } = found;
+    // Спроба виклику (44): призів у грі наодинці немає.
+    if (room.challenge !== null) return reply.code(403).send({ error: 'not_allowed' });
     const parsed = placesSchema.safeParse(request.body);
     if (!parsed.success) return reply.code(400).send(INVALID);
     if (room.state.phase !== 'lobby') return reply.code(409).send({ error: 'wrong_phase' });

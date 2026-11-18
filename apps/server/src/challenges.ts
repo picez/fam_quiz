@@ -11,11 +11,10 @@ import {
 import { and, asc, count, desc, eq, gt, isNull } from 'drizzle-orm';
 import type { Db } from './db/client';
 import { challenge, challengeAttempt, game, participant } from './db/schema';
+import { CODE_ATTEMPTS, isUniqueViolation } from './db/unique';
 import { newCode } from './group-store';
 import { getQuiz } from './quizzes';
 
-const UNIQUE_VIOLATION = '23505';
-const CODE_ATTEMPTS = 3;
 const DAY_MS = 86_400_000;
 
 export interface ChallengeRow {
@@ -44,14 +43,6 @@ function rowOf(row: StoredRow): ChallengeRow {
     expiresAt: row.expiresAt,
     endedAt: row.endedAt,
   };
-}
-
-/** Унікальне порушення (23505): драйвер кладе код у cause. */
-function isUniqueViolation(error: unknown): boolean {
-  for (let current = error; current && typeof current === 'object'; current = (current as { cause?: unknown }).cause) {
-    if ((current as { code?: unknown }).code === UNIQUE_VIOLATION) return true;
-  }
-  return false;
 }
 
 /** Активний = не завершений вручну й не прострочений. */
@@ -183,7 +174,7 @@ export async function attemptByGame(db: Db, gameId: string): Promise<ChallengeRo
   return row === undefined ? null : rowOf(row.challenge);
 }
 
-/** Таблиця: бали спадно, час зростанням, початок зростанням; місця підряд 1…n. */
+/** Таблиця: бали спадно, за рівних — завершені вище, далі час зростанням, початок зростанням; місця підряд 1…n. */
 export async function challengeResults(db: Db, source: ChallengeRow, viewerId: string): Promise<ChallengeResultRow[]> {
   const rows = await db
     .select({
@@ -210,7 +201,13 @@ export async function challengeResults(db: Db, source: ChallengeRow, viewerId: s
       score: row.score ?? 0,
       timeMs: row.totalTimeMs ?? 0,
     }))
-    .sort((a, b) => b.score - a.score || a.timeMs - b.timeMs || a.row.startedAt.getTime() - b.row.startedAt.getTime());
+    .sort(
+      (a, b) =>
+        b.score - a.score ||
+        Number(b.row.status === 'finished') - Number(a.row.status === 'finished') ||
+        a.timeMs - b.timeMs ||
+        a.row.startedAt.getTime() - b.row.startedAt.getTime(),
+    );
   return sorted.map(({ row, score, timeMs }, i) => ({
     place: i + 1,
     nickname: row.nickname ?? row.attemptNick,

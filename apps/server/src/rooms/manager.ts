@@ -961,6 +961,8 @@ export class RoomManager {
   /** Призи на місця (14a): лише лобі (інакше wrong_phase), frozen → restarting; кладе placed, emit changed. Резерв у базі — справа маршруту. */
   setPrizes(room: Room, placed: PlacedPrize[]): AckResult {
     if (!this.alive(room)) return this.gone();
+    // Спроба виклику (44): призів немає.
+    if (room.challenge !== null) return NOT_ALLOWED;
     if (room.state.phase !== 'lobby') return { ok: false, error: 'wrong_phase' };
     room.prizes = [...placed].sort((a, b) => a.place - b.place);
     this.emit(room, { type: 'changed' });
