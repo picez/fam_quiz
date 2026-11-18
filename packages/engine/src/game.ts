@@ -97,6 +97,7 @@ import { packPuzzles, scorePuzzle } from './puzzles';
 import { dealTruth, dropTruthFacts, nextTruthQuestion, truthGuessers, truthPlayFor, truthPlayOf, withTruthPoints } from './truth';
 import { awardThinkPlaces, openThink, submitThinkAnswer, thinkOver, thinkPlayOf, thinkPresent, withThinkGrades } from './think';
 import { scoreWordLadder } from './wordladder';
+import { scoreWordle } from './wordle';
 import { scoreSort, shiftSortLocks } from './sort';
 import { scoreWall, wallPresent } from './wall';
 import { submitVote } from './votes';
@@ -218,6 +219,8 @@ export interface Play {
   chain?: Record<string, ChainProgress>;
   /** Лише в запитанні-драбині; гравця тут немає, поки він не прийняв жодного слова. */
   wordladder?: Record<string, WordLadderProgress>;
+  /** Лише в запитанні wordle (48); гравця тут немає, поки він не зробив прийнятої спроби. */
+  wordle?: Record<string, WordleProgress>;
   /** Лише в запитанні-списку (27c). */
   timedlist?: TimedListPlay;
   /** Лише в запитанні «Слова з літер» (27d). */
@@ -571,6 +574,11 @@ export interface ChainProgress {
 /** Поступ драбини гравця (команди): прийняті слова після стартового, ключами ladderKey. */
 export interface WordLadderProgress {
   words: string[];
+}
+
+/** Спроби «Вгадай слово» (48) гравця (команди): прийняті слова ключами wordleKey, з апострофом. */
+export interface WordleProgress {
+  guesses: string[];
 }
 
 /** Знахідки гравця (команди): id пунктів у порядку знахідок; wrong — промахи з Enter, лише коли є мінус. */
@@ -1233,6 +1241,10 @@ function removeFromGame(state: GameState, playerId: string, now?: number): Resul
     if (play.wordladder !== undefined) {
       const { [playerId]: _progress, ...wordladder } = play.wordladder;
       kept.wordladder = wordladder;
+    }
+    if (play.wordle !== undefined) {
+      const { [playerId]: _progress, ...wordle } = play.wordle;
+      kept.wordle = wordle;
     }
     // Список (27c): лише відкрите запитання; закрите вже пораховане (scored), його поступ лишається як був.
     if (play.timedlist !== undefined && index === state.questionIndex && state.phase === 'question') {
@@ -2018,7 +2030,7 @@ export function lockNow(state: GameState): GameState {
   // «Малюнок»: художник отримує частку, решта — записи з 0, лічильники заморожуються (28c).
   // «Головоломки»: дошки без «Готово» отримують записи за сіткою на цю мить (28d).
   const closed = spendDebuffs(
-    withCellPenalty(withRiskMisses(dropQueue(scoreSpy(scoreBluff(scoreWall(scoreSort(scoreMemory(scoreSpotdiff(scoreJigsaw(scorePuzzle(scoreDrawing(scoreMoreLess(scoreAlike(scoreOvershoot(scoreLetterWords(scoreTimedList(scoreWordLadder(scoreChain(closeAudience(settleRetries(state))))))))))))))))))))),
+    withCellPenalty(withRiskMisses(dropQueue(scoreSpy(scoreBluff(scoreWall(scoreSort(scoreMemory(scoreSpotdiff(scoreJigsaw(scorePuzzle(scoreDrawing(scoreMoreLess(scoreAlike(scoreOvershoot(scoreLetterWords(scoreTimedList(scoreWordle(scoreWordLadder(scoreChain(closeAudience(settleRetries(state)))))))))))))))))))))),
   );
   return withTotals({ ...closed, phase: 'locked', startedAt: null, endsAt: null, remainingMs: null, heldAt: null, board: clearAway(closed.board) });
 }
@@ -2165,6 +2177,8 @@ export function submitAnswer(state: GameState, playerId: string, answer: Answer,
   if (answer.type === 'chain' || play.question.type === 'chain') return fail('type_mismatch');
   // Драбину проходять лише ladderWord і ladderBack (26c).
   if (answer.type === 'wordladder' || play.question.type === 'wordladder') return fail('type_mismatch');
+  // «Вгадай слово» — лише спроба за спробою через wordleGuess (48).
+  if (answer.type === 'wordle' || play.question.type === 'wordle') return fail('type_mismatch');
   // Список — лише слово за словом через listEntry (27c).
   if (answer.type === 'timedlist' || play.question.type === 'timedlist') return fail('type_mismatch');
   // «Слова з літер» — лише слово за словом через letterWord (27d).
@@ -2956,7 +2970,7 @@ function endNow(state: GameState, now?: number): Result {
     decisionOpen(state) ? closeDecision(state) : trialOpen(state) ? closeTrial(state) : dropUnstarted(state, now),
     now ?? 0,
   );
-  const scored = withoutDuelists(dropQueue(scoreSpy(scoreBluff(scoreWall(scoreSort(scoreMemory(scoreSpotdiff(scoreJigsaw(scorePuzzle(scoreDrawing(scoreMoreLess(scoreAlike(scoreOvershoot(scoreLetterWords(scoreTimedList(scoreWordLadder(scoreChain(markWipeoutEnd(decided)))))))))))))))))));
+  const scored = withoutDuelists(dropQueue(scoreSpy(scoreBluff(scoreWall(scoreSort(scoreMemory(scoreSpotdiff(scoreJigsaw(scorePuzzle(scoreDrawing(scoreMoreLess(scoreAlike(scoreOvershoot(scoreLetterWords(scoreTimedList(scoreWordle(scoreWordLadder(scoreChain(markWipeoutEnd(decided))))))))))))))))))));
   // «Ставки» й «Аукціон»: відкрите запитання закривається, поки фаза ще його (на finished воно вже стале).
   const stoppedType = currentRound(scored)?.type;
   const stopped: GameState = {

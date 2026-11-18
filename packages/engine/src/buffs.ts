@@ -140,7 +140,7 @@ function wrongOptions(question: Question): string[] {
   return [];
 }
 
-type PlaceBlock = 'elsewhere' | 'not_chooser' | 'off_blitz' | 'off_blitz_cell' | 'off_final' | 'off_bets' | 'off_auction' | 'off_truth' | 'off_think' | 'off_puzzles' | 'off_wipeout' | 'off_survival' | 'off_ladder' | 'off_chain' | 'off_wordladder' | 'off_timedlist' | 'off_letterwords' | 'off_moreless' | 'off_drawing' | 'off_jigsaw' | 'off_spotdiff' | 'off_memory' | 'off_melody' | 'off_videoclip' | 'off_overshoot' | 'off_thinkalike' | 'off_spy' | 'off_sort' | 'off_wall' | 'off_vote';
+type PlaceBlock = 'elsewhere' | 'not_chooser' | 'off_blitz' | 'off_blitz_cell' | 'off_final' | 'off_bets' | 'off_auction' | 'off_truth' | 'off_think' | 'off_puzzles' | 'off_wipeout' | 'off_survival' | 'off_ladder' | 'off_chain' | 'off_wordladder' | 'off_wordle' | 'off_timedlist' | 'off_letterwords' | 'off_moreless' | 'off_drawing' | 'off_jigsaw' | 'off_spotdiff' | 'off_memory' | 'off_melody' | 'off_videoclip' | 'off_overshoot' | 'off_thinkalike' | 'off_spy' | 'off_sort' | 'off_wall' | 'off_vote';
 
 /** Де гравець відповідає: null — тут бафи можна; not_chooser — на полі відповідає інший; elsewhere — немає де; off_* — тут бафів немає. */
 function placeBlock(state: GameState, play: Play, playerId: string): PlaceBlock | null {
@@ -178,10 +178,12 @@ function roundOff(round: Round): 'off_blitz' | 'off_final' | 'off_bets' | 'off_a
 }
 
 /** Запитання, на якому бафів немає; null — можна. */
-function questionOff(question: Question): 'off_chain' | 'off_wordladder' | 'off_timedlist' | 'off_letterwords' | 'off_moreless' | 'off_drawing' | 'off_jigsaw' | 'off_spotdiff' | 'off_memory' | 'off_melody' | 'off_videoclip' | 'off_overshoot' | 'off_thinkalike' | 'off_spy' | 'off_sort' | 'off_wall' | 'off_vote' | null {
+function questionOff(question: Question): 'off_chain' | 'off_wordladder' | 'off_wordle' | 'off_timedlist' | 'off_letterwords' | 'off_moreless' | 'off_drawing' | 'off_jigsaw' | 'off_spotdiff' | 'off_memory' | 'off_melody' | 'off_videoclip' | 'off_overshoot' | 'off_thinkalike' | 'off_spy' | 'off_sort' | 'off_wall' | 'off_vote' | null {
   // Ланцюжок, драбина (26c), список (27c), слова з літер (27d), сортування й стіна рахуються окремо.
   if (question.type === 'chain') return 'off_chain';
   if (question.type === 'wordladder') return 'off_wordladder';
+  // «Вгадай слово» (48): бали лише за номер спроби, без доповнень.
+  if (question.type === 'wordle') return 'off_wordle';
   if (question.type === 'timedlist') return 'off_timedlist';
   if (question.type === 'letterwords') return 'off_letterwords';
   if (question.type === 'moreless') return 'off_moreless';
