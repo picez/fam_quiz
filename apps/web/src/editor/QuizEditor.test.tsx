@@ -53,6 +53,20 @@ describe('QuizEditor', () => {
     }
   });
 
+  it('keeps the line break of a copied quiz description (the author line stays on its own line)', async () => {
+    const description = 'Автор: Олена\nВікторина про річки.';
+    const { onSave } = open({ ...newQuiz(), description });
+    expect((screen.getByLabelText(t('quizDescription')) as HTMLTextAreaElement).value).toBe(description);
+    fill('Назва вікторини', 'Річки');
+    fill('Текст запитання', 'Яка річка тече через Київ?');
+    fill('Варіант 1', 'Дніпро');
+    fill('Варіант 2', 'Прут');
+    fireEvent.click(screen.getByLabelText('Правильний: варіант 1'));
+    click('Зберегти');
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+    expect(saved(onSave).description).toBe(description);
+  });
+
   it('an option takes a picture instead of text', async () => {
     const fetchMock = vi.fn(async () => new Response(JSON.stringify({ url: '/uploads/abcdefabcdefabcd.png' }), { status: 201 }));
     vi.stubGlobal('fetch', fetchMock);
