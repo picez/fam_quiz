@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Link, Navigate } from 'react-router-dom';
+import { Link, Navigate, useNavigate } from 'react-router-dom';
 import { deleteQuiz, listQuizzes, type QuizSummary } from '../api';
 import { RunningGameBanner, addDemoQuiz, useStartGame } from '../host-game';
 import { quizSizeText } from '../format';
 import { errorText, t } from '../i18n';
 import { useAccount } from '../useAccount';
+import { ExportMenu } from '../quiz-io/ExportMenu';
+import { ImportDialog } from '../quiz-io/ImportDialog';
 import { AutopilotLaunch } from './AutopilotLaunch';
 
 const LOGIN = '/login?next=%2Fquizzes';
@@ -17,6 +19,8 @@ export function Quizzes() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [launch, setLaunch] = useState<QuizSummary | null>(null);
+  const [importOpen, setImportOpen] = useState(false);
+  const navigate = useNavigate();
   const signedIn = account.status === 'signed-in';
 
   /** Показує помилку; закінчену сесію перетворює на перехід до входу. */
@@ -96,6 +100,9 @@ export function Quizzes() {
         <button type="button" className="btn" disabled={busy} onClick={addDemo}>
           {t('addDemo')}
         </button>
+        <button type="button" className="btn" disabled={busy} onClick={() => setImportOpen(true)}>
+          {t('ioImport')}
+        </button>
         <Link className="btn" to="/help">
           {t('helpLink')}
         </Link>
@@ -128,6 +135,7 @@ export function Quizzes() {
                 <Link className="btn" to={`/quizzes/${quiz.id}`}>
                   {t('edit')}
                 </Link>
+                <ExportMenu quizId={quiz.id} disabled={busy} />
                 <button type="button" className="btn btn-danger" disabled={busy} onClick={() => remove(quiz)}>
                   {t('remove')}
                 </button>
@@ -136,6 +144,7 @@ export function Quizzes() {
           ))}
         </ul>
       )}
+      {importOpen && <ImportDialog onClose={() => setImportOpen(false)} onImported={(id) => navigate(`/quizzes/${id}`)} />}
       {launch !== null && <AutopilotLaunch quiz={launch} onClose={() => setLaunch(null)} />}
     </main>
   );

@@ -8,6 +8,8 @@ import { quizToRows, rowsToQuiz, TABLE_LIMITS, templateRows, type RowError } fro
 import { fetchMedia, TransferError, uploadMedia, type TransferProgress } from './transfer';
 import { readXlsx, writeXlsx } from './xlsx';
 
+export { problemText } from './table';
+
 export type IoProgress = { stage: 'preparing' | 'checking' | 'creating' } | TransferProgress;
 export type IoFailure = { ok: false; error: string } | { ok: false; errors: RowError[] };
 
