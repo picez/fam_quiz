@@ -26347,20 +26347,41 @@ a.library-card:focus-visible {
 }
 
 .wordle-board.is-many {
-  grid-template-columns: repeat(auto-fill, minmax(8rem, 1fr));
-  gap: 0.75rem;
+  grid-template-columns: repeat(auto-fill, minmax(5.2rem, 1fr));
+  gap: 0.5rem;
+  font-size: 0.85rem;
+}
+
+.wordle-board.is-many .tag,
+.wordle-board.is-many .score {
+  font-size: 0.8rem;
+  text-align: center;
 }
 
 .wordle-board.is-many .wordle-row {
-  grid-template-columns: repeat(var(--letters), 1.05rem);
-  gap: 0.15rem;
+  grid-template-columns: repeat(var(--letters), 0.9rem);
+  gap: 0.12rem;
+}
+
+.wordle-board.is-many .wordle-grid {
+  gap: 0.12rem;
 }
 
 .wordle-board.is-many .wordle-cell {
-  font-size: 0.65rem;
+  font-size: 0.55rem;
 }
 
 .wordle-board .name {
   font-weight: 700;
   overflow-wrap: anywhere;
+}
+
+/* Кут «Читати вголос» (.stage-speech) стоїть унизу ліворуч (над смугою реакцій); дошка «Вгадай слово» з тегом і балами під іменем
+   сягала б його, тож на розкритті (є бали) сцена тримає під нею запас: «вгадав за N» і бали не під кнопками. */
+.app.stage:has(> .stage-speech):has(.wordle-board .score) {
+  padding-bottom: max(4vh, 4.75rem, calc(var(--banner-base) + 2.75rem));
+}
+
+.app.stage.has-reactions:has(> .stage-speech):has(.wordle-board .score) {
+  padding-bottom: calc(var(--banner-base) + var(--reaction-strip-h) + 2.75rem);
 }
