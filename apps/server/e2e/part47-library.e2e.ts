@@ -291,7 +291,7 @@ async function library47() {
     const dialog = page.getByRole('dialog', { name: 'Скарга', ...exact });
     await dialog.waitFor();
     await dialog.getByLabel(reason, exact).check();
-    if (text !== undefined) await dialog.getByLabel(/^Пояснення/).fill(text);
+    if (text !== undefined) await dialog.getByLabel('Пояснення (необов’язково)', exact).fill(text);
     if (shotName !== undefined) await view(page, shotName);
     await click(page, 'Надіслати');
     return dialog;
@@ -327,6 +327,18 @@ async function library47() {
   await card.getByText('⏳ Тимчасово приховано: скарги на перевірці', exact).waitFor();
   await view(admin, 'p47-admin');
   expect(await wordsWhole(admin, 'ul.admin-reports')).toEqual([]);
+  // «Переглянути вікторину» — знімок із каталогу, на який скаржились, лише для перегляду й без скаржників.
+  await card.getByRole('link', { name: 'Переглянути вікторину', ...exact }).click();
+  await admin.waitForURL(`${base}/admin/reports/quiz/${entryId}`);
+  await admin.getByRole('heading', { name: NEW_TITLE, ...exact }).waitFor();
+  await admin.getByText(/^Знімок у бібліотеці від .+ — саме його бачать гравці.$/).waitFor();
+  expect(await admin.getByRole('button', { name: 'Видалити запитання', ...exact }).count()).toBe(0);
+  expect(await admin.getByRole('button', { name: 'Видалити вікторину', ...exact }).count()).toBe(0);
+  const snapshotText = (await admin.locator('main').textContent()) ?? '';
+  for (const secret of [NOTE, 'Ірина', 'Петро', LONG_NICK]) expect(snapshotText, 'no reporter in the snapshot view').not.toContain(secret);
+  await view(admin, 'p47-admin-snapshot');
+  await admin.getByRole('link', { name: 'До списку', ...exact }).click();
+  await card.waitFor();
   await card.getByRole('button', { name: 'Сховати вікторину', ...exact }).click();
   await admin.getByText('Відкритих скарг немає.', exact).waitFor();
   await expect.poll(async () => (await mine()).moderation).toBe('hidden');
@@ -355,7 +367,7 @@ async function library47() {
   await appealCard.getByText('Автор оскаржує приховування', exact).waitFor();
   await appealCard.getByText('🚫 Приховано модератором', exact).waitFor();
   await view(admin, 'p47-admin-appeal');
-  await appealCard.getByRole('button', { name: 'Повернути в каталог', ...exact }).click();
+  await appealCard.getByRole('button', { name: 'Зняти приховування', ...exact }).click();
   await admin.getByText('Відкритих скарг немає.', exact).waitFor();
   await expect.poll(async () => (await mine()).moderation).toBe('ok');
   // Автор сам закрив вікторину до оскарження: модератор знімає приховування, а в каталог вона вертається, коли автор відкриє її знову.
