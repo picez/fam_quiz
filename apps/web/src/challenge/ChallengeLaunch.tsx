@@ -1,21 +1,38 @@
 import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { Link, useNavigate } from 'react-router-dom';
-import { CHALLENGE_SKIP_SETTINGS, type ChallengeCheck, type ChallengeMine } from '@quiz/shared';
+import { CHALLENGE_SKIP_BUFFS, CHALLENGE_SKIP_SETTINGS, type ChallengeCheck, type ChallengeMine } from '@quiz/shared';
 import { createChallenge, getChallengeCheck, type QuizSummary } from '../api';
 import { ROUND_NAMES } from '../guide-text';
 import { HelpButton } from '../help/HelpButton';
-import { errorText, t } from '../i18n';
+import { countText, errorText, t } from '../i18n';
+import { namesText } from '../locales/grammar';
+import { challengeUrl } from './challenge-link';
 import { daysLeftText, playedText } from './challenge-text';
 
 type Check = { state: 'checking' } | { state: 'failed'; error: string } | { state: 'ready'; check: ChallengeCheck };
 
-/** Посилання на виклик, яке друг відкриває у браузері. */
-export function challengeUrl(code: string): string {
-  return `${window.location.origin}/challenge/${code}`;
+export { challengeUrl };
+
+/** Рядки «що буде пропущено»: раунди, запитання класики (множина), налаштування й бонуси одним рядком. */
+export function skippedLines(skipped: ChallengeCheck['skipped']): string[] {
+  const lines: string[] = [];
+  for (const round of skipped.rounds) lines.push(t('challengeSkipRound', { index: round.index + 1, type: t(ROUND_NAMES[round.type as keyof typeof ROUND_NAMES]) }));
+  for (const item of skipped.questions) {
+    lines.push(countText('challengeSkipQuestions', item.count, { index: item.index + 1, type: t(ROUND_NAMES.classic), count: item.count }));
+  }
+  for (const setting of CHALLENGE_SKIP_SETTINGS) {
+    if (skipped.settings.includes(setting)) lines.push(t(`challengeSkipSetting_${setting}`));
+  }
+  const buffs = CHALLENGE_SKIP_BUFFS.filter((kind) => skipped.settings.includes(kind));
+  if (buffs.length > 0) lines.push(t('challengeSkipBuffs', { list: namesText(buffs.map((kind) => t(`buff_${kind}`))) }));
+  return lines;
 }
 
-/** Вікно «🏁 Виклик» (44): що буде пропущено, створити чи замінити виклик, посилання з «Копіювати» і «Поділитися». */
+/**
+ * Вікно «🏁 Виклик» (44): що буде пропущено, створити чи замінити виклик; поки виклик діє — його посилання з «Копіювати»
+ * і «Поділитися» (переслати ще раз, не замінюючи), «Новий виклик» — другорядна дія.
+ */
 export function ChallengeLaunch({ quiz, onClose, onCreated }: { quiz: QuizSummary; onClose: () => void; onCreated: (mine: ChallengeMine) => void }) {
   const navigate = useNavigate();
   const [check, setCheck] = useState<Check>({ state: 'checking' });
@@ -83,9 +100,9 @@ export function ChallengeLaunch({ quiz, onClose, onCreated }: { quiz: QuizSummar
   };
 
   const copyLink = async () => {
-    if (created === null) return;
+    if (active === null) return;
     try {
-      await navigator.clipboard.writeText(challengeUrl(created.code));
+      await navigator.clipboard.writeText(challengeUrl(active.code));
       setCopy('copied');
     } catch {
       setCopy('failed');
@@ -94,8 +111,8 @@ export function ChallengeLaunch({ quiz, onClose, onCreated }: { quiz: QuizSummar
   };
 
   const share = () => {
-    if (created === null) return;
-    void navigator.share({ title: quiz.title, text: t('challengeShareText', { title: quiz.title }), url: challengeUrl(created.code) }).catch(() => undefined);
+    if (active === null) return;
+    void navigator.share({ title: quiz.title, text: t('challengeShareText', { title: quiz.title }), url: challengeUrl(active.code) }).catch(() => undefined);
   };
 
   const shownError = error ?? (check.state === 'failed' ? errorText(check.error) : null);
@@ -117,52 +134,45 @@ export function ChallengeLaunch({ quiz, onClose, onCreated }: { quiz: QuizSummar
     }
   };
 
-  const skippedLines: string[] = [];
-  if (ready !== null) {
-    for (const round of ready.skipped.rounds) skippedLines.push(t('challengeSkipRound', { index: round.index + 1, type: t(ROUND_NAMES[round.type as keyof typeof ROUND_NAMES]) }));
-    for (const item of ready.skipped.questions) {
-      skippedLines.push(`${t('challengeSkipRound', { index: item.index + 1, type: t(ROUND_NAMES.classic) })} · ${t('questionCount', { count: item.count })}`);
-    }
-    for (const setting of CHALLENGE_SKIP_SETTINGS) {
-      if (ready.skipped.settings.includes(setting)) skippedLines.push(t(`challengeSkipSetting_${setting}`));
-    }
-  }
+  const lines = ready === null ? [] : skippedLines(ready.skipped);
+  // Щойно створено: вступ і список пропущеного вже бачили — лишається посилання, щоб усе влізло на телефон.
+  const fresh = created !== null;
 
   return createPortal(
     <div className="table-sheet" role="dialog" aria-modal="true" aria-label={t('challengeTitle')} tabIndex={-1} onClick={close} onKeyDown={onKeyDown}>
-      <div ref={cardRef} className="table-card autopilot-card challenge-card" onClick={(event) => event.stopPropagation()}>
+      <div ref={cardRef} className="table-card autopilot-card challenge-sheet" onClick={(event) => event.stopPropagation()}>
         <div className="autopilot-head">
           <h2>{t('challengeTitle')}</h2>
           <HelpButton id="setting.challenge" />
         </div>
         <p className="meta" dir="auto">{quiz.title}</p>
-        <p>{t('challengeLead')}</p>
+        {!fresh && <p>{t('challengeLead')}</p>}
 
         {check.state === 'checking' && <p className="meta">{t('challengeChecking')}</p>}
         {ready !== null && ready.empty && <p className="error">{t('challengeEmpty')}</p>}
-        {ready !== null && skippedLines.length === 0 && !ready.empty && <p className="meta">{t('challengeSkipNone')}</p>}
-        {ready !== null && skippedLines.length > 0 && (
+        {!fresh && ready !== null && lines.length === 0 && !ready.empty && <p className="meta">{t('challengeSkipNone')}</p>}
+        {!fresh && ready !== null && lines.length > 0 && (
           <section>
             <h3 className="autopilot-subtitle">{t('challengeSkipTitle')}</h3>
             <ul className="autopilot-changes">
-              {skippedLines.map((line) => (
+              {lines.map((line) => (
                 <li key={line}>{line}</li>
               ))}
             </ul>
           </section>
         )}
 
-        {active !== null && created === null && (
+        {active !== null && !fresh && (
           <p className="meta">
             {daysLeftText(active.expiresAt)} · {playedText(active.played)}
           </p>
         )}
 
-        {created !== null && (
+        {active !== null && (
           <section className="challenge-link">
             <label className="field">
               <span>{t('challengeLink')}</span>
-              <input ref={linkRef} readOnly value={challengeUrl(created.code)} dir="ltr" onFocus={(event) => event.currentTarget.select()} />
+              <input ref={linkRef} readOnly value={challengeUrl(active.code)} dir="ltr" onFocus={(event) => event.currentTarget.select()} />
             </label>
             <div className="autopilot-actions">
               <button type="button" className="btn" onClick={() => void copyLink()}>
@@ -173,7 +183,7 @@ export function ChallengeLaunch({ quiz, onClose, onCreated }: { quiz: QuizSummar
                   {t('challengeShare')}
                 </button>
               )}
-              <Link className="btn" to={`/challenge/${created.code}`}>
+              <Link className="btn" to={`/challenge/${active.code}`}>
                 {t('challengeOpenResults')}
               </Link>
             </div>
@@ -190,13 +200,13 @@ export function ChallengeLaunch({ quiz, onClose, onCreated }: { quiz: QuizSummar
         )}
 
         <div className="autopilot-actions">
-          {ready !== null && !ready.empty && (
-            <button type="button" className="btn btn-primary" disabled={busy} onClick={() => void create()}>
+          {!fresh && ready !== null && !ready.empty && (
+            <button type="button" className={active !== null ? 'btn' : 'btn btn-primary'} disabled={busy} onClick={() => void create()}>
               {active !== null ? t('challengeReplace') : t('challengeCreate')}
             </button>
           )}
           <button ref={cancelRef} type="button" className="btn" onClick={close} disabled={busy}>
-            {t('cancel')}
+            {fresh ? t('challengeClose') : t('cancel')}
           </button>
         </div>
       </div>

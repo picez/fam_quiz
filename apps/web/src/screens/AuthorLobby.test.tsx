@@ -22,9 +22,12 @@ function show(options: { challenge?: { code: string; title: string }; family?: t
 
 describe('AuthorLobby', () => {
   it('a challenge lobby: title, hint and Start, no code, QR, stage link, prizes or resume panel', () => {
+    // Призи не просто сховані — їх навіть не питають у кімнати.
+    const fetchSpy = vi.fn(async (_url: RequestInfo | URL, _init?: RequestInit) => new Response('{}', { status: 404 }));
+    vi.stubGlobal('fetch', fetchSpy);
     show({ challenge: { code: 'abcdefghjkmn', title: 'Річки України' } });
     expect(screen.getByText('🏁 Виклик: Річки України')).toBeTruthy();
-    expect(screen.getByText('Ти граєш сам; запитання для кількох гравців пропущено.')).toBeTruthy();
+    expect(screen.getByText('Граєш наодинці; запитання для кількох гравців пропущено.')).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Почати гру' })).toBeTruthy();
     expect(screen.queryByText('123 456')).toBeNull();
     expect(screen.queryByText('Код кімнати')).toBeNull();
@@ -32,8 +35,9 @@ describe('AuthorLobby', () => {
     expect(screen.queryByText(stageUrl)).toBeNull();
     expect(screen.queryByText('Почніть, коли всі зайдуть.')).toBeNull();
     expect(document.querySelector('.prize-places, .resume-panel')).toBeNull();
+    expect(fetchSpy.mock.calls.some(([url]) => String(url).includes('/prizes'))).toBe(false);
+    vi.unstubAllGlobals();
   });
-
 
   it('shows the code as 123 456 and a QR of the join link', () => {
     show();

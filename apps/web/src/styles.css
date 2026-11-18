@@ -12635,9 +12635,18 @@ button.wall-tile:disabled {
   gap: 0.5rem;
 }
 
-/* 44: вікно «🏁 Виклик» і рядок про активний виклик у списку вікторин. */
-.challenge-card {
+/* 44: вікно «🏁 Виклик» (аркуш; .challenge-card — картка сторінки виклику) і рядок про активний виклик у списку вікторин. */
+.challenge-sheet {
   overflow-wrap: anywhere;
+}
+
+/* Останній ряд кнопок («Закрити») завжди видно: аркуш прокручується під ним. */
+.challenge-sheet > .autopilot-actions:last-child {
+  position: sticky;
+  bottom: -1rem;
+  margin-block-end: -1rem;
+  padding-block: 0.5rem 1rem;
+  background: var(--surface);
 }
 
 .challenge-link {
@@ -25757,6 +25766,17 @@ input.sudoku-editor-cell:focus-visible {
   margin: 0;
 }
 
+/* Автор пересилає посилання зі сторінки виклику. */
+.challenge-share {
+  display: grid;
+  justify-items: center;
+  gap: 0.25rem;
+}
+
+.challenge-share .autopilot-actions {
+  justify-content: center;
+}
+
 .challenge-results {
   width: 100%;
   margin-top: 1rem;
@@ -25792,6 +25812,11 @@ input.sudoku-editor-cell:focus-visible {
 
 .challenge-results .cr-date-inline {
   display: none;
+}
+
+/* Бали й час не переносяться («0,8» / «с»). */
+.challenge-results .cr-num {
+  white-space: nowrap;
 }
 
 .challenge-results tr.is-me {

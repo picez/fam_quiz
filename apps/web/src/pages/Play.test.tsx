@@ -385,6 +385,22 @@ describe('Play: «Хто ти?» in a continued game (13b)', () => {
     expect(gameSlots).not.toHaveBeenCalled();
   });
 
+  it('a lost challenge room leads back to the challenge, not to the join form (44)', async () => {
+    const challengeView = { role: 'player', autopilot: true, paused: false, questionIndex: 0, splash: null, author: { challenge: { code: 'abcdefghjkmn', title: 'Річки' } } };
+    for (const reason of ['saved', 'ended'] as const) {
+      sockets.length = 0;
+      savePlayer('123456', 'old-token');
+      open();
+      act(() => sockets[0].fire('state', challengeView, { serverNow: Date.now(), hostOnline: true, stageOnline: true }));
+      act(() => sockets[0].fire('closed', reason));
+      expect(await screen.findByText(reason === 'saved' ? 'Гру збережено — продовжимо пізніше.' : 'Гру виклику закрито. Що далі — на сторінці виклику.')).toBeTruthy();
+      expect(screen.getByRole('link', { name: '🏁 До виклику' }).getAttribute('href')).toBe('/challenge/abcdefghjkmn');
+      expect(screen.queryByLabelText('Ваше ім’я')).toBeNull();
+      expect(checkCode).not.toHaveBeenCalled();
+      cleanup();
+    }
+  });
+
   it('a released place asks the player to choose again', async () => {
     savePlayer('123456', 'old-token');
     open();

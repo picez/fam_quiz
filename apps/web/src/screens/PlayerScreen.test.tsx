@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { MemoryRouter } from 'react-router-dom';
 import { MELODY_SHARES, SPLASH_MS, emptyBrief, type BlitzRow, type PlayerActiveBuff, type PlayerBlitz, PlayerView, Question, RoundInfo } from '@quiz/shared';
 import type { Send } from '../live/types';
 import { errorText, t } from '../i18n';
@@ -620,8 +621,15 @@ describe('PlayerScreen', () => {
 
   it('the end of a challenge game links to the challenge table, and other games do not', () => {
     const author = { cloud: null, bluff: null, people: [], resume: null, challenge: { code: 'abcdefghjkmn', title: 'Річки України' } };
-    show(view({ phase: 'finished', questionIndex: 1, standings: [], me: { ...me, score: 750, rank: 1 }, autopilot: true, author }));
-    expect(screen.getByRole('link', { name: '🏁 Таблиця виклику' }).getAttribute('href')).toBe('/challenge/abcdefghjkmn');
+    render(
+      <MemoryRouter>
+        <PlayerScreen view={view({ phase: 'finished', questionIndex: 1, standings: [], me: { ...me, score: 750, rank: 1 }, autopilot: true, author })} hostOnline offsetMs={0} send={vi.fn(async () => ({ ok: true as const }))} />
+      </MemoryRouter>,
+    );
+    const link = screen.getByRole('link', { name: '🏁 Таблиця виклику' });
+    expect(link.getAttribute('href')).toBe('/challenge/abcdefghjkmn');
+    // Одразу під місцем, а не в самому низу.
+    expect(link.previousElementSibling?.classList.contains('place')).toBe(true);
     cleanup();
     show(view({ phase: 'finished', questionIndex: 1, standings: [], me: { ...me, score: 750, rank: 1 }, autopilot: true, author: { cloud: null, bluff: null, people: [], resume: null } }));
     expect(screen.queryByRole('link', { name: '🏁 Таблиця виклику' })).toBeNull();
@@ -5462,6 +5470,34 @@ describe('PlayerScreen result image (38c)', () => {
     expect(data.me).toEqual({ place: 4, total: 4, score: 600 });
     expect(data.podium.map((row) => row.name)).toEqual(['Аня', 'Богдан', 'Віра']);
     expect(data.achievements.map((a) => a.id)).toEqual(['fast_answer']);
+  });
+
+  it('a challenge game draws the challenge title and never asks the room for it (44)', async () => {
+    vi.mocked(renderResultImage).mockClear();
+    URL.createObjectURL = vi.fn(() => 'blob:x');
+    URL.revokeObjectURL = vi.fn();
+    const fetchSpy = vi.fn(async (_url: RequestInfo | URL, _init?: RequestInit) => new Response('{}', { status: 404 }));
+    vi.stubGlobal('fetch', fetchSpy);
+    try {
+      const author = { cloud: null, bluff: null, people: [], resume: null, challenge: { code: 'abcdefghjkmn', title: 'Річки України' } };
+      render(
+        <MemoryRouter>
+          <PlayerScreen
+            view={view({ phase: 'finished', questionIndex: 1, standings, me: { ...me, id: 'p1', score: 600, rank: 4 }, autopilot: true, author })}
+            hostOnline
+            offsetMs={0}
+            send={vi.fn(async () => ({ ok: true as const }))}
+            code="ABCD"
+          />
+        </MemoryRouter>,
+      );
+      fireEvent.click(button()!);
+      await waitFor(() => expect(renderResultImage).toHaveBeenCalledTimes(1));
+      expect(vi.mocked(renderResultImage).mock.calls[0]![0].quizTitle).toBe('Річки України');
+      expect(fetchSpy.mock.calls.some(([url]) => String(url).includes('/api/games/by-code/'))).toBe(false);
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   it('no button during the prize ceremony, it appears after it', () => {

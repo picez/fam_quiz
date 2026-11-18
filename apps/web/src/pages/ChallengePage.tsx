@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { CHALLENGE_CODE, type ChallengePreview, type ChallengeResultRow } from '@quiz/shared';
 import { getChallenge, getChallengeResults, startChallenge } from '../api';
+import { challengeUrl } from '../challenge/challenge-link';
 import { daysLeftText, playedText } from '../challenge/challenge-text';
 import { formatDay, secondsText } from '../format';
 import { errorText, t } from '../i18n';
@@ -121,6 +122,7 @@ export function ChallengePage() {
               {error}
             </p>
           )}
+          {challenge.isAuthor && challenge.active && <ShareLink code={code} title={challenge.title} />}
         </section>
         {!challenge.canSeeResults && <p className="meta">{t('challengeHiddenResults')}</p>}
         {challenge.canSeeResults && <ResultsTable title={challenge.title} results={results} />}
@@ -133,6 +135,37 @@ export function ChallengePage() {
       <h1 className="brand">{t('challengeTitle')}</h1>
       {body()}
     </main>
+  );
+}
+
+/** Автор пересилає посилання ще раз (у встановленому застосунку немає адресного рядка): «Копіювати» й «Поділитися». */
+function ShareLink({ code, title }: { code: string; title: string }) {
+  const [copy, setCopy] = useState<'idle' | 'copied' | 'failed'>('idle');
+  const url = challengeUrl(code);
+  const copyLink = async () => {
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopy('copied');
+    } catch {
+      setCopy('failed');
+    }
+  };
+  return (
+    <div className="challenge-share">
+      <div className="autopilot-actions">
+        <button type="button" className="btn" onClick={() => void copyLink()}>
+          {t('challengeCopy')}
+        </button>
+        {typeof navigator.share === 'function' && (
+          <button type="button" className="btn" onClick={() => void navigator.share({ title, text: t('challengeShareText', { title }), url }).catch(() => undefined)}>
+            {t('challengeShare')}
+          </button>
+        )}
+      </div>
+      <p className="meta" role="status">
+        {copy === 'copied' ? t('challengeCopied') : copy === 'failed' ? <span dir="ltr">{url}</span> : ''}
+      </p>
+    </div>
   );
 }
 
@@ -166,8 +199,9 @@ function ResultsTable({ title, results }: { title: string; results: Results }) {
               {!row.done && <span className="cr-mark">{t('challengeUnfinished')}</span>}
               <span className="cr-date-inline">{formatDay(row.at)}</span>
             </th>
-            <td>{row.score}</td>
-            <td>{t('blitzRowTime', { time: secondsText(row.timeMs) })}</td>
+            <td className="cr-num">{row.score}</td>
+            {/* Ще не зіграв жодного запитання — «—», а не «0,0 с». */}
+            <td className="cr-num">{!row.done && row.timeMs === 0 ? '—' : t('blitzRowTime', { time: secondsText(row.timeMs) })}</td>
             <td className="cr-date">{formatDay(row.at)}</td>
           </tr>
         ))}

@@ -4,7 +4,7 @@ import { MemoryRouter } from 'react-router-dom';
 import type { ChallengeCheck, ChallengeMine } from '@quiz/shared';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createChallenge, getChallengeCheck } from '../api';
-import { t } from '../i18n';
+import { countText, t } from '../i18n';
 import { ChallengeLaunch, challengeUrl } from './ChallengeLaunch';
 
 vi.mock('../api', () => ({
@@ -37,13 +37,23 @@ afterEach(cleanup);
 
 describe('ChallengeLaunch', () => {
   it('shows what will be skipped', async () => {
-    check({ skipped: { rounds: [{ index: 1, type: 'truth', reason: 'type' }], questions: [{ index: 0, count: 3 }], settings: ['teams'] }, empty: false, active: null });
+    check({
+      skipped: { rounds: [{ index: 1, type: 'truth', reason: 'type' }], questions: [{ index: 0, count: 3 }, { index: 2, count: 1 }], settings: ['teams', 'debuffShop', 'audience', 'stealth'] },
+      empty: false,
+      active: null,
+    });
     open();
-    expect(await screen.findByText(t('challengeSkipTitle'))).toBeTruthy();
+    expect(await screen.findByText('Буде пропущено те, що потребує кількох гравців:')).toBeTruthy();
     const items = screen.getAllByRole('listitem').map((item) => item.textContent);
-    expect(items).toContain(t('challengeSkipRound', { index: 2, type: t('roundTypeTruth') }));
-    expect(items.some((text) => text!.includes(t('challengeSkipRound', { index: 1, type: t('roundTypeClassic') })) && text!.includes(t('questionCount', { count: 3 })))).toBe(true);
-    expect(items).toContain(t('challengeSkipSetting_teams'));
+    expect(items).toEqual([
+      t('challengeSkipRound', { index: 2, type: t('roundTypeTruth') }),
+      'Раунд 1 (Класичний): буде пропущено 3 запитання',
+      'Раунд 3 (Класичний): буде пропущено 1 запитання',
+      'Командна гра',
+      'Крамниця дебафів',
+      'Бафи: Запитання в залі й Прихований напад',
+    ]);
+    expect(items[1]).toBe(countText('challengeSkipQuestions', 3, { index: 1, type: t('roundTypeClassic'), count: 3 }));
   });
 
   it('says nothing needs skipping', async () => {
@@ -73,6 +83,41 @@ describe('ChallengeLaunch', () => {
     expect(await screen.findByText(t('challengeCopied'))).toBeTruthy();
     expect(navigator.clipboard.writeText).toHaveBeenCalledWith(challengeUrl(mine.code));
     expect(screen.getByRole('link', { name: t('challengeOpenResults') }).getAttribute('href')).toBe('/challenge/abcdefghjkmn');
+  });
+
+  it('after creating: no lead and no skipped list, «Закрити» instead of «Скасувати», nothing to replace', async () => {
+    check({ skipped: { rounds: [], questions: [], settings: ['teams'] }, empty: false, active: null });
+    vi.mocked(createChallenge).mockResolvedValue({ ok: true, data: mine });
+    open();
+    expect(await screen.findByText(t('challengeLead'))).toBeTruthy();
+    fireEvent.click(await createButton());
+    await screen.findByLabelText(t('challengeLink'));
+    expect(screen.queryByText(t('challengeLead'))).toBeNull();
+    expect(screen.queryByText(t('challengeSkipTitle'))).toBeNull();
+    expect(screen.queryByRole('button', { name: t('challengeReplace') })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Скасувати' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Закрити' }));
+    expect(onClose).toHaveBeenCalledTimes(1);
+    // Аркуш має власний клас, а не клас картки сторінки виклику.
+    expect(document.querySelector('.challenge-sheet')).not.toBeNull();
+    expect(document.querySelector('.challenge-card')).toBeNull();
+  });
+
+  it('an active challenge shows its link to copy and share again; «Новий виклик» is only a secondary action', async () => {
+    check({ ...nothing, active: { ...mine, played: 2 } });
+    const share = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, 'share', { value: share, configurable: true });
+    open();
+    const field = (await screen.findByLabelText(t('challengeLink'))) as HTMLInputElement;
+    expect(field.value).toBe(challengeUrl(mine.code));
+    fireEvent.click(screen.getByRole('button', { name: t('challengeCopy') }));
+    expect(await screen.findByText(t('challengeCopied'))).toBeTruthy();
+    expect(navigator.clipboard.writeText).toHaveBeenCalledWith(challengeUrl(mine.code));
+    fireEvent.click(screen.getByRole('button', { name: t('challengeShare') }));
+    expect(share).toHaveBeenCalledWith({ title: quiz.title, text: t('challengeShareText', { title: quiz.title }), url: challengeUrl(mine.code) });
+    const replace = screen.getByRole('button', { name: t('challengeReplace') });
+    expect(replace.classList.contains('btn-primary')).toBe(false);
+    expect(createChallenge).not.toHaveBeenCalled();
   });
 
   it('tells the author when copying fails', async () => {
@@ -112,7 +157,7 @@ describe('ChallengeLaunch', () => {
     confirm.mockReturnValue(true);
     fireEvent.click(button);
     await waitFor(() => expect(createChallenge).toHaveBeenCalledWith('q1'));
-    expect(((await screen.findByLabelText(t('challengeLink'))) as HTMLInputElement).value).toBe(challengeUrl('zzzzzzzzzzzz'));
+    await waitFor(() => expect((screen.getByLabelText(t('challengeLink')) as HTMLInputElement).value).toBe(challengeUrl('zzzzzzzzzzzz')));
     confirm.mockRestore();
   });
 

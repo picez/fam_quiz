@@ -142,7 +142,7 @@ describe('ChallengePage', () => {
     vi.mocked(getChallenge).mockResolvedValue({ ok: true, data: preview({ mine: 'done', canSeeResults: true }) });
     vi.mocked(getChallengeResults).mockResolvedValue({ ok: true, data: rows });
     show();
-    expect(await screen.findByText('Ти вже зіграв цей виклик.')).toBeTruthy();
+    expect(await screen.findByText('Ти вже зіграв(-ла) цей виклик.')).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Почати' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Продовжити' })).toBeNull();
     const table = await screen.findByRole('table');
@@ -158,6 +158,50 @@ describe('ChallengePage', () => {
     expect(body[1].classList.contains('is-me')).toBe(true);
     expect(body[0].classList.contains('is-me')).toBe(false);
     expect(within(body[2] as HTMLElement).getByText('не завершено')).toBeTruthy();
+    // Бали й час — у комірках, що не переносяться.
+    const cells = (body[0] as HTMLElement).querySelectorAll('td.cr-num');
+    expect([...cells].map((cell) => cell.textContent)).toEqual(['120', `${secondsText(23_400)} с`]);
+  });
+
+  it('a row that has not played anything yet shows «—» for the time, not «0,0 с»', async () => {
+    const at = '2026-11-10T10:00:00.000Z';
+    const rows: ChallengeResultRow[] = [
+      { place: 1, nickname: 'Олена', score: 0, timeMs: 12_000, at, done: true, author: true, me: false },
+      { place: 2, nickname: 'Я', score: 0, timeMs: 0, at, done: false, author: false, me: true },
+    ];
+    vi.mocked(getChallenge).mockResolvedValue({ ok: true, data: preview({ mine: 'done', canSeeResults: true }) });
+    vi.mocked(getChallengeResults).mockResolvedValue({ ok: true, data: rows });
+    show();
+    const body = (await screen.findByRole('table')).querySelectorAll('tbody tr');
+    expect((body[1] as HTMLElement).querySelectorAll('td.cr-num')[1]!.textContent).toBe('—');
+    expect((body[0] as HTMLElement).querySelectorAll('td.cr-num')[1]!.textContent).toBe(`${secondsText(12_000)} с`);
+  });
+
+  it('the author of an active challenge can copy and share the link again; others cannot', async () => {
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText: vi.fn().mockResolvedValue(undefined) }, configurable: true });
+    const share = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, 'share', { value: share, configurable: true });
+    vi.mocked(getChallenge).mockResolvedValue({ ok: true, data: preview({ isAuthor: true, canSeeResults: true }) });
+    vi.mocked(getChallengeResults).mockResolvedValue({ ok: true, data: [] });
+    show();
+    fireEvent.click(await screen.findByRole('button', { name: 'Копіювати' }));
+    const url = `${window.location.origin}/challenge/${CODE}`;
+    expect(navigator.clipboard.writeText).toHaveBeenCalledWith(url);
+    expect(await screen.findByText('Скопійовано')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Поділитися' }));
+    expect(share).toHaveBeenCalledWith({ title: 'Річки України', text: 'Приймеш виклик? «Річки України»', url });
+    cleanup();
+
+    vi.mocked(getChallenge).mockResolvedValue({ ok: true, data: preview() });
+    show();
+    await screen.findByRole('button', { name: 'Почати' });
+    expect(screen.queryByRole('button', { name: 'Копіювати' })).toBeNull();
+    cleanup();
+    vi.mocked(getChallenge).mockResolvedValue({ ok: true, data: preview({ isAuthor: true, active: false, canSeeResults: true }) });
+    show();
+    await screen.findByText('Виклик завершено.');
+    expect(screen.queryByRole('button', { name: 'Копіювати' })).toBeNull();
+    Object.defineProperty(navigator, 'share', { value: undefined, configurable: true });
   });
 
   it('an ended challenge', async () => {

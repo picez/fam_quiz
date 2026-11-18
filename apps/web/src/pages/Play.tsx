@@ -205,6 +205,9 @@ export function Play() {
   // Токен більше не діє: гру закрито або гравця вилучено. Повертаємо форму входу.
   const wasAutopilot = useRef(false);
   if (game.view !== null && game.view.role === 'player') wasAutopilot.current = game.view.autopilot;
+  // Спроба виклику (44): після втрати кімнати форма входу не допоможе (кімната закрита для всіх) — веде назад до виклику.
+  const challengeCode = useRef<string | null>(null);
+  if (game.view !== null && game.view.role === 'player' && game.view.author?.challenge !== undefined) challengeCode.current = game.view.author.challenge.code;
   const lost = token !== null && (game.status === 'unauthorized' || game.closed !== null);
   useEffect(() => {
     if (!lost) return;
@@ -217,6 +220,20 @@ export function Play() {
 
   const author = loadAuthor(code);
   const stageUrl = author === null ? null : `${window.location.origin}/stage/${code}#${author.stageToken}`;
+
+  if (token === null && challengeCode.current !== null) {
+    return (
+      <div className="with-menu">
+        <Menu />
+        <main className="app narrow game-bg">
+          <p className="lead">{t(saved ? 'gameSaved' : 'challengeGameClosed')}</p>
+          <Link className="btn btn-primary" to={`/challenge/${challengeCode.current}`}>
+            {t('challengeBackLink')}
+          </Link>
+        </main>
+      </div>
+    );
+  }
 
   if (token === null && saved) {
     return (
