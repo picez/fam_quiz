@@ -142,6 +142,8 @@ import {
   alikeSplit,
   lettersDue,
   ladderWord,
+  wordleGuess,
+  wordleOf,
   ladderBack,
   recordOf,
   tick,
@@ -711,7 +713,7 @@ function draftStage(state: GameState): DraftStage | null {
 
 /**
  * Відбиток того, що гравець (команда, людина) вже подав на поточному запитанні: відповідь, спроби й черга бліцу,
- * відповідь поля, випробування, поступ ланцюжка, стіни, драбини, списку, слів з літер і ряду «Більше чи менше», вигадка й вибір блефу.
+ * відповідь поля, випробування, поступ ланцюжка, стіни, драбини, спроби слова, списку, слів з літер і ряду «Більше чи менше», вигадка й вибір блефу.
  */
 function answerStamp(state: GameState, id: string): string {
   const play = state.plays[state.questionIndex];
@@ -725,6 +727,7 @@ function answerStamp(state: GameState, id: string): string {
     play?.question.type === 'chain' ? chainOf(state, id) : null,
     play?.question.type === 'wall' ? wallOf(state, id) : null,
     play?.question.type === 'wordladder' ? wordLadderOf(state, id) : null,
+    play?.question.type === 'wordle' ? wordleOf(state, id) : null,
     play?.question.type === 'timedlist' ? timedListOf(state, id) : null,
     play?.question.type === 'letterwords' ? letterWordsOf(state, id) : null,
     play?.question.type === 'moreless' ? moreLessOf(state, id) : null,
@@ -1819,6 +1822,14 @@ export class RoomManager {
     const who = this.act(room, playerId, 'answerer');
     if (!who.ok) return who;
     return this.apply(room, ladderWord(room.state, who.id, word, this.now(), (key) => this.nouns.isNoun(key)));
+  }
+
+  /** Спроба «Вгадай слово» (48): рушій перевіряє її словником кімнати; ходить відповідач команди. */
+  wordleGuess(room: Room, playerId: string, word: string): AckResult {
+    if (!this.alive(room)) return this.gone();
+    const who = this.act(room, playerId, 'answerer');
+    if (!who.ok) return who;
+    return this.apply(room, wordleGuess(room.state, who.id, word, this.now(), (key) => this.nouns.isNoun(key)));
   }
 
   /** «Крок назад» драбини (26c). */
