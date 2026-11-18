@@ -81,9 +81,24 @@ describe('resultLayout', () => {
     const ops = layout({ podium, prizes, achievements, moreAchievements: 2, quizTitle: Array.from({ length: 30 }, () => 'слово').join(' ') });
     for (const op of ops.filter((item) => item.block !== 'footer')) expect(op.y).toBeLessThanOrEqual(1350 - 120);
     const blocks = new Set(ops.map((op) => op.block));
-    // Блок або повний, або його немає.
-    if (blocks.has('achievements')) expect(ops.filter((op) => op.block === 'achievements')).toHaveLength(1 + 4 + 1);
-    if (blocks.has('prizes')) expect(ops.filter((op) => op.block === 'prizes')).toHaveLength(1 + 3);
+    // Блок або повний, або його немає: тут п'єдестал із 5 рядків, «Я» й кубки влазять, а 6 рядків досягнень — ні.
+    expect(blocks.has('podium')).toBe(true);
+    expect(blocks.has('me')).toBe(true);
+    expect(blocks.has('prizes')).toBe(true);
+    expect(ops.filter((op) => op.block === 'prizes')).toHaveLength(4);
+    expect(blocks.has('achievements')).toBe(false);
+  });
+
+  it('the full phone picture keeps every block above the footer', () => {
+    const prizes = ([1, 2, 3] as const).map((place) => ({ place, trophy: { kind: 'cup' as const, material: 'gold' as const }, winners: ['Оля'] }));
+    const achievements = (['sniper', 'first_game', 'first_win', 'host'] as const).map((id) => ({ id, nickname: null }));
+    const quizTitle = Array.from({ length: 30 }, () => 'слово').join(' ');
+    const ops = layout({ quizTitle, prizes, achievements, moreAchievements: 2 });
+    expect(ops.filter((op) => op.block === 'title')).toHaveLength(2);
+    expect(new Set(ops.map((op) => op.block))).toEqual(new Set(['title', 'date', 'podium', 'me', 'prizes', 'achievements', 'footer']));
+    expect(ops.filter((op) => op.block === 'prizes')).toHaveLength(4);
+    expect(ops.filter((op) => op.block === 'achievements')).toHaveLength(6);
+    for (const op of ops.filter((item) => item.block !== 'footer')) expect(op.y).toBeLessThanOrEqual(1230);
   });
 
   it('right to left mirrors medal rows', () => {

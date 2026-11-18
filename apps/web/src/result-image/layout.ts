@@ -16,7 +16,7 @@ export type DrawOp =
 
 const MARGIN = 72;
 const TEXT_WIDTH = RESULT_SIZE.width - 2 * MARGIN;
-const GAP = 48;
+const GAP = 32;
 const LIMIT = RESULT_SIZE.height - 120;
 const FOOTER_Y = RESULT_SIZE.height - 60;
 const COLORS = { background: '#FFF8EC', gold: '#C9A227', text: '#2B2340', muted: '#6B6380', plaque: '#F4E7C5' };
@@ -36,7 +36,7 @@ export function resultLayout(data: ResultImageData, measure: Measure, rtl: boole
   const startAlign: CanvasTextAlign = rtl ? 'right' : 'left';
   const endX = rtl ? MARGIN : RESULT_SIZE.width - MARGIN;
   const endAlign: CanvasTextAlign = rtl ? 'left' : 'right';
-  let top = 96;
+  let top = 72;
 
   type Line = { text: string; x: number; font: string; fill: string; align: CanvasTextAlign };
   /** Блок з рядками однакової висоти: додається цілком або не додається зовсім. */
@@ -58,11 +58,11 @@ export function resultLayout(data: ResultImageData, measure: Measure, rtl: boole
     const titleFont = font(700, 64, 'display');
     let lines = wrap(titleFont, data.quizTitle.trim(), TEXT_WIDTH);
     if (lines.length > 2) lines = [lines[0]!, lines.slice(1).join(' ')];
-    place('title', lines.map((line) => [centered(fit(titleFont, line, TEXT_WIDTH), titleFont, COLORS.text)]), 64, 80);
+    place('title', lines.map((line) => [centered(fit(titleFont, line, TEXT_WIDTH), titleFont, COLORS.text)]), 64, 72);
     top -= GAP - 8;
   }
   const dateFont = font(400, 34);
-  place('date', [[centered(kyivDate(data.date), dateFont, COLORS.muted)]], 34, 48);
+  place('date', [[centered(kyivDate(data.date), dateFont, COLORS.muted)]], 34, 40);
 
   if (data.podium.length > 0) {
     const rows = data.podium.map((row) => {
@@ -80,13 +80,13 @@ export function resultLayout(data: ResultImageData, measure: Measure, rtl: boole
         { text: score, x: endX, font: f, fill: COLORS.text, align: endAlign },
       ] satisfies Line[];
     });
-    place('podium', rows, 50, 76);
+    place('podium', rows, 50, 68);
   }
 
   if (data.me) {
     const meFont = font(500, 40);
     const text = fit(meFont, t('resultImageMe', { place: data.me.place, total: data.me.total, score: num(data.me.score) }), TEXT_WIDTH - 48);
-    place('me', [[centered(text, meFont, COLORS.text)]], 40, 88, true);
+    place('me', [[centered(text, meFont, COLORS.text)]], 40, 76, true);
   }
 
   if (data.prizes.length > 0) {
@@ -96,7 +96,7 @@ export function resultLayout(data: ResultImageData, measure: Measure, rtl: boole
       const parts = [prize.trophy ? TROPHY_EMOJI[prize.trophy.kind] : '🎁', prize.trophy ? trophyLabel({ ...prize.trophy, decor: null }) : '', `→ ${prize.winners.join(', ')}`].filter((part) => part !== '');
       lines.push([{ text: fit(f, parts.join(' '), TEXT_WIDTH), x: startX, font: f, fill: COLORS.text, align: startAlign }]);
     }
-    place('prizes', lines, 40, 60);
+    place('prizes', lines, 40, 52);
   }
 
   if (data.achievements.length > 0) {
@@ -108,7 +108,7 @@ export function resultLayout(data: ResultImageData, measure: Measure, rtl: boole
       lines.push([{ text: fit(f, text, TEXT_WIDTH), x: startX, font: f, fill: COLORS.text, align: startAlign }]);
     }
     if (data.moreAchievements > 0) lines.push([{ text: t('resultImageMore', { count: data.moreAchievements }), x: startX, font: f, fill: COLORS.muted, align: startAlign }]);
-    place('achievements', lines, 36, 54);
+    place('achievements', lines, 36, 46);
   }
 
   ops.push({ kind: 'text', text: `${t('appName')} · ${data.site}`, x: RESULT_SIZE.width / 2, y: FOOTER_Y, font: font(400, 28), fill: COLORS.muted, align: 'center', block: 'footer' });
