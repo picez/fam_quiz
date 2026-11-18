@@ -47,7 +47,7 @@ export async function listQuizzes(db: Db, ownerId: string): Promise<QuizSummary[
 
 type QuizRow = typeof quiz.$inferSelect;
 
-export function quizOf(row: QuizRow): Quiz {
+export function quizOf(row: Pick<QuizRow, 'title' | 'description' | 'settings' | 'rounds'>): Quiz {
   const { duels, spares, ...settings } = row.settings;
   const stored = { title: row.title, description: row.description, settings, rounds: row.rounds, ...(duels === undefined ? {} : { duels }), ...(spares === undefined ? {} : { spares }) };
   // Схема дописує типові значення в старих вікторинах; зламаний рядок лишається як є.

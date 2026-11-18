@@ -1,5 +1,6 @@
 import { z } from 'zod';
-import { autopilotCheck, joinSchema, quizSchema, upgradeQuiz } from '@quiz/shared';
+import { autopilotCheck, joinSchema, questionBankQuerySchema, quizSchema, upgradeQuiz } from '@quiz/shared';
+import { searchQuestionBank } from './question-bank';
 import { createQuiz, deleteQuiz, getQuiz, listQuizzes, updateQuiz } from './quizzes';
 import { quizLikes } from './like-store';
 import { fromNodeHeaders } from 'better-auth/node';
@@ -172,6 +173,15 @@ export async function registerAccountRoutes(
     if (user === null) return reply.code(401).send(UNAUTHORIZED);
     const deleted = await deleteQuiz(db, user.id, request.params.id);
     return deleted ? reply.code(204).send() : reply.code(404).send(NOT_FOUND);
+  });
+
+  // Банк запитань (38f): лише вікторини того, хто питає.
+  app.get('/api/question-bank', CODE_LIMIT, async (request, reply) => {
+    const user = await currentUser(request);
+    if (user === null) return reply.code(401).send(UNAUTHORIZED);
+    const parsed = questionBankQuerySchema.safeParse(request.query);
+    if (!parsed.success) return reply.code(400).send(INVALID);
+    return searchQuestionBank(db, user.id, parsed.data);
   });
 
   const { manager, locate, maxRooms } = deps;
