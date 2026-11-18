@@ -10,7 +10,7 @@ import { exact, base, problems, snapshot, afterSplash, noSplashLayer, shot, rest
 
 /**
  * Наскрізні тести: частина 48 — «Вгадай слово» (wordle): редактор зі словником, три телефони з повторами літер і невідомим словом, сцена лише з кольорами,
- * апостроф, команди через капітана, перезапуск, автопілот, 12 гравців на сцені 1280×720, світла тема.
+ * апостроф, команди через капітана, перезапуск, автопілот, 3 / 12 / 24 гравці на сцені 1280×720 без прокрутки, телефон 360×740 без прокрутки, світла тема.
  */
 
 useE2eServer();
@@ -47,6 +47,18 @@ it('part 48: wordle on autopilot — the round plays and finishes by itself, 12 
   try {
     await autopilot48(sockets);
     await crowd48(sockets);
+  } catch (error) {
+    await snapshot();
+    throw error;
+  } finally {
+    for (const socket of sockets) socket.close();
+  }
+}, 600_000);
+
+it('part 48: wordle — 24 players make two centred rows of 12 on the 1280×720 stage, question and reveal, dark and light', async () => {
+  const sockets: Socket[] = [];
+  try {
+    await crowd48(sockets, [...NAMES48, ...MORE_NAMES48]);
   } catch (error) {
     await snapshot();
     throw error;
@@ -119,14 +131,67 @@ async function expectKeyboardFits48(page: Page, name: string) {
       widest: Math.max(...widest),
       scrolls: root.scrollWidth > root.clientWidth + 1 || document.documentElement.scrollWidth > innerWidth,
       innerHeight,
+      pan: `scrollX ${scrollX}, page width ${document.documentElement.scrollWidth}, zone scrolled ${document.querySelector('.debuff-zone')?.scrollLeft ?? 0}`,
+      zoneScroll: document.querySelector('.debuff-zone')?.scrollLeft ?? 0,
     };
   });
+  console.log(`part 48: ${name} — ${info.pan}`);
   console.log(`part 48: ${name} — keyboard ${Math.round(info.left)}…${Math.round(info.right)} of ${width}, bottom ${Math.round(info.bottom)} of ${info.innerHeight}, key min ${Math.round(info.minWidth)}×${Math.round(info.minHeight)}, widest row ${info.widest}`);
   expect(info.widest, `${name}: the widest keyboard row`).toBe(12);
   expect(info.left, `${name}: the keyboard starts left of the screen`).toBeGreaterThanOrEqual(-0.5);
   expect(info.right, `${name}: the keyboard ends past ${width}`).toBeLessThanOrEqual(width + 0.5);
   expect(info.scrolls, `${name}: sideways scroll`).toBe(false);
+  expect(info.zoneScroll, `${name}: the debuff zone scrolled sideways`).toBe(0);
   expect(info.minWidth, `${name}: a key is too narrow`).toBeGreaterThanOrEqual(22);
+}
+
+/** Телефон: сітка, легенда, три ряди клавіш і «Перевірити» — у вікні без прокрутки (низ «Перевірити» ≤ висоти вікна). */
+async function expectPhoneFits48(page: Page, name: string) {
+  const info = await page.evaluate(() => {
+    const bottom = (selector: string) => document.querySelector(selector)?.getBoundingClientRect().bottom ?? -1;
+    const cell = document.querySelector('.wordle-play .wordle-row .wordle-cell')?.getBoundingClientRect();
+    const key = document.querySelector('.wordle-keys-row .wordle-key')?.getBoundingClientRect();
+    return {
+      grid: bottom('.wordle-play .wordle-grid'),
+      legend: bottom('.wordle-legend'),
+      keys: bottom('.wordle-keys-row:nth-child(3)'),
+      check: bottom('.wordle-check'),
+      cell: cell === undefined ? 0 : cell.width,
+      key: key === undefined ? 0 : key.height,
+      scrollHeight: document.documentElement.scrollHeight,
+      below: [...document.querySelectorAll('body *')]
+        .filter((el) => el.getBoundingClientRect().bottom > innerHeight + 1 && el.getBoundingClientRect().height > 0)
+        .slice(0, 8)
+        .map((el) => `${el.tagName.toLowerCase()}.${[...el.classList].join('.')}@${Math.round(el.getBoundingClientRect().top)}–${Math.round(el.getBoundingClientRect().bottom)}`),
+      scrollY,
+      innerHeight,
+    };
+  });
+  console.log(`part 48: ${name} — grid ends ${Math.round(info.grid)}, legend ${Math.round(info.legend)}, 3rd key row ${Math.round(info.keys)}, «Перевірити» ${Math.round(info.check)} of ${info.innerHeight}; cell ${Math.round(info.cell)} px, key height ${Math.round(info.key)} px, page ${info.scrollHeight}; below the fold: ${info.below.join(" ")}`);
+  expect(info.check, `${name}: no «Перевірити»`).toBeGreaterThan(0);
+  expect(info.scrollY, `${name}: the page is scrolled`).toBe(0);
+  for (const [part, bottom] of [['grid', info.grid], ['legend', info.legend], ['third key row', info.keys], ['«Перевірити»', info.check]] as const) {
+    expect(bottom, `${name}: the ${part} ends below the ${info.innerHeight} px screen`).toBeLessThanOrEqual(info.innerHeight);
+  }
+  expect(info.scrollHeight, `${name}: the phone page scrolls down`).toBeLessThanOrEqual(info.innerHeight + 1);
+}
+
+/** Сцена: дошки по центру — поля зліва й справа від крайніх дошок рівні (±2 px) і не нульові. */
+async function expectBoardsCentred48(stage: Page, name: string) {
+  const { left, right, width, cell } = await stage.locator('.wordle-board').evaluate((board) => {
+    const box = board.getBoundingClientRect();
+    const items = [...board.children].map((li) => li.getBoundingClientRect());
+    const first = items.filter((r) => Math.abs(r.top - items[0]!.top) < 1);
+    return {
+      left: Math.min(...first.map((r) => r.left)) - box.left,
+      right: box.right - Math.max(...first.map((r) => r.right)),
+      width: box.width,
+      cell: board.querySelector('.wordle-cell')!.getBoundingClientRect().width,
+    };
+  });
+  console.log(`part 48: ${name} — boards ${Math.round(left)} px from the left, ${Math.round(right)} px from the right of ${Math.round(width)}, cell ${cell.toFixed(1)} px`);
+  expect(Math.abs(left - right), `${name}: boards are not centred (${left} vs ${right})`).toBeLessThanOrEqual(2);
+  return cell;
 }
 
 /** Сторінка не гортається вбік. */
@@ -205,6 +270,37 @@ async function cellEdge48(cell: Locator): Promise<number> {
   });
 }
 
+/** Рамка клітинки (колір border) проти тла під нею (альфи предків змішано): відношення яскравостей WCAG. */
+async function typedEdge48(cell: Locator): Promise<{ border: string; background: string; ratio: number }> {
+  return cell.first().evaluate((el) => {
+    const canvas = document.createElement('canvas');
+    canvas.width = canvas.height = 1;
+    const ctx = canvas.getContext('2d', { willReadFrequently: true })!;
+    const rgba = (css: string) => {
+      ctx.clearRect(0, 0, 1, 1);
+      ctx.fillStyle = css;
+      ctx.fillRect(0, 0, 1, 1);
+      const [r, g, b, a] = ctx.getImageData(0, 0, 1, 1).data;
+      return [r!, g!, b!, a! / 255] as const;
+    };
+    const layers: (readonly [number, number, number, number])[] = [];
+    for (let n: Element | null = el; n !== null; n = n.parentElement) layers.push(rgba(getComputedStyle(n).backgroundColor));
+    let bg = [255, 255, 255];
+    for (const [r, g, b, a] of layers.reverse()) bg = [r * a + bg[0]! * (1 - a), g * a + bg[1]! * (1 - a), b * a + bg[2]! * (1 - a)];
+    const [br, bgc, bb, ba] = rgba(getComputedStyle(el).borderTopColor);
+    const edge = [br * ba + bg[0]! * (1 - ba), bgc * ba + bg[1]! * (1 - ba), bb * ba + bg[2]! * (1 - ba)];
+    const lum = (c: number[]) => {
+      const [r, g, b] = c.map((v) => {
+        const x = v / 255;
+        return x <= 0.03928 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4;
+      });
+      return 0.2126 * r! + 0.7152 * g! + 0.0722 * b!;
+    };
+    const [hi, lo] = [lum(edge), lum(bg)].sort((x, y) => y - x);
+    return { border: getComputedStyle(el).borderTopColor, background: `rgb(${bg.map(Math.round).join(', ')})`, ratio: (hi! + 0.05) / (lo! + 0.05) };
+  });
+}
+
 /** Форми не залежать від кольору: «є в слові» — коло, «немає» — менша клітинка, «на місці» — квадрат із товстою рамкою. */
 async function expectShapes48(scope: Locator, name: string) {
   const shapes = await scope.evaluate((root) => {
@@ -237,6 +333,15 @@ async function theme48(page: Page, mode: 'light' | 'dark') {
 /** Сцена: без прокрутки; дошка й усі її рядки в вікні, не під кутовими кнопками й смугою реакцій. */
 async function expectBoardInView48(stage: Page, name: string) {
   const [height, clientH, width, clientW] = (await stage.evaluate('[document.documentElement.scrollHeight, document.documentElement.clientHeight, document.documentElement.scrollWidth, document.documentElement.clientWidth]')) as number[];
+  const layout = await stage.evaluate(() => {
+    const box = (selector: string) => {
+      const r = document.querySelector(selector)?.getBoundingClientRect();
+      return r === undefined ? '—' : `${Math.round(r.top)}–${Math.round(r.bottom)}`;
+    };
+    const app = document.querySelector('.app');
+    return `title ${box('.stage-question h2, .stage-question .question-text')}, answer ${box('.wordle-answer')}, board ${box('.wordle-board')}, first board ${box('.wordle-board > li')}, app padding-bottom ${app === null ? '—' : getComputedStyle(app).paddingBottom}`;
+  });
+  console.log(`part 48: ${name} — page ${height} of ${clientH}; ${layout}`);
   expect(height, `${name}: the stage scrolls down (${height} > ${clientH})`).toBeLessThanOrEqual(clientH!);
   expect(width, `${name}: the stage scrolls sideways (${width} > ${clientW})`).toBeLessThanOrEqual(clientW!);
   const viewport = stage.viewportSize()!;
@@ -390,6 +495,7 @@ async function game48() {
   // ── Телефон Олі 360: клавіатура ЙЦУКЕН цілком у вікні, порожня сітка 6 × 5, легенда. ──
   await olya.locator('.wordle-keys').waitFor();
   await expectKeyboardFits48(olya, 'olya 360');
+  await expectPhoneFits48(olya, 'olya 360×740 dark, empty grid');
   expect(await olya.locator('.wordle-play .wordle-row').count(), 'rows in the grid').toBe(6);
   expect(await olya.locator('.wordle-play .wordle-row').first().locator('.wordle-cell').count(), 'cells in a row').toBe(5);
   expect(await olya.locator('.wordle-legend li').allTextContents()).toEqual(['на місці', 'є в слові', 'немає']);
@@ -421,6 +527,7 @@ async function game48() {
 
   // ── Тарас: «лампо» — немає в словнику, спроб не поменшало; рядок лишається для виправлення. ──
   await taras.locator('.wordle-keys').waitFor();
+  await expectPhoneFits48(taras, 'taras 360×740 dark, empty grid');
   await guess48(taras, 'лампо');
   await expect.poll(() => status48(taras).textContent(), POLL).toBe('Такого слова немає в словнику');
   expect(await acceptedRows48(phoneGrid48(taras)), 'an unknown word used a try').toBe(0);
@@ -445,6 +552,9 @@ async function game48() {
   await expectColoursOnly48(stage, ['колос', 'сосна', 'молот', 'посол'], 'question');
   await expectShapes48(stage.locator('.wordle-board'), 'stage cells');
   if (process.env.E2E_SHOTS === '1') await sleep(600);
+  // Троє на сцені: дошки по центру й великі (клітинка ≥ 36 px), сцена не гортається.
+  await expectBoardInView48(stage, '3 question 1280×720');
+  expect(await expectBoardsCentred48(stage, '3 question 1280×720'), '3 players: stage cells are tiny').toBeGreaterThanOrEqual(36);
   await viewShot48(stage, 'wordle48-stage-question');
 
   // ── Пульт: слово ведучого на картці запитання, літери кожної спроби — у рядках «Відповіді наживо» (панель .host-wordle живе лише на розкритті). ──
@@ -507,6 +617,7 @@ async function game48() {
   await shot(host, 'wordle48-host-reveal');
   await viewShot48(host, 'wordle48-host-panel');
   await expectBoardInView48(stage, 'reveal 1280×720');
+  expect(await expectBoardsCentred48(stage, '3 reveal 1280×720'), '3 players at reveal: stage cells are tiny').toBeGreaterThanOrEqual(22);
   // Після розкриття слово є в кадрах сцени.
   expect(stageFrames.slice(from.stage).join(NL), 'the word after reveal').toContain('колос');
 
@@ -530,7 +641,16 @@ async function game48() {
   await expect.poll(() => marks48(phoneGrid48(olya), 0), POLL).toEqual(['near', 'miss', 'miss', 'hit']);
   await stage.locator('.wordle-board > li').nth(1).waitFor();
   await expectKeyboardFits48(olya, 'light olya 360');
+  await expectPhoneFits48(olya, 'olya 360×740 light');
   await noSide48(olya, 'olya light with keyboard');
+  // Набрані літери в світлій темі: рамка клітинки читається на тлі (≥ 3 : 1).
+  await typeLetters48(olya, 'со');
+  await expect.poll(() => lettersOf48(olya.locator('.wordle-play .wordle-grid'), 1), POLL).toBe('со');
+  const typedEdge = await typedEdge48(olya.locator('.wordle-play .wordle-cell.is-typed'));
+  console.log(`part 48: light typed cell border ${typedEdge.border} on ${typedEdge.background} — ${typedEdge.ratio.toFixed(2)}`);
+  expect(typedEdge.ratio, 'light typed cell border').toBeGreaterThanOrEqual(3);
+  await expectReadable48(olya.locator('.wordle-play .wordle-cell.is-typed'), 'light typed letter');
+  await expectPhoneFits48(olya, 'olya 360×740 light, typing');
   await viewShot48(olya, 'wordle48-light-phone-360');
   for (const [scope, name] of [[olya.locator('.wordle-play .wordle-cell.is-hit'), 'light phone hit cell'], [olya.locator('.wordle-play .wordle-cell.is-near'), 'light phone near cell'], [olya.locator('.wordle-keys .wordle-key.is-hit'), 'light hit key'], [olya.locator('.wordle-keys .wordle-key.is-near'), 'light near key'], [stage.locator('.wordle-board .wordle-cell.is-hit'), 'light stage hit cell'], [stage.locator('.wordle-board .wordle-cell.is-near'), 'light stage near cell']] as const) {
     if ((await scope.count()) === 0) continue;
@@ -545,6 +665,8 @@ async function game48() {
   }
   await expectShapes48(olya.locator('.wordle-play'), 'light phone cells');
   if (process.env.E2E_SHOTS === '1') await sleep(600);
+  await expectBoardInView48(stage, 'light 3 question 1280×720');
+  await expectBoardsCentred48(stage, 'light 3 question 1280×720');
   await viewShot48(stage, 'wordle48-light-stage');
   await theme48(olya, 'dark');
   await theme48(stage, 'dark');
@@ -557,6 +679,14 @@ async function game48() {
   await expect.poll(() => stage.locator('.wordle-board > li').nth(1).locator('.tag').textContent(), POLL).toBe('вгадав за 1 спробу');
   for (const [at, wanted] of [833, 1433, 0].entries()) await expect.poll(() => phoneScore27a(phones[at]!).textContent().then((t) => (t ?? '').replace(/\s/g, '')), POLL).toBe(String(wanted));
   await taras.locator('.wordle-word').filter({ hasText: /^Слово: М['’ʼ]ЯСО$/ }).waitFor();
+  // Розкриття трьох у світлій темі: сцена не гортається, дошки по центру.
+  await theme48(stage, 'light');
+  await stage.locator('.wordle-answer-word').waitFor();
+  if (process.env.E2E_SHOTS === '1') await sleep(600);
+  await expectBoardInView48(stage, 'light 3 reveal 1280×720');
+  await expectBoardsCentred48(stage, 'light 3 reveal 1280×720');
+  await viewShot48(stage, 'wordle48-light-reveal-stage');
+  await theme48(stage, 'dark');
   await toWinners27c(host, stage);
 
   expect(problems).toEqual([]);
@@ -581,11 +711,11 @@ async function teams48() {
   }
   await startGame48(host, stage, phones);
 
-  // ── Капітан (Оля, Іра) має клавіатуру; другий учасник — сітку команди й «Вгадує капітан…» без клавіатури. ──
+  // ── Капітан (Оля, Іра) має клавіатуру; другий учасник — сітку команди й «Вгадує той, хто відповідає за команду…» без клавіатури. ──
   await olya.locator('.wordle-keys').waitFor();
   await ira.locator('.wordle-keys').waitFor();
   for (const page of [petro, marko]) {
-    await page.locator('.wordle-watch').getByText(/^Вгадує капітан/).waitFor();
+    await page.locator('.wordle-watch').getByText(/^Вгадує той, хто відповідає за команду/).waitFor();
     expect(await page.locator('.wordle-keys').count(), 'a keyboard for a teammate').toBe(0);
     expect(await page.locator('.wordle-play .wordle-row').count(), 'the team grid for a teammate').toBe(6);
   }
@@ -679,14 +809,44 @@ const NAMES48 = ['Олександра', 'Богдана', 'Ярослав', 'М
 /** Слова-пробники: усі зі словника, ні одне — не «колос». */
 const MISSES48 = ['сосна', 'молот', 'посол', 'голос', 'хмара', 'школа'];
 
-async function crowd48(sockets: Socket[]) {
-  const host = await open('host48c', 1280, 900);
-  await register(host, 'host', 'Леся Ведуча', 'host48c@example.com');
-  const quiz = makeRoundsQuiz([classicRound('cc48', [q48(wordleQ, 'wc1', 120, 1000)], { speedBonus: false })], { leaderboard: 'end' });
-  const { code, stage } = await launch48(host, quiz, 'Вгадай слово натовп 48', 'stage48c');
+/** Ще 12 імен для 24 гравців. */
+const MORE_NAMES48 = ['Тарас', 'Оксана', 'Марко', 'Ліна', 'Данило', 'Злата', 'Назар', 'Ярина', 'Орест', 'Дарина', 'Устим', 'Олеся'];
+
+/** Сцена в обох темах: без прокрутки, дошки по центру; світла тема — і зразу назад у темну. */
+async function crowdChecks48(stage: Page, count: number, phase: 'question' | 'reveal') {
+  if (process.env.E2E_SHOTS === '1') await sleep(800);
+  await expectBoardInView48(stage, `${count} ${phase} 1280×720`);
+  const cell = await expectBoardsCentred48(stage, `${count} ${phase} 1280×720`);
+  expect(cell, `${count} players: stage cells are too small`).toBeGreaterThanOrEqual(12);
+  if (phase === 'question') await expectColoursOnly48(stage, ['колос', 'сосна', 'молот', 'посол', 'голос', 'хмара', 'школа'], `${count} players`);
+  const lines = await stage.locator('.wordle-board > li').evaluateAll((all) => new Set(all.map((li) => Math.round(li.getBoundingClientRect().top))).size);
+  console.log(`part 48: ${count} ${phase} — ${lines} line(s) of boards`);
+  expect(lines, `${count} players: lines of boards`).toBe(Math.ceil(count / 12));
+  await viewShot48(stage, `wordle48-${count}-stage-${phase}`);
+  await theme48(stage, 'light');
+  await stage.locator('.wordle-board.is-many').waitFor();
+  if (phase === 'reveal') await stage.locator('.wordle-answer-word', { hasText: 'КОЛОС' }).waitFor();
+  if (process.env.E2E_SHOTS === '1') await sleep(800);
+  await expectBoardInView48(stage, `light ${count} ${phase} 1280×720`);
+  await expectBoardsCentred48(stage, `light ${count} ${phase} 1280×720`);
+  if (phase === 'reveal') {
+    await expectReadable48(stage.locator('.wordle-board .wordle-cell.is-hit'), `light ${count} stage hit cell`);
+    await expectReadable48(stage.locator('.wordle-board .wordle-cell.is-near'), `light ${count} stage near cell`);
+  }
+  await viewShot48(stage, `wordle48-${count}-light-stage-${phase}`);
+  await theme48(stage, 'dark');
+  await stage.locator('.wordle-board.is-many').waitFor();
+}
+
+async function crowd48(sockets: Socket[], names: readonly string[] = NAMES48) {
+  const count = names.length;
+  const host = await open(`host48c${count}`, 1280, 900);
+  await register(host, 'host', 'Леся Ведуча', `host48c${count}@example.com`);
+  const quiz = makeRoundsQuiz([classicRound(`cc48-${count}`, [q48(wordleQ, `wc${count}`, 120, 1000)], { speedBonus: false })], { leaderboard: 'end' });
+  const { code, stage } = await launch48(host, quiz, `Вгадай слово натовп ${count} 48`, `stage48c${count}`);
   const pilots: Pilot[] = [];
-  for (const nickname of NAMES48) pilots.push(await pilotPlayer(sockets, code, nickname));
-  await stage.getByText(NAMES48[11]!).waitFor();
+  for (const nickname of names) pilots.push(await pilotPlayer(sockets, code, nickname));
+  await stage.getByText(names[count - 1]!, exact).first().waitFor();
   await click(host, 'Почати гру');
   await afterSplash(host, stage);
   await step27a(host, 'Почати раунд');
@@ -703,28 +863,13 @@ async function crowd48(sockets: Socket[]) {
     }
   }
   await stage.locator('.wordle-board.is-many').waitFor();
-  expect(await stage.locator('.wordle-board > li').count()).toBe(12);
-  if (process.env.E2E_SHOTS === '1') await sleep(800);
-  await expectBoardInView48(stage, '12 question 1280×720');
-  await expectColoursOnly48(stage, ['колос', 'сосна', 'молот', 'посол', 'голос', 'хмара', 'школа'], '12 players');
-  await viewShot48(stage, 'wordle48-12-stage-question');
+  expect(await stage.locator('.wordle-board > li').count()).toBe(count);
+  await crowdChecks48(stage, count, 'question');
   await reveal28a(host);
   await stage.locator('.wordle-answer-word', { hasText: 'КОЛОС' }).waitFor();
-  await expect.poll(() => stage.locator('.wordle-board > li .tag').allTextContents().then((all) => all.filter((tag) => tag.startsWith('вгадав за')).length), POLL).toBe(6);
-  if (process.env.E2E_SHOTS === '1') await sleep(800);
-  await expectBoardInView48(stage, '12 reveal 1280×720');
-  await shot(stage, 'wordle48-12-stage');
-  await viewShot48(stage, 'wordle48-12-stage-view');
-  await theme48(stage, 'light');
-  await stage.locator('.wordle-board.is-many').waitFor();
-  await stage.locator('.wordle-answer-word', { hasText: 'КОЛОС' }).waitFor();
-  if (process.env.E2E_SHOTS === '1') await sleep(800);
-  await expectBoardInView48(stage, 'light 12 reveal 1280×720');
-  await expectReadable48(stage.locator('.wordle-board .wordle-cell.is-hit'), 'light 12 stage hit cell');
-  await expectReadable48(stage.locator('.wordle-board .wordle-cell.is-near'), 'light 12 stage near cell');
-  await shot(stage, 'wordle48-12-light-stage');
-  await viewShot48(stage, 'wordle48-12-light-stage-view');
-  await theme48(stage, 'dark');
+  await expect.poll(() => stage.locator('.wordle-board > li .tag').allTextContents().then((all) => all.filter((tag) => tag.startsWith('вгадав за')).length), POLL).toBe(count / 2);
+  await crowdChecks48(stage, count, 'reveal');
+  await shot(stage, `wordle48-${count}-stage`);
 
   expect(problems).toEqual([]);
 }
