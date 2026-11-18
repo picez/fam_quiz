@@ -1676,6 +1676,39 @@ describe('PlayerScreen final', () => {
     expect(screen.getByText('Готово! Кроків: 4')).toBeTruthy();
   });
 
+  const wordleQuestion = { ...publicQuestion, type: 'wordle' as const, text: 'Вгадайте слово', choices: [], wordle: { letters: 5, tries: 6 } };
+  const wordleRow = { letters: ['с', 'о', 'с', 'н', 'а'], marks: ['near', 'hit', 'miss', 'miss', 'miss'] as const };
+  const myWordle = { letters: 5, tries: 6, rows: [{ ...wordleRow, marks: [...wordleRow.marks] }], solved: false, canGuess: true, word: null };
+
+  it('48: a wordle phone shows the own rows and the keyboard under the shared timer', () => {
+    show(onQuestion({ question: wordleQuestion, endsAt: Date.now() + 20_000, me: { ...me, wordle: myWordle } }));
+    expect(screen.getAllByRole('timer')).toHaveLength(1);
+    // Клітинка й клавіша «о» мають той самий підпис: сітка — картинки, клавіатура — кнопки.
+    expect(screen.getByRole('img', { name: 'о — на місці' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'о — на місці' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Перевірити' })).toBeTruthy();
+    expect(document.querySelector('.wordle-legend')).not.toBeNull();
+  });
+
+  it('48: after time runs out on the phone the keys are off before the server locks', () => {
+    show(onQuestion({ question: wordleQuestion, endsAt: Date.now() - 1000, remainingMs: 0, me: { ...me, wordle: myWordle } }));
+    expect((screen.getByRole('button', { name: 'к' }) as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it('48: a wordle closes with the own grid and the reveal shows the word', () => {
+    show(view({ phase: 'locked', questionIndex: 0, question: wordleQuestion, me: { ...me, wordle: { ...myWordle, canGuess: false } } }));
+    expect(screen.getByLabelText('о — на місці')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Перевірити' })).toBeNull();
+    // Одна спроба з шести: не «спроби скінчилися», а час.
+    expect(screen.getByRole('heading', { name: 'Час вийшов' })).toBeTruthy();
+    cleanup();
+    const reveal: Question = { id: 'q1', type: 'wordle', text: 'Вгадайте слово', imageUrl: null, video: null, timeLimit: 120, points: 1000, word: 'колос' };
+    show(view({ phase: 'reveal', questionIndex: 0, question: wordleQuestion, reveal, me: { ...me, wordle: { ...myWordle, canGuess: false, word: 'колос' } } }));
+    expect(screen.getByText('Слово: КОЛОС')).toBeTruthy();
+    // Слово вже назване під сіткою: рядок «Правильна відповідь» його лише повторив би.
+    expect(screen.queryByText(/Правильна відповідь:/)).toBeNull();
+  });
+
   const listQuestion = { ...publicQuestion, type: 'timedlist' as const, text: 'Назвіть планети', choices: [], timedlist: { total: 8, minus: null } };
   const myList = { found: [{ index: 5, text: 'Юпітер' }], total: 8, wrong: 0, canType: true, done: false };
 
@@ -3777,6 +3810,18 @@ describe('PlayerScreen: teams', () => {
     expect(bar.querySelector('.score')?.textContent).toBe('120');
     expect(document.querySelector('.team-bar')?.textContent).toContain('Сині');
     expect(screen.getByText('Ти капітан')).toBeTruthy();
+  });
+
+  it('48: the team captain gets the wordle keys, the rest of the team watches the team grid', () => {
+    const wordleQuestion = { ...publicQuestion, type: 'wordle' as const, choices: [], wordle: { letters: 5, tries: 6 } };
+    const wordle = { letters: 5, tries: 6, rows: [{ letters: ['с', 'о', 'с', 'н', 'а'], marks: ['near' as const, 'hit' as const, 'miss' as const, 'miss' as const, 'miss' as const] }], solved: false, canGuess: true, word: null };
+    show(asQuestion({}, { question: wordleQuestion, me: { ...baseMe, wordle } }));
+    expect(screen.getByRole('button', { name: 'Перевірити' })).toBeTruthy();
+    cleanup();
+    show(asQuestion(noCaptain, { question: wordleQuestion, me: { ...baseMe, wordle } }));
+    expect(screen.queryByRole('button', { name: 'Перевірити' })).toBeNull();
+    expect(screen.getByText('Вгадує той, хто відповідає за команду — дивіться на сітку команди')).toBeTruthy();
+    expect(screen.getByLabelText('о — на місці')).toBeTruthy();
   });
 
   it('a solo single tap still submits at once', () => {

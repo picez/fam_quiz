@@ -124,6 +124,17 @@ describe('LiveAnswers', () => {
     expect(body).toContain('ставка 300');
   });
 
+  it('writes the tries of a wordle on the host row, and the solved try once it is answered', () => {
+    show([
+      row({ progress: { kind: 'wordle', tries: 2, guesses: ['сосна', 'колос'], solved: false } }),
+      row({ id: 'a', nickname: 'А', answered: true, answer: { type: 'wordle', guesses: ['сосна', 'колос', 'полос'], tries: 3, solved: true }, progress: { kind: 'wordle', tries: 3, guesses: ['сосна', 'колос', 'полос'], solved: true } }),
+    ]);
+    const rows = [...document.querySelectorAll('.live-rows li')].map((li) => li.textContent ?? '');
+    expect(rows[0]).toContain('2 з 6 · сосна · колос');
+    expect(rows[1]).toContain('вгадав за 3 спроби');
+    expect(rows[1]).not.toContain('3 з 6');
+  });
+
   it('writes the steps and words of a word ladder, and only the words once it is finished', () => {
     show([
       row({ progress: { kind: 'wordladder', steps: 2, words: ['пола', 'пора'], finished: false } }),

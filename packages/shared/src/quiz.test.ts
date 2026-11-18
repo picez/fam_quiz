@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { duelBetSchema, alikeJoinSchema, alikeSplitSchema, spyTextSchema, spyVoteSchema } from './events';
+import { duelBetSchema, alikeJoinSchema, alikeSplitSchema, spyTextSchema, spyVoteSchema, wordleGuessSchema } from './events';
 import {
   DEFAULT_ANSWER_WINDOW,
   DEFAULT_RULES,
@@ -2556,7 +2556,8 @@ describe('more or less question (28a)', () => {
   const manyPairs = (count: number, points: number) => Array.from({ length: count }, (_, i) => ({ ...pairA, id: `p${i}`, points }));
 
   it('accepts a more or less question', () => {
-    expect(QUESTION_TYPES.indexOf('moreless')).toBe(QUESTION_TYPES.indexOf('letterwords') + 1);
+    expect(QUESTION_TYPES.indexOf('moreless')).toBe(QUESTION_TYPES.indexOf('wordle') + 1);
+    expect(QUESTION_TYPES.indexOf('wordle')).toBe(QUESTION_TYPES.indexOf('letterwords') + 1);
     expect(qIssues(moreLessQ())).toEqual([]);
     expect(issues(quizOf([round('r', [moreLessQ()])]))).toEqual([]);
     expect(issues(quizOf([board(moreLessQ())]))).toEqual([]);
@@ -3648,6 +3649,7 @@ describe('quest round (29g)', () => {
       bluff: { ...b, type: 'bluff', text: 'Ейфелеву вежу спершу пропонували поставити в …', timeLimit: 60, choiceTime: 30, accepted: ['Барселона'], lies: ['Мадрид', 'Лондон', 'Брюссель'] },
       thinkalike: { ...b, type: 'thinkalike', text: 'Назвіть фрукт, який першим спадає на думку', timeLimit: 30 },
       spy: { ...b, type: 'spy', text: 'Напишіть одне слово-асоціацію до свого слова', timeLimit: 40, voteTime: 30, accepted: ['кава'], spyWord: 'чай' },
+      wordle: { ...b, type: 'wordle', text: 'Вгадайте іменник з п’яти літер', timeLimit: 120, word: 'колос' },
       think: { ...b, points: 0, type: 'think', text: 'Напишіть колір веселки', timeLimit: 30, words: [{ word: 'червоний', synonyms: [] }] },
     };
     const others = ALL_QUESTION_TYPES.filter((type) => !(QUEST_TYPES as readonly string[]).includes(type));
@@ -4086,5 +4088,86 @@ describe('plan 38: spy question', () => {
     expect(spyTextSchema.safeParse({ text: 'я'.repeat(LIMITS.thinkWord + 1) }).success).toBe(false);
     expect(spyVoteSchema.safeParse({ playerId: 'p2' }).success).toBe(true);
     expect(spyVoteSchema.safeParse({ playerId: '' }).success).toBe(false);
+  });
+});
+
+describe('plan 48: wordle question', () => {
+  const quizOf = (rounds: object[], patch: object = {}) => ({ title: 'T', description: '', settings: DEFAULT_SETTINGS, rounds, ...patch });
+  const issues = (value: unknown) => {
+    const parsed = quizSchema.safeParse(value);
+    return parsed.success ? [] : parsed.error.issues.map((i) => i.message);
+  };
+  const qIssues = (value: unknown) => {
+    const parsed = questionSchema.safeParse(value);
+    return parsed.success ? [] : parsed.error.issues.map((i) => i.message);
+  };
+  const wordleQ = (patch: object = {}) => ({ id: 'wd', type: 'wordle', text: 'Вгадайте іменник з п’яти літер', imageUrl: null, video: null,
+    word: 'колос', timeLimit: 120, points: 1000, ...patch });
+  const IMG = '/uploads/' + 'c'.repeat(32) + '.jpg';
+
+  it('accepts a wordle', () => {
+    expect(questionSchema.parse(wordleQ())).toMatchObject({ type: 'wordle', word: 'колос' });
+    expect(valid(questionSchema, wordleQ({ imageUrl: IMG }))).toBe(true);
+    expect(qIssues(wordleQ({ word: "м'ясо" }))).toEqual([]);
+  });
+
+  it('refuses a broken wordle', () => {
+    expect(qIssues(wordleQ({ word: 'кіт' }))).toContain('wordle_word');
+    expect(qIssues(wordleQ({ word: 'соняшник' }))).toContain('wordle_word');
+    expect(qIssues(wordleQ({ word: 'kolos' }))).toContain('wordle_word');
+    expect(qIssues(wordleQ({ text: 'Слово — колос?' }))).toContain('wordle_leak');
+    expect(qIssues(wordleQ({ text: 'Колоски в полі' }))).not.toContain('wordle_leak');
+    // Слово з апострофом: і без нього («пірря»), і з іншим апострофом («пір’я») — витік.
+    expect(qIssues(wordleQ({ word: "пір'я", text: 'Що таке пірря?' }))).toContain('wordle_leak');
+    expect(qIssues(wordleQ({ word: "пір'я", text: 'Що таке пір’я?' }))).toContain('wordle_leak');
+    expect(qIssues(wordleQ({ word: "пір'я", text: 'Чим набивають подушки?' }))).not.toContain('wordle_leak');
+    expect(qIssues(wordleQ({ video: { id: 'E2Evideo001', start: 0, end: 10 } }))).toContain('wordle_video');
+  });
+
+  it('a wordle plays only in classic rounds', () => {
+    const blitz = { id: 'bl', type: 'blitz', title: '', shuffleOptions: false, answerWindow: 15, attempts: 1, check: 'auto',
+      rules: { ...DEFAULT_RULES, partial: null }, questions: [wordleQ({ id: 'a1' })] };
+    const final = { id: 'f', type: 'final', title: '', shuffleOptions: false, check: 'auto', questions: [wordleQ({ id: 'a2' })] };
+    const bets = { id: 'bt', type: 'bets', title: '', shuffleOptions: false, check: 'auto', betStart: 200, betStep: 100, betMax: 600,
+      questions: [{ ...wordleQ({ id: 'a3' }), betsCut: 2 }] };
+    const auction = { id: 'au', type: 'auction', title: '', shuffleOptions: false, check: 'auto', bidMode: 'step', bidStep: 50, loss: 'bid',
+      questions: [{ ...wordleQ({ id: 'a4' }), betsCut: 2 }] };
+    const wipeout = { id: 'rw', type: 'wipeout', title: '', shuffleOptions: false,
+      questions: [wordleQ({ id: 'a5' }), ...[1, 2, 3, 4].map((n) => ({ ...single, id: `w${n}` }))] };
+    const survival = { id: 'rs', type: 'survival', title: '', speedBonus: false, shuffleOptions: false, rules: DEFAULT_RULES,
+      questions: [wordleQ({ id: 'a6' }), { ...single, id: 's2' }, { ...single, id: 's3' }], trials: [], trial: 'luck', survivors: 1, bonus: 500 };
+    const four = (id: string) => ({ ...single, id, options: ['a', 'b', 'c', 'd'].map((o) => ({ id: o, text: o.toUpperCase() })), correctId: 'b' });
+    const ladder = { id: 'rl', type: 'ladder', title: '', shuffleOptions: false, questions: [wordleQ({ id: 'a7' }), ...[2, 3, 4, 5].map((n) => four(`l${n}`))],
+      levels: [100, 300, 1000, 3000, 10000], safe: [2], pick: 'host', lifelines: ['fifty'], timer: false };
+    const puzzles = { id: 'pz', type: 'puzzles', title: 'Головоломки', questions: [wordleQ({ id: 'a8' })] };
+    const q30 = (id: string) => ({ ...single, id, timeLimit: 30 });
+    const quest = { id: 'rq', type: 'quest', title: '', speedBonus: false, shuffleOptions: false, rules: DEFAULT_RULES,
+      prompt: 'Нічний птах — символ мудрості (4 літери)', code: 'СОВА', order: [0, 1, 2, 3], tries: 3, bonus: { kind: 'points', points: 1200 },
+      questions: [q30('q-1'), q30('q-2'), q30('q-3'), wordleQ({ id: 'a9' })] };
+    const thinkQ = (id: string) => ({ id, type: 'think', text: 'Напишіть колір веселки', imageUrl: null, video: null, timeLimit: 30, points: 0, words: [] });
+    const think = { id: 'th', type: 'think', title: '', lives: 3, points: 10000, questions: [thinkQ('t1'), thinkQ('t2'), wordleQ({ id: 'a12' })] };
+    for (const bad of [blitz, final, bets, auction, wipeout, survival, ladder, puzzles, quest, think]) {
+      expect(issues(quizOf([round('r', [single]), bad])), bad.type).toContain('wordle_place');
+    }
+    const board = { id: 'b', type: 'board', title: '', shuffleOptions: false, answerMode: 'phone', check: 'auto', rules: DEFAULT_RULES,
+      categories: [1, 2, 3].map((n) => ({ id: `c${n}`, title: `К${n}`, cells: [1, 2, 3].map((m) => ({ mark: 'none',
+        question: n === 1 && m === 1 ? wordleQ({ id: 'a10' }) : { ...single, id: `q${n}${m}` } })) })) };
+    expect(issues(quizOf([board]))).toContain('wordle_place');
+    expect(issues(quizOf([round('r', [single])], { spares: [wordleQ({ id: 'sp2' })] }))).toContain('spare_type');
+    expect(issues(quizOf([round('c', [wordleQ({ id: 'a14' })])]))).toEqual([]);
+  });
+
+  it('keeps the type order and counts wordles in the classic brief', () => {
+    expect(QUESTION_TYPES.indexOf('wordle')).toBe(QUESTION_TYPES.indexOf('letterwords') + 1);
+    const plain = quizSchema.parse(quizOf([round('r1', [single])]));
+    expect(roundBrief(plain.rounds[0]!)).not.toHaveProperty('wordles');
+    const mixed = quizSchema.parse(quizOf([round('r1', [single, wordleQ({ id: 'x1' }), wordleQ({ id: 'x2' })])]));
+    expect(roundBrief(mixed.rounds[0]!).wordles).toBe(2);
+  });
+
+  it('the guess event carries a short word', () => {
+    expect(wordleGuessSchema.safeParse({ word: 'колос' }).success).toBe(true);
+    expect(wordleGuessSchema.safeParse({ word: 'я'.repeat(21) }).success).toBe(false);
+    expect(wordleGuessSchema.safeParse({ word: 5 }).success).toBe(false);
   });
 });

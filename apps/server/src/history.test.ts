@@ -1,8 +1,9 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { eq } from 'drizzle-orm';
 import { breakdownOf, DEFAULT_RULES, memoryLayout, defaultTeams, packStrokes, quizSchema, SPLASH_MS, type Answer, type GameDetail, type Question } from '@quiz/shared';
-import { LADDER_RIGHT, LADDER_WRONG, auctionRound, betsRound, bluff, blitzRound, boardRound, bool, chain, classicRound, clues, cloud, finalRound, poll, wall, makeQuiz, makeRoundsQuiz, match, pin, single, slider, sortQ, survey, surveyCloud, text, letterwords, moreless, drawing, timedlist, withId, withReveal, withVideo, survivalQuestions, survivalRound, survivalTrials, wipeoutLadder, wipeoutRound, ladderRound, truthRound, think, thinkRound, puzzlesRound, sudoku, crosswordKey, jigsaw, jigsawQuiz, spotdiff, spotdiffQuiz, memoryQuiz, melodyQuiz, videoclipQuiz, alikeQuiz, spyQuiz } from '@quiz/engine/testing';
+import { LADDER_RIGHT, LADDER_WRONG, auctionRound, betsRound, bluff, blitzRound, boardRound, bool, chain, classicRound, clues, cloud, finalRound, poll, wall, makeQuiz, makeRoundsQuiz, match, pin, single, slider, sortQ, survey, surveyCloud, text, letterwords, moreless, drawing, timedlist, withId, withReveal, withVideo, survivalQuestions, survivalRound, survivalTrials, wipeoutLadder, wipeoutRound, ladderRound, truthRound, think, thinkRound, puzzlesRound, sudoku, crosswordKey, jigsaw, jigsawQuiz, spotdiff, spotdiffQuiz, memoryQuiz, melodyQuiz, videoclipQuiz, alikeQuiz, spyQuiz, wordleQuiz } from '@quiz/engine/testing';
 import { buildApp } from './app';
+import { nounsOf } from './wordladder/nouns';
 import { rankPlayers, scoreLines, sortOf } from '@quiz/engine';
 import { answeredTypes, forgetPlayedShapes, gameQuestionCount, gameTables, hostGame, hostGameWithFacts, hostGames, playerGames } from './history';
 import type { Db } from './db/client';
@@ -606,9 +607,9 @@ describe('host history: board', () => {
 });
 
 describe('host history: answers', () => {
-  async function start(quiz: object, scheduler?: FakeScheduler) {
+  async function start(quiz: object, scheduler?: FakeScheduler, nouns?: ReturnType<typeof nounsOf>) {
     const localDb = await createTestDb();
-    const local = await buildApp({ db: localDb, auth: TEST_AUTH, ...(scheduler === undefined ? {} : { scheduler }) });
+    const local = await buildApp({ db: localDb, auth: TEST_AUTH, ...(scheduler === undefined ? {} : { scheduler }), ...(nouns === undefined ? {} : { nouns }) });
     const send = (url: string, payload: object, cookie?: string) =>
       local.app.inject({ method: 'POST', url, payload, headers: cookie === undefined ? {} : { cookie } });
     const host = await signUp(local.app, 'Ведуча');
@@ -1094,6 +1095,26 @@ describe('host history: answers', () => {
       ['Тарас', 0],
     ]);
     await game.local.app.close();
+  });
+
+  it('a wordle game lands in the history with the guesses, the try and the points of the solving try', async () => {
+    const classic = await start(wordleQuiz(), undefined, nounsOf(['сосна', 'колос', "м'ясо"]));
+    const olena = await classic.enter('Олена');
+    await classic.enter('Тарас');
+    const step = (type: 'start' | 'lock' | 'next') => expect(classic.local.manager.host(classic.room, { type }).ok).toBe(true);
+    step('start');
+    step('next');
+    expect(classic.local.manager.wordleGuess(classic.room, olena, 'сосна')).toEqual({ ok: true });
+    expect(classic.local.manager.wordleGuess(classic.room, olena, 'колос')).toEqual({ ok: true });
+    step('lock');
+    const result = await classic.detail();
+    expect(result.questions[0].question.type).toBe('wordle');
+    expect(result.questions[0].responses).toMatchObject([
+      { nickname: 'Олена', answer: { type: 'wordle', guesses: ['сосна', 'колос'], tries: 2, solved: true }, accepted: true },
+    ]);
+    const standings = result.standings as unknown as { nickname: string; score: number }[];
+    expect(standings.find((s) => s.nickname === 'Олена')?.score).toBe(833);
+    await classic.local.app.close();
   });
 
   it('a more or less game lands in the history with the engine points and the price of the whole row', async () => {

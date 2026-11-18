@@ -62,6 +62,7 @@ import {
   likeSchema,
   perkSchema,
   wordLadderWordSchema,
+  wordleGuessSchema,
   timedListWordSchema,
   letterWordSchema,
   moreLessPickSchema,
@@ -564,6 +565,12 @@ export function attachSockets(
       if (identity.role !== 'player' || identity.playerId === null) return FORBIDDEN;
       const payload = wordLadderWordSchema.safeParse(payloadOf(args));
       return payload.success ? manager.wordLadderWord(room, identity.playerId, payload.data.word) : INVALID;
+    });
+
+    on('player:wordle', (args) => {
+      if (identity.role !== 'player' || identity.playerId === null) return FORBIDDEN;
+      const payload = wordleGuessSchema.safeParse(payloadOf(args));
+      return payload.success ? manager.wordleGuess(room, identity.playerId, payload.data.word) : INVALID;
     });
 
     on('player:wordladder-back', () => {

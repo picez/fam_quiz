@@ -1,5 +1,7 @@
 import { z } from 'zod';
 import { autopilotCheck, joinSchema, questionBankQuerySchema, quizSchema, upgradeQuiz } from '@quiz/shared';
+import { wordleUnknown } from './wordle-words';
+import type { NounDictionary } from './wordladder/nouns';
 import { searchQuestionBank } from './question-bank';
 import { createQuiz, deleteQuiz, getQuiz, listQuizzes, updateQuiz } from './quizzes';
 import { quizLikes } from './like-store';
@@ -32,6 +34,8 @@ export interface AccountDeps {
   google: boolean;
   /** Адреси адмінів з ADMIN_EMAILS (нормалізовані); порожній набір — адмінів немає. */
   adminEmails: ReadonlySet<string>;
+  /** Словник іменників: слово запитання wordle мусить у ньому бути (48). */
+  nouns: NounDictionary;
 }
 
 /** 3xx і banned → '/login?error=account_banned'; інакше null (Location не чіпаємо). */
@@ -118,6 +122,7 @@ export async function registerAccountRoutes(
   const UNAUTHORIZED = { error: 'unauthorized' };
   const NOT_FOUND = { error: 'not_found' };
   const INVALID = { error: 'invalid_payload' };
+  const WORDLE_UNKNOWN = { error: 'invalid_payload', reason: 'wordle_unknown' };
   type WithId = { Params: { id: string } };
   // Сторінка редактора, відкрита ще до оновлення сервера, може надіслати вікторину старого формату.
   const parseQuiz = (body: unknown) => quizSchema.safeParse(upgradeQuiz(body));
@@ -133,6 +138,7 @@ export async function registerAccountRoutes(
     if (user === null) return reply.code(401).send(UNAUTHORIZED);
     const parsed = parseQuiz(request.body);
     if (!parsed.success) return reply.code(400).send(INVALID);
+    if (wordleUnknown(parsed.data, deps.nouns).length > 0) return reply.code(400).send(WORDLE_UNKNOWN);
     return reply.code(201).send({ id: await createQuiz(db, user.id, parsed.data) });
   });
 
@@ -164,6 +170,7 @@ export async function registerAccountRoutes(
     if (user === null) return reply.code(401).send(UNAUTHORIZED);
     const parsed = parseQuiz(request.body);
     if (!parsed.success) return reply.code(400).send(INVALID);
+    if (wordleUnknown(parsed.data, deps.nouns).length > 0) return reply.code(400).send(WORDLE_UNKNOWN);
     const updated = await updateQuiz(db, user.id, request.params.id, parsed.data);
     return updated ? { id: request.params.id } : reply.code(404).send(NOT_FOUND);
   });

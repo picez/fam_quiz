@@ -18,6 +18,7 @@ import { resultFromHost } from '../result-image/data';
 import { ClueOpens } from './ClueOpens';
 import { ChainBoard } from './ChainView';
 import { WordLadderBoard, WordLadderPath } from './WordLadderView';
+import { WordleBoard } from './WordleView';
 import { TimedListBoard, TimedListReveal } from './TimedListView';
 import { LetterTiles, LetterWordsBest, LetterWordsBoard } from './LetterWordsView';
 import { MoreLessBoard, MoreLessReveal } from './MoreLessView';
@@ -1211,6 +1212,19 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
         </section>
       )}
 
+      {/* «Вгадай слово» (48): ведучий бачить слово й літери кожної спроби з відкриття; на розкритті слово — у дошці. */}
+      {view.wordle !== undefined && !liveHides && (
+        <section className="panel host-wordle">
+          <h2>{t('type_wordle')}</h2>
+          {phase !== 'reveal' && view.wordle.word !== null && (
+            <p className="lead" dir="auto">
+              {t('wordleWordIs', { word: view.wordle.word })}
+            </p>
+          )}
+          <WordleBoard info={view.wordle} reveal={phase === 'reveal'} />
+        </section>
+      )}
+
       {/* Ведучий бачить увесь список і хто що знайшов наживо; бали — лише на розкритті. Оцінювати нічого. */}
       {view.timedlist !== undefined && !liveHides && (
         <section className="panel host-timedlist">
@@ -1380,7 +1394,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
       )}
 
       {/* Під час класичного ланцюжка бали ще не пораховано, а поступ уже показує панель «Ланцюжок». */}
-      {view.question !== null && live && blitz === null && board === null && !liveHides && !(isFinal && phase === 'reveal') && !((view.chain !== null || view.wordladder !== undefined || view.timedlist !== undefined || view.letterwords !== undefined || view.moreless !== undefined || view.puzzle !== undefined || view.jigsaw !== undefined || view.spotdiff !== undefined || view.memory !== undefined || view.sort !== null || correct?.type === 'wall') && !isFinal && phase === 'question') && (
+      {view.question !== null && live && blitz === null && board === null && !liveHides && !(isFinal && phase === 'reveal') && !((view.chain !== null || view.wordladder !== undefined || view.wordle !== undefined || view.timedlist !== undefined || view.letterwords !== undefined || view.moreless !== undefined || view.puzzle !== undefined || view.jigsaw !== undefined || view.spotdiff !== undefined || view.memory !== undefined || view.sort !== null || correct?.type === 'wall') && !isFinal && phase === 'question') && (
         <section className="panel">
           <h2>{t('responses')}</h2>
           {view.responses.length === 0 && !isFinal ? (

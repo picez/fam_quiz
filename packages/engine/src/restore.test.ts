@@ -76,6 +76,7 @@ import {
   type TimedListScored,
   type TimedListProgress,
   type WordLadderProgress,
+  type WordleProgress,
   type TruthFact,
   type ThinkPlay,
   type TruthPlay,
@@ -118,6 +119,7 @@ import {
   overshoot,
   alikeQuiz,
   spyQuiz,
+  wordleQuiz,
   pin,
   single,
   single4,
@@ -177,6 +179,7 @@ import { puzzleFill, puzzleFinish } from './puzzles';
 import { hideTruth, submitTruth } from './truth';
 import { setThinkWords, thinkVerdicts } from './think';
 import { ladderWord } from './wordladder';
+import { wordleGuess } from './wordle';
 import { pickDoor } from './survival';
 import { decideWipeout, wipeoutChoiceOf, wipeoutPlayOf } from './wipeout';
 import { decideLadder, pickContestant, useLifeline } from './ladder';
@@ -373,7 +376,7 @@ const STATE_SHAPE: Record<string, string> = {
   Quiz: keysOf<Quiz>()(['title', 'description', 'settings', 'rounds', 'duels', 'spares'], true),
   QuizSettings: keysOf<QuizSettings>()(['leaderboard', 'debuffs', 'buffs', 'newcomers', 'family', 'debuffPrices', 'debuffShop', 'teams', 'awayPenalty', 'levelBonuses'], true),
   PlayerState: keysOf<PlayerState>()(['id', 'nickname', 'connected', 'score', 'totalTimeMs', 'streak'], true),
-  Play: keysOf<Play>()(['roundIndex', 'question', 'answers', 'blitz', 'extraMs', 'board', 'final', 'chain', 'wordladder', 'sort', 'buffs', 'overtime', 'clues', 'wall', 'cloudHidden', 'survey', 'bluff', 'wipeout', 'survival', 'ladder', 'buzzers', 'clueOpens', 'away', 'timedlist', 'letterwords', 'moreless', 'truth', 'drawing', 'puzzle', 'jigsaw', 'spotdiff', 'memory', 'melody', 'think', 'alike', 'spy'], true),
+  Play: keysOf<Play>()(['roundIndex', 'question', 'answers', 'blitz', 'extraMs', 'board', 'final', 'chain', 'wordladder', 'sort', 'buffs', 'overtime', 'clues', 'wall', 'cloudHidden', 'survey', 'bluff', 'wipeout', 'survival', 'ladder', 'buzzers', 'clueOpens', 'away', 'timedlist', 'letterwords', 'moreless', 'truth', 'drawing', 'puzzle', 'jigsaw', 'spotdiff', 'memory', 'melody', 'think', 'alike', 'spy', 'wordle'], true),
   AnswerRecord: keysOf<AnswerRecord>()(
     ['answer', 'timeMs', 'accepted', 'accuracy', 'grade', 'basePoints', 'streakBonus', 'points', 'overridden', 'buff', 'spare'],
     true,
@@ -413,6 +416,7 @@ const STATE_SHAPE: Record<string, string> = {
   BluffOption: keysOf<BluffOption>()(['id', 'text', 'kind', 'authors', 'removed'], true),
   ChainProgress: keysOf<ChainProgress>()(['solved', 'shown', 'hints'], true),
   WordLadderProgress: keysOf<WordLadderProgress>()(['words'], true),
+  WordleProgress: keysOf<WordleProgress>()(['guesses'], true),
   TimedListPlay: keysOf<TimedListPlay>()(['present', 'progress', 'scored'], true),
   TimedListScored: keysOf<TimedListScored>()(['players', 'items'], true),
   TimedListProgress: keysOf<TimedListProgress>()(['found', 'wrong'], true),
@@ -1252,7 +1256,7 @@ const KEYS: Record<number, Record<string, string>> = {
     Quiz: 'description,duels,rounds,settings,spares,title',
     QuizSettings: 'awayPenalty,buffs,debuffPrices,debuffShop,debuffs,family,leaderboard,levelBonuses,newcomers,teams',
     PlayerState: 'connected,id,nickname,score,streak,totalTimeMs',
-    Play: 'alike,answers,away,blitz,bluff,board,buffs,buzzers,chain,cloudHidden,clueOpens,clues,drawing,extraMs,final,jigsaw,ladder,letterwords,melody,memory,moreless,overtime,puzzle,question,roundIndex,sort,spotdiff,spy,survey,survival,think,timedlist,truth,wall,wipeout,wordladder',
+    Play: 'alike,answers,away,blitz,bluff,board,buffs,buzzers,chain,cloudHidden,clueOpens,clues,drawing,extraMs,final,jigsaw,ladder,letterwords,melody,memory,moreless,overtime,puzzle,question,roundIndex,sort,spotdiff,spy,survey,survival,think,timedlist,truth,wall,wipeout,wordladder,wordle',
     AnswerRecord: 'accepted,accuracy,answer,basePoints,buff,grade,overridden,points,spare,streakBonus,timeMs',
     BoardState: 'awaySince,circle,circleNo,dice,done',
     DiceState: 'throws,tour,tourNo,waiting',
@@ -1286,6 +1290,7 @@ const KEYS: Record<number, Record<string, string>> = {
     BluffOption: 'authors,id,kind,removed,text',
     ChainProgress: 'hints,shown,solved',
     WordLadderProgress: 'words',
+    WordleProgress: 'guesses',
     TimedListPlay: 'present,progress,scored',
     TimedListScored: 'items,players',
     TimedListProgress: 'found,wrong',
@@ -1671,6 +1676,7 @@ function representative(): GameState[] {
     thinkAsked(),
     alikeSplitOut(),
     spyGuessed(),
+    wordling(),
   ];
 }
 
@@ -1687,6 +1693,14 @@ function spyGuessed(): GameState {
   ['аромат', 'ранок', 'зелений', 'чашка'].forEach((text, i) => (s = must(writeSpyWord(s, `p${i + 1}`, text, T0 + 1000))));
   ['p3', 'p3', 'p1', 'p3'].forEach((target, i) => (s = must(voteSpy(s, `p${i + 1}`, target, T0 + 2000))));
   return must(guessSpy(s, 'p3', 'кава', T0 + 3000));
+}
+
+/** 48: «Вгадай слово» (Оля, Тарас, Петро) — Оля зробила дві спроби, Тарас вгадав з першої: Play.wordle, WordleProgress. */
+function wordling(): GameState {
+  const open = openAt(lobbyWith(wordleQuiz(), 'Оля', 'Тарас', 'Петро'), T0);
+  const nouns = (k: string) => ['сосна', 'посол'].includes(k);
+  const olya = must(wordleGuess(must(wordleGuess(open, 'p1', 'сосна', T0 + 1000, nouns)), 'p1', 'посол', T0 + 2000, nouns));
+  return must(wordleGuess(olya, 'p2', 'колос', T0 + 3000, nouns));
 }
 
 /** 29g: «Квест із кодом» — команди з виданим бафом і спробами (by) на intro, соло з відкритим вікном коду. */
@@ -2541,6 +2555,7 @@ describe('the saved state', () => {
       add('BluffOption', s.plays.flatMap((p) => p.bluff?.options ?? []));
       add('SortProgress', s.plays.flatMap((p) => Object.values(p.sort ?? {})));
       add('WordLadderProgress', s.plays.flatMap((p) => Object.values(p.wordladder ?? {})));
+      add('WordleProgress', s.plays.flatMap((p) => Object.values(p.wordle ?? {})));
       add('TimedListPlay', s.plays.map((p) => p.timedlist));
       add('TimedListScored', s.plays.map((p) => p.timedlist?.scored));
       add('TimedListProgress', s.plays.flatMap((p) => Object.values(p.timedlist?.progress ?? {})));
@@ -2689,5 +2704,25 @@ describe('39 snapshots', () => {
     expect(stageView(old).duel?.bets).toEqual({ stake: 100, open: true, challenger: [], opponent: [] });
     expect(playerView(old, 'p3')?.me.duel?.bet).toEqual({ side: null, can: true });
     expect(must(betDuel(old, 'p3', 'opponent')).duel?.bets).toEqual({ p3: 'opponent' });
+  });
+});
+
+describe('48 snapshots', () => {
+  it('a restored room keeps the guesses', () => {
+    expect(GAME_STATE_VERSION).toBe(22);
+    const s = wordling();
+    expect(s.phase).toBe('question');
+    // збережено через 5 с після розгадки Тараса: 120 с від T0 — лишилося 112 с
+    const back = roundTrip(suspend(roundTrip(s), T0 + 8000));
+    expect(back.plays[0].wordle).toEqual({ p1: { guesses: ['сосна', 'посол'] }, p2: { guesses: ['колос'] } });
+    expect(back.plays[0].answers.p2).toEqual(s.plays[0].answers.p2);
+    expect(back.plays[0].answers.p2).toMatchObject({ answer: { type: 'wordle', guesses: ['колос'], tries: 1, solved: true }, points: 1000 });
+    expect(back.remainingMs).toBe(112_000);
+    // Після «Продовжити» Оля дограє третю спробу, таймер іде далі.
+    const resumed = must(resume(back, T0 + 8000 + HOUR));
+    expect(resumed.endsAt).toBe(T0 + 8000 + HOUR + 112_000);
+    expect(playerView(resumed, 'p1')?.me.wordle?.rows.map((r) => r.letters.join(''))).toEqual(['сосна', 'посол']);
+    const done = must(wordleGuess(resumed, 'p1', 'колос', T0 + 9000 + HOUR, () => false));
+    expect(done.plays[0].answers.p1).toMatchObject({ answer: { guesses: ['сосна', 'посол', 'колос'], tries: 3, solved: true }, points: 667 });
   });
 });

@@ -40,6 +40,7 @@ import {
   drawing,
   withId,
   wordladder,
+  wordle,
   spotdiff,
   memory,
   melody,
@@ -180,6 +181,12 @@ describe('buffs', () => {
     const s = startRound(lobbyWith(makeQuiz([wordladder], { buffs }), 'Оля'), T0, rng0);
     expect(takeBuff(s, 'p1', 'double', T0, rng0)).toEqual({ ok: false, error: 'wrong_phase' });
     expect(buffBlock(s, 'p1', 'double')).toBe('off_wordladder');
+  });
+
+  it('a wordle has no buffs (48)', () => {
+    const s = startRound(lobbyWith(makeQuiz([wordle], { buffs }), 'Оля'), T0, rng0);
+    expect(takeBuff(s, 'p1', 'double', T0, rng0)).toEqual({ ok: false, error: 'wrong_phase' });
+    expect(buffBlock(s, 'p1', 'double')).toBe('off_wordle');
   });
 
   it('a timed list has no buffs (27c)', () => {

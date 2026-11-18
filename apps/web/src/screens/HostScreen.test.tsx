@@ -1425,6 +1425,28 @@ describe('HostScreen final', () => {
   });
 });
 
+describe('HostScreen wordle (48)', () => {
+  it('the host sees the word and every grid with letters live', () => {
+    const wordleQ: Question = { id: 'q5', type: 'wordle', text: 'Вгадайте слово', imageUrl: null, video: null, timeLimit: 120, points: 1000, word: 'колос' };
+    const info = {
+      letters: 5,
+      tries: 6,
+      word: 'колос',
+      rows: [
+        { playerId: 'p1', nickname: 'Олена', marks: [['near', 'hit', 'miss', 'miss', 'miss'] as ('hit' | 'near' | 'miss')[]], guesses: [['с', 'о', 'с', 'н', 'а']], solved: false, tries: 1, points: null },
+        { playerId: 'p2', nickname: 'Тарас', marks: [], guesses: [], solved: false, tries: 0, points: null },
+      ],
+    };
+    show(view({ phase: 'question', questionIndex: 0, question: { ...publicOf(single), type: 'wordle', choices: [], wordle: { letters: 5, tries: 6 } }, correct: wordleQ, endsAt: Date.now() + 20_000, wordle: info }));
+    expect(screen.getByRole('heading', { name: 'Вгадай слово' })).toBeTruthy();
+    expect(screen.getByText('Слово: колос')).toBeTruthy();
+    expect(document.querySelector('.host-wordle')?.textContent).toContain('с');
+    expect(screen.getByLabelText('о — на місці')).toBeTruthy();
+    expect(screen.getByText('1 з 6')).toBeTruthy();
+    expect(screen.queryByRole('heading', { name: 'Відповіді' })).toBeNull();
+  });
+});
+
 describe('HostScreen word ladder', () => {
   it("the host sees the path and every player's words live", () => {
     const ladderQ: Question = { id: 'q4', type: 'wordladder', text: 'Драбина', imageUrl: null, video: null, timeLimit: 90, points: 1000, path: ['поле', 'пора', 'тара'], maxSteps: 8 };

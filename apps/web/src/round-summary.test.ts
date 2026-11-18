@@ -62,6 +62,10 @@ describe('roundSummary', () => {
     expect(roundSummary({ ...emptyBrief('classic'), spies: 2 }).at(-1)).toBe('2 «Шпигун»: знайдіть того, хто має інше слово');
   });
 
+  it('a classic round with wordle questions says how to play', () => {
+    expect(roundSummary({ ...emptyBrief('classic'), wordles: 2 }).at(-1)).toBe('2 «Вгадай слово»: шість спроб, щоб вгадати слово');
+  });
+
   it('a classic round with videoclips says how they score', () => {
     expect(roundSummary({ ...emptyBrief('classic'), videoclips: 2 }).at(-1)).toBe('2 відео: бали за найдовшим шматком, який переглянули');
   });

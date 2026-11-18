@@ -46,6 +46,7 @@ import {
   videoclipQuiz,
   alikeQuiz,
   spyQuiz,
+  wordleQuiz,
   overshootQuiz,
   questQuiz,
 } from './testing/fixtures';
@@ -183,6 +184,7 @@ const QUIZZES: [string, Quiz, ((lobby: GameState) => GameState)?][] = [
   ['a file and a YouTube melody in a classic round', melodyQuiz({ leaderboard: 'end' })],
   ['a muted and a loud videoclip in a classic round', videoclipQuiz({ leaderboard: 'end' })],
   ['two thinkalike questions in a classic round', alikeQuiz({ leaderboard: 'end' })],
+  ['two wordle questions in a classic round', wordleQuiz({ leaderboard: 'end' })],
   ['a no-overshoot numeric in a classic round', overshootQuiz({ leaderboard: 'end' })],
   ['a quest round after a classic one', questQuiz({ leaderboard: 'end' })],
   ['puzzles in a team game', teamQuiz(puzzlesQuiz().rounds), (s) => must(authorTeamForm(s, 'random'))],
@@ -452,6 +454,18 @@ describe('autopilot: scores and defaults', () => {
     expect(state.phase).toBe('finished');
     expect(state.plays).toEqual([]);
     expect(now - T).toBeLessThan(bound(quiz));
+  });
+
+  it('wordle: every bot guesses the host word on the first try and takes the full price, to the podium (48)', () => {
+    const { state } = play(wordleQuiz(), answering);
+    expect(state.phase).toBe('finished');
+    expect(state.plays.map((p) => p.question.id)).toEqual(['wd1', 'wd2']);
+    for (const p of state.plays) {
+      for (const id of ['a', 'p2', 'p3']) {
+        expect([p.question.id, id, p.answers[id]?.grade, p.answers[id]?.points, p.answers[id]?.answer]).toMatchObject([p.question.id, id, 'correct', p.question.points, { tries: 1, solved: true }]);
+      }
+    }
+    expect(state.players.map((p) => p.score)).toEqual([1600, 1600, 1600]);
   });
 
   it('videoclip: right bots on the first chunk get the full price, wrong bots after four chunks get zero, every record keeps heard (36)', () => {

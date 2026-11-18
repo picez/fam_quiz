@@ -26092,3 +26092,383 @@ a.library-card:focus-visible {
   border-inline-start: 3px solid var(--line);
   overflow-wrap: anywhere;
 }
+
+/* 48: «Вгадай слово». Колір клітинки — ще й форма: на місці — суцільна заливка з товстою рамкою, є в слові — коло,
+   немає — сіра, без рамки й менша. Текст на клітинці — контраст ≥ 4,5 : 1, межа клітинки з тлом — ≥ 3 : 1 в обох темах. */
+:root {
+  --wordle-hit: #4cd685;
+  --wordle-near: #ffd23f;
+  --wordle-miss: #6e6464;
+  --wordle-on-hit: var(--ink);
+  --wordle-on-near: var(--ink);
+  --wordle-on-miss: var(--paper);
+  --wordle-empty: #8a7f7f;
+}
+
+:root.is-light {
+  --wordle-hit: #18794a;
+  --wordle-near: #8a5d00;
+  --wordle-miss: #6b6262;
+  --wordle-on-hit: #ffffff;
+  --wordle-on-near: #ffffff;
+  --wordle-on-miss: #ffffff;
+  --wordle-empty: #8c7f7e;
+}
+
+.wordle-play,
+.wordle-outcome {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.wordle-grid {
+  display: grid;
+  gap: 0.375rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* 7 клітинок по ≤ 3,25 rem з проміжками вміщаються на 320 px: ширина клітинки стискається, а не розпирає екран. */
+.wordle-row {
+  display: grid;
+  grid-template-columns: repeat(var(--letters), minmax(0, 3.25rem));
+  justify-content: center;
+  gap: 0.375rem;
+}
+
+/* Телефон: сітка, легенда, три ряди клавіш і «Перевірити» вміщаються у вікно 360×740 без прокрутки — клітинку
+   задає висота вікна, а не лише ширина. Запас --wordle-room (36 rem) — шапка й назва запитання, легенда, рядок причини,
+   клавіатура й нижнє поле телефона під сповіщення (--notice-room); зі смугою реакцій — ще її висота. */
+.wordle-play {
+  --wordle-room: 36rem;
+  --wordle-cell: clamp(1.5rem, calc((100vh - var(--wordle-room)) / 6), 3.25rem);
+  gap: 0.5rem;
+}
+
+@supports (height: 1dvh) {
+  .wordle-play {
+    --wordle-cell: clamp(1.5rem, calc((100dvh - var(--wordle-room)) / 6), 3.25rem);
+  }
+}
+
+.app.player.has-reactions .wordle-play {
+  --wordle-room: calc(36rem + var(--reaction-strip-h));
+}
+
+.wordle-play .wordle-grid,
+.wordle-play .wordle-row {
+  gap: 0.3rem;
+}
+
+.wordle-play .wordle-row {
+  grid-template-columns: repeat(var(--letters), minmax(0, var(--wordle-cell)));
+}
+
+.wordle-play .wordle-cell {
+  font-size: calc(var(--wordle-cell) * 0.5);
+}
+
+/* Клавіатура займає й бічні поля екрана (лишає 0,25 rem): клавіші ширші. Зона дебафів довкола обрізає вміст (overflow: hidden)
+   і тоді гортається вбік до клавіші під пальцем; clip не гортається, а запас clip-margin лишає крайні клавіші видимими. */
+.debuff-zone:has(.wordle-play) {
+  overflow: clip;
+  overflow-clip-margin: var(--app-pad);
+}
+
+.wordle-play .wordle-keys {
+  margin-inline: calc(0.25rem - var(--app-pad));
+  gap: 0.3rem;
+}
+
+.wordle-play .wordle-key,
+.wordle-play .wordle-check {
+  min-block-size: 2.4rem;
+}
+
+.wordle-cell {
+  display: grid;
+  place-items: center;
+  aspect-ratio: 1;
+  box-sizing: border-box;
+  border: 2px solid var(--wordle-empty);
+  border-radius: var(--radius-small);
+  font-family: var(--display);
+  font-size: 1.4rem;
+  font-weight: 700;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.wordle-cell.is-typed {
+  border-color: var(--paper);
+}
+
+.wordle-cell.is-hit {
+  border: 0.25rem solid var(--paper);
+  background: var(--wordle-hit);
+  color: var(--wordle-on-hit);
+}
+
+.wordle-cell.is-near {
+  border: 0;
+  border-radius: 50%;
+  background: var(--wordle-near);
+  color: var(--wordle-on-near);
+}
+
+.wordle-cell.is-miss {
+  border: 0;
+  background: var(--wordle-miss);
+  color: var(--wordle-on-miss);
+  transform: scale(0.82);
+}
+
+.wordle-legend {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.375rem 1rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.9rem;
+}
+
+.wordle-legend li {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+}
+
+.wordle-legend .wordle-cell {
+  inline-size: 1.25rem;
+}
+
+.wordle-legend .wordle-cell.is-hit {
+  border-width: 0.15rem;
+}
+
+/* Рядок причини завжди займає місце: поява «Такого слова немає в словнику» не зсуває клавіатури. */
+.wordle-status {
+  min-block-size: 1.5em;
+  margin: 0;
+  text-align: center;
+  font-weight: 700;
+}
+
+/* Клавіатура: найширший ряд — 12 клавіш; minmax(0, 1fr) стискає клавіші, тож на 360 px немає бокового скролу. */
+.wordle-keys {
+  display: grid;
+  gap: 0.375rem;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.wordle-keys-row {
+  display: grid;
+  grid-template-columns: repeat(var(--keys), minmax(0, 1fr));
+  gap: 0.25rem;
+  inline-size: calc(var(--keys) / 12 * 100%);
+  margin-inline: auto;
+}
+
+.wordle-keys-row.is-actions {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+  inline-size: 100%;
+}
+
+.wordle-key {
+  min-inline-size: 0;
+  min-block-size: 2.75rem;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-small);
+  background: var(--track);
+  color: var(--paper);
+  font: inherit;
+  font-size: 1.05rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.wordle-key.is-hit {
+  border: 0.15rem solid var(--paper);
+  background: var(--wordle-hit);
+  color: var(--wordle-on-hit);
+}
+
+.wordle-key.is-near {
+  border: 0;
+  border-radius: 999px;
+  background: var(--wordle-near);
+  color: var(--wordle-on-near);
+}
+
+.wordle-key.is-miss {
+  border: 0;
+  background: var(--wordle-miss);
+  color: var(--wordle-on-miss);
+  transform: scale(0.88);
+}
+
+.wordle-key:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+.wordle-key.is-erase {
+  font-size: 1.25rem;
+}
+
+.wordle-check {
+  min-block-size: 2.75rem;
+  padding-block: 0.25rem;
+}
+
+.wordle-word {
+  margin: 0;
+  font-family: var(--display);
+  font-size: 1.25rem;
+  text-align: center;
+}
+
+/* Сцена й пульт: міні-сітки з іменами. Понад 8 рядків — дрібніші клітинки, щоб усі вмістилися. */
+.wordle-stage {
+  display: grid;
+  gap: 1rem;
+}
+
+.wordle-answer {
+  text-align: center;
+}
+
+.wordle-answer .meta {
+  margin: 0;
+}
+
+.wordle-answer-word {
+  margin: 0;
+  font-family: var(--display);
+  font-size: clamp(2rem, 7vh, 3rem);
+  line-height: 1.1;
+  letter-spacing: 0.15em;
+}
+
+/* Дошки стоять по центру рядами до 12 (--boards — у ряду, --lines — рядів); клітинку задає місце, що лишилося:
+   ширина вікна на --boards дошок і висота на --lines рядів (запас --board-room — шапка, запитання, імена; на розкритті — ще слово). */
+.wordle-board {
+  --board-room: 25.5rem;
+  --board-cell: clamp(0.85rem, min(calc((100vw - 10rem) / var(--boards, 1) / (var(--letters, 5) + 1.8)), calc((100dvh - var(--board-room)) / var(--lines, 1) / 7.6)), 2.75rem);
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-content: start;
+  gap: 1rem 1.25rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.wordle-stage:has(.wordle-answer) .wordle-board {
+  --board-room: 33.5rem;
+}
+
+/* Пульт: дошка в колонці ≤ 46 rem, сторінка гортається — клітинку задає лише ширина колонки. */
+.host-wordle .wordle-board {
+  --board-cell: clamp(0.85rem, calc((min(100vw, 46rem) - 6rem) / var(--boards, 1) / (var(--letters, 5) + 1.8)), 1.75rem);
+}
+
+/* Ширина дошки — не менша за сітку й до частки ряду, що їй припадає (≤ 12 rem): тег і бали стають в один-два рядки,
+   а довге ім'я чи тег переносяться, а не розсувають ряд. */
+.wordle-board > li {
+  display: grid;
+  flex: 0 0 auto;
+  max-inline-size: max(calc(var(--letters) * var(--board-cell) * 1.12), min(12rem, calc((100vw - 10rem) / var(--boards, 1) - 1.25rem)));
+  text-align: center;
+  justify-items: center;
+  align-content: start;
+  gap: 0.25rem;
+}
+
+/* Не вгадав: тьмяніє лише ім'я — прозорість сітки знизила б контраст літер. */
+.wordle-board > li.is-out .name {
+  color: var(--dim);
+}
+
+.wordle-board .wordle-grid {
+  gap: calc(var(--board-cell) * 0.12);
+}
+
+.wordle-board .wordle-row {
+  grid-template-columns: repeat(var(--letters), var(--board-cell));
+  gap: calc(var(--board-cell) * 0.12);
+}
+
+.wordle-board .wordle-cell {
+  border-width: 1px;
+  font-size: calc(var(--board-cell) * 0.6);
+}
+
+.wordle-board .wordle-cell.is-hit {
+  border-width: 0.15rem;
+}
+
+/* На розкритті тег і бали — в один рядок: дошка має не більше двох рядків тексту під сіткою. */
+.wordle-board .wordle-result {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 0.25rem;
+  justify-content: center;
+}
+
+/* Понад 8 дошок: дрібніший і щільніший текст імені, тегу й балів (клітинки задає --board-cell) — два ряди по 12
+   на розкритті з тегом «вгадав за N спроби» вміщаються в 1280×720. */
+.wordle-board.is-many {
+  gap: 0.75rem;
+  font-size: 0.85rem;
+  line-height: 1.15;
+}
+
+.wordle-board.is-many > li {
+  gap: 0.15rem;
+}
+
+/* Два ряди дошок на розкритті: щільніше слово ведучого й проміжки. */
+.wordle-stage:has(> .wordle-board.is-many) {
+  gap: 0.5rem;
+}
+
+.wordle-stage:has(> .wordle-board.is-many) .wordle-answer-word {
+  font-size: clamp(2rem, 5.5vh, 3rem);
+}
+
+.wordle-board.is-many .tag,
+.wordle-board.is-many .score {
+  font-size: 0.75rem;
+  text-align: center;
+}
+
+.wordle-board.is-many .name {
+  max-inline-size: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wordle-board .name {
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+/* Кут «Читати вголос» (.stage-speech) стоїть унизу ліворуч (над смугою реакцій); дошка «Вгадай слово» з тегом і балами під іменем
+   сягала б його, тож на розкритті (є бали) сцена тримає під нею запас: «вгадав за N» і бали не під кнопками. */
+.app.stage:has(> .stage-speech):has(.wordle-board .score) {
+  padding-bottom: max(4vh, 4.75rem, calc(var(--banner-base) + 2.75rem));
+}
+
+.app.stage.has-reactions:has(> .stage-speech):has(.wordle-board .score) {
+  padding-bottom: calc(var(--banner-base) + var(--reaction-strip-h) + 2.75rem);
+}

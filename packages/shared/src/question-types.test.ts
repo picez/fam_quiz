@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { LIMITS, QUESTION_TYPES, QUESTION_TYPE_TRAITS, ROUND_TYPES, questionSchema, typesWhere, type QuestionType } from './index';
+import { LIMITS, QUESTION_TYPES, QUESTION_TYPE_TRAITS, ROUND_TYPES, SIMPLE_TYPES, UNGRADED_TYPES, questionSchema, typesWhere, type QuestionType } from './index';
 
 const traitsOf = (type: string) => QUESTION_TYPE_TRAITS[type as QuestionType];
 
@@ -32,15 +32,24 @@ describe('question type registry (30e)', () => {
     expect(typesWhere((t) => t.puzzle)).toEqual(['sudoku', 'crossword']);
     expect(typesWhere((t) => t.proximity)).toEqual(['slider', 'pin', 'wall', 'survey']);
     expect(typesWhere((t) => t.wholeRow)).toEqual(['timedlist', 'letterwords', 'moreless', 'drawing', 'sudoku', 'crossword', 'jigsaw', 'spotdiff', 'memory']);
-    expect(typesWhere((t) => !t.speed)).toEqual(['wordladder', 'timedlist', 'letterwords', 'moreless', 'drawing', 'sudoku', 'crossword', 'jigsaw', 'spotdiff', 'memory', 'thinkalike', 'spy', 'think']);
+    expect(typesWhere((t) => !t.speed)).toEqual(['wordladder', 'timedlist', 'letterwords', 'wordle', 'moreless', 'drawing', 'sudoku', 'crossword', 'jigsaw', 'spotdiff', 'memory', 'thinkalike', 'spy', 'think']);
     // Склад — з live.ts (PROGRESS_TYPES, UNGRADABLE); порядок — QUESTION_TYPES (там списки лише для includes).
-    const progress = ['chain', 'wordladder', 'sort', 'wall', 'timedlist', 'letterwords', 'moreless', 'drawing', 'sudoku', 'crossword', 'jigsaw', 'spotdiff', 'memory', 'bluff'];
+    const progress = ['chain', 'wordladder', 'sort', 'wall', 'timedlist', 'letterwords', 'wordle', 'moreless', 'drawing', 'sudoku', 'crossword', 'jigsaw', 'spotdiff', 'memory', 'bluff'];
     expect(typesWhere((t) => t.progress)).toEqual(progress);
-    expect(typesWhere((t) => !t.hostGraded)).toEqual(['chain', 'wordladder', 'sort', 'wall', 'survey', 'timedlist', 'letterwords', 'moreless', 'drawing', 'sudoku', 'crossword', 'jigsaw', 'spotdiff', 'memory', 'bluff', 'thinkalike', 'spy']);
+    expect(typesWhere((t) => !t.hostGraded)).toEqual(['chain', 'wordladder', 'sort', 'wall', 'survey', 'timedlist', 'letterwords', 'wordle', 'moreless', 'drawing', 'sudoku', 'crossword', 'jigsaw', 'spotdiff', 'memory', 'bluff', 'thinkalike', 'spy']);
     expect(typesWhere((t) => t.teamWide)).toEqual(['timedlist', 'letterwords', 'drawing', 'sudoku', 'crossword', 'jigsaw', 'spotdiff', 'memory', 'melody', 'videoclip']);
     expect(typesWhere((t) => t.buffs.risk)).toEqual(['single', 'multi', 'boolean', 'text', 'numeric', 'slider', 'clues', 'pin']);
     expect(typesWhere((t) => t.buffs.letter)).toEqual(['text', 'clues']);
     expect(typesWhere((t) => t.buffs.scope)).toEqual(['numeric', 'slider', 'pin']);
+  });
+
+  it('wordle (48) is a classic-only ungraded type', () => {
+    expect(QUESTION_TYPE_TRAITS.wordle.rounds).toEqual(['classic']);
+    expect(UNGRADED_TYPES).toContain('wordle');
+    expect(SIMPLE_TYPES).not.toContain('wordle');
+    for (const round of ROUND_TYPES) {
+      expect(typesWhere((t) => t.rounds.includes(round as never)).includes('wordle'), round).toBe(round === 'classic');
+    }
   });
 
   it('rounds give the editor menu', () => {
@@ -66,6 +75,8 @@ describe('question type registry (30e)', () => {
         'survey',
         'timedlist',
         'letterwords',
+        // 48: «Вгадай слово» — одразу за «Словами з літер».
+        'wordle',
         'moreless',
         'drawing',
         'jigsaw',

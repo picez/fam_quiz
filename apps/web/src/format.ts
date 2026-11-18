@@ -154,6 +154,8 @@ export function correctText(question: Question, presented?: { id: string }[]): s
       return question.words.join(' → ');
     case 'wordladder':
       return question.path.map((word) => word.toLocaleUpperCase('uk')).join(' → ');
+    case 'wordle':
+      return question.word.toLocaleUpperCase('uk');
     case 'timedlist':
       return question.items.map((item, n) => `${n + 1}. ${item.text}`).join(', ');
     case 'letterwords':
@@ -256,6 +258,8 @@ export function answerText(answer: Answer | null, question: Question | null, pre
       return answer.solved === question.words.length - 1
         ? t('chainAnswerDone', { time: secondsText(answer.timeMs), hints: answer.hints })
         : t('chainAnswerPart', { solved: answer.solved, total: question.words.length - 1 });
+    case 'wordle':
+      return answer.solved ? countText('wordleSolvedIn', answer.tries, { count: answer.tries }) : t('wordleNotSolved');
     case 'wordladder':
       return t(answer.finished ? 'wordLadderAnswerDone' : 'wordLadderAnswerPart', { steps: answer.steps });
     case 'letterwords':

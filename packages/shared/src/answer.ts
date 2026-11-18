@@ -113,6 +113,14 @@ export interface WordLadderAnswer {
   finished: boolean;
 }
 
+/** Підсумок «Вгадай слово» (48) гравця (команди); складає рушій, з телефона не приходить. guesses — ключі прийнятих спроб, tries — їх число, solved — розгадав. */
+export interface WordleAnswer {
+  type: 'wordle';
+  guesses: string[];
+  tries: number;
+  solved: boolean;
+}
+
 /** Підсумок списку гравця (команди); складає рушій, з телефона не приходить. found — id пунктів у порядку знахідок. */
 export interface TimedListAnswer {
   type: 'timedlist';
@@ -199,7 +207,7 @@ export interface VideoclipAnswer {
   heard: number;
 }
 
-export type Answer = SubmittedAnswer | ChainAnswer | SortAnswer | WallAnswer | SurveyAnswer | BluffAnswer | WordLadderAnswer | TimedListAnswer | LetterWordsAnswer | MoreLessAnswer | DrawingAnswer | PuzzleAnswer | JigsawAnswer | SpotdiffAnswer | MemoryAnswer | MelodyAnswer | VideoclipAnswer | SpyAnswer;
+export type Answer = SubmittedAnswer | ChainAnswer | SortAnswer | WallAnswer | SurveyAnswer | BluffAnswer | WordLadderAnswer | WordleAnswer | TimedListAnswer | LetterWordsAnswer | MoreLessAnswer | DrawingAnswer | PuzzleAnswer | JigsawAnswer | SpotdiffAnswer | MemoryAnswer | MelodyAnswer | VideoclipAnswer | SpyAnswer;
 
 /** Скільки шматків було відкрито в мить відповіді «Мелодії»; null — не melody або без heard. */
 export function melodyHeardOf(answer: Answer | null): number | null {

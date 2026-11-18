@@ -65,6 +65,8 @@ export const orderSchema = z.object({ playerIds: z.array(playerId).max(LIMITS.ma
 export const guessSchema = z.object({ word: z.string().max(LIMITS.chainWord).refine(isStorable, UNSTORABLE) });
 /** Хід «Словесної драбини» (26c): слово, як його ввели; ключ і перевірки — у рушії. */
 export const wordLadderWordSchema = z.object({ word: z.string().max(LIMITS.wordLadderWord).refine(isStorable, UNSTORABLE) });
+/** «Вгадай слово» (48): спроба — слово тієї ж довжини; перевіряє рушій зі словником сервера. */
+export const wordleGuessSchema = z.object({ word: z.string().max(LIMITS.wordleWord).refine(isStorable, UNSTORABLE) });
 /** Слово «Списку на час» (27c): enter — підтверджено Enter, лише такий промах вважається словом не зі списку. */
 /** «Список на час» (27c): скільки слів на секунду приймає сервер від людини — живому набору (перевірка після паузи 400 мс і Enter) досить, перебору словника — ні. */
 export const LIST_WORDS_PER_SECOND = 6;
@@ -299,6 +301,8 @@ export interface ClientToServerEvents {
   /** «Словесна драбина» (26c): наступне слово й «Крок назад». */
   'player:wordladder': (payload: z.infer<typeof wordLadderWordSchema>, ack: Ack) => void;
   'player:wordladder-back': (ack: Ack) => void;
+  /** «Вгадай слово» (48): спроба — слово тієї ж довжини; ack ok чи wordle_word / wordle_length / wordle_unknown / wordle_repeat / already_answered / time_over / wrong_phase. */
+  'player:wordle': (payload: z.infer<typeof wordleGuessSchema>, ack: Ack) => void;
   'player:list': (payload: z.infer<typeof timedListWordSchema>, ack: Ack) => void;
   /** «Слова з літер» (27d): слово гравця (команди). */
   'player:letters': (payload: z.infer<typeof letterWordSchema>, ack: Ack) => void;

@@ -4,6 +4,7 @@ import { BUFF_KINDS, DEBUFF_KINDS, LEGACY_DEBUFFS, READY_BUFFS, type BuffKind, t
 import { UNSTORABLE, isStorable } from './text';
 import { ANSWERER_MODES } from './teams';
 import { ladderPathIssue } from './wordladder';
+import { wordleLeak, wordleWordIssue } from './wordle';
 import { letterSet } from './letterwords';
 import { betsRoundIssue } from './bets';
 import { SUDOKU_LEVELS, sudokuIssue } from './sudoku';
@@ -193,6 +194,12 @@ export const LIMITS = {
   maxWordLadderWords: 40,
   wordLadderWord: 30,
   defaultWordLadderTime: 90,
+  /** «Вгадай слово» (48): літер у слові (найменше, найбільше), спроб, символів у слові до нормалізації, типовий час (с). */
+  minWordleLetters: 4,
+  maxWordleLetters: 7,
+  wordleTries: 6,
+  wordleWord: 20,
+  defaultWordleTime: 120,
   /** «Ставки» (27a): стеля початкової ставки, кроку й найбільшої ставки; типові початок і крок. */
   maxBet: 100_000,
   defaultBetStart: 200,
@@ -650,6 +657,12 @@ export const questionSchema = z
     }),
     z.object({
       ...base,
+      type: z.literal('wordle'),
+      /** Слово ведучого: 4…7 літер (апостроф не рахується); має бути в словнику — перевіряє сервер при збереженні. */
+      word: z.string().trim().normalize('NFC').min(1).max(LIMITS.wordleWord).refine(isStorable, UNSTORABLE),
+    }),
+    z.object({
+      ...base,
       type: z.literal('moreless'),
       /** Ряд порівнянь; points з base — сума pairs[].points (moreless_sum). */
       pairs: z
@@ -889,6 +902,13 @@ export const questionSchema = z
       // Одне написання не веде у два пункти; повтор у межах пункту не заважає.
       const keys = q.items.flatMap((i) => [...new Set([i.text, ...i.accepted].map(answerKey))]);
       if (hasDuplicates(keys)) ctx.addIssue({ code: 'custom', message: 'timedlist_duplicate' });
+    }
+    if (q.type === 'wordle') {
+      if (wordleWordIssue(q.word) !== null) ctx.addIssue({ code: 'custom', message: 'wordle_word' });
+      // Текст видно всім: слова цілим словом (і без апострофа) там бути не може.
+      if (wordleLeak(q.word, q.text)) ctx.addIssue({ code: 'custom', message: 'wordle_leak' });
+      // Без таймера слово не закінчиться.
+      if (q.video !== null) ctx.addIssue({ code: 'custom', message: 'wordle_video' });
     }
     if (q.type === 'letterwords') {
       if (q.set.kind === 'fixed' && letterSet(q.set.letters) === null) ctx.addIssue({ code: 'custom', message: 'letterwords_letters' });
@@ -1787,6 +1807,12 @@ export const quizSchema = z
           ? boardCells(round).some(({ cell }) => cell.question.type === 'spy')
           : round.type !== 'classic' && [...roundQuestions(round), ...roundTrials(round)].some((q) => q.type === 'spy');
       if (spyPlace) ctx.addIssue({ code: 'custom', message: 'spy_place' });
+      // «Вгадай слово» (48): лише класичні раунди; жодної клітинки поля.
+      const wordlePlace =
+        round.type === 'board'
+          ? boardCells(round).some(({ cell }) => cell.question.type === 'wordle')
+          : round.type !== 'classic' && [...roundQuestions(round), ...roundTrials(round)].some((q) => q.type === 'wordle');
+      if (wordlePlace) ctx.addIssue({ code: 'custom', message: 'wordle_place' });
       // Блеф: лише класика.
       const bluffPlace =
         round.type === 'board'

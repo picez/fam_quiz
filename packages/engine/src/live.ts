@@ -24,6 +24,7 @@ import { bluffShownText } from './bluff';
 import { verdictOf } from './check';
 import { chainOf } from './chain';
 import { wordLadderOf } from './wordladder';
+import { wordleOf } from './wordle';
 import { letterWordsOf } from './letterwords';
 import { moreLessOf, rightOf } from './moreless';
 import { snippetHeard } from './snippets';
@@ -143,6 +144,13 @@ function progressOf(state: GameState, play: Play, id: string, answer: Answer | n
     const record = recordOf(state, state.questionIndex, id);
     const finished = record?.answer?.type === 'wordladder' && record.answer.finished;
     return { kind: 'wordladder', steps: words.length, words, finished };
+  }
+  if (question.type === 'wordle') {
+    // Пульт бачить кожну спробу наживо: ключі слів (з апострофом).
+    const { guesses } = wordleOf(state, id);
+    const record = recordOf(state, state.questionIndex, id);
+    const solved = record?.answer?.type === 'wordle' && record.answer.solved;
+    return { kind: 'wordle', tries: guesses.length, guesses, solved };
   }
   if (question.type === 'timedlist') {
     // Назви пунктів ведучого (не те, що набрав гравець): лише ведучому.

@@ -119,3 +119,14 @@ describe('QuestionEditor spy (38)', () => {
     expect(screen.queryByText(t('addAudio'))).toBeNull();
   });
 });
+
+describe('QuestionEditor wordle (48)', () => {
+  it('wordle hides video, hint and reveal but keeps the picture', () => {
+    render(<QuestionEditor question={newQuestion('wordle')} onChange={vi.fn()} types={questionTypesFor('classic')} showReveal />);
+    expect(screen.getByLabelText(t('wordleWord'))).toBeTruthy();
+    expect(screen.queryByLabelText(t('videoLabel'))).toBeNull();
+    expect(screen.queryByLabelText(t('hintLabel'))).toBeNull();
+    expect(screen.queryByRole('group', { name: t('revealLabel') })).toBeNull();
+    expect(screen.getByText(t('addImage'))).toBeTruthy();
+  });
+});

@@ -37,6 +37,8 @@ import {
   type PlayerBets,
   ladderKey,
   wordLetters,
+  wordleKey,
+  wordleLetters,
   allowedDebuffs,
   debuffPrice,
   boardCells,
@@ -232,6 +234,7 @@ import {
 import { attemptsUsed, blitzRulesOf, blitzSeries, isInstant } from './blitz';
 import { blitzSeriesPoints } from './score';
 import { wordLadderOf } from './wordladder';
+import { playerWordle, wordleInfo } from './wordle';
 import { listItemPoints, listPlayers, listRows, timedListOf } from './timedlist';
 import { letterWordsOf } from './letterwords';
 import { chainDeadline, chainOf, hintMsOf, letterCount, maskWord } from './chain';
@@ -391,6 +394,8 @@ function publicQuestion(question: Question, presented: string[], clues: PublicCl
     ...(question.type === 'wordladder'
       ? { wordladder: { start: question.path[0], target: question.path[question.path.length - 1], letters: ladderLetters(question.path[0]), maxSteps: question.maxSteps } }
       : {}),
+    // «Вгадай слово» (48): лише довжина й число спроб — слова ведучого тут немає.
+    ...(question.type === 'wordle' ? { wordle: { letters: wordleLetters(wordleKey(question.word) ?? question.word).length, tries: LIMITS.wordleTries } } : {}),
     chain:
       question.type === 'chain'
         ? { first: question.words[0], masks: question.words.slice(1).map((w) => maskWord(w, 1)), hintSeconds: question.hintSeconds }
@@ -3255,6 +3260,8 @@ function base(state: GameState, forHost: boolean) {
     ...optional('spy', spyInfo(state)),
     ladder: ladderInfo(state, forHost),
     ...optional('wordladder', !forHost && inFinalRound(state) ? undefined : wordLadderInfo(state, forHost)),
+    // «Вгадай слово» (48): сцені й телефонам до reveal — лише кольори; пульту — слово й літери з відкриття.
+    ...optional('wordle', wordleInfo(state, forHost)),
     ...optional('timedlist', timedListInfo(state, forHost)),
     ...optional('letterwords', lettersInfo(state, forHost)),
     ...optional('moreless', moreLessInfo(state, forHost)),
@@ -3941,6 +3948,7 @@ function buildOwnView(state: GameState, playerId: string): Omit<PlayerView, 'tea
       ...optional('think', playerThink(state, playerId)),
       ladder: playerLadder(state, playerId),
       ...optional('wordladder', playerWordLadder(state, playerId)),
+      ...optional('wordle', playerWordle(state, playerId)),
       ...optional('timedlist', playerTimedList(state, playerId)),
       ...optional('letterwords', playerLetterWords(state, playerId)),
       ...optional('moreless', playerMoreLess(state, playerId)),

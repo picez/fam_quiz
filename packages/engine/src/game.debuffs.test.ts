@@ -16,6 +16,7 @@ import {
   text,
   withId,
   withPoints,
+  wordle,
 } from './testing/fixtures';
 import { lobbyWith, must, startRound } from './testing/helpers';
 import { stageView } from './views';
@@ -119,6 +120,13 @@ describe('host debuffs', () => {
     final = must(placeWager(final, 'p2', 0, T0 + 500, rng));
     expect(final.phase).toBe('question');
     expect(final.debuffs.p2).toEqual({ kind: 'freeze', firedAt: 0, since: T0 + 500, by: null });
+  });
+
+  it('a debuff fires on a wordle (48), as on a word ladder', () => {
+    const state = must(next(must(setDebuff(must(start(lobbyWith(makeQuiz([wordle]), 'Олена', 'Тарас'))), 'p1', 'fog')), T0, rng));
+    expect(state.phase).toBe('question');
+    expect(state.debuffs.p1).toEqual({ kind: 'fog', firedAt: 0, since: T0, by: null });
+    expect(activeDebuff(state, 'p1')?.kind).toBe('fog');
   });
 
   it('a kicked player loses the debuff; ending the round mid-question leaves no stale debuff on the stage', () => {

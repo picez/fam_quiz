@@ -42,6 +42,7 @@ export * from './sounds';
 export * from './think';
 export * from './alike';
 export * from './wordladder';
+export * from './wordle';
 export * from './sort';
 export * from './wall';
 export * from './votes';

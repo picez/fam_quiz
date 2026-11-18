@@ -50,6 +50,8 @@ function filled(question: Question): Question {
       return { ...question, text, accepted: ['Правда'], lies: ['Вигадка 1', 'Вигадка 2'] };
     case 'spy':
       return { ...question, text, accepted: ['Кава'], spyWord: 'Чай' };
+    case 'wordle':
+      return { ...question, text, word: 'сосна' };
     case 'survey':
       return { ...question, text, rows: question.rows.map((row, i) => ({ ...row, text: `Відповідь ${i + 1}`, popularity: 10 + i })) };
     case 'timedlist':
@@ -400,11 +402,19 @@ describe('wall, poll and word cloud: checks and drafts (10d)', () => {
   });
 });
 
+describe('a new wordle question (48)', () => {
+  it('starts with an empty word, the default timer and no video, hint or reveal', () => {
+    const question = newQuestion('wordle');
+    expect(question).toMatchObject({ type: 'wordle', word: '', timeLimit: LIMITS.defaultWordleTime, video: null });
+    expect(question).not.toHaveProperty('hint');
+  });
+});
+
 describe('changeType', () => {
   it('keeps the question text, time and points', () => {
     const source = { ...newQuestion('single'), text: 'Скільки?', timeLimit: 45, points: 500 };
     // Сортування, стіна, блеф, опитування й хмара мають власні час чи бали: їх перевіряють окремі тести.
-    for (const type of QUESTION_TYPES.filter((candidate) => !['sort', 'wall', 'poll', 'wordcloud', 'bluff', 'wordladder', 'timedlist', 'letterwords', 'moreless', 'drawing', 'sudoku', 'crossword', 'jigsaw', 'spotdiff', 'memory', 'melody', 'videoclip', 'spy', 'think'].includes(candidate))) {
+    for (const type of QUESTION_TYPES.filter((candidate) => !['sort', 'wall', 'poll', 'wordcloud', 'bluff', 'wordladder', 'timedlist', 'letterwords', 'moreless', 'drawing', 'sudoku', 'crossword', 'jigsaw', 'spotdiff', 'memory', 'melody', 'videoclip', 'spy', 'wordle', 'think'].includes(candidate))) {
       const changed = changeType(source, type);
       expect(changed.type).toBe(type);
       expect([changed.id, changed.text, changed.timeLimit, changed.points]).toEqual([source.id, 'Скільки?', 45, 500]);
@@ -3771,5 +3781,67 @@ describe('question bank', () => {
       const kept = bankCopy(quizOf(round), 0, { ...plain, betsCut: 2 }, undefined);
       expect('question' in kept && kept.question.betsCut).toBe(2);
     }
+  });
+});
+
+describe('plan 48 editors: wordle', () => {
+  const wordle = (patch: Partial<Extract<Question, { type: 'wordle' }>> = {}) => ({ ...(newQuestion('wordle') as Extract<Question, { type: 'wordle' }>), word: 'колос', ...patch });
+  const blitz = (question: Question): Quiz => ({ ...quizWith(question), rounds: [{ ...newBlitzRound(), questions: [question] }] });
+
+  it('is offered in classic rounds only, right after letter words; a new one has the default text and timer', () => {
+    const classic = questionTypesFor('classic');
+    expect(classic.indexOf('wordle')).toBe(classic.indexOf('letterwords') + 1);
+    for (const type of ['blitz', 'final', 'board', 'bets', 'puzzles'] as const) expect(questionTypesFor(type), type).not.toContain('wordle');
+    expect(newQuestion('wordle')).toMatchObject({ type: 'wordle', text: t('wordleDefaultText'), word: '', timeLimit: LIMITS.defaultWordleTime, points: LIMITS.defaultPoints });
+  });
+
+  it('a good word passes; outside a classic round it does not', () => {
+    expect(problemsOf(quizWith(wordle()))).toEqual([]);
+    expect(problemsOf(quizWith(wordle({ word: "м'ясо" })))).toEqual([]);
+    expect(problemsOf(blitz(wordle()))).toEqual([t('problemWordlePlace', { index: 1 })]);
+  });
+
+  it('a word of the wrong length or with foreign letters is a problem', () => {
+    const wrong = t('problemWordleWord', { index: 1, letterMin: LIMITS.minWordleLetters, letterMax: LIMITS.maxWordleLetters });
+    expect(problemsOf(quizWith(wordle({ word: 'кіт' })))).toEqual([wrong]);
+    expect(problemsOf(quizWith(wordle({ word: 'абрикоси' })))).toEqual([wrong]);
+    expect(problemsOf(quizWith(wordle({ word: 'cat1' })))).toEqual([wrong]);
+    expect(problemsOf(quizWith(wordle({ word: '' })))).toEqual([wrong]);
+    expect(wrong).toContain(`${LIMITS.minWordleLetters}`);
+  });
+
+  it('a text that gives the word away is a problem', () => {
+    expect(problemsOf(quizWith(wordle({ text: 'Це колос' })))).toEqual([t('problemWordleLeak', { index: 1 })]);
+    expect(problemsOf(quizWith(wordle({ text: 'Це колосок' })))).toEqual([]);
+    // Те саме правило, що схеми: слово без апострофа чи з іншим апострофом — теж витік.
+    expect(problemsOf(quizWith(wordle({ word: "пір'я", text: 'Це пірря' })))).toEqual([t('problemWordleLeak', { index: 1 })]);
+    expect(problemsOf(quizWith(wordle({ word: "пір'я", text: 'Це пір’я' })))).toEqual([t('problemWordleLeak', { index: 1 })]);
+  });
+
+  it('cleaning drops a video, so it never blocks saving', () => {
+    const video = { id: 'dQw4w9WgXcQ', start: 0 };
+    const clean = roundQuestions(cleaned(quizWith({ ...wordle(), video } as Question)).rounds[0])[0];
+    expect(clean.video).toBeNull();
+  });
+
+  it('changing the type keeps the text; cleaning trims the word; a draft drops a bad word and a video', () => {
+    const text = { ...newQuestion('text'), text: 'Назвіть слово' } as Question;
+    expect(changeType(text, 'wordle')).toMatchObject({ type: 'wordle', text: 'Назвіть слово', word: '' });
+    const clean = roundQuestions(cleaned(quizWith(wordle({ word: '  колос ' }))).rounds[0])[0] as Extract<Question, { type: 'wordle' }>;
+    expect(clean.word).toBe('колос');
+    const stored = (id: string, question: unknown) => {
+      saveDraft(id, quizWith(question as Question));
+      return roundQuestions(loadDraft(id)!.rounds[0])[0] as unknown as Record<string, unknown>;
+    };
+    expect(stored('wordle-ok', wordle()).word).toBe('колос');
+    expect(stored('wordle-num', { ...wordle(), word: 5 }).word).toBe('');
+    expect(stored('wordle-video', { ...wordle(), video: { id: 'dQw4w9WgXcQ', start: 0 } }).video).toBeNull();
+  });
+
+  it('duplicating keeps the word under a new id', () => {
+    const original = wordle();
+    const copy = duplicateQuestion(original) as typeof original;
+    expect(copy.id).not.toBe(original.id);
+    expect(copy.word).toBe('колос');
   });
 });

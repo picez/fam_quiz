@@ -700,6 +700,33 @@ export function spyQuiz(settings: Partial<QuizSettings> = {}): Quiz {
   return makeRoundsQuiz([classicRound('c1', [spy, spy2])], settings);
 }
 
+/** «Вгадай слово» (48): «колос», 120 с, 1000. */
+export const wordle = {
+  ...base,
+  id: 'wd1',
+  type: 'wordle',
+  text: "Вгадайте іменник з п'яти літер",
+  timeLimit: 120,
+  points: 1000,
+  word: 'колос',
+} satisfies Question;
+
+/** «Вгадай слово» (48): «м'ясо» (4 літери, апостроф не клітинка), 60 с, 600. */
+export const wordle2 = {
+  ...base,
+  id: 'wd2',
+  type: 'wordle',
+  text: 'Вгадайте іменник з чотирьох літер',
+  timeLimit: 60,
+  points: 600,
+  word: "м'ясо",
+} satisfies Question;
+
+/** Вікторина «Вгадай слово» (48): класика [wordle, wordle2]. */
+export function wordleQuiz(settings: Partial<QuizSettings> = {}): Quiz {
+  return makeRoundsQuiz([classicRound('c1', [wordle, wordle2])], settings);
+}
+
 /** Вікторина «Не перебільш» (37d): класика з одним запитанням overshoot. */
 export function overshootQuiz(settings: Partial<QuizSettings> = {}): Quiz {
   return makeRoundsQuiz([classicRound('c1', [overshoot])], settings);

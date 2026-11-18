@@ -1,7 +1,7 @@
 import type { AddressInfo } from 'node:net';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { io as connect, type Socket } from 'socket.io-client';
-import { auctionRound, betsRound, bluff, blitzRound, boardRound, bool, chain, classicRound, clues, cloud, duels, finalRound, makeQuiz, multi, makeRoundsQuiz, single, sortQ, survey, survivalQuestions, survivalRound, survivalTrials, text, wall, withAudio, withId, wipeoutLadder, wipeoutRound, ladderRound, letterwords, moreless, drawing, timedlist, truthRound, think, thinkRound, wordladder, puzzlesQuiz, sudoku, jigsaw, jigsawQuiz, spotdiff, spotdiffQuiz, memoryQuiz, melodyQuiz, videoclipQuiz, alikeQuiz, spyQuiz, questQuiz } from '@quiz/engine/testing';
+import { auctionRound, betsRound, bluff, blitzRound, boardRound, bool, chain, classicRound, clues, cloud, duels, finalRound, makeQuiz, multi, makeRoundsQuiz, single, sortQ, survey, survivalQuestions, survivalRound, survivalTrials, text, wall, withAudio, withId, wipeoutLadder, wipeoutRound, ladderRound, letterwords, moreless, drawing, timedlist, truthRound, think, thinkRound, wordladder, puzzlesQuiz, sudoku, jigsaw, jigsawQuiz, spotdiff, spotdiffQuiz, memoryQuiz, melodyQuiz, videoclipQuiz, alikeQuiz, spyQuiz, questQuiz, wordleQuiz } from '@quiz/engine/testing';
 import { DEFAULT_RULES, defaultTeams, memoryLayout, STICKERS, SPLASH_MS, type AckResult, type ClientToServerEvents, type DrawingEvent, type GameView, type HostDrafts, type Reaction, type ServerToClientEvents, type SocketAuth, type SortTilt } from '@quiz/shared';
 import { eq, inArray } from 'drizzle-orm';
 import { buildApp } from './app';
@@ -615,6 +615,29 @@ describe('host presence', () => {
     expect(await send(olena, 'player:wordladder-back')).toEqual({ ok: true });
     expect(await send(olena, 'player:wordladder-back')).toEqual({ ok: true });
     expect(await send(olena, 'player:wordladder-back')).toEqual({ ok: false, error: 'word_none' });
+  });
+
+  it('player:wordle is player-only and validated, guesses use the room dictionary and never leak letters to the stage', async () => {
+    await ctx.app.close();
+    ctx = await buildApp({ db, auth: TEST_AUTH, nouns: nounsOf(['сосна', 'колос', "м'ясо"]) });
+    await ctx.app.listen({ port: 0, host: '127.0.0.1' });
+    url = `http://127.0.0.1:${(ctx.app.server.address() as AddressInfo).port}`;
+    const created = (await startGame(ctx.app, wordleQuiz())).game;
+    const { host, stage, olena } = await lobby(created);
+    for (const who of [host, stage]) expect(await send(who, 'player:wordle', { word: 'сосна' })).toEqual({ ok: false, error: 'forbidden' });
+    for (const payload of [{ word: 5 }, {}, undefined, { word: 'а'.repeat(21) }]) {
+      expect(await send(olena, 'player:wordle', payload)).toEqual({ ok: false, error: 'invalid_payload' });
+    }
+    expect(await send(host, 'host:start')).toEqual({ ok: true });
+    expect(await send(host, 'host:next')).toEqual({ ok: true });
+    await until(olena, inPhase('question'));
+    expect(await send(olena, 'player:wordle', { word: 'лампо' })).toEqual({ ok: false, error: 'wordle_unknown' });
+    expect(await send(olena, 'player:wordle', { word: 'сосна' })).toEqual({ ok: true });
+    const scene = await until(stage, (view) => view.role === 'stage' && view.wordle?.rows.some((row) => row.marks.length === 1) === true);
+    expect(JSON.stringify(scene)).not.toContain('сосна');
+    expect(await send(olena, 'player:wordle', { word: 'колос' })).toEqual({ ok: true });
+    const mine = await until(olena, (view) => view.role === 'player' && view.me.wordle?.solved === true);
+    expect(mine.role === 'player' && mine.me.wordle?.rows).toHaveLength(2);
   });
 
   it('player:list is player-only and validated', async () => {

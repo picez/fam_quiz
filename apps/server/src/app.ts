@@ -128,6 +128,7 @@ export async function buildApp(options: AppOptions) {
     attemptsPerMinute: options.auth.attemptsPerMinute ?? 10,
     google: options.auth.google !== undefined,
     adminEmails: options.adminEmails ?? new Set<string>(),
+    nouns,
   });
 
   const imageStorage = options.storage ?? memoryStorage();

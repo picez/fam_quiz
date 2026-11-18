@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react';
-import { overshootOn, snippetSeconds, type HostLive, type HostView, type LiveDraft, type LiveRow, type Question, type SortTilt } from '@quiz/shared';
+import { LIMITS, overshootOn, snippetSeconds, type HostLive, type HostView, type LiveDraft, type LiveRow, type Question, type SortTilt } from '@quiz/shared';
 import { awayRowTexts } from '../away-text';
 import { AwayLabel } from './AwayLabel';
 import { answerText, num, secondsText, sliderNumber } from '../format';
@@ -35,6 +35,8 @@ function started(row: LiveRow): boolean {
       return progress.solved > 0 || progress.hints > 0;
     case 'wordladder':
       return progress.steps > 0 || progress.finished;
+    case 'wordle':
+      return progress.tries > 0;
     case 'timedlist':
       return progress.found.length > 0 || progress.wrong > 0;
     case 'letterwords':
@@ -99,6 +101,11 @@ export function liveAnswerText(row: LiveRow, correct: Question | null, choices: 
         // Фініш уже названо відповіддю («Дійшли за кроків: N»), тож тут лише слова; без фінішу — ще й кроки.
         if (!progress.finished) parts.push(t('wordLadderLiveSteps', { steps: progress.steps }));
         if (progress.words.length > 0) parts.push(progress.words.join(' → '));
+        break;
+      case 'wordle':
+        // Розгадку вже названо відповіддю («вгадав за N спроби»); без неї — «N з 6» і спроби ведучому.
+        if (answer === null) parts.push(t('wordleLive', { tries: progress.tries, total: LIMITS.wordleTries }));
+        if (progress.guesses.length > 0) parts.push(progress.guesses.join(' · '));
         break;
       case 'timedlist':
         parts.push(t('listLive', { found: progress.found.length, total: progress.total }));

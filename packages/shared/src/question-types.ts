@@ -1,7 +1,7 @@
 import type { LIMITS, RoundType } from './quiz';
 
 /** Типи запитань у порядку редактора; звіряється з questionSchema у тесті. */
-export const QUESTION_TYPES = ['single', 'multi', 'boolean', 'text', 'numeric', 'order', 'match', 'chain', 'wordladder', 'sort', 'slider', 'clues', 'pin', 'wall', 'poll', 'wordcloud', 'survey', 'timedlist', 'letterwords', 'moreless', 'drawing', 'sudoku', 'crossword', 'jigsaw', 'spotdiff', 'memory', 'melody', 'videoclip', 'bluff', 'thinkalike', 'spy', 'think'] as const;
+export const QUESTION_TYPES = ['single', 'multi', 'boolean', 'text', 'numeric', 'order', 'match', 'chain', 'wordladder', 'sort', 'slider', 'clues', 'pin', 'wall', 'poll', 'wordcloud', 'survey', 'timedlist', 'letterwords', 'wordle', 'moreless', 'drawing', 'sudoku', 'crossword', 'jigsaw', 'spotdiff', 'memory', 'melody', 'videoclip', 'bluff', 'thinkalike', 'spy', 'think'] as const;
 export type QuestionType = (typeof QUESTION_TYPES)[number];
 
 /** Можливості типу запитання (30e): з них виводяться списки типів у shared, рушії й редакторі. */
@@ -321,6 +321,22 @@ export const QUESTION_TYPE_TRAITS = {
     progress: true,
     hostGraded: false,
     teamWide: true,
+    buffs: { risk: false, letter: false, scope: false },
+    time: { min: 'minTime', max: 'maxTime' },
+  },
+  /** «Вгадай слово» (48): 4–7 літер, 6 спроб зі словником; лише класика, грається наодинці (відповідь рушія — WordleAnswer). */
+  wordle: {
+    rounds: ['classic'],
+    simple: false,
+    reveal: false,
+    unscored: false,
+    puzzle: false,
+    proximity: false,
+    wholeRow: false,
+    speed: false,
+    progress: true,
+    hostGraded: false,
+    teamWide: false,
     buffs: { risk: false, letter: false, scope: false },
     time: { min: 'minTime', max: 'maxTime' },
   },

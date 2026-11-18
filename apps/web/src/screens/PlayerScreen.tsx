@@ -42,6 +42,7 @@ import { FactCards, GameCardView, OwnRevealLine, RoundCardView } from './FactCar
 import { NewAchievements } from './NewAchievements';
 import { ChainPlay, ChainWords } from './ChainView';
 import { WordLadderOutcome, WordLadderPlay } from './WordLadderView';
+import { WordleOutcome, WordlePlay } from './WordleView';
 import { TimedListBoard, TimedListOutcome, TimedListPlay, TimedListReveal } from './TimedListView';
 import { LetterWordsBest, LetterWordsBoard, LetterWordsMine, LetterWordsPlay } from './LetterWordsView';
 import { MoreLessBoard, MoreLessPlay, MoreLessReveal, MoreLessWatch, useTimeRanOut } from './MoreLessView';
@@ -398,6 +399,8 @@ function Result({ view, strokes = [] }: { view: PlayerView; strokes?: Stroke[] }
       {view.me.chain !== null && (
         <p>{view.me.chain.timeMs !== null ? t('chainDone', { time: secondsText(view.me.chain.timeMs) }) : t('chainOutOfTime')}</p>
       )}
+      {/* «Вгадай слово» (48): власна сітка й слово; рядок «Правильна відповідь» нижче його лише повторив би. */}
+      {view.phase === 'reveal' && view.me.wordle !== undefined && <WordleOutcome wordle={view.me.wordle} />}
       {view.me.wordladder !== undefined && <p>{view.me.wordladder.finished ? t('wordLadderDone', { steps: view.me.wordladder.steps }) : t('wordLadderOut')}</p>}
       {view.me.sort !== null && <SortOutcome view={view} />}
       <WallOutcome view={view} />
@@ -434,7 +437,7 @@ function Result({ view, strokes = [] }: { view: PlayerView; strokes?: Stroke[] }
       {/* «Правда про гравця» (28b): автора вже названо поруч (TruthReveal) — рядок правильної відповіді його лише повторив би. */}
       {view.reveal !== null &&
         view.truth?.index == null &&
-        (view.reveal.type === 'wall' || view.reveal.type === 'survey' || view.reveal.type === 'timedlist' || view.reveal.type === 'letterwords' || view.reveal.type === 'moreless' || view.reveal.type === 'drawing' || view.reveal.type === 'sudoku' || view.reveal.type === 'jigsaw' || view.reveal.type === 'spotdiff' || view.reveal.type === 'memory' || view.reveal.type === 'thinkalike' ? null : view.reveal.type === 'pin' ? (
+        (view.reveal.type === 'wall' || view.reveal.type === 'wordle' || view.reveal.type === 'survey' || view.reveal.type === 'timedlist' || view.reveal.type === 'letterwords' || view.reveal.type === 'moreless' || view.reveal.type === 'drawing' || view.reveal.type === 'sudoku' || view.reveal.type === 'jigsaw' || view.reveal.type === 'spotdiff' || view.reveal.type === 'memory' || view.reveal.type === 'thinkalike' ? null : view.reveal.type === 'pin' ? (
           // Точка: мапа вище; словами — лише відстань власної точки.
           view.me.answer?.type === 'pin' && <p>{answerText(view.me.answer, view.reveal)}</p>
         ) : view.reveal.type === 'slider' && view.me.answer?.type === 'slider' && view.question?.slider != null ? (
@@ -1350,6 +1353,10 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
               />
             ) : truthOwn ? (
               <TruthOwn team={team !== null} />
+            ) : question.type === 'wordle' && me.wordle !== undefined ? (
+              // «Вгадай слово» (48): клавіатура — лише тому, хто відповідає (у команді — капітан чи вибраний відповідач), поки є час;
+              // решта команди бачить сітку команди без клавіш. Сплив час (з особистим додатковим) гасить клавіші ще до закриття.
+              <WordlePlay key={view.questionIndex} wordle={me.wordle} paused={locked || buffTimeOver} readOnly={team !== null && !team.canAct} send={send} />
             ) : teamWatching ? (
               <TeamWatch view={view} tilts={tilts} offsetMs={offsetMs} />
             ) : truthQ && me.answer === null ? (
@@ -1617,6 +1624,11 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
               ) : (
                 view.moreless !== undefined && (view.moreless.watch !== undefined ? <MoreLessWatch info={view.moreless} question={question} /> : <MoreLessBoard info={view.moreless} reveal={false} />)
               )}
+            </section>
+          ) : me.wordle !== undefined ? (
+            <section className="sent">
+              <WordleOutcome wordle={me.wordle} />
+              <p className="lead">{t('waitReveal')}</p>
             </section>
           ) : me.wordladder !== undefined && question !== null ? (
             <section className="sent">
