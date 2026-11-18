@@ -492,6 +492,8 @@ describe('host help', () => {
     filled('setting.challenge');
     expect(helpEntry('setting.challenge').title).toBe(t('challengeTitle'));
     const body = text('setting.challenge');
-    for (const part of [t('challengeButton'), t('challengeCreate'), t('challengeReplace'), t('challengeUnfinished'), t('challengeAuthorMark'), '7 днів', 'один раз', 'Досвід']) expect(body, part).toContain(part);
+    for (const part of [t('challengeButton'), t('challengeCreate'), t('challengeReplace'), t('challengeUnfinished'), t('challengeAuthorMark'), t('challengeCopy'), t('challengeShare'), t('buff_audience'), t('buff_stealth'), '7 днів', 'один раз', 'досвід не нараховується']) expect(body, part).toContain(part);
+    // «ти», а не «ви»; без чоловічого роду там, де йдеться про будь-кого.
+    for (const wrong of ['натисніть', 'бачите', 'Ви теж', 'Закрив вкладку', 'нараховується за звичайними правилами']) expect(body, wrong).not.toContain(wrong);
   });
 });

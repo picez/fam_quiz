@@ -4386,12 +4386,16 @@
   "challengeTitle": "Freund herausfordern",
   "challengeLead": "Freunde spielen dieses Quiz allein, wann es ihnen passt – ein Versuch pro Konto. Der Link gilt 7 Tage; Änderungen am Quiz nach dem Erstellen wirken sich nicht auf die Herausforderung aus.",
   "challengeChecking": "Quiz wird geprüft …",
-  "challengeSkipTitle": "Fragen, die mehrere Spieler brauchen, werden übersprungen:",
+  "challengeSkipTitle": "Übersprungen wird alles, was mehrere Spieler braucht:",
   "challengeSkipNone": "Es muss nichts übersprungen werden.",
   "challengeSkipRound": "Runde {index} ({type})",
   "challengeSkipSetting_teams": "Teamspiel",
   "challengeSkipSetting_duels": "Duelle und Wetten darauf",
   "challengeSkipSetting_debuffShop": "Debuff-Shop",
+  "challengeSkipBuffs": "Buffs: {list}",
+  "challengeClose": "Schließen",
+  "challengeGameClosed": "Das Spiel der Herausforderung ist geschlossen. Wie es weitergeht, steht auf der Seite der Herausforderung.",
+  "challengeBackLink": "🏁 Zur Herausforderung",
   "challengeEmpty": "In diesem Quiz gibt es nichts, was man allein spielen kann – eine Herausforderung lässt sich nicht erstellen.",
   "challengeCreate": "Herausforderung erstellen",
   "challengeReplace": "Neue Herausforderung",
@@ -4433,5 +4437,7 @@
   "challengeDaysLeft_one": "noch {count} Tag",
   "challengeDaysLeft_other": "noch {count} Tage",
   "challengePlayed_one": "{count} Person hat gespielt",
-  "challengePlayed_other": "{count} Personen haben gespielt"
+  "challengePlayed_other": "{count} Personen haben gespielt",
+  "challengeSkipQuestions_one": "Runde {index} ({type}): {count} Frage wird übersprungen",
+  "challengeSkipQuestions_other": "Runde {index} ({type}): {count} Fragen werden übersprungen"
 }
