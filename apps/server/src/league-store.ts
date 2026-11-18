@@ -13,7 +13,9 @@ import {
 import { and, asc, desc, eq, inArray, lt, notExists, sql } from 'drizzle-orm';
 import type { Db } from './db/client';
 import { familyGroup, game, groupMember, leagueChampion, leagueGame, leagueMonth, leaguePoint, userBan } from './db/schema';
+import { isForeignKeyViolation } from './db/unique';
 import { profileCards } from './group-store';
+import { reportError } from './log';
 import { kyivDay } from './xp-rules';
 
 type Tx = Parameters<Parameters<Db['transaction']>[0]>[0];
@@ -129,23 +131,33 @@ export async function settleLeague(db: Db, groupId: string, now: Date): Promise<
     )
     .orderBy(asc(leaguePoint.month));
   for (const { month } of pending) {
-    await db.transaction(async (tx) => {
-      const claimed = await tx
-        .insert(leagueMonth)
-        .values({ groupId, month, settledAt: now })
-        .onConflictDoNothing()
-        .returning({ month: leagueMonth.month });
-      if (claimed.length === 0) return;
-      const [group] = await tx.select({ name: familyGroup.name }).from(familyGroup).where(eq(familyGroup.id, groupId));
-      if (group === undefined) return;
-      const winners = monthWinners(await totalsOf(tx, groupId, month));
-      if (winners.length === 0) return;
-      await tx
-        .insert(leagueChampion)
-        .values(winners.map((row) => ({ groupId, groupName: group.name, month, userId: row.userId, points: row.points })))
-        .onConflictDoNothing();
-    });
+    try {
+      await settleMonth(db, groupId, month, now);
+    } catch (error) {
+      // Групу видалили між запитом і вставкою: підсумовувати нічого (відкат уже стався).
+      if (isForeignKeyViolation(error)) return;
+      throw error;
+    }
   }
+}
+
+async function settleMonth(db: Db, groupId: string, month: string, now: Date): Promise<void> {
+  await db.transaction(async (tx) => {
+    const claimed = await tx
+      .insert(leagueMonth)
+      .values({ groupId, month, settledAt: now })
+      .onConflictDoNothing()
+      .returning({ month: leagueMonth.month });
+    if (claimed.length === 0) return;
+    const [group] = await tx.select({ name: familyGroup.name }).from(familyGroup).where(eq(familyGroup.id, groupId));
+    if (group === undefined) return;
+    const winners = monthWinners(await totalsOf(tx, groupId, month));
+    if (winners.length === 0) return;
+    await tx
+      .insert(leagueChampion)
+      .values(winners.map((row) => ({ groupId, groupName: group.name, month, userId: row.userId, points: row.points })))
+      .onConflictDoNothing();
+  });
 }
 
 /** Підмножина id, чиї акаунти заблоковано: їх не видно ні в таблиці, ні в залі. */
@@ -221,7 +233,14 @@ export async function leagueTitlesOf(db: Db, userId: string, now: Date): Promise
         ),
       ),
     );
-  for (const { groupId } of unsettled) await settleLeague(db, groupId, now);
+  // Збій підсумовування профіль не ламає: титули, що вже є, читаємо все одно.
+  for (const { groupId } of unsettled) {
+    try {
+      await settleLeague(db, groupId, now);
+    } catch (error) {
+      reportError(error, { where: 'league-settle' });
+    }
+  }
   const rows = await db
     .select({ group: leagueChampion.groupName, month: leagueChampion.month })
     .from(leagueChampion)

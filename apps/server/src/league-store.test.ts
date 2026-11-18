@@ -7,6 +7,7 @@ import { game, groupMember, leagueChampion, leagueGame, leagueMonth, leaguePoint
 import { createGroup, deleteGroup, updateGroup } from './group-store';
 import { kyivMonth, leagueResultOf, leagueTable, leagueTitlesOf, recordLeague, settleLeague } from './league-store';
 import { ensureProfile } from './profiles';
+import { setErrorReporter } from './log';
 import { createTestDb } from './testing/test-db';
 
 let db: Db;
@@ -238,6 +239,46 @@ describe('leagueTitlesOf', () => {
     const titles = await leagueTitlesOf(db, ids[0], NOW);
     expect(titles).toHaveLength(LEAGUE_TITLES_SHOWN);
     expect(titles[0].month).toBe('2025-12');
+  });
+});
+
+describe('a failing settlement', () => {
+  it('still returns the titles already settled and reports the error', async () => {
+    const { groupId, ids } = await league(3);
+    await past(groupId, '2026-09', [[ids[1], 1], [ids[0], 2], [ids[2], 3]]);
+    await settleLeague(db, groupId, NOW);
+    await past(groupId, '2026-10', [[ids[1], 1], [ids[0], 2], [ids[2], 3]]);
+    const broken = new Proxy(db, {
+      get(target, key, receiver) {
+        if (key === 'transaction') return () => Promise.reject(new Error('boom'));
+        return Reflect.get(target, key, receiver);
+      },
+    });
+    const seen: unknown[] = [];
+    const restore = setErrorReporter((error) => seen.push(error));
+    try {
+      expect(await leagueTitlesOf(broken, ids[1], NOW)).toEqual([{ group: 'Родина', month: '2026-09' }]);
+    } finally {
+      restore();
+    }
+    expect(seen).toHaveLength(1);
+  });
+
+  it('a group deleted mid-settlement is harmless', async () => {
+    const { groupId, ids } = await league(3);
+    await past(groupId, '2026-09', [[ids[1], 1], [ids[0], 2], [ids[2], 3]]);
+    const racing = new Proxy(db, {
+      get(target, key, receiver) {
+        if (key === 'transaction') {
+          return async (fn: Parameters<Db['transaction']>[0]) => {
+            await deleteGroup(db, groupId);
+            return target.transaction(fn);
+          };
+        }
+        return Reflect.get(target, key, receiver);
+      },
+    });
+    await expect(settleLeague(racing, groupId, NOW)).resolves.toBeUndefined();
   });
 });
 
