@@ -1,4 +1,4 @@
-import { adminListQuerySchema, banSchema } from '@quiz/shared';
+import { adminListQuerySchema, adminProfileActionSchema, adminQuizActionSchema, banSchema } from '@quiz/shared';
 import { eq } from 'drizzle-orm';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { CurrentUser } from './account-routes';
@@ -7,6 +7,7 @@ import { adminLog, adminQuiz, adminQuizzes, adminStats, adminUser, adminUsers } 
 import { banUser, logAction, unbanUser } from './bans';
 import type { Db } from './db/client';
 import { prize } from './db/schema';
+import { actOnProfile, actOnQuiz, reportQueue } from './report-store';
 import { deleteAward, deletePrize } from './prizes';
 import { deleteQuestionAsAdmin, deleteQuiz } from './quizzes';
 import type { RoomManager } from './rooms/manager';
@@ -186,6 +187,36 @@ export async function registerAdminRoutes(app: FastifyInstance, deps: AdminDeps)
       return true;
     });
     return deleted ? reply.code(204).send() : reply.code(404).send(NOT_FOUND);
+  });
+
+  app.get('/api/admin/reports', read, async (request, reply) => {
+    const query = adminListQuerySchema.safeParse(request.query);
+    if (!query.success) return reply.code(400).send(INVALID);
+    return reportQueue(db, query.data.page);
+  });
+
+  app.post<{ Params: { entryId: string } }>('/api/admin/reports/quiz/:entryId', write, async (request, reply) => {
+    const me = await adminOf(request);
+    if (me === null) return reply.code(404).send(NOT_FOUND);
+    const { entryId } = request.params;
+    if (!UUID.test(entryId)) return reply.code(404).send(NOT_FOUND);
+    const body = adminQuizActionSchema.safeParse(request.body ?? {});
+    if (!body.success) return reply.code(400).send(INVALID);
+    const done = await actOnQuiz(db, { adminId: me.id, entryId, action: body.data.action, now: now() });
+    return done ? reply.code(204).send() : reply.code(404).send(NOT_FOUND);
+  });
+
+  app.post<{ Params: { userId: string } }>('/api/admin/reports/profile/:userId', write, async (request, reply) => {
+    const me = await adminOf(request);
+    if (me === null) return reply.code(404).send(NOT_FOUND);
+    const { userId } = request.params;
+    if (userId.length > USER_ID_MAX) return reply.code(404).send(NOT_FOUND);
+    const body = adminProfileActionSchema.safeParse(request.body ?? {});
+    if (!body.success) return reply.code(400).send(INVALID);
+    // Адміну нік чи аватар не скидають (той самий код, що й у бана); відхилити скаргу на нього можна.
+    if (body.data.action !== 'dismiss' && (userId === me.id || (await isAdmin(db, adminEmails, userId)))) return reply.code(409).send({ error: 'cannot_ban_admin' });
+    const done = await actOnProfile(db, { adminId: me.id, userId, action: body.data.action, now: now() });
+    return done ? reply.code(204).send() : reply.code(404).send(NOT_FOUND);
   });
 
   app.get('/api/admin/log', read, async (request, reply) => {

@@ -1,11 +1,11 @@
 import { randomUUID } from 'node:crypto';
-import { classicRound, makeQuiz, makeRoundsQuiz, single, withId } from '@quiz/engine/testing';
-import type { AdminList, AdminLogEntry, AdminQuizView, AdminStats, AdminUserDetail, CalendarEvent, PrizeContent, PrizeItem, PrizePlacesInfo, Question } from '@quiz/shared';
+import { blitzRound, bool, classicRound, makeQuiz, makeRoundsQuiz, multi, numeric, order, single, text, withId } from '@quiz/engine/testing';
+import type { AdminList, AdminLogEntry, AdminReportItem, LibraryPage, AdminQuizView, AdminStats, AdminUserDetail, CalendarEvent, PrizeContent, PrizeItem, PrizePlacesInfo, Question } from '@quiz/shared';
 import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import * as adminModule from './admin';
 import { buildApp } from './app';
-import { calendarEvent, prizeAward, user, userBan, userTitle } from './db/schema';
+import { calendarEvent, prizeAward, profile, user, userBan, userTitle } from './db/schema';
 import { TEST_AUTH, signUp, startGame } from './testing/accounts';
 import { createTestDb } from './testing/test-db';
 
@@ -321,6 +321,102 @@ describe('prizes and awards', () => {
     await db.insert(userTitle).values({ userId: b.id, text: 'Знавець рік', gameId: randomUUID(), awardedAt: new Date(), expiresAt: new Date(Date.now() + 86_400_000) });
     expect((await call('DELETE', `/api/admin/awards/${row!.id}`, a.cookie)).statusCode).toBe(204);
     expect(((await call('GET', `/api/admin/users/${b.id}`, a.cookie)).json() as AdminUserDetail).title?.text).toBe('Знавець рік');
+  });
+});
+
+describe('the report queue (39-A2)', () => {
+  let author: Person;
+  let r1: Person;
+  let r2: Person;
+  let r3: Person;
+  let quizId: string;
+  let entryId: string;
+
+  beforeAll(async () => {
+    author = await person('Автор');
+    [r1, r2, r3] = [await person('Скаржник Один'), await person('Скаржник Два'), await person('Скаржник Три')];
+    const questions = [single, multi, bool, text, numeric, order];
+    const body = { ...makeRoundsQuiz([classicRound('r1', questions.slice(0, 4), { title: 'Міста' }), blitzRound('r2', questions.slice(4), { title: 'Річки' })]), title: 'Скаржена', description: 'Про міста' };
+    quizId = ((await call('POST', '/api/quizzes', author.cookie, body)).json() as { id: string }).id;
+    expect((await call('PUT', `/api/library/mine/${quizId}`, author.cookie, { language: 'uk' })).statusCode).toBe(200);
+    entryId = ((await call('GET', '/api/library/mine', author.cookie)).json() as { entryId: string }[])[0]!.entryId;
+  });
+
+  it('the report queue is for admins only', async () => {
+    const routes: [Method, string, unknown][] = [
+      ['GET', '/api/admin/reports', undefined],
+      ['POST', `/api/admin/reports/quiz/${entryId}`, { action: 'hide' }],
+      ['POST', `/api/admin/reports/profile/${b.id}`, { action: 'reset_nickname' }],
+    ];
+    for (const [method, url, payload] of routes) {
+      for (const cookie of [undefined, b.cookie]) {
+        const response = await call(method, url, cookie, payload);
+        expect(response.statusCode, `${method} ${url}`).toBe(404);
+        expect(response.json()).toEqual(NOT_FOUND);
+      }
+    }
+    const mine = (await call('GET', '/api/library/mine', author.cookie)).json() as { moderation: string }[];
+    expect(mine[0]!.moderation).toBe('ok');
+  });
+
+  it('lists reports by object without who reported', async () => {
+    for (const [who, reason] of [[r1, 'spam'], [r2, 'personal']] as const) {
+      expect((await call('POST', '/api/reports', who.cookie, { target: { kind: 'quiz', entryId }, reason, text: 'коментар ' + who.nickname })).statusCode).toBe(201);
+    }
+    expect((await call('POST', '/api/reports', r1.cookie, { target: { kind: 'profile', userId: b.id }, reason: 'offensive' })).statusCode).toBe(201);
+    const response = await call('GET', '/api/admin/reports', a.cookie);
+    expect(response.statusCode).toBe(200);
+    const page = response.json() as AdminList<AdminReportItem>;
+    expect(page.rows).toHaveLength(2);
+    expect(page.rows[0]).toMatchObject({ kind: 'quiz', entryId, quizId, title: 'Скаржена', author: { id: author.id, nickname: author.nickname }, reports: 2, reasons: { spam: 1, personal: 1 } });
+    expect(page.rows[1]).toMatchObject({ kind: 'profile', userId: b.id, reports: 1 });
+    for (const who of [r1, r2]) {
+      expect(response.body).not.toContain(who.id);
+      expect(response.body).not.toContain(who.email);
+    }
+    expect((await call('GET', '/api/admin/reports?page=x', a.cookie)).statusCode).toBe(400);
+  });
+
+  it('rejects a bad action or id, and an unknown entry', async () => {
+    expect((await call('POST', `/api/admin/reports/quiz/${entryId}`, a.cookie, { action: 'ban' })).statusCode).toBe(400);
+    expect((await call('POST', `/api/admin/reports/quiz/${entryId}`, a.cookie, { action: 'hide', extra: 1 })).statusCode).toBe(400);
+    expect((await call('POST', `/api/admin/reports/profile/${b.id}`, a.cookie, { action: 'ban' })).statusCode).toBe(400);
+    expect((await call('POST', `/api/admin/reports/quiz/${UUID}`, a.cookie, { action: 'hide' })).statusCode).toBe(404);
+    expect((await call('POST', '/api/admin/reports/quiz/not-a-uuid', a.cookie, { action: 'hide' })).statusCode).toBe(404);
+    expect((await call('POST', '/api/admin/reports/profile/nobody', a.cookie, { action: 'dismiss' })).statusCode).toBe(404);
+  });
+
+  it('an admin nickname cannot be reset', async () => {
+    for (const action of ['reset_nickname', 'reset_avatar']) {
+      const response = await call('POST', `/api/admin/reports/profile/${a2.id}`, a.cookie, { action });
+      expect(response.statusCode).toBe(409);
+      expect(response.json()).toEqual({ error: 'cannot_ban_admin' });
+    }
+    expect((await call('POST', `/api/admin/reports/profile/${a.id}`, a.cookie, { action: 'reset_nickname' })).statusCode).toBe(409);
+    const [row] = await db.select({ nickname: profile.nickname }).from(profile).where(eq(profile.userId, a2.id));
+    expect(row?.nickname).toBe(a2.nickname);
+  });
+
+  it('hiding takes the quiz out of the catalog and into the log; the profile actions are logged', async () => {
+    expect(((await call('GET', '/api/library')).json() as LibraryPage).items.map((c) => c.id)).toContain(entryId);
+    expect((await call('POST', `/api/admin/reports/quiz/${entryId}`, a.cookie, { action: 'hide' })).statusCode).toBe(204);
+    expect(((await call('GET', '/api/library')).json() as LibraryPage).items.map((c) => c.id)).not.toContain(entryId);
+    expect(await lastLog()).toMatchObject({ kind: 'library_hide', admin: a.nickname, target: author.nickname, details: { title: 'Скаржена' } });
+    expect(((await call('GET', '/api/admin/reports', a.cookie)).json() as AdminList<AdminReportItem>).rows.map((r) => r.kind)).toEqual(['profile']);
+
+    expect((await call('POST', `/api/admin/reports/profile/${b.id}`, a.cookie, { action: 'reset_nickname' })).statusCode).toBe(204);
+    expect(await lastLog()).toMatchObject({ kind: 'nickname_reset', details: { text: b.nickname } });
+    const [row] = await db.select({ nickname: profile.nickname, key: profile.nicknameKey }).from(profile).where(eq(profile.userId, b.id));
+    expect(row).toEqual({ nickname: null, key: null });
+    expect(((await call('GET', '/api/admin/reports', a.cookie)).json() as AdminList<AdminReportItem>).rows).toEqual([]);
+
+    expect((await call('POST', `/api/admin/reports/quiz/${entryId}`, a.cookie, { action: 'restore' })).statusCode).toBe(204);
+    expect(await lastLog()).toMatchObject({ kind: 'library_restore' });
+    expect(((await call('GET', '/api/library')).json() as LibraryPage).items.map((c) => c.id)).toContain(entryId);
+    expect((await call('POST', `/api/admin/reports/quiz/${entryId}`, a.cookie, { action: 'dismiss' })).statusCode).toBe(204);
+    expect(await lastLog()).toMatchObject({ kind: 'report_dismiss', target: author.nickname });
+    expect((await call('POST', `/api/admin/reports/profile/${r3.id}`, a.cookie, { action: 'reset_avatar' })).statusCode).toBe(204);
+    expect(await lastLog()).toMatchObject({ kind: 'avatar_reset' });
   });
 });
 
