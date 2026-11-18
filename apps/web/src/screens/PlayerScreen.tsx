@@ -1032,7 +1032,7 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
 
       {phase === 'lobby' && view.author === null && <p className="lead">{t('inLobby')}</p>}
       {phase === 'lobby' && view.author !== null && (
-        <AuthorLobby code={code} stageUrl={stageUrl} joinUrl={`${window.location.origin}/play/${code}`} send={send} onError={setError} resume={view.author.resume} continued={view.author.continued} levelBonuses={view.levelBonuses} family={view.family} />
+        <AuthorLobby code={code} stageUrl={stageUrl} joinUrl={`${window.location.origin}/play/${code}`} send={send} onError={setError} resume={view.author.resume} continued={view.author.continued} levelBonuses={view.levelBonuses} family={view.family} challenge={view.author.challenge} />
       )}
       {phase === 'lobby' && view.author === null && view.levelBonuses === 'off' && <p className="meta">{t('levelBonusesOffByHost')}</p>}
       {phase === 'lobby' && view.author === null && view.family === true && <p className="meta family-lobby">{t('familyLobby')}</p>}
@@ -1878,6 +1878,11 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
           {/* Лайки (17a): у потоці, лише після церемонії 14a. */}
           {ceremony === null && <LikePanel likes={view.likes} busy={likeGuard.busy} onLike={(payload) => void likeGuard.run('player:like', payload)} />}
           {view.truth?.recap?.early === false && <TruthRecapFold recap={view.truth.recap} mine={truthMine} open={false} />}
+          {view.author?.challenge !== undefined && (
+            <a className="btn challenge-board-link" href={`/challenge/${view.author.challenge.code}`}>
+              {t('challengeBoardLink')}
+            </a>
+          )}
           <MenuLinks role="player" />
         </>
       )}

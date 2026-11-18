@@ -45,6 +45,7 @@ vi.mock('./pages/Groups', () => ({ Groups: () => <p>Groups</p> }));
 vi.mock('./pages/GroupPage', () => ({ GroupPage: () => <p>GroupPage</p> }));
 vi.mock('./pages/GroupItemPage', () => ({ GroupItemPage: () => <p>GroupItemPage</p> }));
 vi.mock('./pages/GroupJoin', () => ({ GroupJoin: () => <p>GroupJoin</p> }));
+vi.mock('./pages/ChallengePage', () => ({ ChallengePage: () => <p>ChallengePage</p> }));
 
 afterEach(cleanup);
 
@@ -98,6 +99,7 @@ describe('AppRoutes', () => {
     ['/profile/groups/g1/new', 'GroupItemPage'],
     ['/profile/groups/g1/items/i1', 'GroupItemPage'],
     ['/groups/join/abcdefghjk', 'GroupJoin'],
+    ['/challenge/abcdefghjkmn', 'ChallengePage'],
   ])('%s draws %s with the menu', async (path, page) => {
     vi.mocked(me).mockResolvedValue({ ok: false, error: 'unauthorized' });
     open(path);

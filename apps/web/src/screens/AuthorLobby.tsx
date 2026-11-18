@@ -21,6 +21,7 @@ export function AuthorLobby({
   continued,
   levelBonuses,
   family,
+  challenge,
 }: {
   code: string;
   /** null — токена сцени на цьому пристрої немає: посилання не показано. */
@@ -36,6 +37,8 @@ export function AuthorLobby({
   levelBonuses?: 'off' | 'none';
   /** Сімейна гра (31): рядок у лобі. */
   family?: true;
+  /** Виклик другові (44): гра наодинці — без коду, QR, сцени, призів і панелі 12r. */
+  challenge?: { code: string; title: string };
 }) {
   const guard = useGuardedSend(send, onError);
   const [copied, setCopied] = useState(false);
@@ -61,8 +64,16 @@ export function AuthorLobby({
     timer.current = setTimeout(() => setCopied(false), COPIED_MS);
   };
 
+  const solo = challenge !== undefined;
   return (
     <>
+      {challenge !== undefined && (
+        <section className="card author-lobby challenge-lobby">
+          <h2 dir="auto">{t('challengeLobby', { title: challenge.title })}</h2>
+          <p className="meta">{t('challengeLobbyHint')}</p>
+        </section>
+      )}
+      {!solo && (
       <section className="card author-lobby">
         <p className="meta">{t('authorCodeLabel')}</p>
         <p className="author-code" dir="ltr">{`${code.slice(0, 3)} ${code.slice(3)}`}</p>
@@ -90,12 +101,13 @@ export function AuthorLobby({
           </div>
         )}
       </section>
-      <PrizePlaces code={code} />
-      {continued === undefined && resume !== null && resume.rounds.length > 0 && <ResumePanel code={code} info={resume} draft={resumeDraft} onChange={setResumeDraft} />}
-      {continued !== undefined && continued.carryRound !== null && <p className="meta">{restartNoteText(continued.carryRound, resume)}</p>}
+      )}
+      {!solo && <PrizePlaces code={code} />}
+      {!solo && continued === undefined && resume !== null && resume.rounds.length > 0 && <ResumePanel code={code} info={resume} draft={resumeDraft} onChange={setResumeDraft} />}
+      {!solo && continued !== undefined && continued.carryRound !== null && <p className="meta">{restartNoteText(continued.carryRound, resume)}</p>}
       {levelBonuses !== 'none' && <p className="meta">{t(levelBonuses === 'off' ? 'levelBonusesOff' : 'levelBonusesOn')}</p>}
       {family === true && <p className="meta family-lobby">{t('familyLobby')}</p>}
-      <p className="lead">{t('authorStartHint')}</p>
+      {!solo && <p className="lead">{t('authorStartHint')}</p>}
       <button
         type="button"
         className="btn btn-primary author-start"

@@ -25737,3 +25737,80 @@ input.sudoku-editor-cell:focus-visible {
   overflow-y: auto;
   overflow-wrap: anywhere;
 }
+
+/* Сторінка виклику й телефон у грі (44) */
+.challenge-card {
+  display: grid;
+  justify-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+  padding: 1rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+
+.challenge-card h2,
+.challenge-card p {
+  margin: 0;
+}
+
+.challenge-results {
+  width: 100%;
+  margin-top: 1rem;
+  border-collapse: collapse;
+  table-layout: auto;
+}
+
+.challenge-results th,
+.challenge-results td {
+  padding: 0.5rem 0.5rem;
+  border-bottom: 1px solid var(--line);
+  text-align: start;
+  font-weight: 400;
+  vertical-align: top;
+}
+
+.challenge-results thead th {
+  color: var(--dim);
+  font-size: 0.875rem;
+}
+
+.challenge-results .cr-nick {
+  overflow-wrap: anywhere;
+  font-weight: 600;
+}
+
+.challenge-results .cr-mark {
+  margin-inline-start: 0.5rem;
+  color: var(--dim);
+  font-size: 0.8125rem;
+  font-weight: 400;
+}
+
+.challenge-results .cr-date-inline {
+  display: none;
+}
+
+.challenge-results tr.is-me {
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+}
+
+@media (max-width: 420px) {
+  .challenge-results .cr-date {
+    display: none;
+  }
+
+  .challenge-results .cr-date-inline {
+    display: block;
+    color: var(--dim);
+    font-size: 0.8125rem;
+    font-weight: 400;
+  }
+}
+
+.challenge-board-link {
+  justify-self: center;
+}

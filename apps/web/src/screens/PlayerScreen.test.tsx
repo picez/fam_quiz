@@ -618,6 +618,15 @@ describe('PlayerScreen', () => {
     expect(screen.getByText('Ваше місце: 2 з 2')).toBeTruthy();
   });
 
+  it('the end of a challenge game links to the challenge table, and other games do not', () => {
+    const author = { cloud: null, bluff: null, people: [], resume: null, challenge: { code: 'abcdefghjkmn', title: 'Річки України' } };
+    show(view({ phase: 'finished', questionIndex: 1, standings: [], me: { ...me, score: 750, rank: 1 }, autopilot: true, author }));
+    expect(screen.getByRole('link', { name: '🏁 Таблиця виклику' }).getAttribute('href')).toBe('/challenge/abcdefghjkmn');
+    cleanup();
+    show(view({ phase: 'finished', questionIndex: 1, standings: [], me: { ...me, score: 750, rank: 1 }, autopilot: true, author: { cloud: null, bluff: null, people: [], resume: null } }));
+    expect(screen.queryByRole('link', { name: '🏁 Таблиця виклику' })).toBeNull();
+  });
+
   it('the table between questions shows the points of the question just closed, the round end the points of the round (backlog 13)', () => {
     const standings = [
       { participantId: 'p2', nickname: 'Тарас', score: 900, totalTimeMs: 1, rank: 1, rounds: [900], question: 400 },
