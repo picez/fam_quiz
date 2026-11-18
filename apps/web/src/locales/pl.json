@@ -4357,5 +4357,16 @@
   "stageSoundsToggle": "🔔 Dźwięki",
   "stageSoundsOffByHost": "Prowadzący wyłączył dźwięki",
   "hostSounds": "Dźwięki na scenie",
-  "hostSoundsHint": "Krótkie dźwięki na scenie: odsłonięcie, ostatnie sekundy, gong, fanfara"
+  "hostSoundsHint": "Krótkie dźwięki na scenie: odsłonięcie, ostatnie sekundy, gong, fanfara",
+  "resultImageButton": "📸 Wynik jako obrazek",
+  "resultImageTitle": "Wynik gry",
+  "resultImageAlt": "Obrazek z wynikiem gry",
+  "resultImageShare": "Udostępnij",
+  "resultImageDownload": "Pobierz",
+  "resultImageClose": "Zamknij",
+  "resultImageFailed": "Nie udało się utworzyć obrazka.",
+  "resultImageMe": "Moje miejsce: {place} z {total} · {score}",
+  "resultImagePrizes": "Puchary",
+  "resultImageAchievements": "Osiągnięcia",
+  "resultImageMore": "+ jeszcze {count}"
 }

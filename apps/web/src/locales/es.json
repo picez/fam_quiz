@@ -4350,5 +4350,16 @@
   "stageSoundsToggle": "🔔 Sonidos",
   "stageSoundsOffByHost": "El presentador desactivó los sonidos",
   "hostSounds": "Sonidos en el escenario",
-  "hostSoundsHint": "Sonidos breves en el escenario: la revelación, los últimos segundos, un gong, una fanfarria"
+  "hostSoundsHint": "Sonidos breves en el escenario: la revelación, los últimos segundos, un gong, una fanfarria",
+  "resultImageButton": "📸 Resultado en imagen",
+  "resultImageTitle": "Resultado del juego",
+  "resultImageAlt": "Imagen con el resultado del juego",
+  "resultImageShare": "Compartir",
+  "resultImageDownload": "Descargar",
+  "resultImageClose": "Cerrar",
+  "resultImageFailed": "No se pudo crear la imagen.",
+  "resultImageMe": "Mi puesto: {place} de {total} · {score}",
+  "resultImagePrizes": "Trofeos",
+  "resultImageAchievements": "Logros",
+  "resultImageMore": "+ {count} más"
 }

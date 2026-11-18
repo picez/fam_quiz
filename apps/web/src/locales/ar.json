@@ -4527,5 +4527,16 @@
   "stageSoundsToggle": "🔔 الأصوات",
   "stageSoundsOffByHost": "أوقف المضيف الأصوات",
   "hostSounds": "أصوات المسرح",
-  "hostSoundsHint": "أصوات قصيرة على المسرح: الكشف، الثواني الأخيرة، غونغ، فانفار"
+  "hostSoundsHint": "أصوات قصيرة على المسرح: الكشف، الثواني الأخيرة، غونغ، فانفار",
+  "resultImageButton": "📸 النتيجة كصورة",
+  "resultImageTitle": "نتيجة اللعبة",
+  "resultImageAlt": "صورة بنتيجة اللعبة",
+  "resultImageShare": "مشاركة",
+  "resultImageDownload": "تنزيل",
+  "resultImageClose": "إغلاق",
+  "resultImageFailed": "تعذّر إنشاء الصورة.",
+  "resultImageMe": "مكاني: {place} من {total} · {score}",
+  "resultImagePrizes": "الكؤوس",
+  "resultImageAchievements": "الإنجازات",
+  "resultImageMore": "+ {count} أخرى"
 }
