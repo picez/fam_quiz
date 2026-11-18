@@ -22,10 +22,16 @@ function sources(dir: string): string[] {
 const files = sources(src).filter((file) => !/\.test\.tsx?$/.test(file));
 const rel = (file: string) => file.slice(src.length + 1);
 /** Статичні імпорти й реекспорти (не `import type`, не `import(`). */
-const staticImports = (code: string) => Array.from(code.matchAll(/^\s*(?:import|export)\s+(?!type\b)[^'"\n;]*?from\s+['"]([^'"]+)['"]/gm), (m) => m[1]!);
+const staticImports = (code: string) => Array.from(code.matchAll(/^\s*(?:import|export)\s+(?!type\b)[^'";]*?from\s+['"]([^'"]+)['"]/gm), (m) => m[1]!);
 const LAZY = ['actions', 'quiz-file', 'xlsx', 'table', 'table-words', 'transfer', 'media'];
 
 describe('quiz-io loads only on use', () => {
+  it('the scanner sees imports wrapped over several lines', () => {
+    const wrapped = ["import {", "  a,", "  b,", "} from '../quiz-io/actions';", "import type { X } from '../quiz-io/table';", "import { c } from './ok';"].join('\n');
+    expect(staticImports(wrapped)).toEqual(['../quiz-io/actions', './ok']);
+    expect(staticImports(["export {", "  p", "} from './table';"].join('\n'))).toEqual(['./table']);
+  });
+
   it('fflate is imported only by the quiz file and the xlsx modules', () => {
     const users = files.filter((file) => /from\s+['"]fflate['"]/.test(read(file))).map(rel).sort();
     expect(users).toEqual(['quiz-io/quiz-file.ts', 'quiz-io/xlsx.ts']);
