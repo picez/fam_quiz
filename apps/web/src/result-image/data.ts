@@ -55,7 +55,8 @@ export function resultFromPlayer(view: PlayerView, quizTitle: string, now: Date,
   const shown = podiumRows(standings);
   const mine = standings.find((row) => row.participantId === view.me.id);
   const me = mine && mine.rank !== null && !shown.includes(mine) ? { place: mine.rank, total: standings.length, score: mine.score } : null;
-  const own = view.newAchievements?.account ? view.newAchievements.ids : [];
+  const mineAchievements = view.newAchievements;
+  const own = mineAchievements?.account ? mineAchievements.ids.filter((id) => !(mineAchievements.hideAnti && isAnti(id))) : [];
   return {
     quizTitle,
     date: now,

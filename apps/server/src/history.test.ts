@@ -2873,6 +2873,28 @@ describe('game result extras (38c)', () => {
     ]);
   });
 
+  it('in a team game each team row is followed by its people', async () => {
+    const w = await world('res-teamorder');
+    const { gameId } = await seedGame(db, {
+      hostId: w.ids.host,
+      startedAt: new Date(),
+      players: [
+        { userId: null, nickname: 'Червоні', score: 500, rank: 1, isTeam: true },
+        { userId: null, nickname: 'Сині', score: 300, rank: 2, isTeam: true },
+        { userId: w.ids.olya, nickname: 'Оля', score: 0, rank: null, teamOf: 0 },
+        { userId: w.ids.petro, nickname: 'Петро', score: 0, rank: null, teamOf: 0 },
+        { userId: w.ids.ira, nickname: 'Іра', score: 0, rank: null, teamOf: 1 },
+      ],
+    });
+    await db.insert(userAchievement).values([
+      { userId: w.ids.ira, achievementId: 'first_game', gameId },
+      { userId: w.ids.petro, achievementId: 'first_game', gameId },
+      { userId: w.ids.olya, achievementId: 'fast_answer', gameId },
+    ]);
+    const detail = await hostGame(db, w.ids.host, gameId);
+    expect(detail?.result?.achievements.map((a) => a.nickname)).toEqual(['Оля', 'Петро', 'Іра']);
+  });
+
   it('no result key for an aborted or saved game', async () => {
     for (const status of ['aborted', 'saved'] as const) {
       const w = await world(`res-${status}`, status);

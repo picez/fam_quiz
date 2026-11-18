@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { canShareFile, fitLine, kyivDate, safeFileName, sharePng, wrapText } from './share-image';
+import { canShareFile, fitLine, kyivDate, loadImageFonts, safeFileName, sharePng, wrapText } from './share-image';
 
 const ctx = { measureText: (s: string) => ({ width: s.length * 10 }) as TextMetrics };
 
@@ -12,6 +12,8 @@ afterEach(() => {
   delete (navigator as unknown as Record<string, unknown>).canShare;
   delete (navigator as unknown as Record<string, unknown>).share;
   vi.restoreAllMocks();
+  delete (URL as unknown as Record<string, unknown>).createObjectURL;
+  delete (URL as unknown as Record<string, unknown>).revokeObjectURL;
 });
 
 describe('share-image', () => {
@@ -37,6 +39,16 @@ describe('share-image', () => {
     expect(safeFileName('dyplom', 'Оля')).toBe('dyplom-Оля.png');
   });
 
+  it('loadImageFonts loads every sample, waits for ready and survives a failing load', async () => {
+    const load = vi.fn().mockRejectedValueOnce(new Error('x')).mockResolvedValue([]);
+    const ready = Promise.resolve();
+    Object.defineProperty(document, 'fonts', { value: { load, ready }, configurable: true });
+    await loadImageFonts([{ font: '700 64px A', text: 'Привіт' }, { font: '400 40px B', text: 'abc' }]);
+    expect(load).toHaveBeenCalledWith('700 64px A', 'Привіт');
+    expect(load).toHaveBeenCalledWith('400 40px B', 'abc');
+    delete (document as unknown as Record<string, unknown>).fonts;
+  });
+
   it('sharePng shares a png file with the title', async () => {
     const share = vi.fn().mockResolvedValue(undefined);
     stubNavigator({ canShare: () => true, share });
@@ -55,8 +67,10 @@ describe('share-image', () => {
   });
 
   it('sharePng downloads without Web Share or on another refusal', async () => {
-    URL.createObjectURL = vi.fn(() => 'blob:x');
-    URL.revokeObjectURL = vi.fn();
+    Object.defineProperty(URL, 'createObjectURL', { value: () => 'blob:x', configurable: true, writable: true });
+    Object.defineProperty(URL, 'revokeObjectURL', { value: () => {}, configurable: true, writable: true });
+    vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:x');
+    vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {});
     let clicked: string | null = null;
     vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (this: HTMLAnchorElement) {
       clicked = this.getAttribute('download');

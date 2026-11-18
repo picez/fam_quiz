@@ -1438,7 +1438,7 @@ export class RoomManager {
       ...(levels === undefined ? {} : { levels }),
       ...(likes === undefined ? {} : { likes }),
     };
-    // «Нове досягнення!» (12j): телефон — своє, сцена — слайд, пульт — лише позначка, що слайд є (кнопка «Нагороди на сцені»).
+    // «Нове досягнення!» (12j): телефон — своє, сцена — слайд, пульт — позначка й ті самі досягнення, що на сцені (38c, для картинки підсумку; кнопка «Нагороди на сцені»).
     if (base.role === 'player') {
       const mine = identity.playerId === null ? undefined : newAchievementsMine(room, identity.playerId);
       const answerMark = identity.playerId === null ? undefined : { epoch: this.answerEpoch, count: this.answerCounts.get(room)?.get(identity.playerId) ?? 0 };

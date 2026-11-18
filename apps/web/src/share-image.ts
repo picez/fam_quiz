@@ -7,6 +7,16 @@ export const IMAGE_FONTS = {
   body: "'Onest Variable', system-ui, sans-serif",
 };
 
+/** Вантажить саме ті гарнітури й піднабори (unicode-range), що знадобляться, і чекає на document.fonts.ready. */
+export async function loadImageFonts(samples: { font: string; text: string }[]): Promise<void> {
+  try {
+    await Promise.all(samples.map((sample) => document.fonts?.load(sample.font, sample.text)));
+  } catch {
+    // Шрифт не завантажився: малюємо запасним.
+  }
+  await document.fonts?.ready;
+}
+
 /** dd.mm.yyyy за київським часом; ICU без Europe/Kyiv знає лише давню назву Europe/Kiev. */
 export function kyivDate(date: Date): string {
   const options: Intl.DateTimeFormatOptions = { day: '2-digit', month: '2-digit', year: 'numeric' };

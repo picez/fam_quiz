@@ -11,7 +11,7 @@ export function newAchievementsMine(room: Room, personId: string): NewAchievemen
   const userId = room.playerUsers.get(personId);
   if (userId === undefined) return { account: false, ids: [] };
   const ids = room.newAchievements?.byUser.get(userId) ?? [];
-  return ids.length === 0 ? undefined : { account: true, ids: ordered(ids) };
+  return ids.length === 0 ? undefined : { account: true, ids: ordered(ids), ...(room.newAchievements?.hideAnti.has(userId) ? { hideAnti: true as const } : {}) };
 }
 
 /**

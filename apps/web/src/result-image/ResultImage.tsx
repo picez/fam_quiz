@@ -36,10 +36,15 @@ export function ResultImageButton({ build, className }: { build: () => ResultIma
     }
   };
 
-  const close = () => {
-    if (preview !== null) URL.revokeObjectURL(preview.url);
-    setPreview(null);
-  };
+  // Адреса картинки відкликається при закритті й при розмонтуванні з відкритим прев'ю.
+  useEffect(
+    () => () => {
+      if (preview !== null) URL.revokeObjectURL(preview.url);
+    },
+    [preview],
+  );
+
+  const close = () => setPreview(null);
 
   return (
     <>

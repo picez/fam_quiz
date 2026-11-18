@@ -2244,6 +2244,8 @@ export interface DebuffNotice {
 export interface NewAchievementsMine {
   account: boolean;
   ids: AchievementId[];
+  /** Гравець ховає антидосягнення (hide_anti): телефон показує всі свої, але картинка для чату їх не малює (38c). */
+  hideAnti?: true;
 }
 
 /** Слайд «Нові досягнення» сцени (12j): люди з непорожнім списком у порядку стану; антидосягнення тих, хто їх ховає, прибрано. */

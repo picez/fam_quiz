@@ -1,10 +1,15 @@
-import { canvasPng } from '../share-image';
+import { IMAGE_FONTS, canvasPng, loadImageFonts } from '../share-image';
 import type { ResultImageData } from './data';
 import { RESULT_SIZE, resultLayout } from './layout';
 
 /** Малює картинку підсумку (38c) на canvas 1080×1350 і віддає PNG; вигляд не залежить від теми додатку. */
 export async function renderResultImage(data: ResultImageData): Promise<Blob> {
-  await document.fonts?.ready;
+  const rest = [data.quizTitle, ...data.podium.map((row) => row.name), ...data.prizes.flatMap((prize) => prize.winners), ...data.achievements.map((item) => item.nickname ?? '')].join(' ');
+  await loadImageFonts([
+    { font: `700 64px ${IMAGE_FONTS.display}`, text: data.quizTitle },
+    { font: `500 40px ${IMAGE_FONTS.body}`, text: rest },
+    { font: `600 40px ${IMAGE_FONTS.body}`, text: rest },
+  ]);
   const canvas = document.createElement('canvas');
   canvas.width = RESULT_SIZE.width;
   canvas.height = RESULT_SIZE.height;

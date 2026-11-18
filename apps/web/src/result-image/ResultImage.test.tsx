@@ -117,6 +117,17 @@ describe('ResultImageButton', () => {
     }
   });
 
+  it('unmounting with the dialog open revokes the object URL', async () => {
+    const view = render(<ResultImageButton build={build} className="btn" />);
+    fireEvent.click(screen.getByRole('button', { name: '📸 Підсумок картинкою' }));
+    await flush();
+    expect(screen.getByRole('dialog')).toBeTruthy();
+    revoke.mockReset();
+    view.unmount();
+    expect(revoke).toHaveBeenCalledWith('blob:result-1');
+    expect(revoke).toHaveBeenCalledTimes(1);
+  });
+
   it('a failed render shows a quiet error', async () => {
     draw.mockRejectedValue(new Error('canvas_unavailable'));
     await openPreview();

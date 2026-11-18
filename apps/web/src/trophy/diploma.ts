@@ -1,6 +1,6 @@
 import type { PrizePlace, TrophyMaterial } from '@quiz/shared';
 import { t } from '../i18n';
-import { IMAGE_FONTS, canvasPng, kyivDate, safeFileName, sharePng, wrapText } from '../share-image';
+import { IMAGE_FONTS, canvasPng, kyivDate, loadImageFonts, safeFileName, sharePng, wrapText } from '../share-image';
 import { MATERIAL_LOOK, TROPHY_EMOJI, type TrophyLook } from './trophy-meta';
 
 export interface DiplomaData {
@@ -99,7 +99,13 @@ export function diplomaFileName(nickname: string): string {
 
 /** Диплом PNG: canvas 1200 × 850, рамка в кольорі матеріалу (без трофея — золота). */
 export async function renderDiploma(data: DiplomaData): Promise<Blob> {
-  await document.fonts?.ready;
+  const fields = diplomaFields(data);
+  const body = [fields.nickname, fields.quizTitle, fields.engraving, fields.date].filter((line): line is string => line !== null).join(' ');
+  await loadImageFonts([
+    { font: `700 72px ${DISPLAY}`, text: `${fields.title} ${fields.place}` },
+    { font: `700 60px ${BODY}`, text: body },
+    { font: `italic 30px ${BODY}`, text: body },
+  ]);
   const canvas = document.createElement('canvas');
   canvas.width = WIDTH;
   canvas.height = HEIGHT;

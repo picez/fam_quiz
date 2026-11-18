@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { GameDetail, HostView, PlayerView } from '@quiz/shared';
+import { isAnti, type GameDetail, type HostView, type PlayerView } from '@quiz/shared';
 import { pickHighlights, podiumOf, resultFromHistory, resultFromHost, resultFromPlayer } from './data';
 
 const row = (nickname: string, score: number, rank: number | null, participantId = nickname) => ({ participantId, nickname, score, rank, totalTimeMs: 0 });
@@ -39,6 +39,16 @@ describe('resultFromPlayer', () => {
     expect([guest.achievements, guest.moreAchievements]).toEqual([[], 0]);
     const none = resultFromPlayer(player({ me: { id: 'x' }, standings: [] }), 'Q', NOW, 'x.y');
     expect([none.achievements, none.moreAchievements]).toEqual([[], 0]);
+  });
+  it('hideAnti drops anti-achievements from the own picture and recounts the rest', () => {
+    const ids = ['first_game', 'first_win', 'games_10', 'sniper', 'host', 'in_debt', 'fast_answer'];
+    const withAnti = resultFromPlayer(player({ me: { id: 'x' }, standings: [], newAchievements: { account: true, ids } }), 'Q', NOW, 'x.y');
+    const hidden = resultFromPlayer(player({ me: { id: 'x' }, standings: [], newAchievements: { account: true, ids, hideAnti: true } }), 'Q', NOW, 'x.y');
+    expect(isAnti('in_debt')).toBe(true);
+    expect(withAnti.achievements.length + withAnti.moreAchievements).toBe(7);
+    expect(hidden.achievements.some((a) => isAnti(a.id))).toBe(false);
+    expect(hidden.achievements.length + hidden.moreAchievements).toBe(ids.filter((id) => !isAnti(id as never)).length);
+    expect(hidden.moreAchievements).toBe(ids.filter((id) => !isAnti(id as never)).length - 4);
   });
   it('prizes take only places with a winner', () => {
     const places = [

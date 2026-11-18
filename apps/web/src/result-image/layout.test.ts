@@ -49,7 +49,7 @@ describe('resultLayout', () => {
     expect(name.text.endsWith('…')).toBe(true);
     const medal = rows.find((op) => op.text === '🥇')!;
     const score = rows.find((op) => op.text === '1500')!;
-    const room = 936 - (measure(medal.font, '🥇') + 24) - (measure(score.font, '1500') + 24);
+    const room = 936 - (Math.max(...['🥇', '🥈', '🥉'].map((m) => measure('600 52px x', m))) + 24) - (measure(score.font, '1500') + 24);
     expect(measure(name.font, name.text)).toBeLessThanOrEqual(room);
   });
 
@@ -108,6 +108,41 @@ describe('resultLayout', () => {
     expect(medal.x).toBeGreaterThan(score.x);
     expect(medal.align).toBe('right');
     expect(score.align).toBe('left');
+  });
+
+  it('names start at one column in every podium row, left to right and right to left', () => {
+    const podium = [{ place: 1, name: 'Оля', score: 1500 }, { place: 2, name: 'Петро', score: 900 }, { place: 3, name: 'Іра', score: 300 }];
+    for (const rtl of [false, true]) {
+      const names = layout({ podium }, rtl).filter((op) => op.block === 'podium' && ['Оля', 'Петро', 'Іра'].includes(op.text));
+      expect(names).toHaveLength(3);
+      expect(new Set(names.map((op) => op.x)).size).toBe(1);
+    }
+  });
+
+  it('the prize arrow follows the reading direction', () => {
+    const prize = (rtl: boolean) => layout({}, rtl).find((op) => op.block === 'prizes' && op.text.includes('Оля'))!.text;
+    expect(prize(false)).toContain('→');
+    expect(prize(true)).toContain('←');
+    expect(prize(true)).not.toContain('→');
+  });
+
+  it('spreads the content down to the footer instead of leaving the lower third empty', () => {
+    const ops = resultLayout(base, measure, false);
+    const content = ops.filter((op) => op.kind !== 'frame' && !(op.kind === 'rect' && op.w === 1080) && !(op.kind === 'text' && op.block === 'footer'));
+    const bottom = Math.max(...content.map((op) => (op.kind === 'rect' ? op.y + op.h : op.kind === 'text' ? op.y : 0)));
+    const topMost = Math.min(...content.map((op) => (op.kind === 'rect' ? op.y : op.kind === 'text' ? op.y - 64 : 0)));
+    // Зверху від 72 і знизу до межі 1230 відступи різняться не більше ніж на проміжок (32).
+    expect(Math.abs(topMost - 72 - (1230 - bottom))).toBeLessThanOrEqual(32 + 64);
+    expect(bottom).toBeGreaterThan(900);
+    expect(bottom).toBeLessThanOrEqual(1230);
+  });
+
+  it('the plaque moves together with the me line', () => {
+    const ops = resultLayout(base, measure, false);
+    const plaque = ops.find((op) => op.kind === 'rect' && op.w === 936)!;
+    const me = ops.find((op) => op.kind === 'text' && op.block === 'me')!;
+    expect(plaque.kind === 'rect' && plaque.y < me.y && me.y < plaque.y + plaque.h).toBe(true);
+    expect(plaque.kind === 'rect' && me.y - plaque.y).toBe(Math.round((76 + 40 * 0.7) / 2));
   });
 
   it('resultFileName', () => {

@@ -86,8 +86,9 @@ describe('«Нове досягнення!» in the room (12j)', () => {
     finish(v.manager, v.room);
     v.manager.setNewAchievements(v.room, new Map([['u-vira', ['in_debt']]]), new Set(['u-vira']));
     expect('newAchievements' in stage(v.manager, v.room)).toBe(false);
-    expect(phone(v.manager, v.room, vira).newAchievements).toEqual({ account: true, ids: ['in_debt'] });
-    expect(phone(w.manager, w.room, olya).newAchievements).toEqual({ account: true, ids: ['fast_answer', 'in_debt'] });
+    expect(phone(v.manager, v.room, vira).newAchievements).toEqual({ account: true, ids: ['in_debt'], hideAnti: true });
+    // Телефон тримає всі свої, але позначає hide_anti, щоб картинка для чату антидосягнень не малювала (38c).
+    expect(phone(w.manager, w.room, olya).newAchievements).toEqual({ account: true, ids: ['fast_answer', 'in_debt'], hideAnti: true });
   });
 
   it('outside finished nobody has the key', () => {

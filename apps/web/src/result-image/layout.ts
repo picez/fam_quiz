@@ -37,17 +37,21 @@ export function resultLayout(data: ResultImageData, measure: Measure, rtl: boole
   const endX = rtl ? MARGIN : RESULT_SIZE.width - MARGIN;
   const endAlign: CanvasTextAlign = rtl ? 'left' : 'right';
   let top = 72;
+  /** Вміст без рамки й підвалу: розподіляється по висоті в кінці. */
+  const content: DrawOp[][] = [];
 
   type Line = { text: string; x: number; font: string; fill: string; align: CanvasTextAlign };
   /** Блок з рядками однакової висоти: додається цілком або не додається зовсім. */
   const place = (block: ResultBlock, lines: Line[][], px: number, lineHeight: number, plaque = false): boolean => {
     const height = lines.length * lineHeight;
     if (top + height > LIMIT) return false;
-    if (plaque) ops.push({ kind: 'rect', x: MARGIN, y: top, w: TEXT_WIDTH, h: height, fill: COLORS.plaque });
+    const own: DrawOp[] = [];
+    if (plaque) own.push({ kind: 'rect', x: MARGIN, y: top, w: TEXT_WIDTH, h: height, fill: COLORS.plaque });
     lines.forEach((row, index) => {
       const y = top + index * lineHeight + Math.round((lineHeight + px * 0.7) / 2);
-      for (const line of row) ops.push({ kind: 'text', ...line, y, block });
+      for (const line of row) own.push({ kind: 'text', ...line, y, block });
     });
+    content.push(own);
     top += height + GAP;
     return true;
   };
@@ -65,11 +69,12 @@ export function resultLayout(data: ResultImageData, measure: Measure, rtl: boole
   place('date', [[centered(kyivDate(data.date), dateFont, COLORS.muted)]], 34, 40);
 
   if (data.podium.length > 0) {
+    // Одна колонка імен: найширша з медалей (за шрифтом першого місця) + проміжок.
+    const medalSlot = Math.max(...[1, 2, 3].map((p) => measure(font(600, 52), MEDALS[p]!))) + 24;
     const rows = data.podium.map((row) => {
       const px = row.place === 1 ? 52 : 48;
       const f = font(row.place === 1 ? 600 : 500, px);
       const medal = MEDALS[row.place] ?? '';
-      const medalSlot = measure(f, medal) + 24;
       const score = num(row.score);
       const scoreSlot = measure(f, score) + 24;
       const name = fit(f, row.name, TEXT_WIDTH - medalSlot - scoreSlot);
@@ -93,7 +98,7 @@ export function resultLayout(data: ResultImageData, measure: Measure, rtl: boole
     const f = font(400, 40);
     const lines: Line[][] = [heading('resultImagePrizes')];
     for (const prize of data.prizes.slice(0, 3)) {
-      const parts = [prize.trophy ? TROPHY_EMOJI[prize.trophy.kind] : '🎁', prize.trophy ? trophyLabel({ ...prize.trophy, decor: null }) : '', `→ ${prize.winners.join(', ')}`].filter((part) => part !== '');
+      const parts = [prize.trophy ? TROPHY_EMOJI[prize.trophy.kind] : '🎁', prize.trophy ? trophyLabel({ ...prize.trophy, decor: null }) : '', `${rtl ? '←' : '→'} ${prize.winners.join(', ')}`].filter((part) => part !== '');
       lines.push([{ text: fit(f, parts.join(' '), TEXT_WIDTH), x: startX, font: f, fill: COLORS.text, align: startAlign }]);
     }
     place('prizes', lines, 40, 52);
@@ -110,6 +115,16 @@ export function resultLayout(data: ResultImageData, measure: Measure, rtl: boole
     if (data.moreAchievements > 0) lines.push([{ text: t('resultImageMore', { count: data.moreAchievements }), x: startX, font: f, fill: COLORS.muted, align: startAlign }]);
     place('achievements', lines, 36, 46);
   }
+
+  // Вільне місце до підвалу: трохи збільшуємо проміжки між блоками, решту ділимо навпіл зверху й знизу.
+  const free = Math.max(0, LIMIT - (top - GAP));
+  const gaps = Math.max(0, content.length - 1);
+  const extra = Math.min(48, Math.floor(free / (gaps + 2)));
+  const shift = Math.floor((free - gaps * extra) / 2);
+  content.forEach((own, index) => {
+    const dy = shift + index * extra;
+    for (const op of own) ops.push({ ...op, y: op.y + dy });
+  });
 
   ops.push({ kind: 'text', text: `${t('appName')} · ${data.site}`, x: RESULT_SIZE.width / 2, y: FOOTER_Y, font: font(400, 28), fill: COLORS.muted, align: 'center', block: 'footer' });
   return ops;
