@@ -25488,3 +25488,56 @@ input.sudoku-editor-cell:focus-visible {
 /* Рамки з білим сяйвом (іній) і неон: сяйво насиченіше, щоб не зливалося зі світлим тлом. */
 :where(:root.is-light) .nick-f-glacier { box-shadow: inset 0 0 6px #7dd3fc, 0 0 6px #38bdf8; }
 :where(:root.is-light) .nick-f-neon { box-shadow: 0 0 8px 2px #06b6d4; }
+
+/* Картинка підсумку (38c): кнопка й прев'ю на весь екран; тло й рамка — зі змінних теми. */
+.result-image-button {
+  align-self: center;
+}
+
+.result-preview {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.5rem;
+  background: rgb(0 0 0 / 0.75);
+}
+
+.result-preview-dialog {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  max-width: 100%;
+  max-height: calc(100dvh - 1rem);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 1rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--stage);
+  color: var(--paper);
+}
+
+.result-preview-title {
+  margin: 0;
+  font-size: 1.125rem;
+}
+
+.result-preview-image {
+  max-height: 70vh;
+  width: auto;
+  max-width: 100%;
+  height: auto;
+  border-radius: var(--radius-small);
+}
+
+.result-preview-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.5rem;
+}
