@@ -23,6 +23,7 @@ import type { Db } from './db/client';
 import { follow, game, profile, user } from './db/schema';
 import { isUniqueViolation } from './db/unique';
 import { notHidden } from './feed-store';
+import { leagueTitlesOf } from './league-store';
 import { likeTotals } from './like-store';
 import { showcaseOf } from './prizes';
 import { listQuizzes } from './quizzes';
@@ -233,7 +234,7 @@ export async function ownProfile(db: Db, current: CurrentUser): Promise<OwnProfi
     // Ретро й наздоганяння досвіду (15a) — усередині ownLevel, раз і перед читанням рівня; збій профіль не ламає.
     level: await ownLevel(db, current.id),
     likes: await likeTotals(db, current.id),
-    leagueTitles: [],
+    leagueTitles: await leagueTitlesOf(db, current.id, new Date()),
   };
 }
 
@@ -257,7 +258,7 @@ export async function publicProfile(db: Db, id: string, viewerId: string | null)
     showcase: hide ? { ...showcase, pins: { ...showcase.pins, achievements: showcase.pins.achievements.filter((a) => !isAnti(a)) } } : showcase,
     level: await publicLevel(db, id),
     likes: await likeTotals(db, id),
-    leagueTitles: [],
+    leagueTitles: await leagueTitlesOf(db, id, new Date()),
   };
 }
 

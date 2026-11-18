@@ -10,9 +10,9 @@ import {
   type LeagueTable,
   type LeagueTitle,
 } from '@quiz/shared';
-import { and, asc, desc, eq, lt, notExists, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, lt, notExists, sql } from 'drizzle-orm';
 import type { Db } from './db/client';
-import { familyGroup, game, groupMember, leagueChampion, leagueGame, leagueMonth, leaguePoint } from './db/schema';
+import { familyGroup, game, groupMember, leagueChampion, leagueGame, leagueMonth, leaguePoint, userBan } from './db/schema';
 import { profileCards } from './group-store';
 import { kyivDay } from './xp-rules';
 
@@ -51,6 +51,7 @@ export async function leagueResultOf(db: Db | Tx, gameId: string): Promise<Leagu
 /**
  * Записує гру в лігу групи один раз: первинний ключ league_game — єдиний арбітр (повтор і паралельний виклик
  * нічого не перераховують). Члени — на мить виклику, місяць — за finishedAt гри. null — групи вже немає.
+ * Гра, записана в уже підсумований місяць, додає бали в таблицю, але ніколи не змінює вже визначених переможців.
  */
 export async function recordLeague(db: Db | Tx, input: LeagueRecordInput, now = new Date()): Promise<LeagueGameResult | null> {
   const [group] = await db.select({ id: familyGroup.id }).from(familyGroup).where(eq(familyGroup.id, input.groupId));
@@ -147,8 +148,15 @@ export async function settleLeague(db: Db, groupId: string, now: Date): Promise<
   }
 }
 
+/** Підмножина id, чиї акаунти заблоковано: їх не видно ні в таблиці, ні в залі. */
+async function bannedAmong(db: Db, ids: readonly string[]): Promise<Set<string>> {
+  if (ids.length === 0) return new Set();
+  const rows = await db.select({ userId: userBan.userId }).from(userBan).where(inArray(userBan.userId, [...new Set(ids)]));
+  return new Set(rows.map((row) => row.userId));
+}
+
 /** Таблиця місяця групи (спершу підсумовує минулі місяці); поганий чи майбутній month → поточний. */
-export async function leagueTable(db: Db, groupId: string, month: string | null, now: Date): Promise<LeagueTable> {
+export async function leagueTable(db: Db, groupId: string, month: string | null, now: Date): Promise<LeagueTable | null> {
   await settleLeague(db, groupId, now);
   const current = kyivMonth(now);
   const shown = month !== null && LEAGUE_MONTH.test(month) && month <= current ? month : current;
@@ -163,14 +171,20 @@ export async function leagueTable(db: Db, groupId: string, month: string | null,
   const memberRows = await db.select({ userId: groupMember.userId }).from(groupMember).where(eq(groupMember.groupId, groupId));
   const present = new Set(memberRows.map((row) => row.userId));
   const isCurrent = shown === current;
-  const totals = (await totalsOf(db, groupId, shown)).filter((row) => !isCurrent || present.has(row.userId));
+  const [group] = await db.select({ id: familyGroup.id }).from(familyGroup).where(eq(familyGroup.id, groupId));
+  if (group === undefined) return null;
+  const monthTotals = await totalsOf(db, groupId, shown);
+  const banned = await bannedAmong(db, monthTotals.map((row) => row.userId));
+  const totals = monthTotals.filter((row) => !banned.has(row.userId) && (!isCurrent || present.has(row.userId)));
 
   const championRows = await db
     .select({ month: leagueChampion.month, userId: leagueChampion.userId })
     .from(leagueChampion)
     .where(eq(leagueChampion.groupId, groupId))
     .orderBy(desc(leagueChampion.month), asc(leagueChampion.userId));
-  const cards = await profileCards(db, [...totals.map((row) => row.userId), ...championRows.map((row) => row.userId)]);
+  const bannedChampions = await bannedAmong(db, championRows.map((row) => row.userId));
+  const visibleChampions = championRows.filter((row) => !bannedChampions.has(row.userId));
+  const cards = await profileCards(db, [...totals.map((row) => row.userId), ...visibleChampions.map((row) => row.userId)]);
 
   const rows: LeagueRow[] = [];
   for (const row of rankLeague(totals.map((t) => ({ ...t, nickname: cards.get(t.userId)?.nickname ?? t.nickname })))) {
@@ -180,7 +194,7 @@ export async function leagueTable(db: Db, groupId: string, month: string | null,
   }
 
   const champions: LeagueChampionMonth[] = [];
-  for (const row of championRows) {
+  for (const row of visibleChampions) {
     const user = cards.get(row.userId);
     if (user === undefined) continue;
     const last = champions[champions.length - 1];

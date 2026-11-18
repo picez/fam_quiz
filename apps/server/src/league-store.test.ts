@@ -43,6 +43,12 @@ async function finishedGame(hostId: string, finishedAt: Date | null = FINISHED) 
   return id;
 }
 
+async function tableOf(groupId: string, month: string | null) {
+  const table = await leagueTable(db, groupId, month, NOW);
+  if (table === null) throw new Error('group is gone');
+  return table;
+}
+
 const solo = (ids: string[]) => ids.map((id, i) => ({ rank: i + 1, userIds: [id] }));
 const names = (ids: string[]) => new Map(ids.map((id) => [id, `нік-${id}`]));
 
@@ -132,7 +138,7 @@ describe('leagueTable', () => {
     await past(groupId, '2026-11', [[a, 1], [c, 2], [d, 3]]);
     await db.delete(groupMember).where(eq(groupMember.userId, d));
 
-    const current = await leagueTable(db, groupId, null, NOW);
+    const current = await tableOf(groupId, null);
     expect(current.month).toBe('2026-11');
     expect(current.current).toBe(true);
     expect(current.months).toEqual(['2026-11', '2026-10']);
@@ -143,7 +149,7 @@ describe('leagueTable', () => {
     ]);
     expect(current.rows.map((r) => r.user.nickname)).not.toContain(null);
 
-    const october = await leagueTable(db, groupId, '2026-10', NOW);
+    const october = await tableOf(groupId, '2026-10');
     expect(october.current).toBe(false);
     expect(october.rows.map((r) => [r.points, r.former])).toEqual([[20, false], [14, false], [10, true]]);
   });
@@ -151,9 +157,9 @@ describe('leagueTable', () => {
   it('shares a place between equal rows and falls back to the current month for a bad or future month', async () => {
     const { groupId, ids } = await league(3);
     await past(groupId, '2026-11', [[ids[0], 1], [ids[1], 1], [ids[2], 3]]);
-    const table = await leagueTable(db, groupId, null, NOW);
+    const table = await tableOf(groupId, null);
     expect(table.rows.map((r) => [r.points, r.place])).toEqual([[10, 1], [10, 1], [5, 3]]);
-    for (const bad of ['bad', '2027-01', '2026-13']) expect((await leagueTable(db, groupId, bad, NOW)).month).toBe('2026-11');
+    for (const bad of ['bad', '2027-01', '2026-13']) expect((await tableOf(groupId, bad)).month).toBe('2026-11');
   });
 });
 
@@ -163,7 +169,7 @@ describe('settling', () => {
     await past(groupId, '2026-10', [[ids[0], 1], [ids[1], 1], [ids[2], 3]]);
     await past(groupId, '2026-11', [[ids[2], 1], [ids[0], 2], [ids[1], 3]]);
 
-    const table = await leagueTable(db, groupId, null, NOW);
+    const table = await tableOf(groupId, null);
     const champs = await db.select().from(leagueChampion).where(eq(leagueChampion.groupId, groupId));
     expect(champs.map((c) => c.userId).sort()).toEqual([ids[0], ids[1]].sort());
     expect(champs.every((c) => c.groupName === 'Родина' && c.month === '2026-10' && c.points === 10)).toBe(true);
@@ -173,7 +179,7 @@ describe('settling', () => {
 
     await updateGroup(db, groupId, { name: 'Інша', emoji: '🌻', description: '' }, NOW);
     await past(groupId, '2026-10', [[ids[2], 1], [ids[0], 2], [ids[1], 3]]);
-    await leagueTable(db, groupId, null, NOW);
+    await tableOf(groupId, null);
     await settleLeague(db, groupId, NOW);
     const after = await db.select().from(leagueChampion).where(eq(leagueChampion.groupId, groupId));
     expect(after).toHaveLength(2);
@@ -232,5 +238,13 @@ describe('leagueTitlesOf', () => {
     const titles = await leagueTitlesOf(db, ids[0], NOW);
     expect(titles).toHaveLength(LEAGUE_TITLES_SHOWN);
     expect(titles[0].month).toBe('2025-12');
+  });
+});
+
+describe('leagueTable of a deleted group', () => {
+  it('gives null instead of failing', async () => {
+    const { groupId } = await league(3);
+    await deleteGroup(db, groupId);
+    expect(await leagueTable(db, groupId, null, NOW)).toBeNull();
   });
 });
