@@ -3763,15 +3763,13 @@ describe('question bank', () => {
     }
   });
 
-  it('a copy into a bets or auction round keeps its cut or gets a safe default', () => {
+  it('a copy into a bets or auction round keeps its cut, or asks for one like a new question', () => {
     const plain = filled(newQuestion('single'));
     for (const round of [newBetsRound(), newAuctionRound()]) {
       const fit = bankCopy(quizOf(round), 0, plain, undefined);
-      expect('question' in fit && fit.question.betsCut).toBe(0);
+      expect('question' in fit && fit.question.betsCut).toBeUndefined();
       const kept = bankCopy(quizOf(round), 0, { ...plain, betsCut: 2 }, undefined);
       expect('question' in kept && kept.question.betsCut).toBe(2);
     }
-    const made = { ...newBetsRound(), questions: [(bankCopy(quizOf(newBetsRound()), 0, plain, undefined) as { question: Question }).question] };
-    expect(roundSchema.safeParse(made).success).toBe(true);
   });
 });

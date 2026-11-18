@@ -558,8 +558,8 @@ export function bankCopy(quiz: Quiz, roundIndex: number, question: Question, aft
   const keepCut = round.type === 'bets' || round.type === 'auction';
   const adapted = {
     ...rest,
-    // Копія в «Ставки»/«Аукціон»: свій обріз, а без нього — 0 («Нічого»): відповідь не видно, збереження проходить.
-    ...(keepCut ? { betsCut: betsCut ?? 0 } : {}),
+    // Копія в «Ставки»/«Аукціон»: свій обріз; без нього — як у нового запитання, автора спитає редактор (problemBetsCut).
+    ...(keepCut && betsCut !== undefined ? { betsCut } : {}),
     ...(round.type === 'classic' && reveal !== undefined ? { reveal } : {}),
     points: placedPoints(round, after, question),
   } as Question;
