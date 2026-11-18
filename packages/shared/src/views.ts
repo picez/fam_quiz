@@ -14,6 +14,7 @@ import type { ResumeLobby } from './resume';
 import type { PrizesView } from './prizes';
 import type { JigsawAspect } from './jigsaw';
 import type { SpotCircle } from './spotdiff';
+import type { WordleMark } from './wordle';
 import type { MelodyTrack } from './melody';
 import type { MemoryCard, MemoryGrid } from './memory';
 import type { LikesView } from './likes';
@@ -112,6 +113,8 @@ export interface PublicQuestion {
   chain: PublicChain | null;
   /** Лише на запитанні-драбині (26c); ключа немає в інших типів. Проміжних слів шляху тут немає. */
   wordladder?: PublicWordLadder;
+  /** Лише на запитанні «Вгадай слово» (48); ключа немає в інших типів. Слова тут немає. */
+  wordle?: PublicWordle;
   /** Лише на запитанні-списку (27c); ключа немає в інших типів. Пунктів і написань тут немає. */
   timedlist?: PublicTimedList;
   /** Лише на запитанні «Слова з літер» (27d); ключа немає в інших типів. Слів і найкращих слів тут немає. */
@@ -264,6 +267,44 @@ export interface WordLadderRow {
   words: string[] | null;
   /** Бали лише на reveal, інакше null. */
   points: number | null;
+}
+
+/** Видиме всім: довжина слова й число спроб (без слова). */
+export interface PublicWordle {
+  letters: number;
+  tries: number;
+}
+
+export interface WordleRow {
+  playerId: string;
+  nickname: string;
+  /** Кольори кожної прийнятої спроби. */
+  marks: WordleMark[][];
+  /** Літери спроб: пульту завжди, іншим лише reveal; інакше null. */
+  guesses: string[][] | null;
+  solved: boolean;
+  tries: number;
+  /** Лише reveal; інакше null. */
+  points: number | null;
+}
+
+export interface WordleInfo {
+  letters: number;
+  tries: number;
+  /** Слово ведучого: пульту завжди, іншим лише reveal; інакше null. */
+  word: string | null;
+  rows: WordleRow[];
+}
+
+/** Власна гра гравця (команди). */
+export interface PlayerWordle {
+  letters: number;
+  tries: number;
+  rows: { letters: string[]; marks: WordleMark[] }[];
+  solved: boolean;
+  canGuess: boolean;
+  /** Лише reveal; інакше null. */
+  word: string | null;
 }
 
 export interface WordLadderInfo {
@@ -2073,6 +2114,8 @@ interface BaseView {
   chain: ChainInfo | null;
   /** Словесна драбина (26c): лише на запитанні-драбині (question, locked, reveal), для сцени й гравців не у фіналі; інакше ключа немає. */
   wordladder?: WordLadderInfo;
+  /** «Вгадай слово» (48): лише на такому запитанні (question, locked, reveal); літер і слова до reveal немає. */
+  wordle?: WordleInfo;
   /** «Список на час» (27c): лише на запитанні-списку (question, locked, reveal); інакше ключа немає. */
   timedlist?: TimedListInfo;
   /** «Слова з літер» (27d): лише на такому запитанні (question, locked, reveal); інакше ключа немає. */
@@ -2370,6 +2413,8 @@ export interface PlayerView extends BaseView {
     chain: PlayerChain | null;
     /** Власна драбина гравця (26c): лише на запитанні-драбині; інакше ключа немає. */
     wordladder?: PlayerWordLadder;
+    /** Власна гра «Вгадай слово» (48): лише на такому запитанні; інакше ключа немає. */
+    wordle?: PlayerWordle;
     /** Власний список гравця (27c): лише на запитанні-списку; інакше ключа немає. */
     timedlist?: PlayerTimedList;
     /** Власні слова гравця (27d): лише на запитанні «Слова з літер»; інакше ключа немає. */
@@ -2490,6 +2535,7 @@ export type LiveVerdict = 'correct' | 'partial' | 'wrong';
 export type LiveProgress =
   | { kind: 'chain'; solved: number; total: number; word: string | null; hints: number }
   | { kind: 'wordladder'; steps: number; words: string[]; finished: boolean }
+  | { kind: 'wordle'; tries: number; guesses: string[]; solved: boolean }
   | { kind: 'timedlist'; found: string[]; total: number; wrong: number }
   | { kind: 'letterwords'; words: string[] }
   | { kind: 'moreless'; done: number; total: number; right: number }
@@ -2595,6 +2641,8 @@ export interface HostView extends BaseView {
   quest?: HostQuest;
   /** Як у BaseView, але ведучому завжди й з усім: шлях і слова кожного наживо, і у фіналі. */
   wordladder?: WordLadderInfo;
+  /** Як у BaseView, але ведучому слово й літери всіх спроб з відкриття. */
+  wordle?: WordleInfo;
   /** Як у BaseView, але ведучому завжди весь список з тими, хто знайшов. */
   timedlist?: TimedListInfo;
   /** Як у BaseView, але ведучому завжди ще й слова кожного, найкращі слова й скільки їх можливо. */

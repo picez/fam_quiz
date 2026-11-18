@@ -62,6 +62,8 @@ describe('question type lists before the registry (30e)', () => {
       'wordladder',
       'timedlist',
       'letterwords',
+      // 48: у «Вгадай слово» бали дають спроби, не швидкість.
+      'wordle',
       'moreless',
       'drawing',
       'sudoku',

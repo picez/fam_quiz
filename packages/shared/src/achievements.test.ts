@@ -48,7 +48,7 @@ describe('the achievements catalog', () => {
     const goals = Object.fromEntries(ACHIEVEMENTS.filter((id) => ACHIEVEMENT_INFO[id].goal !== null).map((id) => [id, ACHIEVEMENT_INFO[id].goal]));
     expect(goals).toEqual({
       games_10: 10, games_50: 50, games_100: 100, veteran: 250, wins_10: 10, host_10: 10, podium_10: 10, prankster: 10,
-      author_hit: 10, friends_5: 5, streak_5: 5, streak_10: 10, win_streak_3: 3, all_rounds: 13, all_types: 32, last_place_5: 5, honest: 10, chronicler: 20, // 26c, 27c, 27d, 28a, 28c, 28d, 29c, 29d, 29e, 29f: нові типи запитань; 27a, 27b, 28b, 28d, 29g: нові типи раунду; 35: новий раунд і тип think; 36: новий тип videoclip
+      author_hit: 10, friends_5: 5, streak_5: 5, streak_10: 10, win_streak_3: 3, all_rounds: 13, all_types: 33, last_place_5: 5, honest: 10, chronicler: 20, // 26c, 27c, 27d, 28a, 28c, 28d, 29c, 29d, 29e, 29f: нові типи запитань; 27a, 27b, 28b, 28d, 29g: нові типи раунду; 35: новий раунд і тип think; 36: новий тип videoclip; 48: новий тип wordle
     });
     expect(ACHIEVEMENT_INFO.all_rounds.goal).toBe(ROUND_TYPES.length);
     expect(ACHIEVEMENT_INFO.all_types.goal).toBe(QUESTION_TYPES.length);
