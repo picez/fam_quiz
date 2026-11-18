@@ -5,6 +5,7 @@ import { follow, getProfile, unfollow } from '../api';
 import { errorText, t } from '../i18n';
 import { AchievementShowcase } from '../profile/AchievementShowcase';
 import { LikesCard } from '../profile/LikesCard';
+import { LeagueTitles } from '../profile/LeagueTitles';
 import { ProfileHeader } from '../profile/ProfileHeader';
 import { Showcase } from '../profile/Showcase';
 import { ShowcaseShelf } from '../profile/ShowcaseShelf';
@@ -104,6 +105,7 @@ export function PublicProfile() {
           </p>
         )}
       </ProfileHeader>
+      <LeagueTitles titles={profile.leagueTitles} />
       <ShowcaseShelf
         awards={profile.showcase.awards}
         pinned={profile.showcase.pins.prizes}

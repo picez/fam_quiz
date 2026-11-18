@@ -337,6 +337,14 @@ export function formatDay(iso: string): string {
   return dropYearMark(text);
 }
 
+/** Місяць словами в називному відмінку з роком («листопад 2026»); '2026-11' → за мовою інтерфейсу, без « р.» в uk. */
+export function monthText(month: string): string {
+  const [year, mon] = month.split('-').map(Number);
+  const date = new Date(Date.UTC(year, mon - 1, 15));
+  if (Number.isNaN(date.getTime())) return month;
+  return dropYearMark(new Intl.DateTimeFormat(intlTag(), { month: 'long', year: 'numeric', timeZone: 'UTC' }).format(date));
+}
+
 /** Число зі справжнім мінусом «−», а не дефісом: рахунок може бути від’ємним. */
 export function num(value: number): string {
   return value < 0 ? `−${Math.abs(value)}` : String(value);

@@ -54,6 +54,12 @@ const open = () =>
   );
 
 describe('PublicProfile', () => {
+  it('shows the league titles, and nothing else about the league', async () => {
+    vi.mocked(getProfile).mockResolvedValue({ ok: true, data: profile({ leagueTitles: [{ group: 'Родина', month: '2026-10' }] }) });
+    open();
+    expect((await screen.findByText(/Перше місце в лізі/)).textContent).toBe('🏆 Перше місце в лізі «Родина» — жовтень 2026');
+  });
+
   it('shows the placeholder for a profile without a nickname', async () => {
     vi.mocked(getProfile).mockResolvedValue({ ok: true, data: profile({ nickname: null }) });
     open();

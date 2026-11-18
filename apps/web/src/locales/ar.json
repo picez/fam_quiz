@@ -4706,5 +4706,20 @@
   "leagueGained_two": "دوري «{group}»: +نقطتان",
   "leagueGained_few": "دوري «{group}»: +{count} نقاط",
   "leagueGained_many": "دوري «{group}»: +{count} نقطة",
-  "leagueGained_other": "دوري «{group}»: +{count} نقطة"
+  "leagueGained_other": "دوري «{group}»: +{count} نقطة",
+  "groupTabLeague": "الدوري",
+  "leagueMonthLabel": "الشهر",
+  "leagueCurrentMonth": "{month} (الحالي)",
+  "leagueEmpty": "لا توجد ألعاب دوري هذا الشهر بعد.",
+  "leaguePlace": "المركز",
+  "leaguePlayer": "اللاعب",
+  "leaguePoints": "النقاط",
+  "leagueGames": "الألعاب",
+  "leagueFirsts": "المراكز الأولى",
+  "leagueFormer": "لم يعد في المجموعة",
+  "leagueRules": "النقاط 10 / 7 / 5 / 3 / 1 للمراكز 1–5 بين أعضاء المجموعة في اللعبة؛ تُحتسب الألعاب التي فيها 3 أعضاء من المجموعة على الأقل. المركز الأول في الشهر لمن لديه أكثر النقاط، ثم أكثر المراكز الأولى، ثم أكثر الألعاب.",
+  "leagueHall": "قاعة الفائزين",
+  "leagueHallEmpty": "لا يوجد فائزون بعد — سيظهرون فور انتهاء الشهر.",
+  "leagueChampionTitle": "🏆 المركز الأول في دوري «{group}» — {month}",
+  "leagueTitlesHeading": "ألقاب الدوري"
 }

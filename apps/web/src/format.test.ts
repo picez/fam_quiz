@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { emptyBrief, type Answer, type Question, type RoundInfo } from '@quiz/shared';
-import { questionLabel, roundFacts, roundLabel, answerText, choiceLabel, choicesOf, correctPairs, correctText, formatDate, formatDay, orderLabelsText, pairTexts, pickedText, quizSizeText, secondsText, shownChoices, seenText, signed, sliderNumber } from './format';
+import { questionLabel, roundFacts, roundLabel, answerText, choiceLabel, choicesOf, correctPairs, correctText, formatDate, formatDay, monthText, orderLabelsText, pairTexts, pickedText, quizSizeText, secondsText, shownChoices, seenText, signed, sliderNumber } from './format';
 import { activateLocaleForTests } from './i18n';
 
 const base = { id: 'q', text: '?', imageUrl: null, video: null, timeLimit: 20, points: 1000 };
@@ -434,5 +434,19 @@ describe('jigsaw texts (29c)', () => {
     expect(answerText({ type: 'jigsaw', placed: 12, total: 12, done: true, timeMs: 47_300 } as Answer, jigsawQ)).toBe('Склав за 47,3 с');
     expect(answerText({ type: 'jigsaw', placed: 5, total: 12, done: false, timeMs: 120_000 } as Answer, jigsawQ)).toBe('Не склав · 5 з 12');
     expect(correctText(jigsawQ)).toBe('—');
+  });
+});
+
+describe('monthText', () => {
+  afterEach(() => activateLocaleForTests('uk'));
+
+  it('writes the month in the nominative with the year, without the year mark', () => {
+    expect(monthText('2026-11')).toBe('листопад 2026');
+    expect(monthText('2027-01')).toBe('січень 2027');
+  });
+
+  it('follows the interface language', () => {
+    activateLocaleForTests('en', { ui: {} });
+    expect(monthText('2026-11')).toBe('November 2026');
   });
 });

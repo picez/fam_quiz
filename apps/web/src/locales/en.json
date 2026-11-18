@@ -4450,5 +4450,20 @@
   "leagueTooFew": "Too few group members for the league",
   "leagueHostTitle": "League “{group}”",
   "leagueGained_one": "League “{group}”: +{count} point",
-  "leagueGained_other": "League “{group}”: +{count} points"
+  "leagueGained_other": "League “{group}”: +{count} points",
+  "groupTabLeague": "League",
+  "leagueMonthLabel": "Month",
+  "leagueCurrentMonth": "{month} (current)",
+  "leagueEmpty": "No league games this month yet.",
+  "leaguePlace": "Place",
+  "leaguePlayer": "Player",
+  "leaguePoints": "Points",
+  "leagueGames": "Games",
+  "leagueFirsts": "First places",
+  "leagueFormer": "no longer in the group",
+  "leagueRules": "Points 10 / 7 / 5 / 3 / 1 for places 1–5 among the group members in a game; games with at least 3 group members count. First place for the month goes to the most points, then the most first places, then the most games.",
+  "leagueHall": "Hall of winners",
+  "leagueHallEmpty": "No winners yet — they appear as soon as a month ends.",
+  "leagueChampionTitle": "🏆 First place in the league “{group}” — {month}",
+  "leagueTitlesHeading": "League titles"
 }

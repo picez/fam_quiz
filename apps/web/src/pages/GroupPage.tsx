@@ -5,19 +5,21 @@ import { deleteGroup, getGroup, updateGroup } from '../api';
 import { GroupForm } from '../groups/GroupForm';
 import { InvitePanel } from '../groups/InvitePanel';
 import { ItemList } from '../groups/ItemList';
+import { LeagueTable } from '../groups/LeagueTable';
 import { MemberList } from '../groups/MemberList';
 import { countText, errorText, t, type TextKey } from '../i18n';
 import { loginFor, ProfileSubpage } from '../profile/ProfileSubpage';
 import { usePrivateData } from '../usePrivateData';
 
-type Tab = 'items' | 'people' | 'settings';
+type Tab = 'items' | 'people' | 'league' | 'settings';
 const TABS: { tab: Tab; label: TextKey }[] = [
   { tab: 'items', label: 'groupTabItems' },
   { tab: 'people', label: 'groupTabPeople' },
+  { tab: 'league', label: 'groupTabLeague' },
   { tab: 'settings', label: 'groupTabSettings' },
 ];
 
-/** Сторінка групи (12k): вкладки «Записи» · «Учасники» · «Налаштування» (лише власнику); вкладка — у ?tab=. */
+/** Сторінка групи (12k): вкладки «Записи» · «Учасники» · «Ліга» · «Налаштування» (лише власнику); вкладка — у ?tab=. */
 export function GroupPage() {
   const { id = '' } = useParams();
   const location = useLocation();
@@ -99,6 +101,7 @@ export function GroupPage() {
             <MemberList group={group} onChanged={reload} onLeft={() => navigate('/profile/groups')} />
           </>
         )}
+        {tab === 'league' && <LeagueTable groupId={group.id} me={group.members.find((member) => member.you)?.id} />}
         {tab === 'settings' && owner && (
           <>
             <section className="profile-section">

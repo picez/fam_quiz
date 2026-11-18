@@ -1,5 +1,5 @@
 import { AUDIO_LIMITS, isObjectLike } from '@quiz/shared';
-import type { LeaguePickInfo, NickLooks, PrizeContent, PrizeItem, PrizePlacesInfo, AchievementsPage, AutopilotCheck, CalendarEvent, CalendarInput, CalendarPage, CalendarRequestStatus, ContinueResponse, FeedBadge, FeedPage, FriendCard, GameDetail, GameInvite, GameSummary, OwnProfile, Phase, PlayedGame, ProfileCard, ProfileUpdate, PublicProfile, PushSubscriptionInput, Quiz, QuizLikes, ResumeOption, SlotsResponse, Versus } from '@quiz/shared';
+import type { LeaguePickInfo, LeagueTable, NickLooks, PrizeContent, PrizeItem, PrizePlacesInfo, AchievementsPage, AutopilotCheck, CalendarEvent, CalendarInput, CalendarPage, CalendarRequestStatus, ContinueResponse, FeedBadge, FeedPage, FriendCard, GameDetail, GameInvite, GameSummary, OwnProfile, Phase, PlayedGame, ProfileCard, ProfileUpdate, PublicProfile, PushSubscriptionInput, Quiz, QuizLikes, ResumeOption, SlotsResponse, Versus } from '@quiz/shared';
 import type { ShowcasePin, ShowcasePins } from '@quiz/shared';
 import type { CodeInfo, LobbyRow, LobbySettings } from '@quiz/shared';
 import type { GivenLike, LikesPage, ReceivedLike } from '@quiz/shared';
@@ -292,6 +292,8 @@ export const inviteToGroup = (id: string, userIds: string[]) =>
   request<{ invited: ProfileCard[] }>(`${groupUrl(id)}/invites`, { method: 'POST', body: { userIds } });
 export const cancelGroupInvite = (id: string, userId: string) =>
   request<object>(`${groupUrl(id)}/invites/${encodeURIComponent(userId)}`, { method: 'DELETE' });
+export const groupLeague = (id: string, month?: string) =>
+  fetchData<LeagueTable>(`${groupUrl(id)}/league${month === undefined ? '' : `?month=${encodeURIComponent(month)}`}`);
 export const getGroupItems = (id: string) => fetchData<GroupItem[]>(`${groupUrl(id)}/items`);
 export const createGroupItem = (id: string, input: GroupItemInput) => request<GroupItem>(`${groupUrl(id)}/items`, { method: 'POST', body: input });
 export const updateGroupItem = (id: string, itemId: string, input: GroupItemInput) =>

@@ -4514,5 +4514,20 @@
   "leagueHostTitle": "Liga «{group}»",
   "leagueGained_one": "Liga «{group}»: +{count} punto",
   "leagueGained_many": "Liga «{group}»: +{count} de puntos",
-  "leagueGained_other": "Liga «{group}»: +{count} puntos"
+  "leagueGained_other": "Liga «{group}»: +{count} puntos",
+  "groupTabLeague": "Liga",
+  "leagueMonthLabel": "Mes",
+  "leagueCurrentMonth": "{month} (actual)",
+  "leagueEmpty": "Este mes todavía no hubo partidas de liga.",
+  "leaguePlace": "Puesto",
+  "leaguePlayer": "Jugador",
+  "leaguePoints": "Puntos",
+  "leagueGames": "Partidas",
+  "leagueFirsts": "Primeros puestos",
+  "leagueFormer": "ya no está en el grupo",
+  "leagueRules": "Puntos 10 / 7 / 5 / 3 / 1 por los puestos 1–5 entre los miembros del grupo en una partida; cuentan las partidas con al menos 3 miembros del grupo. El primer puesto del mes es para quien tenga más puntos, luego más primeros puestos y luego más partidas.",
+  "leagueHall": "Salón de ganadores",
+  "leagueHallEmpty": "Todavía no hay ganadores: aparecerán en cuanto acabe un mes.",
+  "leagueChampionTitle": "🏆 Primer puesto en la liga «{group}» — {month}",
+  "leagueTitlesHeading": "Títulos de liga"
 }

@@ -98,6 +98,14 @@ const tiles = () => screen.getByRole('navigation', { name: 'Розділи пр�
 const before = (a: Node, b: Node) => Boolean(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
 
 describe('Profile', () => {
+  it('shows the league titles under the header', async () => {
+    vi.mocked(getMyProfile).mockResolvedValue({ ok: true, data: { ...mine, leagueTitles: [{ group: 'Родина', month: '2026-10' }] } });
+    const { container } = open();
+    const item = await screen.findByText(/Перше місце в лізі/);
+    expect(item.textContent).toBe('🏆 Перше місце в лізі «Родина» — жовтень 2026');
+    expect(before(container.querySelector('header.profile-head')!, item)).toBe(true);
+  });
+
   it('shows the header, the tiles and the popular quizzes in order', async () => {
     const { container } = open();
     const nav = await screen.findByRole('navigation', { name: 'Розділи профілю' });
