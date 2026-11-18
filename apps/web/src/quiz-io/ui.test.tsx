@@ -74,6 +74,22 @@ describe('ImportDialog', () => {
     expect(screen.getByRole('heading', { name: 'Імпорт і експорт' })).toBeTruthy();
   });
 
+  it('import dialog focus starts on choosing a file', () => {
+    render(<ImportDialog onClose={vi.fn()} onImported={vi.fn()} />);
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Вибрати файл' }));
+  });
+
+  it('Escape closes only the help popup, then the dialog', () => {
+    const onClose = vi.fn();
+    render(<ImportDialog onClose={onClose} onImported={vi.fn()} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Довідка: Імпорт і експорт' }));
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(onClose).not.toHaveBeenCalled();
+    expect(screen.queryByRole('heading', { name: 'Імпорт і експорт' })).toBeNull();
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
   it('import dialog picks a file and goes on', async () => {
     const onImported = vi.fn();
     vi.mocked(importQuizFile).mockResolvedValueOnce({ ok: true, id: 'n1' });

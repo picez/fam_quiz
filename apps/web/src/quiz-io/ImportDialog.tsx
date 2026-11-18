@@ -21,13 +21,14 @@ export function ImportDialog({ onClose, onImported }: { onClose: () => void; onI
   // Фокус — у діалог; після закриття — назад на те, що було активним (кнопка «Імпорт»).
   useLayoutEffect(() => {
     const before = document.activeElement as HTMLElement | null;
-    dialog.current?.querySelector<HTMLElement>('button')?.focus();
+    dialog.current?.querySelector<HTMLElement>('.btn-primary')?.focus();
     return () => before?.focus();
   }, []);
 
   useEffect(() => {
     const keys = (event: globalThis.KeyboardEvent) => {
       if (event.key === 'Escape') {
+        if (document.querySelector('.help-pop') !== null) return;
         event.preventDefault();
         event.stopPropagation();
         if (!state.current.busy) state.current.onClose();
