@@ -37,13 +37,13 @@ export function escapeLike(q: string | undefined, max: number): string | null {
 /** Видно в каталозі: відкрито автором, без модерації, автор не заблокований. */
 const visible = (): SQL => and(eq(libraryEntry.listed, true), eq(libraryEntry.moderation, 'ok'), notHidden(libraryEntry.ownerId))!;
 
-/** ❤️ вікторини: рядки user_like виду quiz, не приховані. */
-const likesOf = sql<number>`(select count(*)::int from ${userLike} where ${userLike.kind} = 'quiz' and ${userLike.quizId} = ${libraryEntry.quizId} and ${userLike.hidden} = false)`;
+/** ❤️ вікторини: рядки user_like виду quiz, не приховані, від незаблокованих акаунтів. */
+const likesOf = sql<number>`(select count(*)::int from ${userLike} where ${userLike.kind} = 'quiz' and ${userLike.quizId} = ${libraryEntry.quizId} and ${userLike.hidden} = false and ${notHidden(userLike.userId)})`;
 
 const likedBy = (viewerId: string | null) =>
   viewerId === null
     ? sql<boolean>`false`
-    : sql<boolean>`exists (select 1 from ${userLike} where ${userLike.kind} = 'quiz' and ${userLike.userId} = ${viewerId} and ${userLike.quizId} = ${libraryEntry.quizId} and ${userLike.hidden} = false)`;
+    : sql<boolean>`exists (select 1 from ${userLike} where ${userLike.kind} = 'quiz' and ${userLike.userId} = ${viewerId} and ${userLike.quizId} = ${libraryEntry.quizId} and ${userLike.hidden} = false and ${notHidden(userLike.userId)})`;
 
 /** Вузькі колонки картки: без знімка. quizId і ownerId — лише для лічильників і «моє», у відповідь не йдуть. */
 const cardColumns = (viewerId: string | null) => ({
@@ -278,14 +278,16 @@ export async function visibleEntry(db: Db | Tx, entryId: string): Promise<{ id: 
  * Копія запису в «Мої вікторини»: увесь вміст і ті самі адреси медіа; опис — з «Автор: …» мовою копіювальника
  * (копія копії — рядок оригінального автора, що вже є в описі знімка).
  */
+export type CopyResult = { ok: true; quizId: string } | { ok: false; error: 'not_found' | 'library_own' | 'library_invalid' };
+
 export async function copyEntry(
   db: Db,
   userId: string,
   entryId: string,
   locale: Locale,
   now: Date,
-): Promise<{ ok: true; quizId: string } | { ok: false; error: 'not_found' | 'library_own' }> {
-  return db.transaction(async (tx): Promise<{ ok: true; quizId: string } | { ok: false; error: 'not_found' | 'library_own' }> => {
+): Promise<CopyResult> {
+  return db.transaction(async (tx): Promise<CopyResult> => {
     const entry = await visibleEntry(tx, entryId);
     if (entry === null) return { ok: false, error: 'not_found' };
     if (entry.ownerId === userId) return { ok: false, error: 'library_own' };
@@ -295,7 +297,10 @@ export async function copyEntry(
       .leftJoin(profile, eq(profile.userId, libraryEntry.ownerId))
       .where(eq(libraryEntry.id, entry.id));
     if (row === undefined) return { ok: false, error: 'not_found' };
-    const source = quizSchema.parse(upgradeQuiz(row.snapshot));
+    // Знімок давнього формату, який уже не проходить схему: 409, а не 500.
+    const parsed = quizSchema.safeParse(upgradeQuiz(row.snapshot));
+    if (!parsed.success) return { ok: false, error: 'library_invalid' };
+    const source = parsed.data;
     const line = row.originLine ?? authorLine(locale, row.nickname);
     const description = row.originLine !== null ? source.description : withAuthorLine(source.description, line);
     const quizId = await createQuiz(tx, userId, { ...source, description });

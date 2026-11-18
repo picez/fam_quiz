@@ -345,6 +345,7 @@ describe('the report queue (39-A2)', () => {
   it('the report queue is for admins only', async () => {
     const routes: [Method, string, unknown][] = [
       ['GET', '/api/admin/reports', undefined],
+      ['GET', `/api/admin/reports/quiz/${entryId}`, undefined],
       ['POST', `/api/admin/reports/quiz/${entryId}`, { action: 'hide' }],
       ['POST', `/api/admin/reports/profile/${b.id}`, { action: 'reset_nickname' }],
     ];
@@ -375,6 +376,26 @@ describe('the report queue (39-A2)', () => {
       expect(response.body).not.toContain(who.email);
     }
     expect((await call('GET', '/api/admin/reports?page=x', a.cookie)).statusCode).toBe(400);
+  });
+
+  it('shows the admin the reported snapshot, not the live quiz, and never the reporters', async () => {
+    const live = { ...makeRoundsQuiz([classicRound('r1', [single, multi, bool, text, numeric], { title: 'Чисте' })]), title: 'Чиста копія', description: 'Інше' };
+    expect((await call('PUT', `/api/quizzes/${quizId}`, author.cookie, live)).statusCode).toBe(200);
+    const response = await call('GET', `/api/admin/reports/quiz/${entryId}`, a.cookie);
+    expect(response.statusCode).toBe(200);
+    const view = response.json() as AdminQuizView;
+    expect(view).toMatchObject({ id: quizId, author: { id: author.id, nickname: author.nickname }, effects: {} });
+    expect(view.quiz.title).toBe('Скаржена');
+    expect(view.quiz.rounds.map((round) => round.title)).toEqual(['Міста', 'Річки']);
+    const [entry] = (await call('GET', '/api/library/mine', author.cookie)).json() as { updatedAt: string }[];
+    expect(view.updatedAt).toBe(entry!.updatedAt);
+    for (const who of [r1, r2]) {
+      expect(response.body).not.toContain(who.id);
+      expect(response.body).not.toContain(who.email);
+      expect(response.body).not.toContain(who.nickname);
+    }
+    expect((await call('GET', `/api/admin/reports/quiz/${UUID}`, a.cookie)).statusCode).toBe(404);
+    expect((await call('GET', '/api/admin/reports/quiz/not-a-uuid', a.cookie)).statusCode).toBe(404);
   });
 
   it('rejects a bad action or id, and an unknown entry', async () => {

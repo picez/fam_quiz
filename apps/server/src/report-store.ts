@@ -1,4 +1,17 @@
-import { ADMIN_PAGE_SIZE, LIBRARY_AUTO_HIDE, adminPages, pageOffset, type AdminActionKind, type AdminList, type AdminReportItem, type ReportReason, type ReportTarget } from '@quiz/shared';
+import {
+  ADMIN_PAGE_SIZE,
+  LIBRARY_AUTO_HIDE,
+  adminPages,
+  pageOffset,
+  quizSchema,
+  upgradeQuiz,
+  type AdminActionKind,
+  type AdminList,
+  type AdminQuizView,
+  type AdminReportItem,
+  type ReportReason,
+  type ReportTarget,
+} from '@quiz/shared';
 import { and, eq, inArray, or, sql } from 'drizzle-orm';
 import { isBanned, logAction } from './bans';
 import type { Db } from './db/client';
@@ -13,7 +26,7 @@ export type ReportResult = 'ok' | 'not_found' | 'cannot_report_self' | 'already_
 
 /**
  * Скарга на вікторину з каталогу чи на профіль. Одна відкрита скарга на акаунт і об'єкт; на себе — ні.
- * Після вставки запис блокується (FOR UPDATE) перед підрахунком, тож дві паралельні треті скарги рахують одна одну
+ * Після вставки запис блокується (FOR NO KEY UPDATE, див. нижче) перед підрахунком, тож дві паралельні треті скарги рахують одна одну
  * й дають рівно один перехід у auto_hidden.
  */
 export async function fileReport(
@@ -179,7 +192,27 @@ export async function reportQueue(db: Db, page: number): Promise<AdminList<Admin
   return { rows: items.slice(offset, offset + ADMIN_PAGE_SIZE).map((x) => x.item), total: items.length, page, pages: adminPages(items.length) };
 }
 
-/** Рішення адміна щодо вікторини; false — запису нема. Одна транзакція з журналом, запис під FOR UPDATE. */
+/**
+ * Знімок запису бібліотеки, на який скаржаться, у вигляді AdminQuizView — саме те, що бачить каталог, а не поточна вікторина автора.
+ * Лише для читання: effects порожні (видаляти запитання знімка нічого). Хто скаржився, тут не береться. null — запису нема чи знімок не читається.
+ */
+export async function reportedQuiz(db: Db, entryId: string): Promise<AdminQuizView | null> {
+  if (!UUID.test(entryId)) return null;
+  const [row] = await db
+    .select({ quizId: libraryEntry.quizId, ownerId: libraryEntry.ownerId, snapshot: libraryEntry.snapshot, updatedAt: libraryEntry.updatedAt, nickname: profile.nickname })
+    .from(libraryEntry)
+    .leftJoin(profile, eq(profile.userId, libraryEntry.ownerId))
+    .where(eq(libraryEntry.id, entryId));
+  if (row === undefined) return null;
+  const parsed = quizSchema.safeParse(upgradeQuiz(row.snapshot));
+  if (!parsed.success) return null;
+  return { id: row.quizId, author: { id: row.ownerId, nickname: row.nickname }, quiz: parsed.data, updatedAt: row.updatedAt.toISOString(), effects: {} };
+}
+
+/**
+ * Рішення адміна щодо вікторини; false — запису нема. Одна транзакція з журналом. Запис під FOR NO KEY UPDATE, як у fileReport:
+ * з підрахунком скарг іде по черзі, але не блокує вставок із зовнішнім ключем на запис (копії, скарги).
+ */
 export async function actOnQuiz(db: Db, input: { adminId: string; entryId: string; action: 'hide' | 'restore' | 'dismiss'; now: Date }): Promise<boolean> {
   const { adminId, entryId, action, now } = input;
   return db.transaction(async (tx) => {
@@ -187,7 +220,7 @@ export async function actOnQuiz(db: Db, input: { adminId: string; entryId: strin
       .select({ ownerId: libraryEntry.ownerId, title: libraryEntry.title, moderation: libraryEntry.moderation, appealOpen: libraryEntry.appealOpen })
       .from(libraryEntry)
       .where(eq(libraryEntry.id, entryId))
-      .for('update');
+      .for('no key update');
     if (entry === undefined) return false;
     const close = (status: 'resolved' | 'dismissed') =>
       tx

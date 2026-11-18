@@ -213,6 +213,43 @@ describe('library routes (38g)', () => {
     expect(codes[10]).toBe(429);
   });
 
+  it('closed and held entries never leak: like and copy of a closed one, detail of an auto-hidden one', async () => {
+    const olena = await person('Олена');
+    const taras = await person('Тарас');
+    const { entryId, quizId } = await opened(olena);
+    expect((await call('DELETE', `/api/library/mine/${quizId}`, olena.cookie)).statusCode).toBe(204);
+    expect((await call('PUT', `/api/library/${entryId}/like`, taras.cookie, { liked: true })).statusCode).toBe(404);
+    expect((await call('POST', `/api/library/${entryId}/copy`, taras.cookie, { locale: 'uk' })).statusCode).toBe(404);
+    expect((await call('GET', `/api/library/${entryId}`, taras.cookie)).statusCode).toBe(404);
+
+    await db.update(libraryEntry).set({ listed: true, moderation: 'auto_hidden' }).where(eq(libraryEntry.id, entryId));
+    for (const cookie of [undefined, olena.cookie, taras.cookie]) {
+      const response = await call('GET', `/api/library/${entryId}`, cookie);
+      expect(response.statusCode).toBe(404);
+      expect(response.json()).toEqual({ error: 'not_found' });
+    }
+  });
+
+  it('a snapshot that no longer parses gives 409 on copy, not 500', async () => {
+    const olena = await person('Олена');
+    const taras = await person('Тарас');
+    const { entryId } = await opened(olena);
+    await db.update(libraryEntry).set({ snapshot: { title: 'Зламаний', rounds: 'ні' } }).where(eq(libraryEntry.id, entryId));
+    const response = await call('POST', `/api/library/${entryId}/copy`, taras.cookie, { locale: 'uk' });
+    expect(response.statusCode).toBe(409);
+    expect(response.json()).toEqual({ error: 'library_invalid' });
+  });
+
+  it('the like count leaves out banned accounts', async () => {
+    const olena = await person('Олена');
+    const taras = await person('Тарас');
+    const iryna = await person('Ірина');
+    const { entryId, quizId } = await opened(olena);
+    await db.insert(userLike).values({ userId: iryna.id, kind: 'quiz', targetUserId: olena.id, quizId, gameId: null, hidden: false, createdAt: new Date() });
+    await db.insert(userBan).values({ userId: iryna.id, reason: null, bannedBy: null, bannedAt: new Date() });
+    expect((await call('PUT', `/api/library/${entryId}/like`, taras.cookie, { liked: true })).json()).toEqual({ likes: 1, liked: true });
+  });
+
   it('banned author disappears', async () => {
     const olena = await person('Олена');
     const { entryId } = await opened(olena);

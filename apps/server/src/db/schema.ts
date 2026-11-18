@@ -568,7 +568,7 @@ export const userLike = pgTable(
     /** Без FK: лайки переживають видалення вікторини. */
     quizId: uuid('quiz_id'),
     questionId: text('question_id'),
-    /** Без FK; = room.id. null — лише event без гри. */
+    /** Без FK; = room.id. null — event без гри і quiz з каталогу бібліотеки. */
     gameId: uuid('game_id'),
     /** Лише event: feed_event.key. */
     eventKey: text('event_key'),

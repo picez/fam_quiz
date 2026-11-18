@@ -4,6 +4,7 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { CurrentUser } from './account-routes';
 import type { Db } from './db/client';
 import { userLike } from './db/schema';
+import { notHidden } from './feed-store';
 import { saveLike } from './like-store';
 import { fileReport } from './report-store';
 import { appealEntry, catalog, closeEntry, copyEntry, entryDetail, myEntries, openEntry, visibleEntry } from './library-store';
@@ -101,14 +102,14 @@ export async function registerLibraryRoutes(app: FastifyInstance, deps: LibraryD
     const entry = await visibleEntry(db, request.params.id);
     if (entry === null) return reply.code(404).send(NOT_FOUND);
     await saveLike(db, { userId: user.id, kind: 'quiz', liked: body.data.liked, gameId: null, quizId: entry.quizId });
-    // Лічильник і «моє» одним запитом.
+    // Лічильник і «моє» одним запитом; лайки заблокованих акаунтів не рахуються (як у каталозі).
     const [row] = await db
       .select({
         likes: sql<number>`count(*)::int`,
         liked: sql<boolean>`coalesce(bool_or(${userLike.userId} = ${user.id}), false)`,
       })
       .from(userLike)
-      .where(and(eq(userLike.kind, 'quiz'), eq(userLike.quizId, entry.quizId), eq(userLike.hidden, false)));
+      .where(and(eq(userLike.kind, 'quiz'), eq(userLike.quizId, entry.quizId), eq(userLike.hidden, false), notHidden(userLike.userId)));
     return { likes: Number(row?.likes ?? 0), liked: Boolean(row?.liked) };
   });
 

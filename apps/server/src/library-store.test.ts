@@ -176,6 +176,26 @@ describe('library store (38g)', () => {
     expect(await entryDetail(db, entryId, olena)).toMatchObject({ mine: true });
   });
 
+  it('likes of banned accounts do not count', async () => {
+    const { db, olena, taras, iryna } = await setup();
+    const { quizId, entryId } = await openNew(db, olena);
+    await db.insert(userLike).values([like(taras, olena, quizId), like(iryna, olena, quizId)]);
+    expect((await catalog(db, { sort: 'popular', offset: 0 }, null)).items[0]).toMatchObject({ likes: 2 });
+    await db.insert(userBan).values({ userId: iryna, bannedAt: T0 });
+    expect((await catalog(db, { sort: 'popular', offset: 0 }, null)).items[0]).toMatchObject({ likes: 1 });
+    expect(await entryDetail(db, entryId, null)).toMatchObject({ likes: 1 });
+    expect(await myEntries(db, olena)).toMatchObject([{ likes: 1 }]);
+    expect((await catalog(db, { sort: 'popular', offset: 0 }, iryna)).items[0]).toMatchObject({ liked: false });
+  });
+
+  it('an old snapshot that no longer parses refuses the copy without throwing', async () => {
+    const { db, olena, taras } = await setup();
+    const { entryId } = await openNew(db, olena);
+    await db.update(libraryEntry).set({ snapshot: { title: 'Зламаний знімок', rounds: 'не масив' } }).where(eq(libraryEntry.id, entryId));
+    expect(await copyEntry(db, taras, entryId, 'uk', T1)).toEqual({ ok: false, error: 'library_invalid' });
+    expect(await db.select().from(libraryCopy)).toHaveLength(0);
+  });
+
   it('detail lists rounds by title and type only', async () => {
     const { db, olena } = await setup();
     const { quizId, entryId } = await openNew(db, olena);
