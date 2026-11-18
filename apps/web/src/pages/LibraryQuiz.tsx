@@ -87,8 +87,8 @@ export function LibraryQuiz(): JSX.Element {
         </p>
       )}
 
-      <h2>{t('libraryRounds')}</h2>
-      <ul className="library-rounds" aria-label={t('libraryRounds')}>
+      <h2 id="library-rounds-heading">{t('libraryRounds')}</h2>
+      <ul className="library-rounds" aria-labelledby="library-rounds-heading">
         {quiz.rounds.map((round, index) => (
           <li key={index} dir="auto">
             {round.title === '' ? t(ROUND_NAMES[round.type]) : `${round.title} — ${t(ROUND_NAMES[round.type])}`}
@@ -100,7 +100,7 @@ export function LibraryQuiz(): JSX.Element {
       {signedIn && quiz.mine !== true && (
         <div className="toolbar">
           <button type="button" className="btn" aria-pressed={liked} disabled={busy} onClick={toggleLike}>
-            {t(liked ? 'libraryLiked' : 'libraryLike')} {likes}
+            {t('libraryLike')} {likes}
           </button>
           <button type="button" className="btn btn-primary" disabled={busy || copyId !== null} onClick={copy}>
             {t('libraryCopy')}

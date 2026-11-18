@@ -1278,11 +1278,11 @@ it('the menu stays off the game screens; a player’s profile counts the game, c
 });
 
 async function menuProfileFriends() {
-  // 1. Відвідувач на телефоні: лише «Приєднатися» й «Увійти», панель унизу.
+  // 1. Відвідувач на телефоні: «Приєднатися», «Бібліотека» й «Увійти», панель унизу.
   const visitor = await open('visitor', 390, 844);
   await visitor.goto(base);
   await visitor.locator(MENU).getByRole('link', { name: 'Увійти' }).waitFor();
-  expect(await menuLinks(visitor)).toEqual(['Меню', 'Увійти']);
+  expect(await menuLinks(visitor)).toEqual(['Меню', 'Бібліотека', 'Увійти']);
   const barBox = (await visitor.locator(MENU).boundingBox())!;
   expect(Math.abs(barBox.y + barBox.height - 844)).toBeLessThanOrEqual(2);
   await shot(visitor, 'menu-visitor-phone');

@@ -597,21 +597,21 @@ it('part 24a: start menu — a signed-in player sees seven tiles on «/» that f
 
 async function startMenu24a() {
   const START = 'nav.start-menu';
-  const TILES = ['Створити гру', 'Доєднатись до гри', 'Друзі', 'Стрічка', 'Мої вікторини', 'Історія', 'Профіль'];
+  const TILES = ['Створити гру', 'Доєднатись до гри', 'Друзі', 'Стрічка', 'Мої вікторини', 'Бібліотека', 'Історія', 'Профіль'];
   const host = await open('host24a', 1280, 800);
   const olya = await open('olya24a', 375, 812);
   await register(host, 'menu', 'Ведуча 24a', 'host24a@example.com');
   await register(olya, 'menu', 'Оля 24a', 'olya24a@example.com');
 
-  // ── 1. Сім плиток у порядку; 320 і 1280 px у uk та ar без бокового скролу; ar — дзеркально. ──
+  // ── 1. Вісім плиток у порядку; 320 і 1280 px у uk та ar без бокового скролу; ar — дзеркально. ──
   for (const lang of ['uk', 'ar'] as const) {
     expect((await olya.request.put(`${base}/api/me/locale`, { data: { locale: lang } })).status()).toBe(200);
     for (const width of [320, 375, 1280]) {
       await olya.setViewportSize({ width, height: 812 });
       await olya.goto(base);
       await expect.poll(() => htmlLang(olya), POLL).toBe(lang);
-      await olya.locator(`${START} > *`).nth(6).waitFor();
-      expect(await olya.locator(`${START} > *`).count()).toBe(7);
+      await olya.locator(`${START} > *`).nth(7).waitFor();
+      expect(await olya.locator(`${START} > *`).count()).toBe(8);
       if (lang === 'uk') expect(await olya.locator(`${START} .start-label`).allTextContents()).toEqual(TILES);
       expect(await noSideScroll(olya), `p24a-${lang}-${width}: horizontal scroll`).toBe(true);
       const clipped = await olya.locator(`${START} > *`).evaluateAll((tiles) => tiles.filter((tile) => tile.scrollWidth > tile.clientWidth).map((tile) => tile.textContent));
@@ -619,8 +619,8 @@ async function startMenu24a() {
       const boxes = await olya.locator(`${START} > *`).evaluateAll((tiles) => tiles.map((tile) => tile.getBoundingClientRect()).map((r) => ({ left: Math.round(r.left), top: Math.round(r.top), width: Math.round(r.width) })));
       const columns = new Set(boxes.slice(0, 4).map((box) => box.top)).size === 1 ? 4 : 2;
       expect(columns, `p24a-${lang}-${width}: columns`).toBe(width > 700 ? 4 : 2);
-      // На телефоні сьома плитка — на всю ширину сітки.
-      if (width <= 700) expect(boxes[6]!.width).toBeGreaterThan(boxes[0]!.width * 1.8);
+      // На телефоні вісім плиток — чотири рівні рядки по дві, остання не розтягнута на всю ширину.
+      if (width <= 700) expect(boxes[7]!.width).toBeLessThan(boxes[0]!.width * 1.2);
       if (lang === 'ar') expect(boxes[0]!.left, `p24a-ar-${width}: the first tile is right of the second`).toBeGreaterThan(boxes[1]!.left);
       await shot(olya, `p24a-start-${lang}-${width}`);
     }

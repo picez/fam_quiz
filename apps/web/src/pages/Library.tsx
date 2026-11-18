@@ -1,5 +1,5 @@
 import { LIBRARY_SORTS, isLocale, type LibraryCard, type LibrarySort, type Locale } from '@quiz/shared';
-import { useEffect, useState, type JSX } from 'react';
+import { useEffect, useRef, useState, type JSX } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { errorText, t, type TextKey } from '../i18n';
 import { LibraryCardView } from '../library/LibraryCardView';
@@ -25,8 +25,14 @@ export function Library(): JSX.Element {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
+  // Свіжі параметри для таймера пошуку: зміна порядку чи мови за ці 300 мс не має бути перезаписаною.
+  const latest = useRef(params);
+  latest.current = params;
+  // Номер поточного списку: відповідь «Показати ще» для старих фільтрів відкидається.
+  const generation = useRef(0);
+
   const update = (changes: Record<string, string>) => {
-    const copy = new URLSearchParams(params);
+    const copy = new URLSearchParams(latest.current);
     for (const [key, value] of Object.entries(changes)) {
       if (value === '' || (key === 'sort' && value === 'popular')) copy.delete(key);
       else copy.set(key, value);
@@ -42,10 +48,16 @@ export function Library(): JSX.Element {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [text]);
 
+  // Запит змінився з адреси (назад/вперед) — поле показує його.
+  useEffect(() => setText(q), [q]);
+
   // Перша сторінка — при кожній зміні пошуку, порядку чи мови.
   useEffect(() => {
     let current = true;
+    generation.current += 1;
     setItems(null);
+    setNext(null);
+    setBusy(false);
     setError(null);
     void libraryCatalog({ q, sort, lang, offset: 0 }).then((result) => {
       if (!current) return;
@@ -65,8 +77,10 @@ export function Library(): JSX.Element {
 
   const more = async () => {
     if (next === null) return;
+    const mine = generation.current;
     setBusy(true);
     const result = await libraryCatalog({ q, sort, lang, offset: next });
+    if (mine !== generation.current) return;
     setBusy(false);
     if (!result.ok) return setError(errorText(result.error));
     setError(null);

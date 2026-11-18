@@ -75,8 +75,8 @@ describe('LibraryQuiz', () => {
     expect(like.getAttribute('aria-pressed')).toBe('false');
     fireEvent.click(like);
     await vi.waitFor(() => expect(likeLibrary).toHaveBeenCalledWith('e1', true));
-    await vi.waitFor(() => expect(screen.getByRole('button', { name: /Подобається тобі/ }).getAttribute('aria-pressed')).toBe('true'));
-    expect(screen.getByRole('button', { name: /Подобається тобі/ }).textContent).toContain('4');
+    await vi.waitFor(() => expect(screen.getByRole('button', { name: /Подобається/ }).getAttribute('aria-pressed')).toBe('true'));
+    expect(screen.getByRole('button', { name: /Подобається/ }).textContent).toContain('4');
   });
 
   it('copies into My quizzes and links to the copy', async () => {

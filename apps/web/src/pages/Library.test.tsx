@@ -105,6 +105,36 @@ describe('Library', () => {
     expect(screen.queryByRole('button', { name: 'Показати ще' })).toBeNull();
   });
 
+  it('ignores a late "Show more" answer after the filters changed and blocks the button while reloading', async () => {
+    vi.mocked(libraryCatalog).mockResolvedValueOnce({ ok: true, data: { items: [card()], next: 20 } });
+    show();
+    await screen.findByRole('list');
+    type Answer = Awaited<ReturnType<typeof libraryCatalog>>;
+    let late!: (value: Answer) => void;
+    vi.mocked(libraryCatalog).mockReturnValueOnce(new Promise<Answer>((resolve) => { late = resolve; }));
+    fireEvent.click(screen.getByRole('button', { name: 'Показати ще' }));
+    let reload!: (value: Answer) => void;
+    vi.mocked(libraryCatalog).mockReturnValueOnce(new Promise<Answer>((resolve) => { reload = resolve; }));
+    fireEvent.change(screen.getByLabelText('Порядок'), { target: { value: 'new' } });
+    expect(screen.queryByRole('button', { name: 'Показати ще' })).toBeNull();
+    await act(async () => late({ ok: true, data: { items: [card({ id: 'old', title: 'Стара' })], next: null } }));
+    await act(async () => reload({ ok: true, data: { items: [card({ id: 'fresh', title: 'Свіжа' })], next: null } }));
+    expect(await screen.findByText('Свіжа')).toBeTruthy();
+    expect(screen.queryByText('Стара')).toBeNull();
+    expect(screen.getAllByRole('listitem')).toHaveLength(1);
+  });
+
+  it('keeps a sort change made while the search is still waiting', async () => {
+    vi.useFakeTimers();
+    show();
+    await act(async () => {});
+    fireEvent.change(screen.getByLabelText('Пошук за назвою чи описом'), { target: { value: 'ліс' } });
+    await act(async () => { vi.advanceTimersByTime(100); });
+    fireEvent.change(screen.getByLabelText('Порядок'), { target: { value: 'new' } });
+    await act(async () => { vi.advanceTimersByTime(400); });
+    expect(libraryCatalog).toHaveBeenLastCalledWith({ q: 'ліс', sort: 'new', lang: '', offset: 0 });
+  });
+
   it('says so when nothing is found', async () => {
     vi.mocked(libraryCatalog).mockResolvedValue({ ok: true, data: { items: [], next: null } });
     show();
