@@ -175,3 +175,42 @@ export function podiumStats(games: Counted[]): PodiumStats {
     avgPlace: rated.length === 0 ? null : Math.round((rankSum / rated.length) * 10) / 10,
   };
 }
+
+/** Скільки останніх ігор у «формі» (49). */
+export const RECENT_FORM_SIZE = 10;
+
+export interface FormGame {
+  gameId: string;
+  title: string;
+  startedAt: string;
+  place: number;
+  medal: 1 | 2 | 3 | null;
+  team: string | null;
+}
+
+export interface RecentForm {
+  games: FormGame[];
+  streak: { kind: 'wins' | 'top3'; count: number } | null;
+}
+
+/** Остання форма (49): games — новіші першими; рахуються завершені ігри з місцем і > 1 учасником. */
+export function recentForm(games: readonly PlayedGame[]): RecentForm {
+  const rated = games.filter((g) => g.status === 'finished' && g.rank !== null && g.playerCount > 1);
+  let wins = 0;
+  while (wins < rated.length && isWin(rated[wins])) wins += 1;
+  let top3 = 0;
+  while (top3 < rated.length && podiumPlace(rated[top3]) !== null) top3 += 1;
+  const streak: RecentForm['streak'] =
+    wins >= 2 && wins * 2 >= top3 ? { kind: 'wins', count: wins } : top3 >= 2 ? { kind: 'top3', count: top3 } : null;
+  return {
+    games: rated.slice(0, RECENT_FORM_SIZE).map((g) => ({
+      gameId: g.gameId,
+      title: g.title,
+      startedAt: g.startedAt,
+      place: g.rank as number,
+      medal: podiumPlace(g),
+      team: g.team,
+    })),
+    streak,
+  };
+}

@@ -1,8 +1,8 @@
-import { LEVEL_XP } from '@quiz/shared';
+import { LEVEL_XP, type XpReason } from '@quiz/shared';
 import type { AchievementGame } from './achievement-games';
 import { PENALTY_ATTEMPT } from './db/schema';
 
-export type XpReason = 'few_questions' | 'few_accounts' | 'author' | 'repeat_quiz' | 'cap';
+export type { XpReason } from '@quiz/shared';
 
 export interface XpAward {
   userId: string;

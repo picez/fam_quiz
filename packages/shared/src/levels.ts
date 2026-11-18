@@ -239,6 +239,35 @@ export function rewardsUpTo(level: number): { level: number; reward: LevelReward
   return LEVEL_REWARDS.filter((r) => r.level <= level);
 }
 
+/** Причини, чому гра не дала повного досвіду (49); `cap` — денна стеля. */
+export const XP_REASONS = ['few_questions', 'few_accounts', 'author', 'repeat_quiz', 'cap'] as const;
+export type XpReason = (typeof XP_REASONS)[number];
+
+/** Рядок розбивки досвіду за гру (49). */
+export type XpLine =
+  | { kind: 'join'; xp: number }
+  | { kind: 'correct'; xp: number; count: number }
+  | { kind: 'place'; xp: number; place: number }
+  | { kind: 'cap'; xp: number } // ≤ 0
+  | { kind: 'achievement'; xp: number; id: AchievementId };
+
+export interface GameXpMoment {
+  gained: number;
+  lines: XpLine[];
+  reason: XpReason | null;
+  before: LevelProgress;
+  after: LevelProgress;
+  unlocked: { level: number; reward: LevelReward }[];
+}
+
+/** Телефон (49): гість — account false; moment null — рекордер ще рахує. */
+export type PlayerXpView = { account: false } | { account: true; moment: GameXpMoment | null };
+
+/** Нагороди рівнів from < level ≤ to, у порядку LEVEL_REWARDS (49). */
+export function levelUpRewards(from: number, to: number): { level: number; reward: LevelReward }[] {
+  return LEVEL_REWARDS.filter((r) => r.level > from && r.level <= to);
+}
+
 export function perksFor(level: number): PerkGrant {
   const got = new Set<LevelPerk>();
   for (const { reward } of rewardsUpTo(level)) if (reward.kind === 'perk') got.add(reward.perk);

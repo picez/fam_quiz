@@ -24,7 +24,7 @@ import type { Standing } from './standing';
 import type { SurvivalStatus } from './survival';
 import type { AnswererMode, AnswererScope, TeamForm } from './teams';
 import type { WipeoutStatus } from './wipeout';
-import type { ActivePerk, NickLevel } from './levels';
+import type { ActivePerk, NickLevel, PlayerXpView } from './levels';
 
 export interface Choice {
   id: string;
@@ -2348,6 +2348,8 @@ export interface PlayerView extends BaseView {
    * вже знову очистили me.answer), ні — надсилає ще раз. Ставить сервер; рушій ключа не ставить.
    */
   answerMark?: { epoch: number; count: number };
+  /** Досвід за гру (49): ставить сервер лише у finished; рушій ключа не ставить. */
+  xp?: PlayerXpView;
   /** «Нове досягнення!» (12j): ставить сервер, рушій ключа не ставить; немає — гра не скінчилась чи нічого нового. */
   newAchievements?: NewAchievementsMine;
   /** Лайки (17a): ставить сервер, рушій ключа не ставить; немає — гість чи ще не прочитано. */

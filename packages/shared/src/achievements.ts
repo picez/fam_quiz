@@ -161,3 +161,23 @@ export interface AchievementsPage {
   /** Лише своя сторінка: чи сховано антидосягнення від інших (12j). */
   hideAnti?: boolean;
 }
+
+/** Частка гравців (49): рідкісне < 10 %, дуже рідкісне < 3 %; мінімум гравців, щоб позначати. */
+export const ACHIEVEMENT_SHARE = { rare: 10, veryRare: 3, minPlayers: 10 } as const;
+
+/** Скільки гравців (акаунти з хоч однією зіграною грою) і скільки з них мають кожне досягнення. */
+export interface AchievementShares {
+  players: number;
+  holders: Partial<Record<AchievementId, number>>;
+}
+
+export type AchievementScarcity = 'rare' | 'very_rare';
+
+export function achievementScarcity(holders: number, players: number): { percent: number; tier: AchievementScarcity | null } {
+  if (holders <= 0 || players <= 0) return { percent: 0, tier: null };
+  const exact = (holders / players) * 100;
+  const percent = Math.max(1, Math.round(exact));
+  if (players < ACHIEVEMENT_SHARE.minPlayers) return { percent, tier: null };
+  const tier = exact < ACHIEVEMENT_SHARE.veryRare ? 'very_rare' : exact < ACHIEVEMENT_SHARE.rare ? 'rare' : null;
+  return { percent, tier };
+}

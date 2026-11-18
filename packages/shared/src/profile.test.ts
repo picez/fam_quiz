@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { gameStats, isLastPlace, podiumPlace, podiumStats, profileUpdateSchema } from './profile';
+import { gameStats, isLastPlace, podiumPlace, podiumStats, profileUpdateSchema, recentForm } from './profile';
 import type { PlayedGame } from './history';
 
 function game(over: Partial<PlayedGame> = {}) {
@@ -86,5 +86,35 @@ describe('isLastPlace (12j)', () => {
     expect(isLastPlace(game({ rank: 3, playerCount: 4 }))).toBe(false); // нічия 1, 2, 3, 3
     expect(isLastPlace(game({ rank: 4, playerCount: 4, status: 'aborted' }))).toBe(false);
     expect(isLastPlace(game({ rank: null, playerCount: 4 }))).toBe(false);
+  });
+});
+
+describe('recent form (49)', () => {
+  let n = 0;
+  const played = (rank: number | null, playerCount = 5, patch: Partial<PlayedGame> = {}) =>
+    game({ gameId: `g${n++}`, title: `T${n}`, startedAt: '2026-11-12T10:00:00Z', rank, playerCount, team: null, ...patch });
+  const ranks = (list: (number | null)[]) => list.map((r) => played(r));
+
+  it('keeps the newest ten and skips games without a place, unfinished and solo', () => {
+    const twelve = Array.from({ length: 12 }, (_, i) => played(i + 1 > 5 ? 5 : i + 1, 6, { gameId: `x${i}` }));
+    expect(recentForm(twelve).games.map((g) => g.gameId)).toEqual(twelve.slice(0, 10).map((g) => g.gameId));
+    const form = recentForm([played(null), played(2, 5, { status: 'abandoned' as PlayedGame['status'] }), played(1, 1), played(3, 5, { gameId: 'keep' })]);
+    expect(form.games.map((g) => g.gameId)).toEqual(['keep']);
+  });
+
+  it('medals follow the podium and the team name is carried', () => {
+    const form = recentForm([played(1), played(2, 3), played(2, 2), played(3, 5, { team: 'Сови' })]);
+    expect(form.games.map((g) => g.medal)).toEqual([1, 2, null, 3]);
+    expect(form.games[2].place).toBe(2);
+    expect(form.games[3].team).toBe('Сови');
+  });
+
+  it('picks the most interesting streak from the newest game', () => {
+    expect(recentForm(ranks([1, 1, 1, 2, 5])).streak).toEqual({ kind: 'wins', count: 3 });
+    expect(recentForm(ranks([1, 2, 1, 3, 2, 3, 5])).streak).toEqual({ kind: 'top3', count: 6 });
+    expect(recentForm(ranks([1, 1, 2, 3, 3, 2, 1, 5])).streak).toEqual({ kind: 'top3', count: 7 });
+    expect(recentForm(ranks([1, 1, 2, 3])).streak).toEqual({ kind: 'wins', count: 2 });
+    expect(recentForm(ranks([4, 1, 1])).streak).toBeNull();
+    expect(recentForm([])).toEqual({ games: [], streak: null });
   });
 });
