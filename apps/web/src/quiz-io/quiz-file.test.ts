@@ -143,4 +143,25 @@ describe('quiz file', () => {
     entries['quiz.json'] = strToU8(JSON.stringify({ format: 'quiz', version: 1, quiz: makeQuiz() }));
     expect(readQuizFile(zipSync(entries))).toEqual({ ok: false, error: 'io_not_quiz' });
   });
+
+  it('refuses a total unpacked size over the limit', () => {
+    const zeros = new Uint8Array(5 * 1024 * 1024);
+    const entries: Record<string, [Uint8Array, { level: 6 }]> = {};
+    const count = Math.ceil(QUIZ_FILE_LIMITS.maxBytes / zeros.length) + 1;
+    for (let i = 0; i < count; i += 1) entries[`media/${String(i).padStart(16, 'a')}.mp3`] = [zeros, { level: 6 }];
+    const bytes = zipSync({ 'quiz.json': strToU8(JSON.stringify({ format: 'quiz', version: 1, quiz: makeQuiz() })), ...entries });
+    expect(bytes.length).toBeLessThan(QUIZ_FILE_LIMITS.maxBytes);
+    expect(readQuizFile(bytes)).toEqual({ ok: false, error: 'io_too_big' });
+  });
+
+  it('refuses a stored entry whose sizes disagree', () => {
+    const json = strToU8(JSON.stringify({ format: 'quiz', version: 1, quiz: makeQuiz() }));
+    const bytes = zipSync({ 'quiz.json': [json, { level: 0 }] });
+    const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+    for (let i = 0; i + 28 < bytes.length; i += 1) {
+      // Central directory header: declare an uncompressed size below the stored size.
+      if (view.getUint32(i, true) === 0x02014b50) view.setUint32(i + 24, view.getUint32(i + 20, true) - 1, true);
+    }
+    expect(readQuizFile(bytes)).toEqual({ ok: false, error: 'io_not_quiz' });
+  });
 });

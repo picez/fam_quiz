@@ -34,17 +34,34 @@ export function readQuizFile(bytes: Uint8Array): QuizFileResult {
   const tooBig = new Set<string>();
   const declared = new Map<string, number>();
   let seen = 0;
+  let total = 0;
+  let overBudget = false;
+  let lying = false;
   let files: Unzipped;
   try {
     files = unzipSync(bytes, {
       filter: (file) => {
         seen += 1;
         if (seen > QUIZ_FILE_LIMITS.maxEntries) return false;
+        // Stored entries are copied by their compressed size, so both sizes must agree and stay in the limit.
+        const accept = (limit: number): boolean => {
+          if (file.size > limit || (file.compression === 0 && file.size !== file.originalSize)) {
+            lying = true;
+            return false;
+          }
+          total += file.originalSize;
+          if (total > QUIZ_FILE_LIMITS.maxBytes) {
+            overBudget = true;
+            return false;
+          }
+          return true;
+        };
         if (file.name === 'quiz.json') {
           if (file.originalSize > QUIZ_FILE_LIMITS.maxJsonBytes) {
             jsonTooBig = true;
             return false;
           }
+          if (!accept(QUIZ_FILE_LIMITS.maxJsonBytes)) return false;
           declared.set(file.name, file.originalSize);
           return true;
         }
@@ -55,6 +72,7 @@ export function readQuizFile(bytes: Uint8Array): QuizFileResult {
           tooBig.add(name);
           return false;
         }
+        if (!accept(mediaLimit(name))) return false;
         declared.set(file.name, file.originalSize);
         return true;
       },
@@ -62,7 +80,8 @@ export function readQuizFile(bytes: Uint8Array): QuizFileResult {
   } catch {
     return { ok: false, error: 'io_not_quiz' };
   }
-  if (jsonTooBig) return { ok: false, error: 'io_too_big' };
+  if (jsonTooBig || overBudget) return { ok: false, error: 'io_too_big' };
+  if (lying) return { ok: false, error: 'io_not_quiz' };
   for (const [name, size] of declared) {
     if (files[name]?.length !== size) return { ok: false, error: 'io_not_quiz' };
   }
