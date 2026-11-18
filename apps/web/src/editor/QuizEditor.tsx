@@ -311,7 +311,8 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
           <summary>{t('settingsTitle')}</summary>
           <label className="field">
             <span>{t('quizDescription')}</span>
-            <input
+            <textarea
+              rows={2}
               value={quiz.description}
               maxLength={500}
               onChange={(event) => update({ ...quiz, description: event.target.value })}

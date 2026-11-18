@@ -19,6 +19,7 @@ import type {
   GroupItemKind,
   GroupRole,
   Locale,
+  LibraryModeration,
   LikeKind,
   LadderOutcomeKind,
   NickColor,
@@ -32,7 +33,9 @@ import type {
   ProfileBadge,
   Question,
   QuizSettings,
+  ReportReason,
   Round,
+  RoundType,
   SurveyRow,
   ThinkWord,
   TrialKind,
@@ -220,7 +223,7 @@ export const game = pgTable(
     /** Гру вів автопілот (11h); старі ігри — false. */
     autopilot: boolean('autopilot').notNull().default(false),
   },
-  (table) => [index('game_host_idx').on(table.hostId)],
+  (table) => [index('game_host_idx').on(table.hostId), index('game_quiz_idx').on(table.quizId)],
 );
 
 /** Збережена гра (13b): контрольна точка між запитаннями; data null — знімка немає, продовження шляхом 12r. Без терміну давності. */
@@ -565,7 +568,7 @@ export const userLike = pgTable(
     /** Без FK: лайки переживають видалення вікторини. */
     quizId: uuid('quiz_id'),
     questionId: text('question_id'),
-    /** Без FK; = room.id. null — лише event без гри. */
+    /** Без FK; = room.id. null — event без гри і quiz з каталогу бібліотеки. */
     gameId: uuid('game_id'),
     /** Лише event: feed_event.key. */
     eventKey: text('event_key'),
@@ -902,5 +905,92 @@ export const leagueChampion = pgTable(
   (table) => [
     uniqueIndex('league_champion_unique_idx').on(table.groupId, table.month, table.userId),
     index('league_champion_user_idx').on(table.userId),
+  ],
+);
+
+/**
+ * Вікторина, відкрита в бібліотеці (47): знімок на мить відкриття чи «Оновити»; одна на вікторину.
+ * Видалення вікторини прибирає запис (копії лишаються); закриття автором лише знімає listed, стан модерації лишається.
+ */
+export const libraryEntry = pgTable(
+  'library_entry',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    quizId: uuid('quiz_id')
+      .notNull()
+      .unique()
+      .references(() => quiz.id, { onDelete: 'cascade' }),
+    ownerId: text('owner_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    /** Назва й опис знімка: каталог читає їх без знімка. */
+    title: text('title').notNull(),
+    description: text('description').notNull(),
+    /** Мову обирає автор у вікні відкриття. */
+    language: text('language').$type<Locale>().notNull(),
+    /** quizSchema.parse на мить відкриття; читати через upgradeQuiz. Лише для копії — каталог його не вибирає. */
+    snapshot: jsonb('snapshot').$type<unknown>().notNull(),
+    questionCount: integer('question_count').notNull(),
+    /** Різні типи раундів у порядку появи. */
+    roundTypes: text('round_types').array().$type<RoundType[]>().notNull(),
+    /** «Автор: …» оригінального автора, коли відкрито копію; null — вікторина власна. */
+    originLine: text('origin_line'),
+    listed: boolean('listed').notNull(),
+    moderation: text('moderation').$type<LibraryModeration>().notNull().default('ok'),
+    /** Оскарження вже використано (одне на запис). */
+    appealedAt: at('appealed_at'),
+    appealOpen: boolean('appeal_open').notNull().default(false),
+    /** Перше відкриття — для «Нові». */
+    openedAt: at('opened_at').notNull(),
+    /** Останній знімок. */
+    updatedAt: at('updated_at').notNull(),
+  },
+  (table) => [index('library_entry_listed_idx').on(table.listed, table.moderation, table.openedAt), index('library_entry_owner_idx').on(table.ownerId)],
+);
+
+/**
+ * Копія запису бібліотеки. Оригінал (вікторину чи акаунт автора) видалили — entry_id null, а рядок автора лишається:
+ * за ним відкриття копії зберігає «Автор: …»; вікторину-копію видалили — quiz_id null.
+ */
+export const libraryCopy = pgTable(
+  'library_copy',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    entryId: uuid('entry_id').references(() => libraryEntry.id, { onDelete: 'set null' }),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    quizId: uuid('quiz_id').references(() => quiz.id, { onDelete: 'set null' }),
+    /** Рядок «Автор: …», що в описі копії. */
+    authorLine: text('author_line').notNull(),
+    at: at('at').notNull(),
+  },
+  (table) => [index('library_copy_entry_idx').on(table.entryId), index('library_copy_quiz_idx').on(table.quizId)],
+);
+
+/** Скарга на вікторину бібліотеки чи профіль; одна відкрита скарга акаунта на об'єкт (часткові унікальні індекси). */
+export const userReport = pgTable(
+  'user_report',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    reporterId: text('reporter_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    targetKind: text('target_kind').$type<'quiz' | 'profile'>().notNull(),
+    entryId: uuid('entry_id').references(() => libraryEntry.id, { onDelete: 'cascade' }),
+    /** Власник вікторини чи сам профіль. */
+    targetUserId: text('target_user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    reason: text('reason').$type<ReportReason>().notNull(),
+    text: text('text').notNull().default(''),
+    status: text('status').$type<'open' | 'resolved' | 'dismissed'>().notNull().default('open'),
+    createdAt: at('created_at').notNull().defaultNow(),
+    resolvedAt: at('resolved_at'),
+  },
+  (table) => [
+    uniqueIndex('user_report_quiz_once').on(table.reporterId, table.entryId).where(sql`status = 'open' and target_kind = 'quiz'`),
+    uniqueIndex('user_report_profile_once').on(table.reporterId, table.targetUserId).where(sql`status = 'open' and target_kind = 'profile'`),
+    index('user_report_open_idx').on(table.status, table.targetKind, table.createdAt),
   ],
 );

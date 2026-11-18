@@ -152,8 +152,8 @@ describe('host help', () => {
   });
 
   it('11h autopilot entry follows «reveal» and tells the stage times and what the author menu does', () => {
-    expect(helpIds('settings').at(-6)).toBe('setting.autopilot');
-    expect(helpIds('settings').at(-7)).toBe('setting.reveal');
+    expect(helpIds('settings').at(-7)).toBe('setting.autopilot');
+    expect(helpIds('settings').at(-8)).toBe('setting.reveal');
     filled('setting.autopilot');
     const body = text('setting.autopilot');
     for (const part of [`${AUTOPILOT_MS.reveal / 1000} с`, `${AUTOPILOT_MS.leaderboard / 1000} с`, `${AUTOPILOT_MS.resume / 1000} с`, 'Приховати', 'Провести ботом']) expect(body).toContain(part);
@@ -199,8 +199,8 @@ describe('host help', () => {
   });
 
   it('12l «Запитання з групи» entry follows «autopilot» and tells the templates, the honest «Вигадка» and «використано»', () => {
-    expect(helpIds('settings').at(-5)).toBe('setting.groups');
-    expect(helpIds('settings').at(-4)).toBe('setting.importExport');
+    expect(helpIds('settings').at(-6)).toBe('setting.groups');
+    expect(helpIds('settings').at(-5)).toBe('setting.importExport');
     filled('setting.groups');
     const body = text('setting.groups');
     for (const part of ['«Із групи»', '«Хто це?»', '«Правда чи вигадка?»', '«Коли це було?»', '«Хто я?»', '«Відкрите запитання»', '«Блеф»', '«___»', 'використано у', '«Вікторина з групи»', 'Сюрпризи про тебе', 'коротку відповідь і рік', '25 с']) expect(body, part).toContain(part);
@@ -210,7 +210,7 @@ describe('host help', () => {
   it('12e away entry follows «undo» and tells what counts, who sees what, the penalty, the undo and the honest limits', () => {
     const ids = helpIds('settings');
     expect(ids.indexOf('setting.away')).toBe(ids.indexOf('setting.undo') + 1);
-    expect(ids.at(-6)).toBe('setting.autopilot');
+    expect(ids.at(-7)).toBe('setting.autopilot');
     filled('setting.away');
     const body = text('setting.away').replace(/ /g, ' ');
     const sec = (ms: number) => `${String(ms / 1000).replace('.', ',')} с`;
@@ -229,7 +229,7 @@ describe('host help', () => {
   it('12f appeal entry follows «away» and tells when, who votes, the count, the host and the limits', () => {
     const ids = helpIds('settings');
     expect(ids.indexOf('setting.appeal')).toBe(ids.indexOf('setting.away') + 1);
-    expect(ids.at(-6)).toBe('setting.autopilot');
+    expect(ids.at(-7)).toBe('setting.autopilot');
     filled('setting.appeal');
     const body = text('setting.appeal').replace(/ /g, ' ');
     for (const part of ['30 с', '2 апеляції', 'Голосує зал', 'не бачить ніхто', 'Зараховано ведучим', '(апеляція)', 'Нема кому голосувати', 'Оскаржити штраф', 'капітан', 'Нічия', 'Пауза', '↶ Бали', 'Після кінця гри']) expect(body, part).toContain(part);
@@ -488,7 +488,7 @@ describe('host help', () => {
     for (const word of ['✓', 'не заповнена', 'Зберегти']) expect(text('round.board')).toContain(word);
   });
   it('44 challenge entry closes the settings list and tells the link, the solo attempt, the skips, the table and XP', () => {
-    expect(helpIds('settings').at(-2)).toBe('setting.challenge');
+    expect(helpIds('settings').at(-3)).toBe('setting.challenge');
     filled('setting.challenge');
     expect(helpEntry('setting.challenge').title).toBe(t('challengeTitle'));
     const body = text('setting.challenge');
@@ -497,11 +497,19 @@ describe('host help', () => {
     for (const wrong of ['натисніть', 'бачите', 'Ви теж', 'Закрив вкладку', 'нараховується за звичайними правилами']) expect(body, wrong).not.toContain(wrong);
   });
   it('45 league entry closes the settings list and tells the mark, 10/7/5/3/1, the minimum, the Kyiv month, the table and the title', () => {
-    expect(helpIds('settings').at(-1)).toBe('setting.league');
+    expect(helpIds('settings').at(-2)).toBe('setting.league');
     filled('setting.league');
     expect(helpEntry('setting.league').title).toBe(t('leaguePickTitle').replace('🏆 ', ''));
     const body = text('setting.league');
     for (const part of [t('leaguePickLabel'), t('leagueTooFew'), t('groupTabLeague'), 'Залі переможців', t('leagueChampionTitle').replace(/^🏆 /, '').split(' «')[0]!, '10 / 7 / 5 / 3 / 1', 'від 3 членів', 'київськ', 'апеляц']) expect(body, part).toContain(part);
     for (const wrong of ['натисніть', 'бачите', 'Залі чемпіонів']) expect(body, wrong).not.toContain(wrong);
+  });
+  it('47 library entry closes the settings list and tells opening, the snapshot and update, closing, the catalog without answers, the copy with the author line, personal data, reports, the three-report hold and the single appeal', () => {
+    expect(helpIds('settings').at(-1)).toBe('setting.library');
+    filled('setting.library');
+    expect(helpEntry('setting.library').title).toBe('Бібліотека вікторин');
+    const body = text('setting.library');
+    for (const part of [t('libraryButton'), t('libraryOpen'), t('libraryUpdate'), t('libraryClose'), t('librarySortPopular'), t('librarySortNew'), t('libraryCopy'), t('quizzesTitle'), 'щонайменше 5 запитань', 'знімок', 'Автор: …', 'особисті фото', 'трьох скарг', 'один раз оскаржити', 'нікнейм']) expect(body, part).toContain(part);
+    for (const wrong of ['натисніть', 'бачите', 'Ви ']) expect(body, wrong).not.toContain(wrong);
   });
 });

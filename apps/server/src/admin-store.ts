@@ -16,6 +16,7 @@ import {
 } from '@quiz/shared';
 import { and, desc, eq, inArray, gt, sql, type SQL } from 'drizzle-orm';
 import { isAdminEmail } from './admin';
+import { escapeLike } from './library-store';
 import type { Db } from './db/client';
 import { adminAction, game, prize, prizeAward, profile, quiz, user, userBan, userTitle } from './db/schema';
 import { ensureProfile } from './profiles';
@@ -74,12 +75,8 @@ export async function adminStats(db: Db, liveRooms: number, now: Date): Promise<
   };
 }
 
-/** Пошуковий рядок для ilike: коротше двох символів — без фільтра; %, _ і \ екрануються. */
-function pattern(q: string | undefined): string | null {
-  const text = (q ?? '').trim().slice(0, ADMIN_QUERY_MAX);
-  if (text.length < 2) return null;
-  return `%${text.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
-}
+/** Пошуковий рядок для ilike (escapeLike): коротше двох символів — без фільтра; %, _ і \ екрануються. */
+const pattern = (q: string | undefined): string | null => escapeLike(q, ADMIN_QUERY_MAX);
 
 async function userRows(db: Db, emails: ReadonlySet<string>, where: SQL | undefined, limit: number, offset: number): Promise<AdminUserRow[]> {
   const rows = await db

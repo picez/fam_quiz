@@ -722,3 +722,134 @@ describe('family league (38b)', () => {
     expect(await db.select().from(schema.leagueChampion)).toEqual([]);
   });
 });
+
+describe('library (38g)', () => {
+  const T = new Date('2026-11-18T10:00:00Z');
+
+  async function seedLibrary() {
+    const schema = await import('./schema');
+    const db = await createTestDb();
+    await db.insert(user).values([
+      { id: 'a', name: 'Автор', email: 'a@example.com' },
+      { id: 'b', name: 'Гравець', email: 'b@example.com' },
+      { id: 'c', name: 'Третій', email: 'c@example.com' },
+    ]);
+    const source = makeQuiz([single]);
+    const addQuiz = async (ownerId: string) => {
+      const [row] = await db
+        .insert(quiz)
+        .values({ ownerId, title: 'Річки', description: '', settings: source.settings, rounds: source.rounds })
+        .returning();
+      return row.id;
+    };
+    const entryOf = (quizId: string, ownerId = 'a') => ({
+      quizId,
+      ownerId,
+      title: 'Річки',
+      description: '',
+      language: 'uk' as const,
+      snapshot: source,
+      questionCount: 1,
+      roundTypes: ['classic' as const],
+      listed: true,
+      openedAt: T,
+      updatedAt: T,
+    });
+    return { db, schema, source, addQuiz, entryOf };
+  }
+
+  it('migration 0040 lays the library tables over an older database, old data stays', async () => {
+    const { userLike, adminAction, libraryEntry, libraryCopy, userReport } = await import('./schema');
+    const { db, migrateRest } = await createTestDbUpTo('0039_family_league');
+    await db.insert(user).values([
+      { id: 'a', name: 'Автор', email: 'a@example.com' },
+      { id: 'b', name: 'Гравець', email: 'b@example.com' },
+    ]);
+    const source = makeQuiz([single]);
+    const [q] = await db.insert(quiz).values({ ownerId: 'a', title: 'Q', description: '', settings: source.settings, rounds: source.rounds }).returning();
+    await db.insert(userLike).values({ userId: 'b', kind: 'quiz', targetUserId: 'a', quizId: q.id, createdAt: T });
+    await db.insert(adminAction).values({ at: T, adminId: 'a', adminLabel: 'Автор', kind: 'ban', targetUserId: 'b', targetLabel: 'Гравець', details: {} });
+
+    await migrateRest();
+
+    expect(await db.select().from(quiz)).toHaveLength(1);
+    expect(await db.select().from(userLike)).toHaveLength(1);
+    expect(await db.select().from(adminAction)).toHaveLength(1);
+    for (const table of [libraryEntry, libraryCopy, userReport]) expect(await db.select().from(table)).toEqual([]);
+    const indexes = await db.execute(sql`select indexname from pg_indexes where tablename = 'game'`);
+    expect(JSON.stringify(indexes)).toContain('game_quiz_idx');
+  });
+
+  it('one entry per quiz, one open report per account and object', async () => {
+    const { db, schema, addQuiz, entryOf } = await seedLibrary();
+    const q = await addQuiz('a');
+    const [entry] = await db.insert(schema.libraryEntry).values(entryOf(q)).returning();
+    expect(entry.moderation).toBe('ok');
+    expect(entry.appealOpen).toBe(false);
+    await expect(db.insert(schema.libraryEntry).values(entryOf(q))).rejects.toThrow();
+
+    const report = { reporterId: 'b', targetKind: 'quiz' as const, entryId: entry.id, targetUserId: 'a', reason: 'spam' as const };
+    const [first] = await db.insert(schema.userReport).values(report).returning();
+    expect(first.status).toBe('open');
+    await expect(db.insert(schema.userReport).values(report)).rejects.toThrow();
+    await db.update(schema.userReport).set({ status: 'dismissed' }).where(eq(schema.userReport.id, first.id));
+    await db.insert(schema.userReport).values(report);
+
+    const profileReport = { reporterId: 'b', targetKind: 'profile' as const, targetUserId: 'c', reason: 'offensive' as const };
+    await db.insert(schema.userReport).values(profileReport);
+    await expect(db.insert(schema.userReport).values(profileReport)).rejects.toThrow();
+    await db.insert(schema.userReport).values({ ...profileReport, reporterId: 'a' });
+  });
+
+  it('deleting quizzes and accounts cleans the library rows', async () => {
+    const { db, schema, addQuiz, entryOf } = await seedLibrary();
+    const original = await addQuiz('a');
+    const copied = await addQuiz('b');
+    const [entry] = await db.insert(schema.libraryEntry).values(entryOf(original)).returning();
+    await db.insert(schema.libraryCopy).values({ entryId: entry.id, userId: 'b', quizId: copied, authorLine: 'Автор: Автор', at: T });
+    await db.insert(schema.userReport).values({ reporterId: 'c', targetKind: 'quiz', entryId: entry.id, targetUserId: 'a', reason: 'spam' });
+
+    // Видалення вікторини-копії — рядок копії лишається без вікторини.
+    await db.delete(quiz).where(eq(quiz.id, copied));
+    const [copy] = await db.select().from(schema.libraryCopy);
+    expect(copy.quizId).toBeNull();
+
+    // Видалення оригіналу — запис і його скарги зникають; рядки копій лишаються без запису (рядок автора переживає оригінал), копії-вікторини теж.
+    const another = await addQuiz('b');
+    await db.insert(schema.libraryCopy).values({ entryId: entry.id, userId: 'b', quizId: another, authorLine: 'Автор: Автор', at: T });
+    await db.delete(quiz).where(eq(quiz.id, original));
+    expect(await db.select().from(schema.libraryEntry)).toEqual([]);
+    expect(await db.select().from(schema.userReport)).toEqual([]);
+    const kept = await db.select().from(schema.libraryCopy);
+    expect(kept.map((row) => [row.entryId, row.quizId, row.authorLine]).sort()).toEqual([
+      [null, another, 'Автор: Автор'],
+      [null, null, 'Автор: Автор'],
+    ].sort());
+    expect((await db.select().from(quiz)).map((row) => row.id)).toEqual([another]);
+
+    // Видалення акаунта: його записи, його рядки копій і скарги (як скаржника й як цілі); чужі рядки копій його записів лишаються без запису.
+    const qa = await addQuiz('a');
+    const qc = await addQuiz('c');
+    const [ea] = await db.insert(schema.libraryEntry).values(entryOf(qa)).returning();
+    const [ec] = await db.insert(schema.libraryEntry).values(entryOf(qc, 'c')).returning();
+    await db.insert(schema.libraryCopy).values([
+      { entryId: ec.id, userId: 'a', quizId: null, authorLine: 'Автор: Третій', at: T },
+      { entryId: ea.id, userId: 'c', quizId: null, authorLine: 'Автор: Автор', at: T },
+    ]);
+    await db.insert(schema.userReport).values([
+      { reporterId: 'a', targetKind: 'quiz', entryId: ec.id, targetUserId: 'c', reason: 'spam' },
+      { reporterId: 'b', targetKind: 'profile', targetUserId: 'a', reason: 'offensive' },
+      { reporterId: 'b', targetKind: 'quiz', entryId: ec.id, targetUserId: 'c', reason: 'other' },
+    ]);
+    await db.delete(user).where(eq(user.id, 'a'));
+    expect((await db.select().from(schema.libraryEntry)).map((row) => row.id)).toEqual([ec.id]);
+    const copies = await db.select().from(schema.libraryCopy);
+    expect(copies.map((row) => [row.userId, row.entryId]).sort()).toEqual([
+      ['b', null],
+      ['b', null],
+      ['c', null],
+    ]);
+    const reports = await db.select().from(schema.userReport);
+    expect(reports.map((row) => [row.reporterId, row.targetUserId])).toEqual([['b', 'c']]);
+  });
+});

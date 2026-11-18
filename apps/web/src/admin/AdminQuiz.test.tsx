@@ -3,10 +3,10 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import type { AdminQuizView, Question } from '@quiz/shared';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { AdminQuiz } from './AdminQuiz';
-import { adminQuiz, deleteQuestionAsAdmin, deleteQuizAsAdmin } from './admin-api';
+import { AdminQuiz, AdminReportedQuiz } from './AdminQuiz';
+import { adminQuiz, adminReportedQuiz, deleteQuestionAsAdmin, deleteQuizAsAdmin } from './admin-api';
 
-vi.mock('./admin-api', () => ({ adminQuiz: vi.fn(), deleteQuestionAsAdmin: vi.fn(), deleteQuizAsAdmin: vi.fn() }));
+vi.mock('./admin-api', () => ({ adminQuiz: vi.fn(), adminReportedQuiz: vi.fn(), deleteQuestionAsAdmin: vi.fn(), deleteQuizAsAdmin: vi.fn() }));
 
 const q = (id: string, text: string): Question => ({ id, type: 'boolean', text, correct: true, imageUrl: null, video: null, timeLimit: 30, points: 1000 });
 const rules = { streak: false, penalty: false, partial: false, multiplier: 1 };
@@ -98,5 +98,23 @@ describe('AdminQuiz', () => {
     expect(text).toContain('Оля');
     expect(text).toContain('Зіграні ігри лишаться в історії');
     expect(await screen.findByText('список вікторин')).toBeTruthy();
+  });
+
+  it('shows the reported library snapshot read-only, with its date and a way back to the reports', async () => {
+    vi.mocked(adminReportedQuiz).mockResolvedValue({ ok: true, data: view(['q1', 'q2'], {}) });
+    render(
+      <MemoryRouter initialEntries={['/reports/quiz/e1']}>
+        <Routes>
+          <Route path="/reports/quiz/:entryId" element={<AdminReportedQuiz />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    expect(await screen.findByText('Текст q1')).toBeTruthy();
+    expect(adminReportedQuiz).toHaveBeenCalledWith('e1');
+    expect(adminQuiz).not.toHaveBeenCalled();
+    expect(screen.queryByRole('button', { name: 'Видалити запитання' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Видалити вікторину' })).toBeNull();
+    expect(screen.getByText(/^Знімок у бібліотеці від .+ — саме його бачать гравці.$/)).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'До списку' }).getAttribute('href')).toBe('/admin/reports');
   });
 });

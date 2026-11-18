@@ -20,6 +20,7 @@ export function questionConfirm(effect: RemovalEffect, roundTitle: string): stri
 export function logLine(entry: AdminLogEntry): string {
   const line = t(`adminLog_${entry.kind}` as TextKey, { admin: nickText(entry.admin), target: nickText(entry.target), title: entry.details.title ?? '' });
   const reason = entry.kind === 'ban' ? entry.details.reason : null;
+  if (entry.kind === 'nickname_reset' && entry.details.text) return t('adminLogWas', { line, text: entry.details.text });
   return reason ? `${line}. ${t('adminReasonShown', { reason })}` : line;
 }
 

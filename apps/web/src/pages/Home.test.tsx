@@ -113,7 +113,7 @@ describe('Home for a signed-in person', () => {
       </MemoryRouter>,
     );
 
-  it('shows seven start tiles in order and no code form until «Доєднатись до гри» is pressed', async () => {
+  it('shows eight start tiles in order and no code form until «Доєднатись до гри» is pressed', async () => {
     vi.mocked(me).mockResolvedValue(OLENA);
     at('/');
     const nav = await screen.findByRole('navigation', { name: 'Стартове меню' });
@@ -124,6 +124,7 @@ describe('Home for a signed-in person', () => {
       ['A', '👥Друзі', '/profile/friends'],
       ['A', '📰Стрічка', '/feed'],
       ['A', '📝Мої вікторини', '/quizzes'],
+      ['A', '📚Бібліотека', '/library'],
       ['A', '🕘Історія', '/history'],
       ['A', '👤Профіль', '/profile'],
     ]);
@@ -172,6 +173,9 @@ describe('Home for a signed-in person', () => {
     );
     expect((await screen.findByRole('link', { name: 'Я ведучий' })).getAttribute('href')).toBe('/quizzes');
     expect(screen.queryByRole('link', { name: 'Мої ігри' })).toBeNull();
+    const library = screen.getByRole('link', { name: '📚 Бібліотека вікторин' });
+    expect(library.getAttribute('href')).toBe('/library');
+    expect(library.className).toContain('quiet-link');
   });
 
   it('sets the title and the code field over a decorative moon and crows', async () => {

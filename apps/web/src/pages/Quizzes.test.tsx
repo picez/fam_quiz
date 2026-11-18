@@ -7,6 +7,7 @@ import { forgetAccount } from '../useAccount';
 import { checkCode, createGame, createQuiz, deleteQuiz, getAutopilotCheck, getChallengeCheck, getMyProfile, listMyChallenges, listQuizzes, me } from '../api';
 import { t } from '../i18n';
 import { loadHost, loadLastGame, saveAuthor, saveHost, saveLastGame } from '../storage';
+import { myLibrary } from '../library/library-api';
 import { importQuizFile } from '../quiz-io/actions';
 import { Quizzes } from './Quizzes';
 
@@ -25,6 +26,7 @@ vi.mock('../api', () => ({
 }));
 
 vi.mock('../quiz-io/actions');
+vi.mock('../library/library-api', () => ({ myLibrary: vi.fn(), openInLibrary: vi.fn(), closeInLibrary: vi.fn(), appealLibrary: vi.fn() }));
 
 const account = { ok: true as const, id: 'u1', name: 'Олена', email: 'o@example.com', admin: false };
 const summary = { id: 'q1', title: 'Географія', description: 'Про Україну', questionCount: 6, updatedAt: '2026-10-12T10:00:00.000Z' };
@@ -37,6 +39,7 @@ beforeEach(() => {
   vi.mocked(me).mockResolvedValue(account);
   vi.mocked(listQuizzes).mockResolvedValue({ ok: true, data: [summary] });
   vi.mocked(listMyChallenges).mockResolvedValue({ ok: true, data: [] });
+  vi.mocked(myLibrary).mockResolvedValue({ ok: true, data: [] });
 });
 afterEach(() => {
   cleanup();
@@ -52,12 +55,42 @@ const open = () =>
         <Route path="/host/:code" element={<p>пульт</p>} />
         <Route path="/play/:code" element={<p>телефон</p>} />
         <Route path="/quizzes/:id" element={<p>редактор</p>} />
+        <Route path="/library" element={<p>бібліотека</p>} />
         <Route path="/" element={<p>головна</p>} />
       </Routes>
     </MemoryRouter>,
   );
 
+const mineEntry = { quizId: 'q1', entryId: 'e1', listed: true, moderation: 'ok' as const, appealed: false, appealOpen: false, language: 'uk' as const, updatedAt: '2026-10-12T10:00:00.000Z', likes: 0, plays: 0 };
+
 describe('Quizzes', () => {
+  it('shows the library state of a quiz in its row', async () => {
+    vi.mocked(myLibrary).mockResolvedValue({ ok: true, data: [mineEntry] });
+    open();
+    expect(await screen.findByText('📚 Відкрито для всіх')).toBeTruthy();
+  });
+
+  it('shows a quiz hidden by a moderator', async () => {
+    vi.mocked(myLibrary).mockResolvedValue({ ok: true, data: [{ ...mineEntry, moderation: 'hidden' }] });
+    open();
+    expect(await screen.findByText('🚫 Приховано модератором')).toBeTruthy();
+  });
+
+  it('keeps the quiz list when the library state does not load', async () => {
+    vi.mocked(myLibrary).mockResolvedValue({ ok: false, error: 'offline' });
+    open();
+    expect(await screen.findByText('Географія')).toBeTruthy();
+    expect(screen.queryByText('📚 Відкрито для всіх')).toBeNull();
+  });
+
+  it('opens the library sheet from the row and links to the library', async () => {
+    open();
+    expect((await screen.findByRole('link', { name: '📚 Бібліотека' })).getAttribute('href')).toBe('/library');
+    fireEvent.click(await screen.findByRole('button', { name: '📚 Бібліотека' }));
+    expect(await screen.findByRole('dialog', { name: '📚 Відкрити для всіх' })).toBeTruthy();
+    expect(screen.getByText(t('libraryShareWarning'))).toBeTruthy();
+  });
+
   it('sends a visitor without a session to sign in', async () => {
     vi.mocked(me).mockResolvedValue({ ok: false, error: 'unauthorized' });
     open();
@@ -75,6 +108,14 @@ describe('Quizzes', () => {
     open();
     const link = await screen.findByRole('link', { name: 'Довідка ведучого' });
     expect(link.getAttribute('href')).toBe('/help');
+  });
+
+  it('keeps the «Author: …» line of a copy on its own line', async () => {
+    vi.mocked(listQuizzes).mockResolvedValue({ ok: true, data: [{ ...summary, description: 'Автор: Олена\nПро Україну' }] });
+    open();
+    const description = await screen.findByText((_, node) => node?.tagName === 'P' && node.textContent === 'Автор: Олена\nПро Україну');
+    expect(description.classList.contains('quiz-description')).toBe(true);
+    expect(description.getAttribute('dir')).toBe('auto');
   });
 
   it('lists the host’s quizzes', async () => {

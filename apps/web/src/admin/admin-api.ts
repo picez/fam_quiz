@@ -1,4 +1,4 @@
-import type { AdminList, AdminLogEntry, AdminQuizRow, AdminQuizView, AdminStats, AdminUserDetail, AdminUserRow } from '@quiz/shared';
+import type { AdminList, AdminReportItem, AdminLogEntry, AdminQuizRow, AdminQuizView, AdminStats, AdminUserDetail, AdminUserRow } from '@quiz/shared';
 import { fetchData, request, type ApiData, type ApiResult } from '../api';
 
 const id = encodeURIComponent;
@@ -18,3 +18,10 @@ export const deleteQuestionAsAdmin = (quizId: string, questionId: string): Promi
 export const deletePrizeAsAdmin = (prizeId: string): Promise<ApiResult<object>> => request<object>(`/api/admin/prizes/${id(prizeId)}`, { method: 'DELETE' });
 export const deleteAwardAsAdmin = (awardId: string): Promise<ApiResult<object>> => request<object>(`/api/admin/awards/${id(awardId)}`, { method: 'DELETE' });
 export const adminLog = (page: number): Promise<ApiData<AdminList<AdminLogEntry>>> => fetchData(`/api/admin/log?page=${page}`);
+export const adminReports = (page: number): Promise<ApiData<AdminList<AdminReportItem>>> => fetchData(`/api/admin/reports?page=${page}`);
+/** Знімок із каталогу, на який скаржаться (не поточна вікторина автора); лише для перегляду. */
+export const adminReportedQuiz = (entryId: string): Promise<ApiData<AdminQuizView>> => fetchData<AdminQuizView>(`/api/admin/reports/quiz/${id(entryId)}`);
+export const actOnQuizReport = (entryId: string, action: 'hide' | 'restore' | 'dismiss'): Promise<ApiResult<object>> =>
+  request<object>(`/api/admin/reports/quiz/${id(entryId)}`, { method: 'POST', body: { action } });
+export const actOnProfileReport = (userId: string, action: 'reset_nickname' | 'reset_avatar' | 'dismiss'): Promise<ApiResult<object>> =>
+  request<object>(`/api/admin/reports/profile/${id(userId)}`, { method: 'POST', body: { action } });

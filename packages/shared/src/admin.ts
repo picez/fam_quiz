@@ -6,7 +6,7 @@ import { pageCount } from './paging';
 export const ADMIN_PAGE_SIZE = 50;
 export const ADMIN_REASON_MAX = 500;
 export const ADMIN_QUERY_MAX = 100;
-export const ADMIN_ACTION_KINDS = ['ban', 'unban', 'quiz_delete', 'question_delete', 'prize_delete', 'award_delete'] as const;
+export const ADMIN_ACTION_KINDS = ['ban', 'unban', 'quiz_delete', 'question_delete', 'prize_delete', 'award_delete', 'library_hide', 'library_restore', 'report_dismiss', 'appeal_reject', 'nickname_reset', 'avatar_reset'] as const;
 export type AdminActionKind = (typeof ADMIN_ACTION_KINDS)[number];
 export type RemovalEffect = 'question' | 'category' | 'round' | 'last_question' | 'not_found' | 'locked';
 

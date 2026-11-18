@@ -55,7 +55,7 @@ describe('Admin', () => {
     expect(await screen.findByText('головна')).toBeTruthy();
   });
 
-  it('shows the stats and the four section links', async () => {
+  it('shows the stats and the five section links', async () => {
     vi.mocked(me).mockResolvedValue(account(true));
     vi.mocked(adminStats).mockResolvedValue({ ok: true, data: stats });
     open();
@@ -66,7 +66,8 @@ describe('Admin', () => {
     expect(screen.getByText('«Карпати» — Оля, ігор: 6')).toBeTruthy();
     const nav = screen.getByRole('navigation', { name: 'Розділи адмінки' });
     const links = within(nav).getAllByRole('link');
-    expect(links).toHaveLength(4);
+    expect(links).toHaveLength(5);
+    expect(within(nav).getByRole('link', { name: 'Скарги' }).getAttribute('href')).toBe('/admin/reports');
     await waitFor(() => expect(within(nav).getByRole('link', { name: 'Статистика' }).getAttribute('aria-current')).toBe('page'));
     expect(within(nav).getByRole('link', { name: 'Користувачі' }).getAttribute('aria-current')).toBeNull();
   });
