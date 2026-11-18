@@ -4312,7 +4312,7 @@
   "ioChooseFile": "Datei auswählen",
   "ioTemplate": "Vorlage herunterladen",
   "bankNoFitType": "Dieser Typ passt nicht in die Runde.",
-  "bankNoFitLadder": "In «Millionär» passen nur Fragen mit einer richtigen Antwort und {count} Optionen.",
+  "bankNoFitLadder": "In «Millionär» passen nur Fragen vom Typ «eine Antwort» mit {count} Optionen.",
   "bankButton": "📚 Aus der Fragenbank",
   "bankTitle": "Fragenbank",
   "bankClose": "Fragenbank schließen",

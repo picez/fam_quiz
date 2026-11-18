@@ -4371,7 +4371,7 @@
   "ioChooseFile": "Elegir archivo",
   "ioTemplate": "Descargar la plantilla",
   "bankNoFitType": "Este tipo no encaja en la ronda.",
-  "bankNoFitLadder": "En «Millonario» solo caben preguntas de «una respuesta» con {count} opciones.",
+  "bankNoFitLadder": "En «Millonario» solo caben preguntas de tipo «una opción» con {count} opciones.",
   "bankButton": "📚 Del banco de preguntas",
   "bankTitle": "Banco de preguntas",
   "bankClose": "Cerrar el banco de preguntas",

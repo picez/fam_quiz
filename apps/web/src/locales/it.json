@@ -4371,7 +4371,7 @@
   "ioChooseFile": "Scegli un file",
   "ioTemplate": "Scarica il modello",
   "bankNoFitType": "Questo tipo non è adatto al round.",
-  "bankNoFitLadder": "In «Milionario» vanno bene solo domande a «risposta singola» con {count} opzioni.",
+  "bankNoFitLadder": "In «Milionario» vanno bene solo domande di tipo «una opzione» con {count} opzioni.",
   "bankButton": "📚 Dalla banca di domande",
   "bankTitle": "Banca di domande",
   "bankClose": "Chiudi la banca di domande",
