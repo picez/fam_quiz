@@ -15,6 +15,7 @@ import { Invites, registerInviteRoutes } from './invites';
 import { gateStatus, LobbyGate } from './lobby-access';
 import { registerLobbyRoutes } from './lobby-routes';
 import { registerSavedGameRoutes } from './saved-games';
+import { registerChallengeRoutes } from './challenge-routes';
 import { registerProfileRoutes } from './profile-routes';
 import { registerPrizeRoutes } from './prize-routes';
 import { registerShowcaseRoutes } from './showcase-routes';
@@ -157,11 +158,13 @@ export async function buildApp(options: AppOptions) {
   const stopReminders = push === null ? () => undefined : startPushReminders(push, undefined, (error) => reportError(error, { where: 'push-reminders' }));
   const stopPrune = startFeedPrune(options.db);
   await registerSavedGameRoutes(app, { db: options.db, manager, locate, currentUser, maxRooms, gate });
+  await registerChallengeRoutes(app, { db: options.db, manager, currentUser, maxRooms });
 
   app.get<{ Params: { code: string } }>('/api/games/by-code/:code', CODE_LIMIT, async (request, reply) => {
     if ((await locate(request.params.code)) === 'restarting') return reply.code(503).send(RESTARTING);
     const room = manager.get(request.params.code);
-    if (room === undefined) return reply.code(404).send({ error: 'game_not_found' });
+    // Спроба виклику (44): як невідомий код — кімнати ніби немає.
+    if (room === undefined || room.challenge !== null) return reply.code(404).send({ error: 'game_not_found' });
     // locked — для того, хто питає: ведучий, гравець кімнати, запрошений чи схвалений учасник події входять без пароля. Сам пароль сюди не йде.
     const account = await currentUser(request);
     const locked = room.lobby.password !== null && !(await gate.trusted(room, account?.id ?? null));

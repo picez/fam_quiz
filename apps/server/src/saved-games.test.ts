@@ -4,7 +4,8 @@ import { classicRound, makeRoundsQuiz, single, withId } from '@quiz/engine/testi
 import type { ContinueResponse, GameSummary, SlotsResponse } from '@quiz/shared';
 import { buildApp } from './app';
 import type { Db } from './db/client';
-import { answer, game, participant, savedGame, user } from './db/schema';
+import { answer, challenge, challengeAttempt, game, participant, savedGame, user } from './db/schema';
+import { createChallenge } from './challenges';
 import { savedMode } from './saved-games';
 import { TEST_AUTH, signUp } from './testing/accounts';
 import { createTestDb } from './testing/test-db';
@@ -199,6 +200,58 @@ describe('POST /api/games/:id/continue and DELETE', () => {
     await ctx.recorder.idle();
     expect((await listOf(owner.cookie))[0].saved!.open).toBe(false);
     expect((await call('POST', `/api/games/${saved.gameId}/continue`, owner.cookie)).statusCode).toBe(201);
+  });
+});
+
+describe('a challenge attempt among the saved games (44)', () => {
+  /** Збережена гра ведучої, записана як її спроба виклику на ту саму вікторину. */
+  async function asAttempt(owner: Awaited<ReturnType<typeof account>>) {
+    const saved = await makeSaved(owner);
+    const made = await createChallenge(db, owner.id, saved.quizId, new Date());
+    if (!made.ok) throw new Error(made.error);
+    await db.insert(challengeAttempt).values({ challengeId: made.challenge.id, userId: owner.id, gameId: saved.gameId, nickname: 'Ведуча', startedAt: new Date() });
+    return { ...saved, challenge: made.challenge };
+  }
+
+  it('a challenge attempt cannot be deleted', async () => {
+    const owner = await account('Ведуча');
+    const saved = await asAttempt(owner);
+    const refused = await call('DELETE', `/api/games/${saved.gameId}`, owner.cookie);
+    expect(refused.statusCode).toBe(409);
+    expect(refused.json()).toEqual({ error: 'challenge_game' });
+    expect((await db.select().from(game).where(eq(game.id, saved.gameId)))[0]?.status).toBe('saved');
+    // Чужому — той самий 404, що й для будь-якої чужої гри.
+    const other = await account('Інша');
+    expect((await call('DELETE', `/api/games/${saved.gameId}`, other.cookie)).statusCode).toBe(404);
+  });
+
+  it('continuing an attempt brings its challenge mark back; a closed challenge refuses', async () => {
+    const owner = await account('Ведуча');
+    const saved = await asAttempt(owner);
+    const response = await call('POST', `/api/games/${saved.gameId}/continue`, owner.cookie);
+    expect(response.statusCode).toBe(201);
+    const room = ctx.manager.get((response.json() as ContinueResponse).code)!;
+    expect(room.challenge).toEqual({ id: saved.challenge.id, code: saved.challenge.code, title: saved.challenge.title });
+    expect(ctx.manager.host(room, { type: 'save' })).toEqual({ ok: true });
+    await ctx.recorder.idle();
+
+    await db.update(challenge).set({ endedAt: new Date() }).where(eq(challenge.id, saved.challenge.id));
+    const closed = await call('POST', `/api/games/${saved.gameId}/continue`, owner.cookie);
+    expect(closed.statusCode).toBe(409);
+    expect(closed.json()).toEqual({ error: 'challenge_closed' });
+  });
+
+  it('continue keeps working for ordinary saved games', async () => {
+    const owner = await account('Ведуча');
+    const saved = await makeSaved(owner);
+    const response = await call('POST', `/api/games/${saved.gameId}/continue`, owner.cookie);
+    expect(response.statusCode).toBe(201);
+    const body = response.json() as ContinueResponse;
+    expect(body).toHaveProperty('hostToken');
+    const room = ctx.manager.get(body.code)!;
+    expect(room.id).toBe(saved.gameId);
+    expect(room.challenge).toBeNull();
+    expect(room.continued).not.toBeNull();
   });
 });
 
