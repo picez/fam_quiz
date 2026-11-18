@@ -24,7 +24,7 @@ export interface LikeChange {
   userId: string;
   kind: LikeKind;
   liked: boolean;
-  /** null — лише для event без гри. */
+  /** null — лише для event і quiz без гри (стрічка, каталог бібліотеки); для решти потрібен uuid гри. */
   gameId: string | null;
   quizId: string | null;
   questionId?: string;
@@ -97,7 +97,7 @@ async function resolve(tx: Tx, change: LikeChange): Promise<{ targetUserId: stri
  * Нічого не пише: gameId не uuid (для event — лише якщо він є), user = target, вікторини немає (question/quiz, liked = true), акаунта цілі чи того, хто лайкає, уже немає (23503).
  */
 export async function saveLike(db: Db, change: LikeChange): Promise<void> {
-  if (change.gameId === null ? change.kind !== 'event' : !UUID.test(change.gameId)) return;
+  if (change.gameId === null ? change.kind !== 'event' && change.kind !== 'quiz' : !UUID.test(change.gameId)) return;
   try {
     await db.transaction(async (tx) => {
       const row = await resolve(tx, change);

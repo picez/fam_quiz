@@ -11,6 +11,7 @@ import { createPushService, startPushReminders, type PushSend } from './push';
 import { registerPushRoutes } from './push-routes';
 import { registerFeedRoutes, startFeedPrune } from './feed-routes';
 import { registerGroupRoutes } from './group-routes';
+import { registerLibraryRoutes } from './library-routes';
 import { Invites, registerInviteRoutes } from './invites';
 import { gateStatus, LobbyGate } from './lobby-access';
 import { registerLobbyRoutes } from './lobby-routes';
@@ -142,6 +143,7 @@ export async function buildApp(options: AppOptions) {
   await registerLobbyRoutes(app, { db: options.db, manager, gate, invites, locate, currentUser });
   await registerFeedRoutes(app, { db: options.db, currentUser });
   await registerGroupRoutes(app, { db: options.db, currentUser });
+  await registerLibraryRoutes(app, { db: options.db, currentUser });
   await registerWordLadderRoutes(app, { nouns, currentUser });
   await registerLetterWordsRoutes(app, { nouns, currentUser });
   const push = options.push === undefined ? null : createPushService({ db: options.db, ...options.push, log: (message, error) => log.error({ err: error }, message) });

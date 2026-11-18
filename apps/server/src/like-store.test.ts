@@ -467,3 +467,30 @@ describe('givenLikes, receivedLikes (24b)', () => {
     expect(new Set([...r1.items, ...r2.items].map((i) => i.quizId)).size).toBe(21);
   });
 });
+
+describe('a quiz like without a game (47)', () => {
+  const catalogLike = (change: Partial<LikeChange> = {}) => saveLike(db, { userId: O, kind: 'quiz', gameId: null, quizId, liked: true, ...change });
+
+  it('writes one row with no game and removes it', async () => {
+    await catalogLike();
+    await catalogLike();
+    const all = await rows();
+    expect(all).toHaveLength(1);
+    expect(all[0]).toMatchObject({ userId: O, kind: 'quiz', quizId, gameId: null, targetUserId: A, hidden: false });
+    await catalogLike({ liked: false });
+    expect(await rows()).toHaveLength(0);
+  });
+
+  it('is the same like as the one from the end screen', async () => {
+    await like({ userId: O, kind: 'quiz' });
+    await catalogLike();
+    expect(await rows()).toHaveLength(1);
+  });
+
+  it('writes nothing for the owner, and nothing for a host like or a question like without a game', async () => {
+    await catalogLike({ userId: A });
+    await saveLike(db, { userId: O, kind: 'host', gameId: null, quizId, targetUserId: A, liked: true });
+    await saveLike(db, { userId: O, kind: 'question', gameId: null, quizId, questionId: 'q1', liked: true });
+    expect(await rows()).toHaveLength(0);
+  });
+});
