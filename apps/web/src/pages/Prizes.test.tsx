@@ -4,6 +4,7 @@ import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { ACHIEVEMENTS, levelProgress, type OwnProfile, type PrizeContent, type PrizeItem } from '@quiz/shared';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { deletePrize, getMyProfile, getShowcasePins, me, myPrizes, pinToShowcase } from '../api';
+import { forgetMyProfile } from '../profile/useMyProfile';
 import { Prizes } from './Prizes';
 
 vi.mock('../api', () => ({
@@ -53,6 +54,7 @@ const profile: OwnProfile = {
 };
 
 beforeEach(() => {
+  forgetMyProfile();
   vi.clearAllMocks();
   vi.mocked(getMyProfile).mockResolvedValue({ ok: true, data: profile });
   vi.mocked(me).mockResolvedValue({ ok: true, id: 'u1', name: 'Олена', email: 'o@example.com', admin: false });

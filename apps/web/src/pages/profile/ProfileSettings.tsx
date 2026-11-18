@@ -10,7 +10,7 @@ import { nickText } from '../../nick';
 import { Avatar } from '../../profile/Avatar';
 import { ProfileEditor } from '../../profile/ProfileEditor';
 import { SubpageData } from '../../profile/ProfileSubpage';
-import { useMyProfile } from '../../profile/useMyProfile';
+import { forgetMyProfile, useMyProfile } from '../../profile/useMyProfile';
 import { PushSettings } from '../../push/PushSettings';
 import { disablePush } from '../../push/push-client';
 
@@ -29,6 +29,7 @@ export function ProfileSettings(): JSX.Element {
     await Promise.race([disablePush().catch(() => undefined), new Promise<void>((done) => setTimeout(done, 3_000))]);
     await signOut();
     forgetAccount();
+    forgetMyProfile();
     navigate('/');
   };
 
