@@ -60,9 +60,14 @@ export function fitLine(context: Measure, text: string, width: number): string {
   return cut(low);
 }
 
+/** Усе, крім літер і цифр, стає дефісом, краї без дефісів; порожньо, коли нічого не лишилось. */
+export function safeSlug(name: string): string {
+  return name.replace(/[^\p{L}\p{N}]+/gu, '-').replace(/^-+|-+$/g, '');
+}
+
 /** <prefix>-<безпечна назва>.png: усе, крім літер і цифр, стає дефісом; порожньо — <prefix>.png. */
 export function safeFileName(prefix: string, name: string): string {
-  const safe = name.replace(/[^\p{L}\p{N}]+/gu, '-').replace(/^-+|-+$/g, '');
+  const safe = safeSlug(name);
   return safe === '' ? `${prefix}.png` : `${prefix}-${safe}.png`;
 }
 
@@ -82,7 +87,7 @@ export function canShareFile(file: File): boolean {
 }
 
 /** Завантаження через <a download>. */
-export function downloadPng(blob: Blob, fileName: string): void {
+export function downloadFile(blob: Blob, fileName: string): void {
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;
@@ -92,6 +97,10 @@ export function downloadPng(blob: Blob, fileName: string): void {
   link.click();
   link.remove();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+export function downloadPng(blob: Blob, fileName: string): void {
+  downloadFile(blob, fileName);
 }
 
 /** canShareFile → share; інакше завантаження. Скасування share (AbortError) — не помилка. */
