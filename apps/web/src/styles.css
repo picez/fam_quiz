@@ -25902,7 +25902,8 @@ input.sudoku-editor-cell:focus-visible {
 .league-table thead th {
   font-size: 0.75rem;
   font-weight: 600;
-  hyphens: auto;
+  overflow-wrap: normal;
+  hyphens: manual;
 }
 
 .league-table th:nth-child(1),
@@ -25912,14 +25913,17 @@ input.sudoku-editor-cell:focus-visible {
 
 .league-table th:nth-child(3),
 .league-table td:nth-child(3) {
-  width: 3.25rem;
+  width: 3.5rem;
 }
 
 .league-table th:nth-child(4),
-.league-table td:nth-child(4),
+.league-table td:nth-child(4) {
+  width: 3.25rem;
+}
+
 .league-table th:nth-child(5),
 .league-table td:nth-child(5) {
-  width: 3rem;
+  width: 4.25rem;
 }
 
 .league-table .league-player {
