@@ -4,7 +4,7 @@ import { breakdownOf, DEFAULT_RULES, memoryLayout, defaultTeams, packStrokes, qu
 import { LADDER_RIGHT, LADDER_WRONG, auctionRound, betsRound, bluff, blitzRound, boardRound, bool, chain, classicRound, clues, cloud, finalRound, poll, wall, makeQuiz, makeRoundsQuiz, match, pin, single, slider, sortQ, survey, surveyCloud, text, letterwords, moreless, drawing, timedlist, withId, withReveal, withVideo, survivalQuestions, survivalRound, survivalTrials, wipeoutLadder, wipeoutRound, ladderRound, truthRound, think, thinkRound, puzzlesRound, sudoku, crosswordKey, jigsaw, jigsawQuiz, spotdiff, spotdiffQuiz, memoryQuiz, melodyQuiz, videoclipQuiz, alikeQuiz, spyQuiz } from '@quiz/engine/testing';
 import { buildApp } from './app';
 import { rankPlayers, scoreLines, sortOf } from '@quiz/engine';
-import { answeredTypes, gameQuestionCount, gameTables, hostGame, hostGameWithFacts, hostGames, playerGames } from './history';
+import { answeredTypes, forgetPlayedShapes, gameQuestionCount, gameTables, hostGame, hostGameWithFacts, hostGames, playerGames } from './history';
 import type { Db } from './db/client';
 import { ADJUSTMENT_ATTEMPT, answer, game, participant, PENALTY_ATTEMPT, prizeAward, profile, user, userAchievement, VOTE_ATTEMPT } from './db/schema';
 import { TEST_AUTH, signUp } from './testing/accounts';
@@ -3005,12 +3005,18 @@ describe('history: slim reads (46)', () => {
       })
       .where(eq(game.id, gameId));
 
+    forgetPlayedShapes();
     const parse = vi.spyOn(quizSchema, 'safeParse');
     try {
       const [only] = await playerGames(db, olya, null);
       expect(parse).toHaveBeenCalledTimes(1);
       // Ва-банк: забрала на першій з двох (−1); вибування: вибула на другому з трьох (−1); «Мільйонер»: глядачка без відповіді (−1).
       expect(only.played.questionsPlayed).toBe(3);
+      // Наступне читання бере форму гри з кешу: знімок більше не розбирається, числа ті самі.
+      parse.mockClear();
+      const [again] = await playerGames(db, olya, null);
+      expect(parse).not.toHaveBeenCalled();
+      expect(again.played).toEqual(only.played);
     } finally {
       parse.mockRestore();
     }

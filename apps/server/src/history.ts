@@ -69,12 +69,6 @@ export function snapshotOf(raw: unknown): Quiz | null {
   return parsed.success ? parsed.data : null;
 }
 
-/** Лінивий розбір знімка, один на гру: перший виклик розбирає (snapshotOf), наступні віддають той самий результат. */
-function onceSnapshot(raw: unknown): () => Quiz | null {
-  let parsed: { quiz: Quiz | null } | null = null;
-  return () => (parsed ??= { quiz: snapshotOf(raw) }).quiz;
-}
-
 /**
  * Скільки запитань у грі: зі знімка вікторини й запитання раунду «Правда про гравця» (28b), яких у знімку немає —
  * гра створює їх сама, тож вони є лише в журналі (PlayRef.truth).
@@ -870,26 +864,76 @@ function unscoredPlayed(snapshot: unknown, plays: PlayRef[] | null, questionsPla
 }
 
 /**
+ * Зігране запитання гри (46), з якого рахуються «зіграні запитання» гравця: лише записи раундів «Ва-банк», «Вибування» й «Мільйонер»
+ * (тип — з розібраного знімка; знімок не проходить схему — таких записів немає, віднімати нічого) і записи «Правди про гравця».
+ * index — позиція в журналі, тобто answer.question_index.
+ */
+interface PlayedStep {
+  index: number;
+  roundIndex: number;
+  special: 'wipeout' | 'survival' | 'ladder' | null;
+  /** «Ва-банк»: ціна сходинки й ті, хто забрав банк. */
+  price: number;
+  took: string[];
+  /** «Вибування»: хто вибув на цьому запитанні. */
+  out: string[];
+  /** «Мільйонер»: учасник драбини. */
+  contestant: string | null;
+  /** «Правда про гравця» (28b): чий це факт. */
+  truthActor: string | null;
+}
+
+/** Те, що зі знімка й журналу завершеної гри потрібне для «зіграних запитань» будь-якого її гравця (46): мале й незмінне, тож кешується. */
+interface PlayedShape {
+  /** Скільки зіграних — без балів чи без правильності (unscoredPlayed). */
+  unscored: number;
+  steps: PlayedStep[];
+}
+
+/** Раунди, для яких точність потребує розібраного знімка: «Ва-банк», «Вибування», «Мільйонер». */
+const SPECIAL_ROUNDS: ReadonlySet<unknown> = new Set(['wipeout', 'survival', 'ladder']);
+
+/** Форма гри з повних знімка й журналу; знімок розбирається один раз і лише для ігор з такими раундами (розбір дорогий). Старі ігри без журналу — нічого. */
+function playedShapeOf(snapshot: unknown, plays: PlayRef[] | null, questionsPlayed: number): PlayedShape {
+  if (plays === null) return { unscored: 0, steps: [] };
+  const rounds = typeof snapshot === 'object' && snapshot !== null ? (snapshot as { rounds?: unknown }).rounds : undefined;
+  const special = Array.isArray(rounds) && rounds.some((round: unknown) => SPECIAL_ROUNDS.has((round as { type?: unknown } | null)?.type));
+  const quiz = special ? snapshotOf(snapshot) : null;
+  const steps = plays.slice(0, questionsPlayed).flatMap((ref, index): PlayedStep[] => {
+    const type = quiz?.rounds[ref.roundIndex]?.type;
+    const kind = type === 'wipeout' || type === 'survival' || type === 'ladder' ? type : null;
+    const truthActor = ref.truth?.actor ?? null;
+    if (kind === null && truthActor === null) return [];
+    return [
+      {
+        index,
+        roundIndex: ref.roundIndex,
+        special: kind,
+        price: kind === 'wipeout' && quiz !== null ? (questionOf(quiz, ref)?.points ?? 0) : 0,
+        took: ref.wipeout?.took ?? [],
+        out: ref.survival?.trial?.out ?? [],
+        contestant: ref.ladder?.contestant ?? null,
+        truthActor,
+      },
+    ];
+  });
+  return { unscored: unscoredPlayed(snapshot, plays, questionsPlayed), steps };
+}
+
+/** Записи раунду kind, згруповані за раундом, у порядку гри. */
+function roundsOf(shape: PlayedShape, kind: 'wipeout' | 'survival'): PlayedStep[][] {
+  return [...groupBy(shape.steps.filter((s) => s.special === kind), (s) => String(s.roundIndex)).values()];
+}
+
+/**
  * Скільки зіграних запитань «Ва-банк» цей гравець не грав: після згоряння чи «Забрати» він лише дивився, рядків-відповідей на ті сходинки немає.
  * Такі сходинки не рахуємо його запитаннями: точність — зі сходинок, на яких він був у грі (мовчання теж невдала відповідь).
  * Драбина одного гравця залежить лише від його власних правильних відповідей і його рішення, тож чужих рядків не потрібно.
  */
-function unplayedWipeout(snapshot: unknown, quiz: () => Quiz | null, plays: PlayRef[] | null, questionsPlayed: number, participantId: string, accepted: Set<number>): number {
-  // Розбір знімка дорогий: для ігор без «Ва-банк» його не робимо; snapshot — тонкий знімок (типи раундів), quiz — розбір повного, один на гру.
-  const rounds = typeof snapshot === 'object' && snapshot !== null ? (snapshot as { rounds?: unknown }).rounds : undefined;
-  if (plays === null || !Array.isArray(rounds) || !rounds.some((round: unknown) => (round as { type?: unknown } | null)?.type === 'wipeout')) return 0;
-  const parsed = quiz();
-  if (parsed === null) return 0;
-  const played = plays.slice(0, questionsPlayed);
+function unplayedWipeout(shape: PlayedShape, participantId: string, accepted: Set<number>): number {
   let unplayed = 0;
-  for (const roundIndex of new Set(played.map((ref) => ref.roundIndex))) {
-    if (parsed.rounds[roundIndex]?.type !== 'wipeout') continue;
-    const indices = played.flatMap((ref, i) => (ref.roundIndex === roundIndex ? [i] : []));
-    const steps = indices.map((i) => ({
-      price: questionOf(parsed, played[i])?.points ?? 0,
-      correct: accepted.has(i) ? [participantId] : [],
-      took: played[i].wipeout?.took ?? [],
-    }));
+  for (const round of roundsOf(shape, 'wipeout')) {
+    const steps = round.map((s) => ({ price: s.price, correct: accepted.has(s.index) ? [participantId] : [], took: s.took }));
     const { step } = wipeoutStandings([participantId], steps, false)[participantId];
     if (step !== null) unplayed += steps.length - 1 - step;
   }
@@ -900,19 +944,11 @@ function unplayedWipeout(snapshot: unknown, quiz: () => Quiz | null, plays: Play
  * Скільки зіграних запитань «Вибування» цей гравець не грав живим: після вибування він лише був привидом, рядків-відповідей на ті запитання немає.
  * Такі запитання не рахуємо його запитаннями: точність — із запитань, на яких він був живим. Вибув він на запитанні, де був рядок, — те рахується.
  */
-function unplayedSurvival(snapshot: unknown, quiz: () => Quiz | null, plays: PlayRef[] | null, questionsPlayed: number, participantId: string): number {
-  // Розбір знімка дорогий: для ігор без «Вибування» його не робимо; snapshot — тонкий знімок (типи раундів), quiz — розбір повного, один на гру.
-  const rounds = typeof snapshot === 'object' && snapshot !== null ? (snapshot as { rounds?: unknown }).rounds : undefined;
-  if (plays === null || !Array.isArray(rounds) || !rounds.some((round: unknown) => (round as { type?: unknown } | null)?.type === 'survival')) return 0;
-  const parsed = quiz();
-  if (parsed === null) return 0;
-  const played = plays.slice(0, questionsPlayed);
+function unplayedSurvival(shape: PlayedShape, participantId: string): number {
   let unplayed = 0;
-  for (const roundIndex of new Set(played.map((ref) => ref.roundIndex))) {
-    if (parsed.rounds[roundIndex]?.type !== 'survival') continue;
-    const indices = played.flatMap((ref, i) => (ref.roundIndex === roundIndex ? [i] : []));
-    const outAt = indices.findIndex((i) => played[i].survival?.trial?.out.includes(participantId) === true);
-    if (outAt >= 0) unplayed += indices.length - 1 - outAt;
+  for (const round of roundsOf(shape, 'survival')) {
+    const outAt = round.findIndex((s) => s.out.includes(participantId));
+    if (outAt >= 0) unplayed += round.length - 1 - outAt;
   }
   return unplayed;
 }
@@ -922,75 +958,66 @@ function unplayedSurvival(snapshot: unknown, quiz: () => Quiz | null, plays: Pla
  * Зал відповідає за бажанням, тож мовчання глядача — не помилка; такі запитання не рахуємо його запитаннями.
  * answered — questionIndex рядків-відповідей гравця.
  */
-function unplayedLadder(snapshot: unknown, quiz: () => Quiz | null, plays: PlayRef[] | null, questionsPlayed: number, participantId: string, answered: Set<number>): number {
-  // Розбір знімка дорогий: для ігор без «Мільйонера» його не робимо; snapshot — тонкий знімок (типи раундів), quiz — розбір повного, один на гру.
-  const rounds = typeof snapshot === 'object' && snapshot !== null ? (snapshot as { rounds?: unknown }).rounds : undefined;
-  if (plays === null || !Array.isArray(rounds) || !rounds.some((round: unknown) => (round as { type?: unknown } | null)?.type === 'ladder')) return 0;
-  const parsed = quiz();
-  if (parsed === null) return 0;
-  return plays
-    .slice(0, questionsPlayed)
-    .filter((ref, i) => parsed.rounds[ref.roundIndex]?.type === 'ladder' && ref.ladder?.contestant !== participantId && !answered.has(i)).length;
+function unplayedLadder(shape: PlayedShape, participantId: string, answered: Set<number>): number {
+  return shape.steps.filter((s) => s.special === 'ladder' && s.contestant !== participantId && !answered.has(s.index)).length;
 }
 
 /** Скільки запитань «Правди про гравця» (28b) — про факт цього учасника: він їх не вгадував, тож це не його запитання. */
-function unplayedTruth(plays: PlayRef[] | null, questionsPlayed: number, participantId: string): number {
-  return (plays ?? []).slice(0, questionsPlayed).filter((ref) => ref.truth?.actor === participantId).length;
+function unplayedTruth(shape: PlayedShape, participantId: string): number {
+  return shape.steps.filter((s) => s.truthActor === participantId).length;
 }
 
 /**
- * Тонкий знімок гри для playerGames (46): лише типи раундів і id та типи їхніх запитань, у тих самих позиціях масивів.
- * Старий знімок без rounds — null (функції нижче й досі бачать у ньому «0»); upgradeQuiz тут не потрібен — вони дивляться сирий знімок.
+ * Кеш форм завершених ігор (46): завершена гра не змінюється, тож знімок і журнал читаються й розбираються раз на процес.
+ * Map — у порядку останнього вжитку (LRU): найдавніші витісняються понад PLAYED_SHAPES_MAX.
  */
-const slimSnapshot = sql<unknown>`case when jsonb_typeof(${game.quizSnapshot} -> 'rounds') = 'array' then jsonb_build_object('rounds', (
-  select coalesce(jsonb_agg(case when jsonb_typeof(r) = 'object' then jsonb_build_object(
-    'type', r -> 'type',
-    'questions', case when jsonb_typeof(r -> 'questions') = 'array' then (
-      select coalesce(jsonb_agg(case when jsonb_typeof(q) = 'object' then jsonb_build_object('id', q -> 'id', 'type', q -> 'type') else q end order by qi), '[]'::jsonb)
-      from jsonb_array_elements(r -> 'questions') with ordinality as qs(q, qi)) end)
-  else r end order by ri), '[]'::jsonb)
-  from jsonb_array_elements(${game.quizSnapshot} -> 'rounds') with ordinality as rs(r, ri)))
-end`;
+const PLAYED_SHAPES_MAX = 5000;
+const playedShapes = new Map<string, PlayedShape>();
 
-/**
- * Тонкий журнал гри для playerGames (46): з кожного запису — раунд, id запитання й автор факту «Правди про гравця»; лише перші questionsPlayed записів
- * (зріз slice(0, questionsPlayed) лишається в JS — SQL лише не везе зайвого). Записи — за індексом (`plays -> i`), щоб журнал цілим не йшов нікуди;
- * журнал не масив (jsonb null) — null, як JS і бачив.
- */
-const slimPlays = sql<PlayRef[] | null>`case when jsonb_typeof(${game.plays}) = 'array' then (
-  select coalesce(jsonb_agg(case when jsonb_typeof(${game.plays} -> i) = 'object' then jsonb_build_object(
-    'roundIndex', ${game.plays} -> i -> 'roundIndex',
-    'questionId', ${game.plays} -> i -> 'questionId',
-    'truth', case when (${game.plays} -> i) ? 'truth' then jsonb_build_object('actor', ${game.plays} -> i -> 'truth' -> 'actor') end)
-  else ${game.plays} -> i end order by i), '[]'::jsonb)
-  from generate_series(0, jsonb_array_length(${game.plays}) - 1) as i
-  where ${game.questionsPlayed} < 0 or i < ${game.questionsPlayed})
-end`;
-
-/** Раунди, для яких точність потребує повного знімка й журналу: «Ва-банк», «Вибування», «Мільйонер». */
-const GATED_ROUNDS: ReadonlySet<unknown> = new Set(['wipeout', 'survival', 'ladder']);
-
-/** Чи є в (тонкому) знімку раунд, для якого потрібен повний знімок. */
-function needsWholeSnapshot(snapshot: unknown): boolean {
-  const rounds = typeof snapshot === 'object' && snapshot !== null ? (snapshot as { rounds?: unknown }).rounds : undefined;
-  return Array.isArray(rounds) && rounds.some((round: unknown) => GATED_ROUNDS.has((round as { type?: unknown } | null)?.type));
+/** Забути кеш форм ігор (тести). */
+export function forgetPlayedShapes(): void {
+  playedShapes.clear();
 }
+
+/** Форми завершених ігор: з кешу, а відсутні — одним запитом повних знімка й журналу лише цих ігор. */
+async function playedShapesOf(db: Db, gameIds: string[]): Promise<Map<string, PlayedShape>> {
+  const shapes = new Map<string, PlayedShape>();
+  const missing: string[] = [];
+  for (const id of new Set(gameIds)) {
+    const hit = playedShapes.get(id);
+    if (hit === undefined) {
+      missing.push(id);
+      continue;
+    }
+    playedShapes.delete(id);
+    playedShapes.set(id, hit);
+    shapes.set(id, hit);
+  }
+  if (missing.length === 0) return shapes;
+  const rows = await db
+    .select({ id: game.id, quizSnapshot: game.quizSnapshot, plays: game.plays, questionsPlayed: game.questionsPlayed })
+    .from(game)
+    .where(and(inArray(game.id, missing), eq(game.status, 'finished')));
+  for (const row of rows) {
+    const shape = playedShapeOf(row.quizSnapshot, row.plays as PlayRef[] | null, row.questionsPlayed);
+    shapes.set(row.id, shape);
+    playedShapes.set(row.id, shape);
+  }
+  for (const id of playedShapes.keys()) {
+    if (playedShapes.size <= PLAYED_SHAPES_MAX) break;
+    playedShapes.delete(id);
+  }
+  return shapes;
+}
+
+const NO_SHAPE: PlayedShape = { unscored: 0, steps: [] };
 
 /** Ігри гравця з акаунта, найновіші першими, з рядками його відповідей; limit null — усі. */
 export async function playerGames(db: Db, userId: string, limit: number | null): Promise<{ played: PlayedGame; marks: AnswerMark[] }[]> {
   const query = db
     .select({
       participant: { id: participant.id, teamId: participant.teamId, nickname: participant.nickname, score: participant.score, rank: participant.rank },
-      game: {
-        id: game.id,
-        title: game.title,
-        status: game.status,
-        autopilot: game.autopilot,
-        startedAt: game.startedAt,
-        questionsPlayed: game.questionsPlayed,
-        snapshot: slimSnapshot,
-        plays: slimPlays,
-      },
+      game: { id: game.id, title: game.title, status: game.status, autopilot: game.autopilot, startedAt: game.startedAt, questionsPlayed: game.questionsPlayed },
     })
     .from(participant)
     .innerJoin(game, eq(participant.gameId, game.id))
@@ -1016,17 +1043,10 @@ export async function playerGames(db: Db, userId: string, limit: number | null):
     .select({ participantId: answer.participantId, questionIndex: answer.questionIndex, accepted: answer.accepted, attempt: answer.attempt })
     .from(answer)
     .where(inArray(answer.participantId, [...rows.map((row) => row.participant.id), ...teamIds]));
-  // Повні знімок і журнал — лише для ігор з «Ва-банк», «Вибуванням» чи «Мільйонером»: їхня точність залежить від сходинок, вибувань і драбини.
-  const gated = [...new Set(rows.flatMap((row) => (needsWholeSnapshot(row.game.snapshot) ? [row.game.id] : [])))];
-  const whole = new Map(
-    gated.length === 0
-      ? []
-      : (await db.select({ id: game.id, quizSnapshot: game.quizSnapshot, plays: game.plays }).from(game).where(inArray(game.id, gated))).map((g) => [
-          g.id,
-          { quiz: onceSnapshot(g.quizSnapshot), plays: g.plays as PlayRef[] | null },
-        ]),
+  const shapes = await playedShapesOf(
+    db,
+    rows.map((row) => row.game.id),
   );
-  const unparsed = (): Quiz | null => null;
 
   const byParticipant = groupBy(answers, (a) => a.participantId);
   return rows.map((row) => {
@@ -1034,9 +1054,7 @@ export async function playerGames(db: Db, userId: string, limit: number | null):
     // Рядок, що грав: команда людини або сам гравець.
     const playing = teamId ?? row.participant.id;
     const mine = [...(teamId === null ? [] : (byParticipant.get(teamId) ?? [])), ...(byParticipant.get(row.participant.id) ?? [])];
-    const { snapshot, plays, questionsPlayed } = row.game;
-    // Гра без цих раундів: тонкого журналу досить — три функції нижче повертають 0, не дивлячись у знімок.
-    const full = whole.get(row.game.id) ?? { quiz: unparsed, plays };
+    const shape = shapes.get(row.game.id) ?? NO_SHAPE;
     return {
       played: {
         gameId: row.game.id,
@@ -1052,26 +1070,12 @@ export async function playerGames(db: Db, userId: string, limit: number | null):
         correct: distinct(mine.filter((a) => a.accepted && a.attempt !== PENALTY_ATTEMPT).map((a) => a.questionIndex)),
         answered: distinct(mine.filter((a) => isAnswerRow(a.attempt)).map((a) => a.questionIndex)),
         questionsPlayed:
-          questionsPlayed -
-          unscoredPlayed(snapshot, plays, questionsPlayed) -
-          unplayedWipeout(
-            snapshot,
-            full.quiz,
-            full.plays,
-            questionsPlayed,
-            playing,
-            new Set(mine.filter((a) => a.accepted && a.attempt === 0).map((a) => a.questionIndex)),
-          ) -
-          unplayedSurvival(snapshot, full.quiz, full.plays, questionsPlayed, playing) -
-          unplayedTruth(plays, questionsPlayed, playing) -
-          unplayedLadder(
-            snapshot,
-            full.quiz,
-            full.plays,
-            questionsPlayed,
-            playing,
-            new Set(mine.filter((a) => isAnswerRow(a.attempt)).map((a) => a.questionIndex)),
-          ),
+          row.game.questionsPlayed -
+          shape.unscored -
+          unplayedWipeout(shape, playing, new Set(mine.filter((a) => a.accepted && a.attempt === 0).map((a) => a.questionIndex))) -
+          unplayedSurvival(shape, playing) -
+          unplayedTruth(shape, playing) -
+          unplayedLadder(shape, playing, new Set(mine.filter((a) => isAnswerRow(a.attempt)).map((a) => a.questionIndex))),
         team: teamId === null ? null : (teamNames.get(teamId) ?? null),
       },
       marks: mine.filter((a) => isAnswerRow(a.attempt)).map(({ questionIndex, attempt, accepted }) => ({ questionIndex, attempt, accepted })),

@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Db } from './db/client';
 import { achievementsPage, careerFacts } from './achievement-store';
-import { playerGames, playerHistory } from './history';
+import { forgetPlayedShapes, playerGames, playerHistory } from './history';
 import { ownProfile, publicProfile } from './profiles';
 import { finishLateGame, seedCareer, type CareerFixture } from './testing/career-fixture';
 import { createTestDb } from './testing/test-db';
@@ -61,6 +61,8 @@ describe('profile speed (46): the safety net', () => {
   beforeEach(() => {
     vi.useFakeTimers({ toFake: ['Date'] });
     vi.setSystemTime(new Date('2026-11-18T12:00:00Z'));
+    // Кожен тест починає з холодного кешу форм ігор: перше читання йде через завантажувач, наступні — з кешу.
+    forgetPlayedShapes();
   });
   afterEach(() => {
     vi.useRealTimers();
@@ -100,15 +102,17 @@ describe('profile speed (46): the safety net', () => {
     expect(stable({ first, second, third })).toMatchSnapshot();
   });
 
-  // Запити другого проходу: збирає звичайний тест (щоб збій засіву чи читання не сховався за it.fails), перевіряє наступний.
-  let spied: { queries: { query: string; params: unknown[] }[]; career: CareerFixture } | null = null;
+  // Запити першого й другого проходів: збирає звичайний тест (щоб збій засіву чи читання не сховався), перевіряє наступний.
+  type Spied = { query: string; params: unknown[] }[];
+  let spied: { first: Spied; queries: Spied; career: CareerFixture } | null = null;
 
-  it('the SQL spy records the second-pass profile reads', { timeout: 120_000 }, async () => {
-    let recording = false;
-    const queries: { query: string; params: unknown[] }[] = [];
+  it('the SQL spy records the first- and second-pass profile reads', { timeout: 120_000 }, async () => {
+    let recording: Spied | null = null;
+    const first: Spied = [];
+    const queries: Spied = [];
     const db = await createTestDb({
       onQuery: (query, params) => {
-        if (recording) queries.push({ query, params });
+        recording?.push({ query, params });
       },
     });
     const career = await seedCareer(db);
@@ -121,29 +125,36 @@ describe('profile speed (46): the safety net', () => {
       await playerHistory(db, userId);
       await versusOf(db, userId, friendId);
     };
-    // Перший прохід доповнює історію й синхронізує ачівки; міряємо наступний.
+    // Перший прохід доповнює історію, синхронізує ачівки й наповнює кеш форм ігор; наступний — теплий.
+    recording = first;
     await reads();
-    recording = true;
+    recording = queries;
     await reads();
-    recording = false;
+    recording = null;
 
     expect(queries.length).toBeGreaterThan(0);
     // Сам запит ігор гравця (playerGames) мусить бути серед записаних, інакше перевірка нижче нічого не бачить.
     expect(queries.some(({ query }) => /from "participant" inner join "game"/i.test(query))).toBe(true);
-    spied = { queries, career };
+    spied = { first, queries, career };
   });
 
-  // Профіль читає повні знімки й журнали лише ігор з «Ва-банк», «Вибуванням» і «Мільйонером» (і старого формату).
-  it('the profile never reads whole quiz snapshots or game logs except for wipeout, survival and ladder games', () => {
+  // Теплий прохід не читає повних знімків і журналів зовсім — крім запасного читання знімка старого формату в gameTables (типи раундів
+  // не дістати з SQL; лише id ігор старого формату). Перший прохід читає їх у завантажувачі кешу форм ігор (кожну гру — щонайбільше раз, лише за id)
+  // і в доповненні історії першої синхронізації ачівок.
+  it('the profile never reads whole quiz snapshots or game logs once the game shapes are cached', () => {
     if (spied === null) throw new Error('the spy test did not run');
-    const { queries, career } = spied;
-    const allowed = new Set([...career.gatedGameIds, ...career.oldFormatGameIds]);
-    const whole = queries.filter(({ query }) => FULL_SNAPSHOT.test(query) || FULL_PLAYS.test(query));
-    // Повне читання мусить бути обмежене id дозволених ігор: без жодного id воно читало б усі ігри.
-    const offending = whole.filter(({ params }) => {
-      const ids = params.filter((p): p is string => typeof p === 'string' && UUID.test(p));
-      return ids.length === 0 || ids.some((id) => !allowed.has(id));
-    });
-    expect(offending.map(({ query }) => query)).toEqual([]);
+    const { first, queries, career } = spied;
+    const idsOf = (params: unknown[]) => params.filter((p): p is string => typeof p === 'string' && UUID.test(p));
+    const old = new Set(career.oldFormatGameIds);
+    // Без жодного id повне читання читало б усі ігри.
+    const whole = queries.filter(
+      ({ query, params }) => (FULL_SNAPSHOT.test(query) || FULL_PLAYS.test(query)) && (idsOf(params).length === 0 || idsOf(params).some((id) => !old.has(id))),
+    );
+    expect(whole.map(({ query }) => query)).toEqual([]);
+
+    const loader = /^select "id", "quiz_snapshot", "plays", "questions_played" from "game"/i;
+    const loaded = first.filter(({ query }) => loader.test(query)).flatMap(({ params }) => idsOf(params));
+    expect(loaded.length).toBeGreaterThan(0);
+    expect(new Set(loaded).size).toBe(loaded.length);
   });
 });
