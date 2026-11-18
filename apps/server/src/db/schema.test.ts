@@ -642,3 +642,83 @@ describe('challenges (38a)', () => {
     expect(await db.select().from(challengeAttempt)).toEqual([]);
   });
 });
+
+describe('family league (38b)', () => {
+  const T = new Date('2026-11-18T10:00:00Z');
+  const G1 = '11111111-1111-4111-8111-111111111111';
+  const G2 = '22222222-2222-4222-8222-222222222222';
+
+  async function seedLeague() {
+    const schema = await import('./schema');
+    const db = await createTestDb();
+    await db.insert(user).values([
+      { id: 'a', name: 'А', email: 'a@example.com' },
+      { id: 'b', name: 'Б', email: 'b@example.com' },
+    ]);
+    const [group] = await db
+      .insert(schema.familyGroup)
+      .values({ name: 'Родина', emoji: '🌻', inviteCode: 'abcdefghjk' })
+      .returning();
+    const point = (gameId: string, userId: string) => ({ gameId, userId, groupId: group.id, month: '2026-11', place: 1, points: 10, nickname: userId });
+    return { db, schema, group, point };
+  }
+
+  it('migration 0039 lays the league tables over an older database, old data stays', async () => {
+    const { game, familyGroup, groupMember, leagueGame, leaguePoint, leagueMonth, leagueChampion } = await import('./schema');
+    const { db, migrateRest } = await createTestDbUpTo('0038_challenges');
+    await db.insert(user).values({ id: 'a', name: 'Автор', email: 'a@example.com' });
+    const [group] = await db.insert(familyGroup).values({ name: 'Родина', emoji: '🌻', inviteCode: 'abcdefghjk' }).returning();
+    await db.insert(groupMember).values({ groupId: group.id, userId: 'a', role: 'owner', joinedAt: T });
+    const source = makeQuiz([single]);
+    await db.insert(game).values({ id: G1, hostId: 'a', code: 'ABCD', status: 'finished', title: 'Q', quizSnapshot: source, startedAt: T });
+
+    await migrateRest();
+
+    expect(await db.select().from(familyGroup)).toHaveLength(1);
+    expect(await db.select().from(groupMember)).toHaveLength(1);
+    expect(await db.select().from(game)).toHaveLength(1);
+    for (const table of [leagueGame, leaguePoint, leagueMonth, leagueChampion]) expect(await db.select().from(table)).toEqual([]);
+  });
+
+  it('one league row per game and one point row per account in a game', async () => {
+    const { db, schema, group, point } = await seedLeague();
+    const row = { gameId: G1, groupId: group.id, month: '2026-11', members: 3, counted: true };
+    await db.insert(schema.leagueGame).values(row);
+    await expect(db.insert(schema.leagueGame).values(row)).rejects.toThrow();
+    await db.insert(schema.leaguePoint).values(point(G1, 'a'));
+    await expect(db.insert(schema.leaguePoint).values(point(G1, 'a'))).rejects.toThrow();
+    await db.insert(schema.leaguePoint).values(point(G1, 'b'));
+  });
+
+  it('deleting a group removes its league rows but keeps the champion title', async () => {
+    const { db, schema, group, point } = await seedLeague();
+    await db.insert(schema.leagueGame).values({ gameId: G1, groupId: group.id, month: '2026-11', members: 3, counted: true });
+    await db.insert(schema.leaguePoint).values(point(G1, 'a'));
+    await db.insert(schema.leagueMonth).values({ groupId: group.id, month: '2026-10', settledAt: T });
+    await db.insert(schema.leagueChampion).values({ groupId: group.id, groupName: 'Родина', month: '2026-10', userId: 'a', points: 10 });
+
+    await db.delete(schema.familyGroup).where(eq(schema.familyGroup.id, group.id));
+
+    expect(await db.select().from(schema.leagueGame)).toEqual([]);
+    expect(await db.select().from(schema.leaguePoint)).toEqual([]);
+    expect(await db.select().from(schema.leagueMonth)).toEqual([]);
+    const champions = await db.select().from(schema.leagueChampion);
+    expect(champions).toHaveLength(1);
+    expect(champions[0]).toMatchObject({ groupId: null, groupName: 'Родина', userId: 'a' });
+  });
+
+  it('deleting an account removes its points and titles; deleting a game row keeps the points', async () => {
+    const { db, schema, group, point } = await seedLeague();
+    await db.insert(schema.leaguePoint).values([point(G1, 'a'), point(G1, 'b'), point(G2, 'a')]);
+    await db.insert(schema.leagueChampion).values({ groupId: group.id, groupName: 'Родина', month: '2026-10', userId: 'a', points: 10 });
+    await db.insert(schema.game).values({ id: G2, hostId: 'b', code: 'ABCD', status: 'finished', title: 'Q', quizSnapshot: makeQuiz([single]), startedAt: T });
+
+    await db.delete(schema.game).where(eq(schema.game.id, G2));
+    expect(await db.select().from(schema.leaguePoint)).toHaveLength(3);
+
+    await db.delete(user).where(eq(user.id, 'a'));
+    const left = await db.select().from(schema.leaguePoint);
+    expect(left.map((row) => row.userId)).toEqual(['b']);
+    expect(await db.select().from(schema.leagueChampion)).toEqual([]);
+  });
+});

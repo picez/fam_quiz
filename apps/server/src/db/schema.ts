@@ -829,3 +829,78 @@ export const challengeAttempt = pgTable(
   },
   (table) => [primaryKey({ columns: [table.challengeId, table.userId] }), index('challenge_attempt_user_idx').on(table.userId)],
 );
+
+/** Гра, врахована для ліги групи (45): одна на гру (первинний ключ); без зовнішнього ключа на game — історія балів не залежить від видалення гри. */
+export const leagueGame = pgTable(
+  'league_game',
+  {
+    gameId: uuid('game_id').primaryKey(),
+    groupId: uuid('group_id')
+      .notNull()
+      .references(() => familyGroup.id, { onDelete: 'cascade' }),
+    /** 'YYYY-MM' за Києвом від finishedAt гри. */
+    month: text('month').notNull(),
+    /** Скільки членів групи грало. */
+    members: integer('members').notNull(),
+    counted: boolean('counted').notNull(),
+    createdAt: at('at').notNull().defaultNow(),
+  },
+  (table) => [index('league_game_group_idx').on(table.groupId, table.month)],
+);
+
+/** Бали одного члена групи за гру; (гра, акаунт) — первинний ключ. */
+export const leaguePoint = pgTable(
+  'league_point',
+  {
+    gameId: uuid('game_id').notNull(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    groupId: uuid('group_id')
+      .notNull()
+      .references(() => familyGroup.id, { onDelete: 'cascade' }),
+    month: text('month').notNull(),
+    place: integer('place').notNull(),
+    points: integer('points').notNull(),
+    /** Нік у грі: для рядків «+N» після перезапуску. */
+    nickname: text('nickname').notNull(),
+    createdAt: at('at').notNull().defaultNow(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.gameId, table.userId] }),
+    index('league_point_group_idx').on(table.groupId, table.month),
+    index('league_point_user_idx').on(table.userId),
+  ],
+);
+
+/** Підсумований місяць групи: рядок з'являється один раз (первинний ключ) і гарантує одноразовий підсумок. */
+export const leagueMonth = pgTable(
+  'league_month',
+  {
+    groupId: uuid('group_id')
+      .notNull()
+      .references(() => familyGroup.id, { onDelete: 'cascade' }),
+    month: text('month').notNull(),
+    settledAt: at('settled_at').notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.groupId, table.month] })],
+);
+
+/** Переможець місяця; титул переживає видалення групи (group_id стає null), назва групи — на мить підсумку. */
+export const leagueChampion = pgTable(
+  'league_champion',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    groupId: uuid('group_id').references(() => familyGroup.id, { onDelete: 'set null' }),
+    groupName: text('group_name').notNull(),
+    month: text('month').notNull(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    points: integer('points').notNull(),
+  },
+  (table) => [
+    uniqueIndex('league_champion_unique_idx').on(table.groupId, table.month, table.userId),
+    index('league_champion_user_idx').on(table.userId),
+  ],
+);
