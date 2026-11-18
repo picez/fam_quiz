@@ -1,7 +1,7 @@
--- Бібліотека вікторин і скарги (план 47): знімки відкритих вікторин, копії, скарги на вікторини й профілі.
+-- Бібліотека вікторин і скарги (план 47): знімки відкритих вікторин, копії, скарги на вікторини й профілі; ігри за вікториною — з індексом (лічильник «зіграли»).
 CREATE TABLE "library_copy" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"entry_id" uuid NOT NULL,
+	"entry_id" uuid,
 	"user_id" text NOT NULL,
 	"quiz_id" uuid,
 	"author_line" text NOT NULL,
@@ -41,7 +41,7 @@ CREATE TABLE "user_report" (
 	"resolved_at" timestamp with time zone
 );
 --> statement-breakpoint
-ALTER TABLE "library_copy" ADD CONSTRAINT "library_copy_entry_id_library_entry_id_fk" FOREIGN KEY ("entry_id") REFERENCES "public"."library_entry"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "library_copy" ADD CONSTRAINT "library_copy_entry_id_library_entry_id_fk" FOREIGN KEY ("entry_id") REFERENCES "public"."library_entry"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "library_copy" ADD CONSTRAINT "library_copy_user_id_user_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."user"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "library_copy" ADD CONSTRAINT "library_copy_quiz_id_quiz_id_fk" FOREIGN KEY ("quiz_id") REFERENCES "public"."quiz"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "library_entry" ADD CONSTRAINT "library_entry_quiz_id_quiz_id_fk" FOREIGN KEY ("quiz_id") REFERENCES "public"."quiz"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
@@ -55,4 +55,5 @@ CREATE INDEX "library_entry_listed_idx" ON "library_entry" USING btree ("listed"
 CREATE INDEX "library_entry_owner_idx" ON "library_entry" USING btree ("owner_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "user_report_quiz_once" ON "user_report" USING btree ("reporter_id","entry_id") WHERE status = 'open' and target_kind = 'quiz';--> statement-breakpoint
 CREATE UNIQUE INDEX "user_report_profile_once" ON "user_report" USING btree ("reporter_id","target_user_id") WHERE status = 'open' and target_kind = 'profile';--> statement-breakpoint
-CREATE INDEX "user_report_open_idx" ON "user_report" USING btree ("status","target_kind","created_at");
+CREATE INDEX "user_report_open_idx" ON "user_report" USING btree ("status","target_kind","created_at");--> statement-breakpoint
+CREATE INDEX "game_quiz_idx" ON "game" USING btree ("quiz_id");

@@ -270,6 +270,45 @@ describe('library store (38g)', () => {
     expect(entry!.description).toBe('Автор: Олена\nПро Дніпро й міста над ним');
   });
 
+  const authorLines = (description: string) => description.split('\n').filter((line) => line.startsWith('Автор:'));
+
+  it('the author line survives the deletion of the original quiz', async () => {
+    const { db, olena, taras, iryna } = await setup();
+    const { entryId, quizId } = await openNew(db, olena);
+    const copied = await copyEntry(db, taras, entryId, 'uk', T1);
+    if (!copied.ok) throw new Error(copied.error);
+    const own = (await getQuiz(db, taras, copied.quizId))!;
+    await updateQuiz(db, taras, copied.quizId, { ...own, description: 'Мій опис' });
+    await db.delete(quiz).where(eq(quiz.id, quizId));
+
+    const opened = await openEntry(db, taras, copied.quizId, 'uk', T2);
+    if (!opened.ok) throw new Error(opened.error);
+    const [entry] = await db.select().from(libraryEntry).where(eq(libraryEntry.id, opened.entryId));
+    expect(entry).toMatchObject({ originLine: 'Автор: Олена', description: 'Автор: Олена\nМій опис' });
+
+    const again = await copyEntry(db, iryna, opened.entryId, 'uk', T2);
+    if (!again.ok) throw new Error(again.error);
+    expect(authorLines((await getQuiz(db, iryna, again.quizId))!.description)).toEqual(['Автор: Олена']);
+  });
+
+  it('the author line survives the deletion of the author account', async () => {
+    const { db, olena, taras, iryna } = await setup();
+    const { entryId } = await openNew(db, olena);
+    const copied = await copyEntry(db, taras, entryId, 'uk', T1);
+    if (!copied.ok) throw new Error(copied.error);
+    await db.delete(user).where(eq(user.id, olena));
+
+    const opened = await openEntry(db, taras, copied.quizId, 'uk', T2);
+    if (!opened.ok) throw new Error(opened.error);
+    const [entry] = await db.select().from(libraryEntry).where(eq(libraryEntry.id, opened.entryId));
+    expect(entry!.originLine).toBe('Автор: Олена');
+    expect(authorLines(entry!.description)).toEqual(['Автор: Олена']);
+
+    const again = await copyEntry(db, iryna, opened.entryId, 'uk', T2);
+    if (!again.ok) throw new Error(again.error);
+    expect(authorLines((await getQuiz(db, iryna, again.quizId))!.description)).toEqual(['Автор: Олена']);
+  });
+
   it('plays count finished games of copies', async () => {
     const { db, olena, taras } = await setup();
     const { entryId, quizId } = await openNew(db, olena);

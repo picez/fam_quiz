@@ -1,5 +1,5 @@
 {
-  "id": "ab179f38-3796-44a1-a54e-6d7ce3427f0f",
+  "id": "00543eb3-ebec-465a-a0aa-cb2bf583cddc",
   "prevId": "47f592e4-7ee3-4b29-8dbd-7ad82e240f9b",
   "version": "7",
   "dialect": "postgresql",
@@ -1330,6 +1330,21 @@
           "concurrently": false,
           "method": "btree",
           "with": {}
+        },
+        "game_quiz_idx": {
+          "name": "game_quiz_idx",
+          "columns": [
+            {
+              "expression": "quiz_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
         }
       },
       "foreignKeys": {
@@ -2202,7 +2217,7 @@
           "name": "entry_id",
           "type": "uuid",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
         },
         "user_id": {
           "name": "user_id",
@@ -2272,7 +2287,7 @@
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
+          "onDelete": "set null",
           "onUpdate": "no action"
         },
         "library_copy_user_id_user_id_fk": {

@@ -98,7 +98,8 @@ async function playsOf(db: Db, entryIds: string[]): Promise<Map<string, number>>
     .innerJoin(game, eq(game.quizId, libraryCopy.quizId))
     .where(and(inArray(libraryCopy.entryId, entryIds), eq(game.status, 'finished')))
     .groupBy(libraryCopy.entryId);
-  return new Map(rows.map((row) => [row.entryId, Number(row.n)]));
+  // inArray відсіює рядки без запису: entryId тут завжди є.
+  return new Map(rows.map((row) => [row.entryId!, Number(row.n)]));
 }
 
 export type OpenResult = { ok: true; entryId: string } | { ok: false; error: 'not_found' | 'library_invalid' | 'library_too_few' | 'library_hidden' };

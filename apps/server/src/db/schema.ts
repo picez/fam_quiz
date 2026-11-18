@@ -223,7 +223,7 @@ export const game = pgTable(
     /** Гру вів автопілот (11h); старі ігри — false. */
     autopilot: boolean('autopilot').notNull().default(false),
   },
-  (table) => [index('game_host_idx').on(table.hostId)],
+  (table) => [index('game_host_idx').on(table.hostId), index('game_quiz_idx').on(table.quizId)],
 );
 
 /** Збережена гра (13b): контрольна точка між запитаннями; data null — знімка немає, продовження шляхом 12r. Без терміну давності. */
@@ -948,14 +948,15 @@ export const libraryEntry = pgTable(
   (table) => [index('library_entry_listed_idx').on(table.listed, table.moderation, table.openedAt), index('library_entry_owner_idx').on(table.ownerId)],
 );
 
-/** Копія запису бібліотеки: рядок живе з записом; вікторину-копію видалили — quiz_id null. */
+/**
+ * Копія запису бібліотеки. Оригінал (вікторину чи акаунт автора) видалили — entry_id null, а рядок автора лишається:
+ * за ним відкриття копії зберігає «Автор: …»; вікторину-копію видалили — quiz_id null.
+ */
 export const libraryCopy = pgTable(
   'library_copy',
   {
     id: uuid('id').primaryKey().defaultRandom(),
-    entryId: uuid('entry_id')
-      .notNull()
-      .references(() => libraryEntry.id, { onDelete: 'cascade' }),
+    entryId: uuid('entry_id').references(() => libraryEntry.id, { onDelete: 'set null' }),
     userId: text('user_id')
       .notNull()
       .references(() => user.id, { onDelete: 'cascade' }),

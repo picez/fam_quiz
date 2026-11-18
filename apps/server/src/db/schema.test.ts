@@ -776,6 +776,8 @@ describe('library (38g)', () => {
     expect(await db.select().from(userLike)).toHaveLength(1);
     expect(await db.select().from(adminAction)).toHaveLength(1);
     for (const table of [libraryEntry, libraryCopy, userReport]) expect(await db.select().from(table)).toEqual([]);
+    const indexes = await db.execute(sql`select indexname from pg_indexes where tablename = 'game'`);
+    expect(JSON.stringify(indexes)).toContain('game_quiz_idx');
   });
 
   it('one entry per quiz, one open report per account and object', async () => {
@@ -812,16 +814,20 @@ describe('library (38g)', () => {
     const [copy] = await db.select().from(schema.libraryCopy);
     expect(copy.quizId).toBeNull();
 
-    // Видалення оригіналу — запис, його скарги й рядки копій зникають, а самі копії-вікторини лишаються.
+    // Видалення оригіналу — запис і його скарги зникають; рядки копій лишаються без запису (рядок автора переживає оригінал), копії-вікторини теж.
     const another = await addQuiz('b');
     await db.insert(schema.libraryCopy).values({ entryId: entry.id, userId: 'b', quizId: another, authorLine: 'Автор: Автор', at: T });
     await db.delete(quiz).where(eq(quiz.id, original));
     expect(await db.select().from(schema.libraryEntry)).toEqual([]);
     expect(await db.select().from(schema.userReport)).toEqual([]);
-    expect(await db.select().from(schema.libraryCopy)).toEqual([]);
+    const kept = await db.select().from(schema.libraryCopy);
+    expect(kept.map((row) => [row.entryId, row.quizId, row.authorLine]).sort()).toEqual([
+      [null, another, 'Автор: Автор'],
+      [null, null, 'Автор: Автор'],
+    ].sort());
     expect((await db.select().from(quiz)).map((row) => row.id)).toEqual([another]);
 
-    // Видалення акаунта: його записи, рядки копій і скарги (як скаржника й як цілі).
+    // Видалення акаунта: його записи, його рядки копій і скарги (як скаржника й як цілі); чужі рядки копій його записів лишаються без запису.
     const qa = await addQuiz('a');
     const qc = await addQuiz('c');
     const [ea] = await db.insert(schema.libraryEntry).values(entryOf(qa)).returning();
@@ -837,7 +843,12 @@ describe('library (38g)', () => {
     ]);
     await db.delete(user).where(eq(user.id, 'a'));
     expect((await db.select().from(schema.libraryEntry)).map((row) => row.id)).toEqual([ec.id]);
-    expect(await db.select().from(schema.libraryCopy)).toEqual([]);
+    const copies = await db.select().from(schema.libraryCopy);
+    expect(copies.map((row) => [row.userId, row.entryId]).sort()).toEqual([
+      ['b', null],
+      ['b', null],
+      ['c', null],
+    ]);
     const reports = await db.select().from(schema.userReport);
     expect(reports.map((row) => [row.reporterId, row.targetUserId])).toEqual([['b', 'c']]);
   });
