@@ -115,6 +115,17 @@ describe('wordle', () => {
     expect(wordleGuess(second, 'p2', 'колос', 1000, isNoun)).toEqual({ ok: false, error: 'wordle_length' });
   });
 
+  it('the same letters solve even when an earlier apostrophe candidate is also a noun; the history keeps the host spelling', () => {
+    const second = toSecond(fresh());
+    // Словник, де є і «мясо» (перший кандидат), і «м'ясо» (слово ведучого).
+    const both = (k: string) => k === 'мясо' || isNoun(k);
+    for (const word of ['мясо', "м'ясо", 'м’ясо']) {
+      const s = must(wordleGuess(second, 'p1', word, 1000, both));
+      expect(recordOf(s, 1, 'p1'), word).toMatchObject({ answer: { guesses: ["м'ясо"], tries: 1, solved: true }, points: 600 });
+      expect(wordleOf(s, 'p1').guesses, word).toEqual(["м'ясо"]);
+    }
+  });
+
   it('time over gives 0', () => {
     const s = guess(fresh(), 'p1', ['сосна', 'посол']);
     expect(wordleGuess(s, 'p1', 'молот', 120_000, isNoun).ok).toBe(true);

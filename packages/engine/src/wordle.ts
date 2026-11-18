@@ -66,14 +66,16 @@ export function wordleGuess(state: GameState, playerId: string, word: string, no
   const letters = wordleLetters(typed);
   const target = targetKey(play);
   if (letters.length !== wordleLetters(target).length) return fail('wordle_length');
-  const key = wordleCandidates(letters).find((candidate) => candidate === target || isNoun(candidate));
+  // Розгадка — ті самі літери, що в слові ведучого (апостроф не рахується): тоді в історії й рядках — написання ведучого,
+  // навіть якщо раніший кандидат з тими ж літерами теж є в словнику.
+  const solved = letters.join('') === wordleLetters(target).join('');
+  const key = solved ? target : wordleCandidates(letters).find((candidate) => isNoun(candidate));
   if (key === undefined) return fail('wordle_unknown');
   const { guesses: before } = wordleOf(state, playerId);
   if (before.includes(key)) return fail('wordle_repeat');
 
   const guesses = [...before, key];
   const advanced = withPlay(state, { ...play, wordle: { ...play.wordle, [playerId]: { guesses } } });
-  const solved = key === target;
   if (!solved && guesses.length < LIMITS.wordleTries) return ok(advanced);
 
   const price = play.question.points * rulesOf(state.quiz.rounds[play.roundIndex]).multiplier;

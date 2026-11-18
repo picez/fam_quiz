@@ -4,7 +4,7 @@ import { BUFF_KINDS, DEBUFF_KINDS, LEGACY_DEBUFFS, READY_BUFFS, type BuffKind, t
 import { UNSTORABLE, isStorable } from './text';
 import { ANSWERER_MODES } from './teams';
 import { ladderPathIssue } from './wordladder';
-import { wordleWordIssue } from './wordle';
+import { wordleLeak, wordleWordIssue } from './wordle';
 import { letterSet } from './letterwords';
 import { betsRoundIssue } from './bets';
 import { SUDOKU_LEVELS, sudokuIssue } from './sudoku';
@@ -905,10 +905,8 @@ export const questionSchema = z
     }
     if (q.type === 'wordle') {
       if (wordleWordIssue(q.word) !== null) ctx.addIssue({ code: 'custom', message: 'wordle_word' });
-      // Текст видно всім: слова цілим словом там бути не може.
-      const wordsOf = (value: string) => answerKey(value).split(/[^\p{L}\p{N}']+/u).filter(Boolean).join(' ');
-      const key = wordsOf(q.word);
-      if (key !== '' && (' ' + wordsOf(q.text) + ' ').includes(' ' + key + ' ')) ctx.addIssue({ code: 'custom', message: 'wordle_leak' });
+      // Текст видно всім: слова цілим словом (і без апострофа) там бути не може.
+      if (wordleLeak(q.word, q.text)) ctx.addIssue({ code: 'custom', message: 'wordle_leak' });
       // Без таймера слово не закінчиться.
       if (q.video !== null) ctx.addIssue({ code: 'custom', message: 'wordle_video' });
     }

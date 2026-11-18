@@ -63,7 +63,8 @@ describe('wordle (48) in the room manager', () => {
   });
 
   it('a guess past the time limit is time_over while the question is still open', () => {
-    const scheduler = new FakeScheduler(0);
+    // Таймер закриття спрацьовує на 5 с пізніше (як повільний цикл подій): запитання ще відкрите, а час уже вийшов.
+    const scheduler = new FakeScheduler(-5_000);
     const manager = new RoomManager(scheduler, () => 0.5, { nouns: nounsOf(NOUNS) });
     const room = manager.create(wordleQuiz());
     manager.connect(room, HOST);
@@ -73,8 +74,12 @@ describe('wordle (48) in the room manager', () => {
     // Таймер закриття ще не спрацював, але час запитання вже вийшов.
     scheduler.advance(119_999);
     expect(manager.wordleGuess(room, id, 'сосна')).toEqual({ ok: true });
-    scheduler.advance(1);
-    expect(manager.wordleGuess(room, id, 'посол')).toEqual({ ok: false, error: expect.stringMatching(/^(time_over|wrong_phase)$/) });
+    scheduler.advance(2);
+    expect(room.state.phase).toBe('question');
+    expect(manager.wordleGuess(room, id, 'посол')).toEqual({ ok: false, error: 'time_over' });
+    // Пізній таймер усе ж закриває запитання.
+    scheduler.advance(5_000);
+    expect(room.state.phase).not.toBe('question');
   });
 
   it('bad bodies and bad actors are refused', () => {

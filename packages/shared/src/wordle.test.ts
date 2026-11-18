@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { WORDLE_KEYBOARD, wordleCandidates, wordleKey, wordleKeyboard, wordleLetters, wordleMarks, wordlePoints, wordleWordIssue } from './index';
+import { WORDLE_KEYBOARD, wordleCandidates, wordleKey, wordleKeyboard, wordleLeak, wordleLetters, wordleMarks, wordlePoints, wordleWordIssue } from './index';
 
 const L = (w: string) => wordleLetters(wordleKey(w)!);
 
@@ -23,6 +23,17 @@ describe('wordle rules', () => {
     expect(wordleWordIssue('кіт')).toBe('wordle_word');
     for (const w of ['вежа', 'черешня', "м'ясо"]) expect(wordleWordIssue(w)).toBeNull();
     for (const w of ['соняшник', 'kolos', 'ко лос', '']) expect(wordleWordIssue(w)).toBe('wordle_word');
+  });
+
+  it('a leak: the word as a whole word, with any apostrophe or without it', () => {
+    expect(wordleLeak('колос', 'Слово — колос?')).toBe(true);
+    expect(wordleLeak('колос', 'Колоски в полі')).toBe(false);
+    expect(wordleLeak("пір'я", 'Що таке пірря?')).toBe(true);
+    expect(wordleLeak("пір'я", 'Що таке піря?')).toBe(true);
+    expect(wordleLeak("пір'я", 'Що таке пір’я?')).toBe(true);
+    expect(wordleLeak("пір'я", 'Що таке ПІРʼЯ?')).toBe(true);
+    expect(wordleLeak("пір'я", 'Пір’ячко на вітрі')).toBe(false);
+    expect(wordleLeak('', 'будь-що')).toBe(false);
   });
 
   it('points by try', () => {

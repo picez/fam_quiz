@@ -4117,6 +4117,10 @@ describe('plan 48: wordle question', () => {
     expect(qIssues(wordleQ({ word: 'kolos' }))).toContain('wordle_word');
     expect(qIssues(wordleQ({ text: 'Слово — колос?' }))).toContain('wordle_leak');
     expect(qIssues(wordleQ({ text: 'Колоски в полі' }))).not.toContain('wordle_leak');
+    // Слово з апострофом: і без нього («пірря»), і з іншим апострофом («пір’я») — витік.
+    expect(qIssues(wordleQ({ word: "пір'я", text: 'Що таке пірря?' }))).toContain('wordle_leak');
+    expect(qIssues(wordleQ({ word: "пір'я", text: 'Що таке пір’я?' }))).toContain('wordle_leak');
+    expect(qIssues(wordleQ({ word: "пір'я", text: 'Чим набивають подушки?' }))).not.toContain('wordle_leak');
     expect(qIssues(wordleQ({ video: { id: 'E2Evideo001', start: 0, end: 10 } }))).toContain('wordle_video');
   });
 

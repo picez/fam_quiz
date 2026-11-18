@@ -1,6 +1,6 @@
 // «Вгадай слово» (48): правила літер і кольорів, спільні для схеми, рушія й веба.
-// LIMITS читається лише всередині функцій: quiz.ts імпортує цей файл.
-import { LIMITS } from './quiz';
+// LIMITS і answerKey читаються лише всередині функцій: quiz.ts імпортує цей файл.
+import { LIMITS, answerKey } from './quiz';
 import { ladderKey } from './wordladder';
 
 export type WordleMark = 'hit' | 'near' | 'miss';
@@ -62,6 +62,19 @@ export function wordleWordIssue(word: string): 'wordle_word' | null {
   if (key === null) return 'wordle_word';
   const n = wordleLetters(key).length;
   return n >= LIMITS.minWordleLetters && n <= LIMITS.maxWordleLetters ? null : 'wordle_word';
+}
+
+/**
+ * Текст запитання видно всім: чи є в ньому слово цілим словом — як є (апострофи ’ʼ‘` зведено до '), без апострофа
+ * («піря» для «пір'я») чи з подвоєною літерою замість нього («пірря»). Спільне правило схеми (wordle_leak) і редактора.
+ */
+export function wordleLeak(word: string, text: string): boolean {
+  const wordsOf = (value: string) => answerKey(value).split(/[^\p{L}\p{N}']+/u).filter(Boolean).join(' ');
+  const key = wordsOf(word);
+  if (key === '') return false;
+  const plain = ' ' + wordsOf(text) + ' ';
+  const bare = plain.replaceAll("'", '');
+  return plain.includes(' ' + key + ' ') || bare.includes(' ' + key.replaceAll("'", '') + ' ') || (key.includes("'") && bare.includes(' ' + key.replace(/(\p{L})'/gu, '$1$1') + ' '));
 }
 
 /** Бали за розгадку зі спроби tries (1…wordleTries). */

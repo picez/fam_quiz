@@ -91,6 +91,7 @@ import {
   type ThinkWord,
   thinkKey,
   thinkWordsIssue,
+  wordleLeak,
 } from '@quiz/shared';
 import { t, type TextKey } from '../i18n';
 import { newId } from './new-id';
@@ -1392,13 +1393,6 @@ function spyLeaks(question: Extract<Question, { type: 'spy' }>): boolean {
   });
 }
 
-/** Текст видно всім: слово цілим словом у тексті запитання (те саме правило, що wordle_leak схеми). */
-function wordleLeaks(question: Extract<Question, { type: 'wordle' }>): boolean {
-  const wordsOf = (value: string) => answerKey(value).split(/[^\p{L}\p{N}']+/u).filter(Boolean).join(' ');
-  const key = wordsOf(question.word);
-  return key !== '' && (' ' + wordsOf(question.text) + ' ').includes(' ' + key + ' ');
-}
-
 function problemKey(question: Question, place: Place = ANYWHERE): TextKey | null {
   if (question.text === '') return 'problemNoText';
   // Місце головоломок — раніше за їхні поля: судоку поза «Головоломками» не виправити цифрами.
@@ -1640,7 +1634,7 @@ function problemKey(question: Question, place: Place = ANYWHERE): TextKey | null
     }
     case 'wordle': {
       if (wordleWordIssue(question.word) !== null) return 'problemWordleWord';
-      if (wordleLeaks(question)) return 'problemWordleLeak';
+      if (wordleLeak(question.word, question.text)) return 'problemWordleLeak';
       if (question.video !== null) return 'problemWordleVideo';
       break;
     }

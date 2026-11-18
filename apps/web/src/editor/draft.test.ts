@@ -3813,6 +3813,9 @@ describe('plan 48 editors: wordle', () => {
   it('a text that gives the word away is a problem', () => {
     expect(problemsOf(quizWith(wordle({ text: 'Це колос' })))).toEqual([t('problemWordleLeak', { index: 1 })]);
     expect(problemsOf(quizWith(wordle({ text: 'Це колосок' })))).toEqual([]);
+    // Те саме правило, що схеми: слово без апострофа чи з іншим апострофом — теж витік.
+    expect(problemsOf(quizWith(wordle({ word: "пір'я", text: 'Це пірря' })))).toEqual([t('problemWordleLeak', { index: 1 })]);
+    expect(problemsOf(quizWith(wordle({ word: "пір'я", text: 'Це пір’я' })))).toEqual([t('problemWordleLeak', { index: 1 })]);
   });
 
   it('cleaning drops a video, so it never blocks saving', () => {

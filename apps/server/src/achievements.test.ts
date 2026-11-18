@@ -99,7 +99,7 @@ describe('careerEarned', () => {
       'author_hit',
       'veteran',
     ]);
-    const below = { ...base, games: 249, podium: 9, debuffsBought: 9, authorGames: 9, roundTypes: 12, questionTypes: 31 };
+    const below = { ...base, games: 249, podium: 9, debuffsBought: 9, authorGames: 9, roundTypes: 12, questionTypes: 32 };
     expect(careerEarned(below)).toEqual(['first_game', 'games_10', 'games_50', 'games_100']);
   });
 });
