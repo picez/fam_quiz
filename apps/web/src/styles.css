@@ -23887,6 +23887,76 @@ input.sudoku-editor-cell:focus-visible {
   }
 }
 
+/* Панель «Банк запитань» (38f): та сама картка, що й «Із групи»; на телефоні — на весь екран. */
+.question-bank-filters {
+  display: grid;
+  gap: 0.5rem;
+  min-width: 0;
+}
+.question-bank-filters input,
+.question-bank-filters select {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+.question-bank-type {
+  display: grid;
+  gap: 0.25rem;
+  min-width: 0;
+}
+.question-bank-list {
+  display: grid;
+  gap: 0.5rem;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.question-bank-item {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: start;
+  gap: 0.625rem;
+  min-width: 0;
+  padding: 0.625rem 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+.question-bank-item:hover:not(.is-disabled) {
+  border-color: var(--dim);
+}
+.question-bank-item:focus-within {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.question-bank-item.is-disabled {
+  cursor: not-allowed;
+  opacity: 0.75;
+}
+.question-bank-item input {
+  margin-block-start: 0.2rem;
+}
+.question-bank-body {
+  display: grid;
+  gap: 0.25rem;
+  min-width: 0;
+}
+.question-bank-thumb {
+  inline-size: 48px;
+  block-size: 48px;
+  border-radius: calc(var(--radius) / 2);
+  object-fit: cover;
+}
+.question-bank-here {
+  color: var(--correct);
+}
+.question-bank-room {
+  margin: 0.5rem 0 0;
+}
+
 /* Чипи виду поруч із «Ще не використані» (12l): у тому самому рядку з прокруткою. */
 .group-kind-radios {
   display: contents;

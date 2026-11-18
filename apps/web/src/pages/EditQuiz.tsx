@@ -128,6 +128,7 @@ export function EditQuiz() {
         initial={initial}
         heading={t(id === undefined ? 'editorNew' : 'editorEdit')}
         likes={likes}
+        quizId={id}
         notice={initialDrafts?.fresh === true && draft !== null ? t('groupQuizNotice') : draft === null ? null : t('draftRestored')}
         onDraft={(quiz) => saveDraft(id, quiz)}
         onSave={save}

@@ -1,10 +1,11 @@
-import { LIMITS, allowedBuffs, questionsOf, roundQuestions, roundTrials, type Question, type Quiz, type QuizLikes, type Round } from '@quiz/shared';
+import { LIMITS, allowedBuffs, questionsOf, roundQuestions, roundTrials, type Question, type QuestionBankItem, type Quiz, type QuizLikes, type Round } from '@quiz/shared';
 import { useEffect, useRef, useState } from 'react';
 import { t } from '../i18n';
 import {
   booleanCounts,
   cleaned,
   cloudSources,
+  bankCopy,
   duplicateQuestion,
   firstProblem,
   groupDraftPlace,
@@ -35,6 +36,7 @@ import {
 } from './draft';
 import { BoardEditor } from './BoardEditor';
 import { GroupPicker } from '../groups/GroupPicker';
+import { QuestionBank } from './QuestionBank';
 import type { GroupDraft } from '../groups/templates';
 import { useGroupDrafts } from './group-drafts';
 import { LikeCount } from './LikeCount';
@@ -59,13 +61,15 @@ interface Props {
   onCancel: () => void;
   /** Лічильники лайків збереженої вікторини; без них сердець не видно. */
   likes?: QuizLikes;
+  /** Збережена вікторина, що редагується: у банку запитань її рядки позначені «ця вікторина». */
+  quizId?: string;
 }
 
 /**
  * Редактор «список і сцена»: зверху назва й правила, далі раунди; ліворуч список запитань, праворуч одне запитання
  * таким, яким його побачать гравці. На вузькому екрані список ховається за кнопку.
  */
-export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, onCancel, likes }: Props) {
+export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, onCancel, likes, quizId }: Props) {
   const [quiz, setQuiz] = useState(initial);
   const [dirty, setDirty] = useState(false);
   const [roundIndex, setRoundIndex] = useState(0);
@@ -73,6 +77,8 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
   const [listOpen, setListOpen] = useState(false);
   /** Панель «Запитання з групи» відкрита (12l). */
   const [pickerOpen, setPickerOpen] = useState(false);
+  /** Панель «Банк запитань» відкрита (38f). */
+  const [bankOpen, setBankOpen] = useState(false);
   const groupDrafts = useGroupDrafts();
   const [problems, setProblems] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
@@ -176,6 +182,24 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
     setQuestions([...questions, question]);
     select(questions.length);
     groupDrafts?.add(question.id, { ...source, notes: draft.notes });
+  };
+
+  /** Копії позначених запитань банку — в кінець раунду; виділення на першій копії. */
+  const copyFromBank = (picks: QuestionBankItem[]) => {
+    let after = questions[last];
+    const added: Question[] = [];
+    for (const pick of picks) {
+      const fit = bankCopy(quiz, ri, pick.question, after);
+      if (!('question' in fit)) continue;
+      added.push(fit.question);
+      after = fit.question;
+    }
+    setBankOpen(false);
+    if (added.length === 0 || round.type === 'board' || round.type === 'truth') return;
+    const next = [...questions, ...added];
+    if (round.type === 'ladder') setRound(resizeLadder({ ...round, questions: next }, next.length));
+    else setQuestions(next);
+    select(questions.length);
   };
 
   const duplicate = () => {
@@ -474,19 +498,28 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
                 })}
               </ol>
 
-              {groupDraftPlace(round) === 'list' ? (
-                <div className="editor-add-row">
-                  <button type="button" className="btn btn-dashed" disabled={!roomForMore} onClick={add}>
-                    {t('addQuestion')}
-                  </button>
-                  <button type="button" className="btn btn-dashed" disabled={!roomForMore} onClick={() => setPickerOpen(true)}>
-                    {t('groupFromButton')}
-                  </button>
-                </div>
-              ) : (
+              <div className="editor-add-row">
                 <button type="button" className="btn btn-dashed" disabled={!roomForMore} onClick={add}>
                   {t('addQuestion')}
                 </button>
+                {groupDraftPlace(round) === 'list' && (
+                  <button type="button" className="btn btn-dashed" disabled={!roomForMore} onClick={() => setPickerOpen(true)}>
+                    {t('groupFromButton')}
+                  </button>
+                )}
+                <button type="button" className="btn btn-dashed" disabled={!roomForMore} onClick={() => setBankOpen(true)}>
+                  {t('bankButton')}
+                </button>
+              </div>
+              {bankOpen && (
+                <QuestionBank
+                  types={questionTypesFor(round.type)}
+                  room={Math.max(0, Math.min(roundCapacity(round) - questions.length, LIMITS.maxQuizQuestions - total))}
+                  quizId={quizId}
+                  fit={(question) => bankCopy(quiz, ri, question, questions[last])}
+                  onCopy={copyFromBank}
+                  onClose={() => setBankOpen(false)}
+                />
               )}
               {pickerOpen && (
                 <GroupPicker
