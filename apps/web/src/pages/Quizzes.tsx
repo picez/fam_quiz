@@ -140,7 +140,11 @@ export function Quizzes() {
             <li className="panel" key={quiz.id}>
               <div>
                 <h2 dir="auto">{quiz.title}</h2>
-                {quiz.description !== '' && <p className="meta">{quiz.description}</p>}
+                {quiz.description !== '' && (
+                  <p className="meta quiz-description" dir="auto">
+                    {quiz.description}
+                  </p>
+                )}
                 <p className="meta">{quizSizeText(t('questionCount', { count: quiz.questionCount }), quiz.questionCount, quiz.truth)}</p>
                 {library.filter((one) => one.quizId === quiz.id).map((one) => (
                   <p className="meta library-line" key={one.entryId}>

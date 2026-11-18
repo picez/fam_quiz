@@ -3,7 +3,7 @@ import { Navigate, NavLink, Route, Routes } from 'react-router-dom';
 import { t } from '../i18n';
 import { useAccount } from '../useAccount';
 import { AdminLog } from './AdminLog';
-import { AdminQuiz } from './AdminQuiz';
+import { AdminQuiz, AdminReportedQuiz } from './AdminQuiz';
 import { AdminQuizzes } from './AdminQuizzes';
 import { AdminReports } from './AdminReports';
 import { AdminStats } from './AdminStats';
@@ -40,6 +40,7 @@ export function Admin(): JSX.Element | null {
         <Route path="quizzes" element={<AdminQuizzes />} />
         <Route path="quizzes/:id" element={<AdminQuiz />} />
         <Route path="reports" element={<AdminReports />} />
+        <Route path="reports/quiz/:entryId" element={<AdminReportedQuiz />} />
         <Route path="log" element={<AdminLog />} />
         <Route path="*" element={<Navigate to="/admin" replace />} />
       </Routes>

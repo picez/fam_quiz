@@ -110,6 +110,14 @@ describe('Quizzes', () => {
     expect(link.getAttribute('href')).toBe('/help');
   });
 
+  it('keeps the «Author: …» line of a copy on its own line', async () => {
+    vi.mocked(listQuizzes).mockResolvedValue({ ok: true, data: [{ ...summary, description: 'Автор: Олена\nПро Україну' }] });
+    open();
+    const description = await screen.findByText((_, node) => node?.tagName === 'P' && node.textContent === 'Автор: Олена\nПро Україну');
+    expect(description.classList.contains('quiz-description')).toBe(true);
+    expect(description.getAttribute('dir')).toBe('auto');
+  });
+
   it('lists the host’s quizzes', async () => {
     open();
     expect(await screen.findByText('Географія')).toBeTruthy();

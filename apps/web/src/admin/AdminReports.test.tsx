@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import type { AdminReportItem } from '@quiz/shared';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
+import { Link, MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AdminReports } from './AdminReports';
 import { actOnProfileReport, actOnQuizReport, adminReports } from './admin-api';
@@ -61,7 +61,7 @@ describe('AdminReports', () => {
     expect(screen.getByText('Спам × 2')).toBeTruthy();
     expect(screen.getByText('Це реклама').closest('blockquote')?.getAttribute('dir')).toBe('auto');
     expect(screen.getByText('⏳ Тимчасово приховано: скарги на перевірці')).toBeTruthy();
-    expect(screen.getByRole('link', { name: 'Переглянути вікторину' }).getAttribute('href')).toBe('/admin/quizzes/q1');
+    expect(screen.getByRole('link', { name: 'Переглянути вікторину' }).getAttribute('href')).toBe('/admin/reports/quiz/e1');
     fireEvent.click(screen.getByRole('button', { name: 'Сховати вікторину' }));
     expect(window.confirm).toHaveBeenCalled();
     await waitFor(() => expect(actOnQuizReport).toHaveBeenCalledWith('e1', 'hide'));
@@ -83,15 +83,38 @@ describe('AdminReports', () => {
     await waitFor(() => expect(actOnQuizReport).toHaveBeenCalledWith('e1', 'dismiss'));
   });
 
-  it('shows an appeal with restore and dismiss, without hide', async () => {
+  it('shows an appeal with unhide and reject, without hide', async () => {
     vi.mocked(adminReports).mockResolvedValue(page([quiz({ moderation: 'hidden', appeal: true, reports: 0, reasons: {}, texts: [] })]));
     open();
     expect(await screen.findByText('Автор оскаржує приховування')).toBeTruthy();
     expect(screen.getByText('🚫 Приховано модератором')).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Сховати вікторину' })).toBeNull();
-    expect(screen.getByRole('button', { name: 'Відхилити скаргу' })).toBeTruthy();
-    fireEvent.click(screen.getByRole('button', { name: 'Повернути в каталог' }));
+    expect(screen.queryByRole('button', { name: 'Відхилити скаргу' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Зняти приховування' }));
+    expect(window.confirm).toHaveBeenLastCalledWith('Зняти приховування з вікторини «Річки України»? Вона повернеться в каталог, якщо автор її не закрив.');
     await waitFor(() => expect(actOnQuizReport).toHaveBeenCalledWith('e1', 'restore'));
+  });
+
+  it('rejects an appeal with its own label and warning', async () => {
+    vi.mocked(adminReports).mockResolvedValue(page([quiz({ moderation: 'hidden', appeal: true, reports: 0, reasons: {}, texts: [] })]));
+    open();
+    fireEvent.click(await screen.findByRole('button', { name: 'Відхилити оскарження' }));
+    expect(window.confirm).toHaveBeenLastCalledWith('Відхилити оскарження «Річки України»? Вікторина лишиться прихованою, оскаржити вдруге не можна.');
+    await waitFor(() => expect(actOnQuizReport).toHaveBeenCalledWith('e1', 'dismiss'));
+  });
+
+  it('reads the queue again when the active tab is clicked once more', async () => {
+    vi.mocked(adminReports).mockResolvedValue(page([]));
+    render(
+      <MemoryRouter initialEntries={['/admin/reports']}>
+        <Link to="/admin/reports">tab</Link>
+        <AdminReports />
+      </MemoryRouter>,
+    );
+    await screen.findByText('Відкритих скарг немає.');
+    expect(adminReports).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByRole('link', { name: 'tab' }));
+    await waitFor(() => expect(adminReports).toHaveBeenCalledTimes(2));
   });
 
   it('shows a profile with reset buttons only for what exists', async () => {

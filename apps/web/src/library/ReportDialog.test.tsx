@@ -50,11 +50,14 @@ describe('ReportDialog', () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
-  it('can be closed with the button after sending', async () => {
+  it('can be closed with the button after sending, and the focus moves to it', async () => {
     show();
     fireEvent.click(screen.getByLabelText(t('reportReason_other')));
+    send().focus();
     fireEvent.click(send());
-    fireEvent.click(await screen.findByRole('button', { name: t('reportClose') }));
+    const done = await screen.findByRole('button', { name: t('reportClose') });
+    expect(document.activeElement).toBe(done);
+    fireEvent.click(done);
     expect(onClose).toHaveBeenCalled();
   });
 

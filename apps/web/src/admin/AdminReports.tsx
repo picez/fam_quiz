@@ -1,5 +1,5 @@
 import { useState, type JSX } from 'react';
-import { Link, Navigate } from 'react-router-dom';
+import { Link, Navigate, useLocation } from 'react-router-dom';
 import { REPORT_REASONS, type AdminReportItem } from '@quiz/shared';
 import { formatDate } from '../format';
 import { countText, errorText, t } from '../i18n';
@@ -26,7 +26,9 @@ export function AdminReports(): JSX.Element {
   const [page, setPage] = useState(1);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const state = useAdminData(() => adminReports(page), String(page));
+  // Повторний клік по активній вкладці дає новий location.key без перемонтування — черга читається знову.
+  const location = useLocation();
+  const state = useAdminData(() => adminReports(page), `${page}:${location.key}`);
 
   const act = async (confirm: string, run: () => Promise<{ ok: true } | { ok: false; error: string }>) => {
     if (!window.confirm(confirm)) return;
@@ -73,7 +75,7 @@ export function AdminReports(): JSX.Element {
                     {item.moderation === 'hidden' && <p className="admin-mark">{t('libraryStatusHidden')}</p>}
                     {item.appeal && <p className="admin-mark">{t('adminReportAppeal')}</p>}
                     <div className="admin-actions">
-                      <Link className="btn" to={`/admin/quizzes/${encodeURIComponent(item.quizId)}`}>
+                      <Link className="btn" to={`/admin/reports/quiz/${encodeURIComponent(item.entryId)}`}>
                         {t('adminReportOpenQuiz')}
                       </Link>
                       {item.moderation !== 'hidden' && (
@@ -86,8 +88,13 @@ export function AdminReports(): JSX.Element {
                           {t('adminRestoreQuiz')}
                         </button>
                       )}
-                      <button type="button" className="btn" disabled={busy} onClick={() => void act(t('adminDismissConfirm'), () => actOnQuizReport(item.entryId, 'dismiss'))}>
-                        {t('adminDismissReport')}
+                      <button
+                        type="button"
+                        className="btn"
+                        disabled={busy}
+                        onClick={() => void act(item.appeal ? t('adminRejectAppealConfirm', { title: item.title }) : t('adminDismissConfirm'), () => actOnQuizReport(item.entryId, 'dismiss'))}
+                      >
+                        {item.appeal ? t('adminRejectAppeal') : t('adminDismissReport')}
                       </button>
                     </div>
                   </li>

@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react';
+import { useEffect, useId, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react';
 import { createPortal } from 'react-dom';
+import { useNavigate } from 'react-router-dom';
 import { LOCALES, type LibraryMine, type Locale } from '@quiz/shared';
 import type { QuizSummary } from '../api';
 import { HelpButton } from '../help/HelpButton';
@@ -17,7 +18,7 @@ export function libraryStatusText(entry: LibraryMine): string {
 
 /**
  * Аркуш «📚 Відкрити для всіх»: попередження про особисте перед першим відкриттям, мова вікторини, відкрити / оновити / закрити,
- * один раз оскаржити приховування. Стан після дії береться окремим запитом.
+ * один раз оскаржити приховування. Стан після дії береться окремим запитом; не вдався він — береться очікуваний стан після дії.
  */
 export function LibraryShare({
   quiz,
@@ -35,6 +36,8 @@ export function LibraryShare({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sent, setSent] = useState(false);
+  const languageId = useId();
+  const navigate = useNavigate();
   const cancelRef = useRef<HTMLButtonElement | null>(null);
   const cardRef = useRef<HTMLDivElement | null>(null);
   // Поки запит іде, аркуш не закривається: відповідь має куди прийти.
@@ -60,18 +63,25 @@ export function LibraryShare({
     return () => document.removeEventListener('keydown', onEscape);
   }, []);
 
-  /** Виконує дію і підтягує свіжий стан запису; помилка лишається в аркуші. */
-  const act = async (action: () => Promise<{ ok: true } | { ok: false; error: string }>) => {
+  /**
+   * Виконує дію і підтягує свіжий стан запису; помилка дії лишається в аркуші, сесія скінчилась — на вхід.
+   * Дія вдалася, а свіжий стан не прочитався — «Мої вікторини» отримують очікуваний стан (expected), а не старий.
+   */
+  const act = async (action: () => Promise<{ ok: true; expected: LibraryMine } | { ok: false; error: string }>) => {
     if (busyRef.current) return;
     busyRef.current = true;
     setBusy(true);
     setError(null);
     const done = await action();
-    const fresh = done.ok ? await myLibrary() : done;
+    const fresh = done.ok ? await myLibrary() : null;
     busyRef.current = false;
     setBusy(false);
-    if (!fresh.ok) return setError(errorText(fresh.error));
-    const mine = fresh.data.find((one) => one.quizId === quiz.id) ?? null;
+    if (!done.ok) {
+      if (done.error === 'unauthorized') navigate('/login?next=%2Fquizzes', { replace: true });
+      else setError(errorText(done.error));
+      return;
+    }
+    const mine = fresh !== null && fresh.ok ? (fresh.data.find((one) => one.quizId === quiz.id) ?? null) : done.expected;
     setCurrent(mine);
     onChanged(mine);
   };
@@ -79,17 +89,28 @@ export function LibraryShare({
   const open = () =>
     act(async () => {
       const result = await openInLibrary(quiz.id, language);
-      return result.ok ? { ok: true as const } : result;
+      if (!result.ok) return result;
+      const base: LibraryMine = current ?? { quizId: quiz.id, entryId: result.data.entryId, listed: true, moderation: 'ok', appealed: false, appealOpen: false, language, updatedAt: '', likes: 0, plays: 0 };
+      return { ok: true as const, expected: { ...base, entryId: result.data.entryId, listed: true, moderation: 'ok', language, updatedAt: new Date().toISOString() } };
     });
   const remove = () => {
-    if (window.confirm(t('libraryCloseConfirm'))) void act(() => closeInLibrary(quiz.id));
-  };
-  const appeal = () =>
-    act(async () => {
-      const result = await appealLibrary(quiz.id);
-      if (result.ok) setSent(true);
-      return result;
+    if (current === null || !window.confirm(t('libraryCloseConfirm'))) return;
+    const before = current;
+    void act(async () => {
+      const result = await closeInLibrary(quiz.id);
+      return result.ok ? { ok: true as const, expected: { ...before, listed: false } } : result;
     });
+  };
+  const appeal = () => {
+    if (current === null) return;
+    const before = current;
+    void act(async () => {
+      const result = await appealLibrary(quiz.id);
+      if (!result.ok) return result;
+      setSent(true);
+      return { ok: true as const, expected: { ...before, appealed: true, appealOpen: true } };
+    });
+  };
 
   // Tab і Shift+Tab ходять колом усередині аркуша (aria-modal).
   const onKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
@@ -111,6 +132,8 @@ export function LibraryShare({
   const hidden = current?.moderation === 'hidden';
   const held = current?.moderation === 'auto_hidden';
   const isOpen = current !== null && current.listed && current.moderation === 'ok';
+  // Закрити можна будь-коли, і під модерацією теж: інакше зняте приховування повернуло б вікторину проти волі автора.
+  const canClose = current?.listed === true;
   // Відкрити чи оновити можна, поки модератор нічого не приховав.
   const canOpen = !hidden && !held;
 
@@ -134,16 +157,16 @@ export function LibraryShare({
         {isOpen && <p className="meta">{t('librarySnapshotHint')}</p>}
 
         {canOpen && (
-          <label className="field">
-            <span>{t('libraryShareLanguage')}</span>
-            <select value={language} disabled={busy} onChange={(event) => setLanguage(event.target.value as Locale)}>
+          <div className="field">
+            <label htmlFor={languageId}>{t('libraryShareLanguage')}</label>
+            <select id={languageId} value={language} disabled={busy} onChange={(event) => setLanguage(event.target.value as Locale)}>
               {LOCALES.map((locale) => (
                 <option key={locale} value={locale}>
                   {LOCALE_NAMES[locale]}
                 </option>
               ))}
             </select>
-          </label>
+          </div>
         )}
 
         {(sent || (hidden && current?.appealed === true)) && <p className="meta">{sent ? t('libraryAppealSent') : t('libraryAppealUsed')}</p>}
@@ -160,13 +183,13 @@ export function LibraryShare({
               {isOpen ? t('libraryUpdate') : t('libraryOpen')}
             </button>
           )}
-          {isOpen && (
+          {canClose && (
             <button type="button" className="btn" disabled={busy} onClick={remove}>
               {t('libraryClose')}
             </button>
           )}
           {hidden && !sent && current?.appealed === false && (
-            <button type="button" className="btn btn-primary" disabled={busy} onClick={() => void appeal()}>
+            <button type="button" className="btn btn-primary" disabled={busy} onClick={appeal}>
               {t('libraryAppeal')}
             </button>
           )}

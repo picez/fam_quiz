@@ -2,15 +2,25 @@ import { useState, type JSX } from 'react';
 import { Link, Navigate, useParams } from 'react-router-dom';
 import { allSpares, roundQuestions, roundTrials, type AdminQuizView, type Question, type Round } from '@quiz/shared';
 import { errorText, t } from '../i18n';
-import { roundLabel } from '../format';
-import { adminQuiz, deleteQuestionAsAdmin, deleteQuizAsAdmin } from './admin-api';
+import { formatDate, roundLabel } from '../format';
+import { adminQuiz, adminReportedQuiz, deleteQuestionAsAdmin, deleteQuizAsAdmin } from './admin-api';
 import { questionConfirm, questionLines } from './admin-text';
 import { useAdminData } from './useAdminData';
 import { nickText } from '../nick';
 
 export function AdminQuiz(): JSX.Element {
   const { id = '' } = useParams();
-  const state = useAdminData(() => adminQuiz(id), id);
+  return <Loaded id={id} load={() => adminQuiz(id)} readOnly={false} />;
+}
+
+/** Знімок вікторини з каталогу, на який скаржаться: те, що бачать гравці, лише для перегляду. */
+export function AdminReportedQuiz(): JSX.Element {
+  const { entryId = '' } = useParams();
+  return <Loaded id={entryId} load={() => adminReportedQuiz(entryId)} readOnly />;
+}
+
+function Loaded({ id, load, readOnly }: { id: string; load: () => ReturnType<typeof adminQuiz>; readOnly: boolean }): JSX.Element {
+  const state = useAdminData(load, id);
   if (state.status === 'home') return <Navigate to="/" replace />;
   if (state.status === 'loading') return <p className="meta">{t('loading')}</p>;
   if (state.status === 'error') {
@@ -25,10 +35,10 @@ export function AdminQuiz(): JSX.Element {
       </>
     );
   }
-  return <QuizView key={id} loaded={state.data} />;
+  return <QuizView key={id} loaded={state.data} readOnly={readOnly} />;
 }
 
-function QuizView({ loaded }: { loaded: AdminQuizView }): JSX.Element {
+function QuizView({ loaded, readOnly }: { loaded: AdminQuizView; readOnly: boolean }): JSX.Element {
   // Після видалення запитання сервер віддає вікторину наново — далі беремо її.
   const [fresh, setFresh] = useState<AdminQuizView | null>(null);
   const view = fresh ?? loaded;
@@ -61,18 +71,28 @@ function QuizView({ loaded }: { loaded: AdminQuizView }): JSX.Element {
   };
 
   const card = (question: Question, roundTitle: string): JSX.Element => {
+    const lines = questionLines(question).map((line, index) => (
+      <p key={index} className={index === 0 ? undefined : 'meta'}>
+        {line}
+      </p>
+    ));
+    const image = question.imageUrl !== null && <img className="admin-thumb" src={question.imageUrl} alt={t('adminQuestionImage')} loading="lazy" />;
+    if (readOnly) {
+      return (
+        <li key={question.id} className="admin-card">
+          {lines}
+          {image}
+        </li>
+      );
+    }
     const effect = effects[question.id] ?? 'not_found';
     const off = questionConfirm(effect, roundTitle) === null;
     const hintId = `hint-${question.id}`;
     const hint = effect === 'locked' ? t('err_question_locked') : effect === 'last_question' ? t('adminDeleteWholeQuiz') : null;
     return (
       <li key={question.id} className="admin-card">
-        {questionLines(question).map((line, index) => (
-          <p key={index} className={index === 0 ? undefined : 'meta'}>
-            {line}
-          </p>
-        ))}
-        {question.imageUrl !== null && <img className="admin-thumb" src={question.imageUrl} alt={t('adminQuestionImage')} loading="lazy" />}
+        {lines}
+        {image}
         <button
           type="button"
           className="btn"
@@ -112,7 +132,7 @@ function QuizView({ loaded }: { loaded: AdminQuizView }): JSX.Element {
   if (target === 'list') return <Navigate to="/admin/quizzes" replace />;
   return (
     <>
-      <Link className="quiet-link" to="/admin/quizzes">
+      <Link className="quiet-link" to={readOnly ? '/admin/reports' : '/admin/quizzes'}>
         {t('adminBack')}
       </Link>
       <h2 className="admin-title" dir="auto">{quiz.title}</h2>
@@ -125,9 +145,13 @@ function QuizView({ loaded }: { loaded: AdminQuizView }): JSX.Element {
           {error}
         </p>
       )}
-      <button type="button" className="btn btn-danger" disabled={busy} onClick={() => void removeQuiz()}>
-        {t('adminDeleteQuiz')}
-      </button>
+      {readOnly ? (
+        <p className="meta">{t('adminReportSnapshot', { date: formatDate(view.updatedAt) })}</p>
+      ) : (
+        <button type="button" className="btn btn-danger" disabled={busy} onClick={() => void removeQuiz()}>
+          {t('adminDeleteQuiz')}
+        </button>
+      )}
       {quiz.rounds.map((round, index) => {
         const title = roundLabel(round.title, index, round.type);
         const trials = roundTrials(round);

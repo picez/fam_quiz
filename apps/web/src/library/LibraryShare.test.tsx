@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import type { LibraryMine } from '@quiz/shared';
+import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { t } from '../i18n';
 import { appealLibrary, closeInLibrary, myLibrary, openInLibrary } from './library-api';
@@ -30,7 +31,15 @@ const entry = (over: Partial<LibraryMine> = {}): LibraryMine => ({
 
 const onClose = vi.fn();
 const onChanged = vi.fn();
-const open = (current: LibraryMine | null) => render(<LibraryShare quiz={quiz} entry={current} onClose={onClose} onChanged={onChanged} />);
+const open = (current: LibraryMine | null) =>
+  render(
+    <MemoryRouter initialEntries={['/quizzes']}>
+      <Routes>
+        <Route path="/quizzes" element={<LibraryShare quiz={quiz} entry={current} onClose={onClose} onChanged={onChanged} />} />
+        <Route path="/login" element={<p>сторінка входу</p>} />
+      </Routes>
+    </MemoryRouter>,
+  );
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -110,12 +119,60 @@ describe('LibraryShare', () => {
     expect(screen.queryByRole('button', { name: t('libraryAppeal') })).toBeNull();
   });
 
-  it('shows a quiz held for review without actions', () => {
+  it('a quiz held for review can only be closed', async () => {
     open(entry({ moderation: 'auto_hidden' }));
     expect(screen.getByText('⏳ Тимчасово приховано: скарги на перевірці')).toBeTruthy();
     expect(screen.queryByRole('button', { name: t('libraryUpdate') })).toBeNull();
-    expect(screen.queryByRole('button', { name: t('libraryClose') })).toBeNull();
     expect(screen.queryByRole('button', { name: t('libraryOpen') })).toBeNull();
+    vi.mocked(myLibrary).mockResolvedValue({ ok: true, data: [entry({ moderation: 'auto_hidden', listed: false })] });
+    fireEvent.click(screen.getByRole('button', { name: t('libraryClose') }));
+    await waitFor(() => expect(closeInLibrary).toHaveBeenCalledWith('q1'));
+    await waitFor(() => expect(onChanged).toHaveBeenLastCalledWith(entry({ moderation: 'auto_hidden', listed: false })));
+    expect(screen.queryByRole('button', { name: t('libraryClose') })).toBeNull();
+  });
+
+  it('a quiz hidden by a moderator can be closed too; a closed one has no Close', () => {
+    open(entry({ moderation: 'hidden' }));
+    expect(screen.getByRole('button', { name: t('libraryClose') })).toBeTruthy();
+    cleanup();
+    open(entry({ moderation: 'hidden', listed: false }));
+    expect(screen.queryByRole('button', { name: t('libraryClose') })).toBeNull();
+  });
+
+  it('after a successful action with a failed refresh, the list gets the expected state', async () => {
+    vi.mocked(myLibrary).mockResolvedValue({ ok: false, error: 'network' });
+    open(entry());
+    fireEvent.click(screen.getByRole('button', { name: t('libraryClose') }));
+    await waitFor(() => expect(onChanged).toHaveBeenLastCalledWith(entry({ listed: false })));
+    expect(await screen.findByText(t('libraryStatusClosed'))).toBeTruthy();
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  it('a failed refresh after opening and after an appeal still moves the state on', async () => {
+    vi.mocked(myLibrary).mockResolvedValue({ ok: false, error: 'network' });
+    open(null);
+    fireEvent.click(screen.getByRole('button', { name: t('libraryOpen') }));
+    await waitFor(() => expect(onChanged).toHaveBeenLastCalledWith(expect.objectContaining({ quizId: 'q1', entryId: 'e1', listed: true, moderation: 'ok', language: 'uk' })));
+    cleanup();
+    open(entry({ moderation: 'hidden' }));
+    fireEvent.click(screen.getByRole('button', { name: t('libraryAppeal') }));
+    await waitFor(() => expect(onChanged).toHaveBeenLastCalledWith(entry({ moderation: 'hidden', appealed: true, appealOpen: true })));
+  });
+
+  it('an expired session goes to the sign-in page instead of showing an error', async () => {
+    vi.mocked(openInLibrary).mockResolvedValue({ ok: false, error: 'unauthorized' });
+    open(entry());
+    fireEvent.click(screen.getByRole('button', { name: t('libraryUpdate') }));
+    expect(await screen.findByText('сторінка входу')).toBeTruthy();
+    expect(onChanged).not.toHaveBeenCalled();
+  });
+
+  it('the language select has its own label', () => {
+    open(null);
+    const select = screen.getByRole('combobox');
+    const label = document.querySelector(`label[for="${select.id}"]`);
+    expect(select.id).not.toBe('');
+    expect(label?.textContent).toBe(t('libraryShareLanguage'));
   });
 
   it('shows the error of a refused appeal', async () => {

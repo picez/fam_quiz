@@ -26027,6 +26027,12 @@ a.library-card:focus-visible {
   overflow-wrap: anywhere;
 }
 
+/* «Мої вікторини»: рядок «Автор: …» копії з бібліотеки — окремим рядком над описом. */
+.quiz-description {
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+
 .library-quiz h1 {
   overflow-wrap: anywhere;
 }

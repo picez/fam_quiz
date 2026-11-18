@@ -19,6 +19,7 @@ export function ReportDialog({ target, onClose }: { target: ReportTarget; onClos
   const [error, setError] = useState<string | null>(null);
   const firstRef = useRef<HTMLInputElement | null>(null);
   const cardRef = useRef<HTMLDivElement | null>(null);
+  const doneRef = useRef<HTMLButtonElement | null>(null);
   const busyRef = useRef(false);
   const close = () => {
     if (!busyRef.current) onClose();
@@ -43,6 +44,8 @@ export function ReportDialog({ target, onClose }: { target: ReportTarget; onClos
 
   useEffect(() => {
     if (!sent) return;
+    // «Надіслати» зник разом із формою: фокус переходить на «Закрити», а не на <body>.
+    doneRef.current?.focus();
     const timer = window.setTimeout(() => closeRef.current(), CLOSE_AFTER_MS);
     return () => window.clearTimeout(timer);
   }, [sent]);
@@ -85,7 +88,7 @@ export function ReportDialog({ target, onClose }: { target: ReportTarget; onClos
           <>
             <p role="status">{t('reportSent')}</p>
             <div className="autopilot-actions">
-              <button type="button" className="btn btn-primary" onClick={close}>
+              <button ref={doneRef} type="button" className="btn btn-primary" onClick={close}>
                 {t('reportClose')}
               </button>
             </div>
