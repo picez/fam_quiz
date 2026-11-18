@@ -4857,7 +4857,7 @@
   "wordleLegend": "العلامات",
   "wordleSolved": "خمّنتها في المحاولة رقم {tries}!",
   "wordleOut": "انتهت المحاولات",
-  "wordleWatch": "القائد يخمّن — تابعوا شبكة الفريق",
+  "wordleWatch": "يخمّن من يجيب عن الفريق — تابعوا شبكة الفريق",
   "wordleWordIs": "الكلمة: {word}",
   "wordleNotSolved": "لم يخمّن",
   "wordleCorrect": "كلمة المضيف",

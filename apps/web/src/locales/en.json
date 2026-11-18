@@ -4585,7 +4585,7 @@
   "wordleLegend": "Marks",
   "wordleSolved": "Solved on try {tries}!",
   "wordleOut": "No tries left",
-  "wordleWatch": "The captain is guessing — watch the team grid",
+  "wordleWatch": "Your team's answerer is guessing — watch the team grid",
   "wordleWordIs": "Word: {word}",
   "wordleNotSolved": "not solved",
   "wordleCorrect": "Host’s word",

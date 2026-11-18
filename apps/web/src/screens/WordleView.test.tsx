@@ -111,6 +111,34 @@ describe('WordleView (48)', () => {
     await waitFor(() => expect(typed()).toBe(''));
   });
 
+  it('Enter on a focused button outside the keyboard presses that button, not the check', async () => {
+    const send = ok();
+    const outside = vi.fn();
+    render(
+      <>
+        <button type="button" onClick={outside}>
+          Table
+        </button>
+        <a href="#rules">Rules</a>
+        <WordlePlay wordle={wordleOf()} paused={false} readOnly={false} send={send} />
+      </>,
+    );
+    press('колос');
+    const table = screen.getByRole('button', { name: 'Table' });
+    table.focus();
+    const enter = fireEvent.keyDown(table, { key: 'Enter' });
+    expect(enter, 'Enter is not swallowed').toBe(true);
+    fireEvent.keyDown(screen.getByRole('link', { name: 'Rules' }), { key: 'Enter' });
+    expect(send).not.toHaveBeenCalled();
+    expect(typed()).toBe('колос');
+    // На клавіші екранної клавіатури Enter, як і раніше, шле спробу й не «натискає» клавішу.
+    const last = key('с');
+    const onKey = fireEvent.keyDown(last, { key: 'Enter' });
+    expect(onKey, 'Enter on a key is prevented').toBe(false);
+    expect(send).toHaveBeenCalledWith('player:wordle', { word: 'колос' });
+    await waitFor(() => expect(typed()).toBe(''));
+  });
+
   it('paused or out of time: keys are off and the physical keyboard does nothing', () => {
     play(wordleOf(), ok(), { paused: true });
     expect((key('к') as HTMLButtonElement).disabled).toBe(true);
@@ -122,7 +150,7 @@ describe('WordleView (48)', () => {
     play(wordleOf({ rows: [rowOf('сосна')] }), ok(), { readOnly: true });
     expect(screen.queryByRole('button', { name: 'Перевірити' })).toBeNull();
     expect(document.querySelector('.wordle-keys')).toBeNull();
-    expect(screen.getByText('Вгадує капітан — дивіться на сітку команди')).toBeTruthy();
+    expect(screen.getByText('Вгадує той, хто відповідає за команду — дивіться на сітку команди')).toBeTruthy();
     expect(screen.getByLabelText('о — на місці')).toBeTruthy();
     fireEvent.keyDown(window, { key: 'к' });
     expect(document.querySelector('.wordle-row.is-current')).toBeNull();

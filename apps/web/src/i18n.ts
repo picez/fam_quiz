@@ -4455,7 +4455,7 @@ const uk = {
   wordleLegend: 'Позначки',
   wordleSolved: 'Вгадано з {tries}-ї спроби!',
   wordleOut: 'Спроби скінчилися',
-  wordleWatch: 'Вгадує капітан — дивіться на сітку команди',
+  wordleWatch: 'Вгадує той, хто відповідає за команду — дивіться на сітку команди',
   wordleWordIs: 'Слово: {word}',
   wordleNotSolved: 'не вгадав',
   wordleCorrect: 'Слово ведучого',

@@ -4585,7 +4585,7 @@
   "wordleLegend": "Markierungen",
   "wordleSolved": "Im {tries}. Versuch erraten!",
   "wordleOut": "Keine Versuche mehr",
-  "wordleWatch": "Der Kapitän rät — schau auf das Raster des Teams",
+  "wordleWatch": "Wer für das Team antwortet, rät — schau auf das Raster des Teams",
   "wordleWordIs": "Wort: {word}",
   "wordleNotSolved": "nicht erraten",
   "wordleCorrect": "Wort des Spielleiters",

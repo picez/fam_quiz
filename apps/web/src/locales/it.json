@@ -4653,7 +4653,7 @@
   "wordleLegend": "Segni",
   "wordleSolved": "Indovinata al tentativo {tries}!",
   "wordleOut": "Tentativi esauriti",
-  "wordleWatch": "Indovina il capitano: guarda la griglia della squadra",
+  "wordleWatch": "Indovina chi risponde per la squadra: guarda la griglia della squadra",
   "wordleWordIs": "Parola: {word}",
   "wordleNotSolved": "non indovinata",
   "wordleCorrect": "Parola del conduttore",

@@ -169,6 +169,8 @@ export function WordlePlay({ wordle, paused, readOnly, send }: { wordle: PlayerW
         event.preventDefault();
         erase();
       } else if (event.key === 'Enter') {
+        // Фокус на іншій кнопці чи посиланні (таблиця, реакції, бафи): Enter натискає саме її, а не шле спробу.
+        if (target instanceof HTMLElement && target.closest('button, a, [role="button"], summary') !== null && target.closest('.wordle-keys') === null) return;
         // Фокус на клавіші після дотику: без preventDefault Enter ще й «натиснув» би її.
         event.preventDefault();
         void check();

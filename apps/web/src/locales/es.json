@@ -4653,7 +4653,7 @@
   "wordleLegend": "Marcas",
   "wordleSolved": "¡Acertada en el intento {tries}!",
   "wordleOut": "Se acabaron los intentos",
-  "wordleWatch": "Adivina el capitán: mira la cuadrícula del equipo",
+  "wordleWatch": "Adivina quien responde por el equipo: mira la cuadrícula del equipo",
   "wordleWordIs": "Palabra: {word}",
   "wordleNotSolved": "no la adivinó",
   "wordleCorrect": "Palabra del anfitrión",

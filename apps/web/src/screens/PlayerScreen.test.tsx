@@ -3820,7 +3820,7 @@ describe('PlayerScreen: teams', () => {
     cleanup();
     show(asQuestion(noCaptain, { question: wordleQuestion, me: { ...baseMe, wordle } }));
     expect(screen.queryByRole('button', { name: 'Перевірити' })).toBeNull();
-    expect(screen.getByText('Вгадує капітан — дивіться на сітку команди')).toBeTruthy();
+    expect(screen.getByText('Вгадує той, хто відповідає за команду — дивіться на сітку команди')).toBeTruthy();
     expect(screen.getByLabelText('о — на місці')).toBeTruthy();
   });
 
