@@ -104,38 +104,47 @@ describe('profile speed (46): the safety net', () => {
 
   // Запити першого й другого проходів: збирає звичайний тест (щоб збій засіву чи читання не сховався), перевіряє наступний.
   type Spied = { query: string; params: unknown[] }[];
-  let spied: { first: Spied; queries: Spied; career: CareerFixture } | null = null;
+  let spied: { first: Spied; queries: Spied; byRead: Record<string, Spied>; career: CareerFixture } | null = null;
 
   it('the SQL spy records the first- and second-pass profile reads', { timeout: 120_000 }, async () => {
     let recording: Spied | null = null;
     const first: Spied = [];
     const queries: Spied = [];
+    // Запити наступного проходу ще й окремо за кожним читанням.
+    const byRead: Record<string, Spied> = {};
+    let current: Spied | null = null;
     const db = await createTestDb({
       onQuery: (query, params) => {
         recording?.push({ query, params });
+        current?.push({ query, params });
       },
     });
     const career = await seedCareer(db);
     const { userId, friendId } = career;
-    const reads = async () => {
-      await ownProfile(db, { id: userId, name: 'Оля', email: 'olya@example.com' });
-      await publicProfile(db, userId, friendId);
-      await achievementsPage(db, userId, true);
-      await achievementsPage(db, userId, false);
-      await playerHistory(db, userId);
-      await versusOf(db, userId, friendId);
+    const reads = async (split: boolean) => {
+      const as = async (name: string, read: () => Promise<unknown>) => {
+        current = split ? (byRead[name] = []) : null;
+        await read();
+        current = null;
+      };
+      await as('own', () => ownProfile(db, { id: userId, name: 'Оля', email: 'olya@example.com' }));
+      await as('public', () => publicProfile(db, userId, friendId));
+      await as('achievementsOwn', () => achievementsPage(db, userId, true));
+      await as('achievementsPublic', () => achievementsPage(db, userId, false));
+      await as('history', () => playerHistory(db, userId));
+      await as('versus', () => versusOf(db, userId, friendId));
     };
     // Перший прохід доповнює історію, синхронізує ачівки й наповнює кеш форм ігор; наступний — теплий.
     recording = first;
-    await reads();
+    await reads(false);
     recording = queries;
-    await reads();
+    await reads(true);
     recording = null;
 
     expect(queries.length).toBeGreaterThan(0);
     // Сам запит ігор гравця (playerGames) мусить бути серед записаних, інакше перевірка нижче нічого не бачить.
     expect(queries.some(({ query }) => /from "participant" inner join "game"/i.test(query))).toBe(true);
-    spied = { first, queries, career };
+    spied = { first, queries, byRead, career };
   });
 
   // Теплий прохід не читає повних знімків і журналів зовсім — крім запасного читання знімка старого формату в gameTables (типи раундів
@@ -156,5 +165,27 @@ describe('profile speed (46): the safety net', () => {
     const loaded = first.filter(({ query }) => loader.test(query)).flatMap(({ params }) => idsOf(params));
     expect(loaded.length).toBeGreaterThan(0);
     expect(new Set(loaded).size).toBe(loaded.length);
+  });
+
+  it("one profile request reads the player's games once", () => {
+    if (spied === null) throw new Error('the spy test did not run');
+    const gamesRead = (spiedRead: Spied | undefined) =>
+      (spiedRead ?? []).filter(({ query }) => /from "participant" inner join "game"/i.test(query) && /order by "game"."started_at" desc/i.test(query)).length;
+    expect({
+      own: gamesRead(spied.byRead.own),
+      public: gamesRead(spied.byRead.public),
+      achievementsOwn: gamesRead(spied.byRead.achievementsOwn),
+    }).toEqual({ own: 1, public: 1, achievementsOwn: 1 });
+  });
+
+  it('the first read levels up from the achievements it just wrote', { timeout: 120_000 }, async () => {
+    const db = await createTestDb();
+    const career = await seedCareer(db);
+    const current = { id: career.userId, name: 'Оля', email: 'olya@example.com' };
+    // Свіжа кар'єра: achievements_synced_at ще null — перше читання доповнює історію ачівок.
+    const first = await ownProfile(db, current);
+    const second = await ownProfile(db, current);
+    expect(first.achievements.some((a) => a.earned)).toBe(true);
+    expect(first.level.progress).toEqual(second.level.progress);
   });
 });

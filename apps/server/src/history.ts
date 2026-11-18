@@ -1027,26 +1027,20 @@ export async function playerGames(db: Db, userId: string, limit: number | null):
   const rows = limit === null ? await query : await query.limit(limit);
   if (rows.length === 0) return [];
 
-  // Місце рахується серед команд (командна гра) чи гравців (соло).
-  const players = await rivalCounts(
-    db,
-    rows.map((row) => row.game.id),
-  );
+  const gameIds = rows.map((row) => row.game.id);
   // Людина командної гри: відповіді, місце й перемога — її команди; її власні рядки — лише голоси.
   const teamIds = [...new Set(rows.flatMap((row) => (row.participant.teamId === null ? [] : [row.participant.teamId])))];
-  const teamNames = new Map(
-    teamIds.length === 0
-      ? []
-      : (await db.select({ id: participant.id, nickname: participant.nickname }).from(participant).where(inArray(participant.id, teamIds))).map((t) => [t.id, t.nickname]),
-  );
-  const answers = await db
-    .select({ participantId: answer.participantId, questionIndex: answer.questionIndex, accepted: answer.accepted, attempt: answer.attempt })
-    .from(answer)
-    .where(inArray(answer.participantId, [...rows.map((row) => row.participant.id), ...teamIds]));
-  const shapes = await playedShapesOf(
-    db,
-    rows.map((row) => row.game.id),
-  );
+  // Незалежні читання — поруч: суперники (місце — серед команд у командній грі чи гравців у соло), імена команд, відповіді й форми ігор.
+  const [players, teamRows, answers, shapes] = await Promise.all([
+    rivalCounts(db, gameIds),
+    teamIds.length === 0 ? [] : db.select({ id: participant.id, nickname: participant.nickname }).from(participant).where(inArray(participant.id, teamIds)),
+    db
+      .select({ participantId: answer.participantId, questionIndex: answer.questionIndex, accepted: answer.accepted, attempt: answer.attempt })
+      .from(answer)
+      .where(inArray(answer.participantId, [...rows.map((row) => row.participant.id), ...teamIds])),
+    playedShapesOf(db, gameIds),
+  ]);
+  const teamNames = new Map(teamRows.map((t) => [t.id, t.nickname]));
 
   const byParticipant = groupBy(answers, (a) => a.participantId);
   return rows.map((row) => {

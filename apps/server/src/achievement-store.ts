@@ -48,12 +48,16 @@ export interface FinishedAt {
 
 /** Ігри, таблиці й статистика профілю користувача; exceptGameId — без цієї гри (кар'єра «до неї»). */
 export async function careerInputs(db: Db, userId: string, exceptGameId: string | null = null): Promise<CareerInputs> {
-  const games = (await playerGames(db, userId, null)).filter((g) => g.played.gameId !== exceptGameId);
-  const [quizzes] = await db.select({ n: count() }).from(quiz).where(eq(quiz.ownerId, userId));
-  const [hosted] = await db
-    .select({ n: count() })
-    .from(game)
-    .where(and(eq(game.hostId, userId), eq(game.status, 'finished'), eq(game.autopilot, false), exceptGameId === null ? undefined : ne(game.id, exceptGameId)));
+  // Ігри, вікторини й проведені — незалежні читання, поруч; таблиці — після ігор (їм потрібні id).
+  const [allGames, [quizzes], [hosted]] = await Promise.all([
+    playerGames(db, userId, null),
+    db.select({ n: count() }).from(quiz).where(eq(quiz.ownerId, userId)),
+    db
+      .select({ n: count() })
+      .from(game)
+      .where(and(eq(game.hostId, userId), eq(game.status, 'finished'), eq(game.autopilot, false), exceptGameId === null ? undefined : ne(game.id, exceptGameId))),
+  ]);
+  const games = allGames.filter((g) => g.played.gameId !== exceptGameId);
   const played = games.map((g) => g.played);
   const stats = { ...gameStats(played), ...podiumStats(played), quizzes: quizzes.n, hosted: hosted.n };
   const tables = await gameTables(
@@ -90,51 +94,55 @@ interface CareerCounts {
   groupItems: number;
 }
 
+/** Типи запитань для лічильників: усі й без гри split; withTypes false — не читати (null). */
+async function typesOf(db: Db, userId: string, split: string | null, withTypes: boolean): Promise<CareerCounts['types']> {
+  if (!withTypes) return null;
+  if (split !== null) return answeredTypesAround(db, userId, split);
+  const all = await answeredTypes(db, userId);
+  return { all, without: all };
+}
+
 /** Один набір запитів на лічильники: і «зараз», і «до гри split» (умовні count, а не другий набір запитів). */
 async function careerCounts(db: Db, userId: string, split: string | null, withTypes: boolean): Promise<CareerCounts> {
   const inSplit = (column: typeof game.id | typeof participant.gameId) =>
     (split === null ? sql`0` : sql`count(*) filter (where ${column} = ${split})`).mapWith(Number);
-  const friendRows = await db.select({ id: follow.followeeId }).from(follow).where(eq(follow.followerId, userId));
-  // Купівлі дебафів власних соло-учасників: у командній грі покупку записано на команду без людини.
-  const [debuffs] = await db
-    .select({ n: count(), inGame: inSplit(participant.gameId) })
-    .from(scoreAdjustment)
-    .innerJoin(participant, eq(participant.id, scoreAdjustment.participantId))
-    // Лише завершені ігри: купівля посеред гри не має видавати автора достроково.
-    .innerJoin(game, eq(game.id, participant.gameId))
-    .where(
-      and(eq(participant.userId, userId), isNull(participant.teamId), eq(scoreAdjustment.source, 'debuff'), eq(game.status, 'finished')),
-    );
-  // Ігри вікторин користувача, хоч хто їх вів; ігри видалених вікторин не рахуються.
-  const [authored] = await db
-    .select({ n: count(), inGame: inSplit(game.id) })
-    .from(game)
-    .innerJoin(quiz, eq(quiz.id, game.quizId))
-    .where(and(eq(quiz.ownerId, userId), eq(game.status, 'finished')));
-  let hostedInGame = 0;
-  if (split !== null) {
-    const [hosted] = await db
-      .select({ n: count() })
+  // Сім незалежних читань — поруч.
+  const [friendRows, [debuffs], [authored], hostedInGame, soloAway, [written], types] = await Promise.all([
+    db.select({ id: follow.followeeId }).from(follow).where(eq(follow.followerId, userId)),
+    // Купівлі дебафів власних соло-учасників: у командній грі покупку записано на команду без людини.
+    db
+      .select({ n: count(), inGame: inSplit(participant.gameId) })
+      .from(scoreAdjustment)
+      .innerJoin(participant, eq(participant.id, scoreAdjustment.participantId))
+      // Лише завершені ігри: купівля посеред гри не має видавати автора достроково.
+      .innerJoin(game, eq(game.id, participant.gameId))
+      .where(
+        and(eq(participant.userId, userId), isNull(participant.teamId), eq(scoreAdjustment.source, 'debuff'), eq(game.status, 'finished')),
+      ),
+    // Ігри вікторин користувача, хоч хто їх вів; ігри видалених вікторин не рахуються.
+    db
+      .select({ n: count(), inGame: inSplit(game.id) })
       .from(game)
-      .where(and(eq(game.id, split), eq(game.hostId, userId), eq(game.status, 'finished'), eq(game.autopilot, false)));
-    hostedInGame = hosted.n;
-  }
-  // Чесні соло-ігри (12j): свій рядок гравця без команди; командні ігри серію не рвуть і не подовжують.
-  const soloAway = await db
-    .select({ gameId: game.id, startedAt: game.startedAt, away: sql<number>`count(${answer.participantId})`.mapWith(Number) })
-    .from(participant)
-    .innerJoin(game, eq(game.id, participant.gameId))
-    .leftJoin(answer, and(eq(answer.participantId, participant.id), gte(answer.awayMs, AWAY_MS.mark)))
-    .where(and(eq(participant.userId, userId), isNull(participant.teamId), eq(participant.isTeam, false), eq(game.status, 'finished'), gte(game.startedAt, AWAY_DATA_SINCE)))
-    .groupBy(game.id, game.startedAt);
-  const [written] = await db.select({ n: count() }).from(groupItem).where(eq(groupItem.authorId, userId));
-  let types: CareerCounts['types'] = null;
-  if (withTypes) {
-    if (split === null) {
-      const all = await answeredTypes(db, userId);
-      types = { all, without: all };
-    } else types = await answeredTypesAround(db, userId, split);
-  }
+      .innerJoin(quiz, eq(quiz.id, game.quizId))
+      .where(and(eq(quiz.ownerId, userId), eq(game.status, 'finished'))),
+    split === null
+      ? 0
+      : db
+          .select({ n: count() })
+          .from(game)
+          .where(and(eq(game.id, split), eq(game.hostId, userId), eq(game.status, 'finished'), eq(game.autopilot, false)))
+          .then(([hosted]) => hosted.n),
+    // Чесні соло-ігри (12j): свій рядок гравця без команди; командні ігри серію не рвуть і не подовжують.
+    db
+      .select({ gameId: game.id, startedAt: game.startedAt, away: sql<number>`count(${answer.participantId})`.mapWith(Number) })
+      .from(participant)
+      .innerJoin(game, eq(game.id, participant.gameId))
+      .leftJoin(answer, and(eq(answer.participantId, participant.id), gte(answer.awayMs, AWAY_MS.mark)))
+      .where(and(eq(participant.userId, userId), isNull(participant.teamId), eq(participant.isTeam, false), eq(game.status, 'finished'), gte(game.startedAt, AWAY_DATA_SINCE)))
+      .groupBy(game.id, game.startedAt),
+    db.select({ n: count() }).from(groupItem).where(eq(groupItem.authorId, userId)),
+    typesOf(db, userId, split, withTypes),
+  ]);
   return {
     friends: new Set(friendRows.map((r) => r.id)),
     debuffs: debuffs.n,
@@ -262,9 +270,11 @@ async function missedGames(db: Db, userId: string, since: Date): Promise<{ gameI
     ),
   );
   const columns = { id: game.id, finishedAt: game.finishedAt };
-  const played = await db.select(columns).from(participant).innerJoin(game, eq(game.id, participant.gameId)).where(and(eq(participant.userId, userId), fresh));
-  const hosted = await db.select(columns).from(game).where(and(eq(game.hostId, userId), fresh));
-  const authored = await db.select(columns).from(game).innerJoin(quiz, eq(quiz.id, game.quizId)).where(and(eq(quiz.ownerId, userId), fresh));
+  const [played, hosted, authored] = await Promise.all([
+    db.select(columns).from(participant).innerJoin(game, eq(game.id, participant.gameId)).where(and(eq(participant.userId, userId), fresh)),
+    db.select(columns).from(game).where(and(eq(game.hostId, userId), fresh)),
+    db.select(columns).from(game).innerJoin(quiz, eq(quiz.id, game.quizId)).where(and(eq(quiz.ownerId, userId), fresh)),
+  ]);
   // Одна гра — один раз, хоч користувач у ній і грав, і вів, і автор.
   const byGame = new Map<string, Date>();
   for (const row of [...played, ...hosted, ...authored]) if (row.finishedAt !== null) byGame.set(row.id, row.finishedAt);
@@ -311,7 +321,8 @@ export interface SyncOptions {
 }
 
 /**
- * Дописує пропущені ачівки й повертає всі отримані (лише відомі id), щойно вставлені цим викликом (fresh) і кар'єрні факти.
+ * Дописує пропущені ачівки й повертає всі отримані (лише відомі id), щойно вставлені цим викликом (fresh), кар'єрні факти
+ * і прочитану (чи дану в prepared) кар'єру — inputs.
  * Історію доповнює раз (earned_at null): ігрові — з першою грою, що дала ачівку, кар'єрні — за фактами «до» гри at.
  * at — гра, що щойно закінчилась: її ігрові й нові кар'єрні — з її датою й id; без at — нові кар'єрні з now().
  * Читання без at ще й наздоганяє ігри після мітки profile.achievements_synced_at без жодного свого рядка (missedGames):
@@ -325,8 +336,9 @@ export async function syncAchievements(
   userId: string,
   at: FinishedAt | null,
   options: SyncOptions = {},
-): Promise<{ earned: EarnedAchievements; fresh: AchievementId[]; facts: CareerFacts }> {
-  const { earned, syncedAt } = await storedOf(db, userId);
+): Promise<{ earned: EarnedAchievements; fresh: AchievementId[]; facts: CareerFacts; inputs: CareerInputs }> {
+  // Записане й кар'єра — незалежні читання, поруч; лічильникам потрібне записане (all_types), тож вони — після.
+  const [{ earned, syncedAt }, inputs] = await Promise.all([storedOf(db, userId), options.prepared ?? careerInputs(db, userId)]);
   const synced = syncedAt !== null;
   const pending: EarnedAchievements = new Map();
   const want = (id: AchievementId, earnedAt: Date | null, gameId: string | null) => {
@@ -335,7 +347,6 @@ export async function syncAchievements(
 
   // Доповнення з грою at: факти «до» неї — з тих самих рядків, у пам'яті.
   const split = !synced && at !== null ? at.gameId : null;
-  const inputs = options.prepared ?? (await careerInputs(db, userId));
   const counts = await careerCounts(db, userId, split, !synced || (options.types !== false && !earned.has('all_types')));
   const facts = factsOf(userId, inputs, counts, null);
 
@@ -399,7 +410,7 @@ export async function syncAchievements(
       .set({ achievementsSyncedAt: sql`greatest(${profile.achievementsSyncedAt}, ${last})` })
       .where(eq(profile.userId, userId));
   }
-  return { earned, fresh, facts };
+  return { earned, fresh, facts, inputs };
 }
 
 /**

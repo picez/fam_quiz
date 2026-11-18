@@ -355,6 +355,8 @@ async function writeGame(tx: Tx, snapshot: Snapshot, saving: boolean): Promise<v
       ...progress,
     })
     // Кімната, піднята після перезапуску вже завершеною, пише гру ще раз: мить фінішу лишається першою.
+    // Повторний запис завершеної гри мусить давати ті самі знімок, журнал і questions_played: кеш форм зіграних ігор
+    // (playedShapes у history.ts, план 46) покладається на те, що рядок завершеної гри більше не змінюється.
     .onConflictDoUpdate({
       target: game.id,
       set: { ...progress, status: nextStatus, finishedAt: finished ? sql`coalesce(${game.finishedAt}, excluded.finished_at)` : null },
