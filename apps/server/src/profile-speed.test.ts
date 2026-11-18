@@ -133,8 +133,8 @@ describe('profile speed (46): the safety net', () => {
     spied = { queries, career };
   });
 
-  // Задача 2 плану 46 знімає .fails: тоді профіль читає повні знімки й журнали лише ігор з «Ва-банк», «Вибуванням» і «Мільйонером» (і старого формату).
-  it.fails('the profile never reads whole quiz snapshots or game logs except for wipeout, survival and ladder games', () => {
+  // Профіль читає повні знімки й журнали лише ігор з «Ва-банк», «Вибуванням» і «Мільйонером» (і старого формату).
+  it('the profile never reads whole quiz snapshots or game logs except for wipeout, survival and ladder games', () => {
     if (spied === null) throw new Error('the spy test did not run');
     const { queries, career } = spied;
     const allowed = new Set([...career.gatedGameIds, ...career.oldFormatGameIds]);
