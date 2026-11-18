@@ -3738,10 +3738,40 @@ describe('question bank', () => {
     const three = filled(newQuestion('single'));
     if (three.type !== 'single') throw new Error('single expected');
     const short: Question = { ...three, options: three.options.slice(0, 3) };
-    expect(bankCopy(quizOf(newLadderRound()), 0, short, undefined)).toEqual({ issue: 'bankNoFitLadder', vars: { count: 4 } });
-    expect(bankCopy(quizOf(newClassicRound()), 0, { ...newQuestion('sudoku'), text: 'Судоку' }, undefined)).toEqual({ issue: 'bankNoFitType' });
+    expect(bankCopy(quizOf(newLadderRound()), 0, short, undefined)).toMatchObject({ issue: 'bankNoFitLadder', vars: { count: 4 } });
+    expect(bankCopy(quizOf(newClassicRound()), 0, { ...newQuestion('sudoku'), text: 'Судоку' }, undefined)).toMatchObject({ issue: 'bankNoFitType' });
     const empty = { ...filled(newQuestion('survey')), cloudId: 'c1', rows: [] } as unknown as Question;
     const fit = bankCopy(quizOf(newClassicRound()), 0, empty, undefined);
     expect('issue' in fit && fit.issue).toBeTruthy();
+  });
+
+  it('every reason is readable text without placeholders', () => {
+    const three = filled(newQuestion('single'));
+    if (three.type !== 'single') throw new Error('single expected');
+    const reasons = [
+      bankCopy(quizOf(newLadderRound()), 0, { ...three, options: three.options.slice(0, 3) }, undefined),
+      bankCopy(quizOf(newClassicRound()), 0, { ...newQuestion('sudoku'), text: 'Судоку' }, undefined),
+      bankCopy(quizOf(newClassicRound()), 0, { ...filled(newQuestion('survey')), rows: [] } as unknown as Question, undefined),
+      bankCopy(quizOf(newClassicRound()), 0, { ...filled(newQuestion('single')), text: '' }, undefined),
+      bankCopy(quizOf(newClassicRound()), 0, { ...filled(newQuestion('survey')), cloudId: 'c1', rows: [] } as unknown as Question, undefined),
+    ];
+    for (const reason of reasons) {
+      if (!('issue' in reason)) throw new Error('should not fit');
+      expect(reason.text).not.toContain('{');
+      expect(reason.text).not.toBe('');
+      expect(reason.text).not.toMatch(/^[^:]*:\s/);
+    }
+  });
+
+  it('a copy into a bets or auction round keeps its cut or gets a safe default', () => {
+    const plain = filled(newQuestion('single'));
+    for (const round of [newBetsRound(), newAuctionRound()]) {
+      const fit = bankCopy(quizOf(round), 0, plain, undefined);
+      expect('question' in fit && fit.question.betsCut).toBe(0);
+      const kept = bankCopy(quizOf(round), 0, { ...plain, betsCut: 2 }, undefined);
+      expect('question' in kept && kept.question.betsCut).toBe(2);
+    }
+    const made = { ...newBetsRound(), questions: [(bankCopy(quizOf(newBetsRound()), 0, plain, undefined) as { question: Question }).question] };
+    expect(roundSchema.safeParse(made).success).toBe(true);
   });
 });
