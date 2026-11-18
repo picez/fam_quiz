@@ -17,6 +17,14 @@ const BANNED = [
   'russia', 'moscow', 'soviet', 'ussr', 'kremlin',
 ];
 
+/** Нижній регістр і один апостроф: ’ ʼ ‘ ` → '. */
+const norm = (s: string) => s.toLowerCase().replace(/[’ʼ‘`]/g, "'");
+/** Рядок-коментар (// … чи рядок блоку /* … *\/) — не вміст сіду. */
+const COMMENT = /^\s*(\/\/|\/\*|\*)/;
+/** Рядкові літерали ('…', "…", `…`) з сирого тексту, уже нормалізовані (апостроф ’ усередині '…' не рве літерал). */
+const literals = (source: string) =>
+  [...source.matchAll(/'((?:[^'\\\n]|\\.)*)'|"((?:[^"\\\n]|\\.)*)"|`((?:[^`\\]|\\.)*)`/g)].map((match) => norm(match[1] ?? match[2] ?? match[3] ?? ''));
+
 describe('the «Вгадай слово» seed', () => {
   it('passes the quiz schema and starts the autopilot', () => {
     const result = quizSchema.safeParse(quiz);
@@ -69,19 +77,33 @@ describe('the «Вгадай слово» seed', () => {
   it('repeats no question or answer of the other seeds', () => {
     const files = (folder: string): string[] =>
       readdirSync(folder, { withFileTypes: true }).flatMap((entry) =>
-        entry.isDirectory() ? files(join(folder, entry.name)) : entry.name.endsWith('.ts') && !entry.name.startsWith('wordle-quiz') ? [join(folder, entry.name)] : [],
+        entry.isDirectory()
+          ? files(join(folder, entry.name))
+          : entry.name.endsWith('.ts') && !entry.name.endsWith('.test.ts') && !entry.name.startsWith('wordle-quiz')
+            ? [join(folder, entry.name)]
+            : [],
       );
-    const others = files(import.meta.dirname).map((file) => readFileSync(file, 'utf8').toLowerCase());
-    expect(others.length).toBeGreaterThan(20);
-    const repeatedTexts = questions.filter((q) => others.some((source) => source.includes(q.text.toLowerCase()))).map((q) => q.text);
+    const raw = files(import.meta.dirname).map((file) => readFileSync(file, 'utf8').split('\n').filter((line) => !COMMENT.test(line)).join('\n'));
+    expect(raw.length).toBeGreaterThan(20);
+    const others = raw.map(norm);
+    const repeatedTexts = questions.filter((q) => others.some((source) => source.includes(norm(q.text)))).map((q) => q.text);
     expect(repeatedTexts).toEqual([]);
+    // Короткі рядки (до трьох слів, без «?») — відповіді й варіанти; слово в них цілим — повтор.
+    const answers = raw.flatMap((source) => literals(source).filter((text) => !text.includes('?') && text.trim().split(/\s+/).length <= 3));
     const repeatedWords = wordles
       .filter((q) => {
-        const w = q.word.toLowerCase();
-        return others.some((source) => [`'${w}'`, `«${w}»`, `"${w}"`].some((quoted) => source.includes(quoted)));
+        const w = norm(q.word);
+        const whole = new RegExp(`(?<!\\p{L})${w}(?!\\p{L})`, 'u');
+        return others.some((source) => [`'${w}'`, `«${w}»`, `"${w}"`].some((quoted) => source.includes(quoted))) || answers.some((text) => whole.test(text));
       })
       .map((q) => q.word);
     expect(repeatedWords).toEqual([]);
+  });
+
+  it('the repeat check sees every apostrophe and an answer inside a longer option', () => {
+    for (const source of ["['пір’я']", "['пірʼя']", "['пір‘я']", '["пір`я"]', `["пір'я"]`, "«пір’я»"]) expect(norm(source), source).toMatch(/['«"]пір'я['»"]/);
+    expect(literals("bluff('…', ['гусячим пір’ям', 'пір’я'])")).toEqual(['…', "гусячим пір'ям", "пір'я"]);
+    expect(literals('x("м\'ясо", `жито`)')).toEqual(["м'ясо", "жито"]);
   });
 
   it('nothing about russia', () => {
