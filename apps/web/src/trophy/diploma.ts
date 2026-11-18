@@ -1,5 +1,6 @@
 import type { PrizePlace, TrophyMaterial } from '@quiz/shared';
 import { t } from '../i18n';
+import { IMAGE_FONTS, canvasPng, kyivDate, loadImageFonts, safeFileName, sharePng, wrapText } from '../share-image';
 import { MATERIAL_LOOK, TROPHY_EMOJI, type TrophyLook } from './trophy-meta';
 
 export interface DiplomaData {
@@ -13,8 +14,8 @@ export interface DiplomaData {
 
 const WIDTH = 1200;
 const HEIGHT = 850;
-const DISPLAY = "'Unbounded Variable', system-ui, sans-serif";
-const BODY = "'Onest Variable', system-ui, sans-serif";
+const DISPLAY = IMAGE_FONTS.display;
+const BODY = IMAGE_FONTS.body;
 const PAPER = '#FFFBF0';
 /**
  * Срібло, золото й діамант світлі й на кремовому папері ледь видні: рамка — темніший відтінок того самого кольору
@@ -60,19 +61,6 @@ export function diplomaFrame(material: TrophyMaterial): string {
   return shade;
 }
 
-/** dd.mm.yyyy за київським часом; ICU без Europe/Kyiv знає лише давню назву Europe/Kiev. */
-function kyivDate(date: Date): string {
-  const options: Intl.DateTimeFormatOptions = { day: '2-digit', month: '2-digit', year: 'numeric' };
-  let format: Intl.DateTimeFormat;
-  try {
-    format = new Intl.DateTimeFormat('uk-UA', { ...options, timeZone: 'Europe/Kyiv' });
-  } catch {
-    format = new Intl.DateTimeFormat('uk-UA', { ...options, timeZone: 'Europe/Kiev' });
-  }
-  const parts = Object.fromEntries(format.formatToParts(date).map((part) => [part.type, part.value]));
-  return `${parts.day}.${parts.month}.${parts.year}`;
-}
-
 /** Поля диплома; порожні текстові поля — null (їх на дипломі немає). */
 interface DiplomaFields {
   title: string;
@@ -106,28 +94,18 @@ export function diplomaLines(data: DiplomaData): string[] {
 
 /** dyplom-<нік>.png: усе, крім літер і цифр, стає дефісом. */
 export function diplomaFileName(nickname: string): string {
-  const safe = nickname.replace(/[^\p{L}\p{N}]+/gu, '-').replace(/^-+|-+$/g, '');
-  return safe === '' ? 'dyplom.png' : `dyplom-${safe}.png`;
-}
-
-/** Розбиває текст на рядки, що влазять у ширину. */
-function wrap(context: CanvasRenderingContext2D, text: string, width: number): string[] {
-  const lines: string[] = [];
-  let line = '';
-  for (const word of text.split(' ')) {
-    const next = line === '' ? word : `${line} ${word}`;
-    if (line !== '' && context.measureText(next).width > width) {
-      lines.push(line);
-      line = word;
-    } else line = next;
-  }
-  if (line !== '') lines.push(line);
-  return lines;
+  return safeFileName('dyplom', nickname);
 }
 
 /** Диплом PNG: canvas 1200 × 850, рамка в кольорі матеріалу (без трофея — золота). */
 export async function renderDiploma(data: DiplomaData): Promise<Blob> {
-  await document.fonts?.ready;
+  const fields = diplomaFields(data);
+  const body = [fields.nickname, fields.quizTitle, fields.engraving, fields.date].filter((line): line is string => line !== null).join(' ');
+  await loadImageFonts([
+    { font: `700 72px ${DISPLAY}`, text: `${fields.title} ${fields.place}` },
+    { font: `700 60px ${BODY}`, text: body },
+    { font: `italic 30px ${BODY}`, text: body },
+  ]);
   const canvas = document.createElement('canvas');
   canvas.width = WIDTH;
   canvas.height = HEIGHT;
@@ -168,7 +146,7 @@ export async function renderDiploma(data: DiplomaData): Promise<Blob> {
   context.fillText(title.toUpperCase(), center, 300);
 
   context.font = `700 60px ${BODY}`;
-  context.fillText(wrap(context, nickname, width)[0] ?? '', center, 400);
+  context.fillText(wrapText(context, nickname, width)[0] ?? '', center, 400);
 
   // Неметалеві (камені, діамант) — синє місце, метали — темне золото.
   context.fillStyle = look.metallic < 0.5 ? '#3A7CA5' : '#7A5A12';
@@ -179,13 +157,13 @@ export async function renderDiploma(data: DiplomaData): Promise<Blob> {
   context.font = `500 34px ${BODY}`;
   let y = 560;
   if (quizTitle !== null)
-    for (const line of wrap(context, quizTitle, width).slice(0, 2)) {
+    for (const line of wrapText(context, quizTitle, width).slice(0, 2)) {
       context.fillText(line, center, y);
       y += 44;
     }
   if (engraving !== null) {
     context.font = `italic 30px ${BODY}`;
-    for (const line of wrap(context, `«${engraving}»`, width).slice(0, 2)) {
+    for (const line of wrapText(context, `«${engraving}»`, width).slice(0, 2)) {
       context.fillText(line, center, y + 10);
       y += 40;
     }
@@ -194,31 +172,10 @@ export async function renderDiploma(data: DiplomaData): Promise<Blob> {
   context.font = `400 28px ${BODY}`;
   context.fillText(date, center, HEIGHT - 110);
 
-  return new Promise((resolve, reject) => {
-    canvas.toBlob((blob) => (blob ? resolve(blob) : reject(new Error('canvas_unavailable'))), 'image/png');
-  });
+  return canvasPng(canvas);
 }
 
 /** canShare({ files }) → share; інакше завантаження через <a download>. Скасування share (AbortError) — не помилка. */
-export async function shareDiploma(blob: Blob, fileName: string): Promise<'shared' | 'downloaded'> {
-  const file = new File([blob], fileName, { type: 'image/png' });
-  if (typeof navigator.canShare === 'function' && typeof navigator.share === 'function' && navigator.canShare({ files: [file] })) {
-    try {
-      await navigator.share({ files: [file], title: t('diplomaTitle') });
-      return 'shared';
-    } catch (error) {
-      if (error instanceof DOMException && error.name === 'AbortError') return 'shared';
-      // Інша відмова (NotAllowedError тощо) — просто завантажуємо.
-    }
-  }
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = fileName;
-  link.style.display = 'none';
-  document.body.append(link);
-  link.click();
-  link.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
-  return 'downloaded';
+export function shareDiploma(blob: Blob, fileName: string): Promise<'shared' | 'downloaded'> {
+  return sharePng(blob, fileName, t('diplomaTitle'));
 }

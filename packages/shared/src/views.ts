@@ -2244,6 +2244,8 @@ export interface DebuffNotice {
 export interface NewAchievementsMine {
   account: boolean;
   ids: AchievementId[];
+  /** Гравець ховає антидосягнення (hide_anti): телефон показує всі свої, але картинка для чату їх не малює (38c). */
+  hideAnti?: true;
 }
 
 /** Слайд «Нові досягнення» сцени (12j): люди з непорожнім списком у порядку стану; антидосягнення тих, хто їх ховає, прибрано. */
@@ -2564,6 +2566,8 @@ export interface HostPace { next: PaceWindow | null; lock: PaceWindow | null; sk
 export interface HostView extends BaseView {
   /** «Нові досягнення» (12j): у каруселі «Нагород гри» є слайд досягнень — кнопка показу потрібна й без нагород. Ставить сервер; немає — false. */
   awardsExtra?: boolean;
+  /** Нові досягнення кімнати (38c), як у сцени; ставить сервер; немає — ніхто нічого не отримав. */
+  newAchievements?: NewAchievementsStage;
   /** Оберіг гравців (15a): id гравця → готовий чи спрацював; ключа немає, коли оберегів немає. */
   wards?: Record<string, 'ready' | 'spent'>;
   role: 'host';

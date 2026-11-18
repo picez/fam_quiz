@@ -4350,5 +4350,16 @@
   "stageSoundsToggle": "🔔 Suoni",
   "stageSoundsOffByHost": "Il conduttore ha disattivato i suoni",
   "hostSounds": "Suoni sul palco",
-  "hostSoundsHint": "Suoni brevi sul palco: la rivelazione, gli ultimi secondi, un gong, una fanfara"
+  "hostSoundsHint": "Suoni brevi sul palco: la rivelazione, gli ultimi secondi, un gong, una fanfara",
+  "resultImageButton": "📸 Risultato in immagine",
+  "resultImageTitle": "Risultato della partita",
+  "resultImageAlt": "Immagine con il risultato della partita",
+  "resultImageShare": "Condividi",
+  "resultImageDownload": "Scarica",
+  "resultImageClose": "Chiudi",
+  "resultImageFailed": "Impossibile creare l’immagine.",
+  "resultImageMe": "Il mio posto: {place} su {total} · {score}",
+  "resultImagePrizes": "Trofei",
+  "resultImageAchievements": "Obiettivi",
+  "resultImageMore": "+ altri {count}"
 }

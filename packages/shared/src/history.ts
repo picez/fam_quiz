@@ -6,6 +6,8 @@ import type { FactCard, FactTableRow } from './facts';
 import type { LadderOutcomeKind } from './ladder';
 import type { SavedInfo } from './saved';
 import type { CellKind, LifelineKind, Question, Round, ThinkWord, TrialKind, WagerMode } from './quiz';
+import type { AchievementId } from './achievements';
+import type { PrizePlace, TrophyLook } from './prizes';
 import type { UndoTarget } from './undo';
 import type { ThinkVerdict } from './views';
 import type { WipeoutStatus } from './wipeout';
@@ -193,6 +195,15 @@ export interface GameDetail extends Omit<GameSummary, 'playerCount'> {
   adjustments: GameAdjustment[];
   /** Цікавинки гри (12d): нагороди й таблиця учасників з рядків answer і коригувань; для старих ігор — те, що можна порахувати. */
   facts: { awards: FactCard[]; table: FactTableRow[] };
+  /** Для картинки підсумку (38c): кубки й нові досягнення гри; лише status 'finished'. */
+  result?: GameResultExtras;
+}
+
+export interface GameResultExtras {
+  /** Вручені призи (prize_award цієї гри) за місцем 1→3; кілька людей одного місця (команда) — одним рядком. Гості в prize_award не потрапляють. */
+  prizes: { place: PrizePlace; trophy: TrophyLook | null; winners: string[] }[];
+  /** Досягнення, здобуті вперше в цій грі (user_achievement.game_id), з нікнеймом учасника цієї гри; антидосягнення тих, хто їх ховає (hide_anti), прибрано. Порядок людей — як у standings. */
+  achievements: { nickname: string; ids: AchievementId[] }[];
 }
 
 /** Коригування рахунку учасника поза відповідями в історії гри. */

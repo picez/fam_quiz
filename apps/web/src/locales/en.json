@@ -4291,5 +4291,16 @@
   "stageSoundsToggle": "🔔 Sounds",
   "stageSoundsOffByHost": "The host turned the sounds off",
   "hostSounds": "Stage sounds",
-  "hostSoundsHint": "Short sounds on the stage: the reveal, the last seconds, a gong, a fanfare"
+  "hostSoundsHint": "Short sounds on the stage: the reveal, the last seconds, a gong, a fanfare",
+  "resultImageButton": "📸 Result as a picture",
+  "resultImageTitle": "Game result",
+  "resultImageAlt": "Picture with the game result",
+  "resultImageShare": "Share",
+  "resultImageDownload": "Download",
+  "resultImageClose": "Close",
+  "resultImageFailed": "Could not create the picture.",
+  "resultImageMe": "My place: {place} of {total} · {score}",
+  "resultImagePrizes": "Trophies",
+  "resultImageAchievements": "Achievements",
+  "resultImageMore": "+ {count} more"
 }

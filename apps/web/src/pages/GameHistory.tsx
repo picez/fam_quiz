@@ -20,6 +20,8 @@ import { FactCards } from '../screens/FactCards';
 import { historyAppealText } from '../appeal-text';
 import { historyUndoLines } from '../undo-panel';
 import { usePrivateData } from '../usePrivateData';
+import { ResultImageButton } from '../result-image/ResultImage';
+import { resultFromHistory } from '../result-image/data';
 
 /** Точки гравців на мініатюрі запитання-точки (відповіді на основне) і найближча з них; для інших типів — порожньо. */
 export function historyPinMarks(question: GameQuestionResult): { marks: PinBoardMark[]; nearest: string | undefined } {
@@ -358,6 +360,7 @@ export function GameHistory() {
       {game.teams && <p className="meta team-game-mark">{t('historyTeamGame')}</p>}
       {game.autopilot && <p className="meta autopilot-mark">{t('historyAutopilot')}</p>}
       <p className="meta">{t('questionsProgress', { played: game.questionsPlayed, total: game.questionCount })}</p>
+      {game.status === 'finished' && game.standings.length > 0 && <ResultImageButton className="btn result-image-button" build={() => resultFromHistory(game, location.host)} />}
 
       <section className="panel">
         <h2>{t('standingsTitle')}</h2>

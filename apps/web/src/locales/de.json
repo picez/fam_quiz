@@ -4291,5 +4291,16 @@
   "stageSoundsToggle": "🔔 Töne",
   "stageSoundsOffByHost": "Der Host hat die Töne ausgeschaltet",
   "hostSounds": "Töne auf der Bühne",
-  "hostSoundsHint": "Kurze Töne auf der Bühne: Auflösung, letzte Sekunden, Gong, Fanfare"
+  "hostSoundsHint": "Kurze Töne auf der Bühne: Auflösung, letzte Sekunden, Gong, Fanfare",
+  "resultImageButton": "📸 Ergebnis als Bild",
+  "resultImageTitle": "Spielergebnis",
+  "resultImageAlt": "Bild mit dem Spielergebnis",
+  "resultImageShare": "Teilen",
+  "resultImageDownload": "Herunterladen",
+  "resultImageClose": "Schließen",
+  "resultImageFailed": "Das Bild konnte nicht erstellt werden.",
+  "resultImageMe": "Mein Platz: {place} von {total} · {score}",
+  "resultImagePrizes": "Pokale",
+  "resultImageAchievements": "Erfolge",
+  "resultImageMore": "+ {count} weitere"
 }

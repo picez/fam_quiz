@@ -1438,7 +1438,7 @@ export class RoomManager {
       ...(levels === undefined ? {} : { levels }),
       ...(likes === undefined ? {} : { likes }),
     };
-    // «Нове досягнення!» (12j): телефон — своє, сцена — слайд, пульт — лише позначка, що слайд є (кнопка «Нагороди на сцені»).
+    // «Нове досягнення!» (12j): телефон — своє, сцена — слайд, пульт — позначка й ті самі досягнення, що на сцені (38c, для картинки підсумку; кнопка «Нагороди на сцені»).
     if (base.role === 'player') {
       const mine = identity.playerId === null ? undefined : newAchievementsMine(room, identity.playerId);
       const answerMark = identity.playerId === null ? undefined : { epoch: this.answerEpoch, count: this.answerCounts.get(room)?.get(identity.playerId) ?? 0 };
@@ -1446,7 +1446,7 @@ export class RoomManager {
     }
     const slide = newAchievementsStage(room);
     if (base.role === 'stage') return { ...base, ...extra, ...(slide === undefined ? {} : { newAchievements: slide }) };
-    return { ...base, ...extra, ...(slide === undefined ? {} : { awardsExtra: true }) };
+    return { ...base, ...extra, ...(slide === undefined ? {} : { awardsExtra: true, newAchievements: slide }) };
   }
 
   private baseView(room: Room, identity: Identity): GameView | null {

@@ -9,6 +9,9 @@ import { loadAuthor, loadHost, loadLastGame, loadPlayer, saveAuthor, saveHost, s
 import { t } from '../i18n';
 import { GameHistory } from './GameHistory';
 import { History } from './History';
+import { renderResultImage } from '../result-image/render';
+
+vi.mock('../result-image/render', () => ({ renderResultImage: vi.fn(async () => new Blob(['x'], { type: 'image/png' })) }));
 
 vi.mock('../api', () => ({ me: vi.fn(), listGames: vi.fn(), getGame: vi.fn(), continueGame: vi.fn(), deleteSavedGame: vi.fn() }));
 
@@ -171,6 +174,37 @@ describe('History', () => {
     open('/history');
     expect(await screen.findByText('сторінка входу ?next=%2Fhistory')).toBeTruthy();
     expect(listGames).not.toHaveBeenCalled();
+  });
+});
+
+describe('GameHistory result image (38c)', () => {
+  const buttonName = '📸 Підсумок картинкою';
+
+  it('a finished game: the button draws the prizes and achievements from result', async () => {
+    vi.mocked(renderResultImage).mockClear();
+    URL.createObjectURL = vi.fn(() => 'blob:x');
+    URL.revokeObjectURL = vi.fn();
+    const result = { prizes: [{ place: 1 as const, trophy: { kind: 'cup' as const, material: 'gold' as const }, winners: ['Олена'] }], achievements: [{ nickname: 'Олена', ids: ['fast_answer' as const] }] };
+    vi.mocked(getGame).mockResolvedValue({ ok: true, data: { ...detail, result } });
+    open('/history/g1');
+    fireEvent.click(await screen.findByRole('button', { name: buttonName }));
+    await waitFor(() => expect(renderResultImage).toHaveBeenCalledTimes(1));
+    const data = vi.mocked(renderResultImage).mock.calls[0]![0];
+    expect(data.quizTitle).toBe('Географія');
+    expect(data.prizes).toEqual([{ place: 1, trophy: { kind: 'cup', material: 'gold' }, winners: ['Олена'] }]);
+    expect(data.achievements).toEqual([{ id: 'fast_answer', nickname: 'Олена' }]);
+  });
+
+  it('an aborted game or an empty table: no button', async () => {
+    vi.mocked(getGame).mockResolvedValue({ ok: true, data: { ...detail, status: 'aborted' } });
+    open('/history/g1');
+    await screen.findByRole('heading', { name: 'Географія' });
+    expect(screen.queryByRole('button', { name: buttonName })).toBeNull();
+    cleanup();
+    vi.mocked(getGame).mockResolvedValue({ ok: true, data: { ...detail, standings: [] } });
+    open('/history/g1');
+    await screen.findByRole('heading', { name: 'Географія' });
+    expect(screen.queryByRole('button', { name: buttonName })).toBeNull();
   });
 });
 

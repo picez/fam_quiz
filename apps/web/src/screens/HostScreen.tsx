@@ -12,6 +12,9 @@ import { AlikeGroups } from './AlikeView';
 import { OvershootRows } from './OvershootRows';
 import { HostTruthFacts, TruthRecapFold, TruthRecapView } from './TruthView';
 import { paceAttrs, usePace } from '../pace';
+import { useQuizTitle } from './MyPrize';
+import { ResultImageButton } from '../result-image/ResultImage';
+import { resultFromHost } from '../result-image/data';
 import { ClueOpens } from './ClueOpens';
 import { ChainBoard } from './ChainView';
 import { WordLadderBoard, WordLadderPath } from './WordLadderView';
@@ -260,6 +263,7 @@ function HostScores({ view }: { view: HostView }) {
 export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, stageOnline = true, audioCommand = null, tilts, watch = true, onWatch, drafts = null, reactions = NO_REACTIONS, drawing = null }: Props) {
   const [error, setError] = useState<string | null>(null);
   const { phase, correct, round } = view;
+  const quizTitle = useQuizTitle(code, phase === 'finished');
   const inRound = round !== null && IN_ROUND.includes(phase);
   const lastRound = round !== null && round.index === round.total - 1;
   const live = phase !== 'lobby' && phase !== 'finished';
@@ -1482,6 +1486,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
         <section className="panel">
           <h2>{t('gameOver')}</h2>
           <Standings standings={view.standings} teams={view.teams} titles={view.titles} levels={view.levels} />
+          {view.standings.length > 0 && <ResultImageButton className="btn result-image-button" build={() => resultFromHost(view, quizTitle, new Date(), location.host)} />}
           {/* Призи (14a): хто що взяв; церемонію пульт показує на дотик — сцени може й не бути. */}
           {view.prizes !== undefined && <PrizeResults prizes={view.prizes} role="host" />}
           {view.prizes !== undefined && <HostCeremony prizes={view.prizes} stageGone={stageGone} stageUrl={stageUrl} />}

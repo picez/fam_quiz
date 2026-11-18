@@ -58,7 +58,20 @@ describe('«Нове досягнення!» in the room (12j)', () => {
     expect(stage(w.manager, w.room).newAchievements).toEqual({ people: [{ nickname: 'Оля', ids: ['fast_answer', 'in_debt'] }] });
     w.manager.setNewAchievements(w.room, new Map([['u-olya', ['in_debt', 'fast_answer']]]), new Set());
     expect(w.changes()).toBe(before + 1);
-    expect('newAchievements' in (w.manager.view(w.room, HOST) as unknown as Record<string, unknown>)).toBe(false);
+  });
+
+  it('the host gets the room achievements like the stage', () => {
+    const w = world();
+    w.enter('Оля', 'u-olya');
+    w.enter('Віра', 'u-vira');
+    finish(w.manager, w.room);
+    const host = () => w.manager.view(w.room, HOST) as unknown as Record<string, unknown>;
+    expect('newAchievements' in host()).toBe(false);
+    expect('awardsExtra' in host()).toBe(false);
+    w.manager.setNewAchievements(w.room, new Map([['u-olya', ['in_debt', 'fast_answer']], ['u-vira', ['in_debt']]]), new Set(['u-vira']));
+    expect(host().newAchievements).toEqual({ people: [{ nickname: 'Оля', ids: ['fast_answer', 'in_debt'] }] });
+    expect(host().newAchievements).toEqual(stage(w.manager, w.room).newAchievements);
+    expect(host().awardsExtra).toBe(true);
   });
 
   it('hidden anti-achievements leave the stage, never the own phone', () => {
@@ -73,8 +86,9 @@ describe('«Нове досягнення!» in the room (12j)', () => {
     finish(v.manager, v.room);
     v.manager.setNewAchievements(v.room, new Map([['u-vira', ['in_debt']]]), new Set(['u-vira']));
     expect('newAchievements' in stage(v.manager, v.room)).toBe(false);
-    expect(phone(v.manager, v.room, vira).newAchievements).toEqual({ account: true, ids: ['in_debt'] });
-    expect(phone(w.manager, w.room, olya).newAchievements).toEqual({ account: true, ids: ['fast_answer', 'in_debt'] });
+    expect(phone(v.manager, v.room, vira).newAchievements).toEqual({ account: true, ids: ['in_debt'], hideAnti: true });
+    // Телефон тримає всі свої, але позначає hide_anti, щоб картинка для чату антидосягнень не малювала (38c).
+    expect(phone(w.manager, w.room, olya).newAchievements).toEqual({ account: true, ids: ['fast_answer', 'in_debt'], hideAnti: true });
   });
 
   it('outside finished nobody has the key', () => {
