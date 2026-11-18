@@ -1,4 +1,4 @@
-import { LIMITS, rulesOf, wordleCandidates, wordleKey, wordleLetters, wordlePoints, type Question } from '@quiz/shared';
+import { LIMITS, rulesOf, wordleCandidates, wordleKey, wordleLetters, wordleMarks, wordlePoints, type PlayerWordle, type Question, type WordleInfo, type WordleMark } from '@quiz/shared';
 import { withPlay } from './blitz';
 // game.ts викликає цей файл, а цей файл — game.ts; обидва звертаються одне до одного лише під час виклику.
 import { betsRefusal } from './bets';
@@ -96,4 +96,70 @@ export function scoreWordle(state: GameState): GameState {
     changed = true;
   }
   return changed ? withPlay(state, { ...play, answers }) : state;
+}
+
+/** Етапи, на яких зрізи несуть сітки: лише саме запитання wordle. */
+const SHOWN_PHASES: readonly GameState['phase'][] = ['question', 'locked', 'reveal'];
+
+/** Відкрите (question, locked, reveal) поточне запитання wordle; інакше null. */
+function shownWordle(state: GameState): WordlePlay | null {
+  return SHOWN_PHASES.includes(state.phase) ? wordlePlay(state) : null;
+}
+
+/** Літери й кольори кожної прийнятої спроби (у стані — лише ключі). */
+function wordleRows(play: WordlePlay, guesses: readonly string[]): { letters: string[]; marks: WordleMark[] }[] {
+  const target = wordleLetters(targetKey(play));
+  return guesses.map((key) => {
+    const letters = wordleLetters(key);
+    return { letters, marks: wordleMarks(letters, target) };
+  });
+}
+
+function solvedBy(state: GameState, playerId: string): boolean {
+  const answer = recordOf(state, state.questionIndex, playerId)?.answer;
+  return answer?.type === 'wordle' && answer.solved;
+}
+
+/**
+ * Сітки всіх гравців (команд) у порядку state.players. Сцена й телефони (forHost false) до reveal бачать лише кольори:
+ * ні слова, ні літер спроб; на reveal — слово, літери й бали. Пульт бачить слово й літери з відкриття.
+ */
+export function wordleInfo(state: GameState, forHost: boolean): WordleInfo | undefined {
+  const play = shownWordle(state);
+  if (play === null) return undefined;
+  const revealed = state.phase === 'reveal';
+  const open = forHost || revealed;
+  return {
+    letters: wordleLetters(targetKey(play)).length,
+    tries: LIMITS.wordleTries,
+    word: open ? play.question.word : null,
+    rows: state.players.map((player) => {
+      const rows = wordleRows(play, wordleOf(state, player.id).guesses);
+      const record = recordOf(state, state.questionIndex, player.id);
+      return {
+        playerId: player.id,
+        nickname: player.nickname,
+        marks: rows.map((row) => row.marks),
+        guesses: open ? rows.map((row) => row.letters) : null,
+        solved: solvedBy(state, player.id),
+        tries: rows.length,
+        points: revealed && record !== undefined ? record.points : null,
+      };
+    }),
+  };
+}
+
+/** Власна сітка гравця (команди): літери й кольори своїх спроб; слово — лише на reveal. Поза запитанням wordle — undefined. */
+export function playerWordle(state: GameState, playerId: string): PlayerWordle | undefined {
+  const play = shownWordle(state);
+  if (play === null) return undefined;
+  const record = recordOf(state, state.questionIndex, playerId);
+  return {
+    letters: wordleLetters(targetKey(play)).length,
+    tries: LIMITS.wordleTries,
+    rows: wordleRows(play, wordleOf(state, playerId).guesses),
+    solved: solvedBy(state, playerId),
+    canGuess: state.phase === 'question' && !state.paused && record === undefined,
+    word: state.phase === 'reveal' ? play.question.word : null,
+  };
 }

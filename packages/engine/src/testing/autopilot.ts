@@ -30,6 +30,7 @@ import { drawGuess, drawStroke } from '../drawing';
 import { puzzleFill, puzzleFinish, puzzleSolution } from '../puzzles';
 import { guessWall } from '../wall';
 import { ladderWord, wordLadderOf } from '../wordladder';
+import { wordleGuess } from '../wordle';
 import { decideWipeout, decisionOpen, wipeoutIn } from '../wipeout';
 import { enterQuestCode, questAfter, questDone, questRoundOf, questWindowOpen } from '../quest';
 
@@ -214,6 +215,9 @@ function answerQuestion(state: GameState, playerId: string, wrong: boolean, now:
       for (const word of question.path.slice(1 + wordLadderOf(s, playerId).words.length)) s = act(s, ladderWord(s, playerId, word, now, () => false), what);
       return s;
     }
+    case 'wordle':
+      // Бот вгадує одразу словом ведучого: воно зараховується й без словника.
+      return act(state, wordleGuess(state, playerId, question.word, now, () => false), what);
     case 'timedlist': {
       // Бот вводить перший пункт і чекає кінця часу.
       if (timedListOf(state, playerId).found.length > 0) return state;
