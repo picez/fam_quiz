@@ -76,6 +76,28 @@ const vote = (questionIndex: number, payload: { type: 'poll'; optionId: string }
 
 const refs = (roundIndex: number, ids: string[]): PlayRef[] => ids.map((questionId) => ({ roundIndex, questionId }));
 
+/**
+ * Гра Олі після першої синхронізації ачівок (план 46): ідеальна (6 з 6 — перша ідеальна й серія 6) проти Петра, завершена в finishedAt.
+ * Наступне читання наздоганяє її (missedGames): ачівки з її датою й id. Повертає id гри.
+ */
+export async function finishLateGame(db: Db, { userId, friendId, otherId }: CareerFixture, finishedAt: Date): Promise<string> {
+  const ids = ['q1', 'l2', 'l3', 'l4', 'l5', 'l6'];
+  const { gameId } = await seedGame(db, {
+    hostId: otherId,
+    title: 'Пізня гра',
+    startedAt: new Date(finishedAt.getTime() - 30 * 60 * 1000),
+    finishedAt,
+    snapshot: snapshotOf([classicRound('r1', ids.map((id) => withId(single, id)))]),
+    questionsPlayed: ids.length,
+    plays: refs(0, ids),
+    players: [
+      { userId, nickname: 'Оля', score: 6000, rank: 1, rows: ids.map((_, q) => mark(q, true)) },
+      { userId: friendId, nickname: 'Петро', score: 2000, rank: 2, rows: ids.map((_, q) => mark(q, q < 2)) },
+    ],
+  });
+  return gameId;
+}
+
 export async function seedCareer(db: Db): Promise<CareerFixture> {
   const userId = randomUUID();
   const friendId = randomUUID();

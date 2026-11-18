@@ -11,12 +11,10 @@ import * as schema from '../db/schema';
 export async function createTestDb(options: { onQuery?: (query: string, params: unknown[]) => void } = {}): Promise<Db> {
   const { onQuery } = options;
   let migrated = false;
-  const logger = onQuery === undefined ? undefined : {
-          logQuery: (query: string, params: unknown[]) => {
-            if (migrated) onQuery(query, params);
-          },
-        };
-  const db = drizzle(new PGlite(), { schema, ...(logger === undefined ? {} : { logger }) });
+  const logQuery = (query: string, params: unknown[]) => {
+    if (migrated) onQuery?.(query, params);
+  };
+  const db = drizzle(new PGlite(), { schema, ...(onQuery === undefined ? {} : { logger: { logQuery } }) });
   await migrate(db, { migrationsFolder: MIGRATIONS });
   migrated = true;
   return db as unknown as Db;

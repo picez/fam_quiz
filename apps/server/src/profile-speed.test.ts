@@ -3,7 +3,7 @@ import type { Db } from './db/client';
 import { achievementsPage, careerFacts } from './achievement-store';
 import { playerGames, playerHistory } from './history';
 import { ownProfile, publicProfile } from './profiles';
-import { seedCareer, type CareerFixture } from './testing/career-fixture';
+import { finishLateGame, seedCareer, type CareerFixture } from './testing/career-fixture';
 import { createTestDb } from './testing/test-db';
 import { versusOf } from './versus';
 
@@ -11,13 +11,19 @@ const UUIDS = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
- * Читання всього знімка вікторини чи всього журналу гри: стовпець у списку select (за ним кома чи from), а не вираз над ним.
- * Перший аргумент функції SQL (`jsonb_path_query_array("quiz_snapshot", …)` у gameTables) — теж вираз: база віддає лише його результат.
+ * Читання всього знімка вікторини чи всього журналу гри: будь-яка поява стовпця, крім дозволених проєкцій, що віддають крихту значення, —
+ * `->`/`#>` над ним і перший аргумент названих функцій (`jsonb_path_query_array("quiz_snapshot", '$.rounds[*].type')` у gameTables,
+ * jsonb_typeof, jsonb_array_length). Будь-яка інша обгортка (`coalesce("quiz_snapshot", …)`, `to_jsonb("plays")`) — повне читання.
  */
-const FULL_SNAPSHOT = /(?<!\(\s*(?:"\w+"\.)?)"quiz_snapshot"(\s*,|\s+from\s)/i;
-const FULL_PLAYS = /(?<!\(\s*(?:"\w+"\.)?)"plays"(\s*,|\s+from\s)/i;
+const wholeColumn = (column: string) =>
+  new RegExp(String.raw`(?<!\b(?:jsonb_path_query_array|jsonb_typeof|jsonb_array_length)\(\s*(?:"\w+"\.)?)"${column}"(?!\s*(?:->|#>))`, 'i');
+const FULL_SNAPSHOT = wholeColumn('quiz_snapshot');
+const FULL_PLAYS = wholeColumn('plays');
 
-/** Знімок без випадкових id: кожен UUID (і всередині рядків) стає «<id N>» у порядку першої появи; Date — ISO, Set і Map — масиви. */
+/**
+ * Знімок без випадкових id: кожен UUID (і всередині рядків) стає «<id N>» у порядку першої появи; Date — ISO, Set і Map — масиви.
+ * Ключі об'єктів обходяться за абеткою: інший порядок ключів у відповіді не перенумеровує id.
+ */
 function stable(value: unknown): unknown {
   const ids = new Map<string, string>();
   const idOf = (id: string) => {
@@ -31,7 +37,7 @@ function stable(value: unknown): unknown {
     if (Array.isArray(v)) return v.map(walk);
     if (v instanceof Set) return [...v].map(walk);
     if (v instanceof Map) return [...v.entries()].map(walk);
-    if (typeof v === 'object' && v !== null) return Object.fromEntries(Object.entries(v).map(([k, x]) => [walk(k), walk(x)]));
+    if (typeof v === 'object' && v !== null) return Object.fromEntries(Object.entries(v).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)).map(([k, x]) => [walk(k), walk(x)]));
     return v;
   };
   return walk(value);
@@ -83,11 +89,21 @@ describe('profile speed (46): the safety net', () => {
     expect(byTitle('Ще триває')).toBeUndefined();
     expect(byTitle('Оля веде')).toBeUndefined();
 
-    expect(stable({ first, second })).toMatchSnapshot();
+    // Наступного дня Оля дограє ще одну гру: наступне читання наздоганяє її (missedGames) — ачівки з її датою й id.
+    vi.setSystemTime(new Date('2026-11-19T12:00:00Z'));
+    const lateGameId = await finishLateGame(db, career, new Date('2026-11-19T10:00:00Z'));
+    const third = await readAll(db, career);
+    expect(third.history[0]).toMatchObject({ gameId: lateGameId, title: 'Пізня гра', questionsPlayed: 6, correct: 6 });
+    expect(third.achievementsOwn?.items.find((a) => a.id === 'perfect_game')).toMatchObject({ earned: true, earnedAt: '2026-11-19T10:00:00.000Z' });
+    expect(third.achievementsOwn?.items.some((a) => a.earnedAt !== null)).toBe(true);
+
+    expect(stable({ first, second, third })).toMatchSnapshot();
   });
 
-  // Задача 2 плану 46 знімає .fails: тоді профіль читає повні знімки й журнали лише ігор з «Ва-банк», «Вибуванням» і «Мільйонером» (і старого формату).
-  it.fails('the profile never reads whole quiz snapshots or game logs except for wipeout, survival and ladder games', { timeout: 120_000 }, async () => {
+  // Запити другого проходу: збирає звичайний тест (щоб збій засіву чи читання не сховався за it.fails), перевіряє наступний.
+  let spied: { queries: { query: string; params: unknown[] }[]; career: CareerFixture } | null = null;
+
+  it('the SQL spy records the second-pass profile reads', { timeout: 120_000 }, async () => {
     let recording = false;
     const queries: { query: string; params: unknown[] }[] = [];
     const db = await createTestDb({
@@ -111,6 +127,16 @@ describe('profile speed (46): the safety net', () => {
     await reads();
     recording = false;
 
+    expect(queries.length).toBeGreaterThan(0);
+    // Сам запит ігор гравця (playerGames) мусить бути серед записаних, інакше перевірка нижче нічого не бачить.
+    expect(queries.some(({ query }) => /from "participant" inner join "game"/i.test(query))).toBe(true);
+    spied = { queries, career };
+  });
+
+  // Задача 2 плану 46 знімає .fails: тоді профіль читає повні знімки й журнали лише ігор з «Ва-банк», «Вибуванням» і «Мільйонером» (і старого формату).
+  it.fails('the profile never reads whole quiz snapshots or game logs except for wipeout, survival and ladder games', () => {
+    if (spied === null) throw new Error('the spy test did not run');
+    const { queries, career } = spied;
     const allowed = new Set([...career.gatedGameIds, ...career.oldFormatGameIds]);
     const whole = queries.filter(({ query }) => FULL_SNAPSHOT.test(query) || FULL_PLAYS.test(query));
     // Повне читання мусить бути обмежене id дозволених ігор: без жодного id воно читало б усі ігри.
@@ -118,7 +144,6 @@ describe('profile speed (46): the safety net', () => {
       const ids = params.filter((p): p is string => typeof p === 'string' && UUID.test(p));
       return ids.length === 0 || ids.some((id) => !allowed.has(id));
     });
-    expect(queries.length).toBeGreaterThan(0);
     expect(offending.map(({ query }) => query)).toEqual([]);
   });
 });
