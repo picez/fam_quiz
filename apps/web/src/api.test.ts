@@ -1,5 +1,7 @@
+import type { OwnProfile } from '@quiz/shared';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { acceptGroupInvite, markGroupUses, createGroup, createGroupItem, joinGroup, setHideAnti, deletePushSubscription, fetchQuizLikes, createPrize, deletePrize, gamePrizes, myPrizes, placePrizes, updatePrize, authProviders, claimSlot, continueGame, deleteSavedGame, gameSlots, getFavoriteStickers, saveFavoriteStickers, createAutopilotGame, getAutopilotCheck, deleteQuiz, follow, unfollow, googleSignIn, listQuizzes, me, signIn, signOut, signUp, searchQuestionBank, updateQuiz, uploadAudio, uploadImage } from './api';
+import { cachedMyProfile, rememberMyProfile } from './profile/my-profile-cache';
+import { pinToShowcase, acceptGroupInvite, markGroupUses, createGroup, createGroupItem, joinGroup, setHideAnti, deletePushSubscription, fetchQuizLikes, createPrize, deletePrize, gamePrizes, myPrizes, placePrizes, updatePrize, authProviders, claimSlot, continueGame, deleteSavedGame, gameSlots, getFavoriteStickers, saveFavoriteStickers, createAutopilotGame, getAutopilotCheck, deleteQuiz, follow, unfollow, googleSignIn, listQuizzes, me, signIn, signOut, signUp, searchQuestionBank, updateQuiz, uploadAudio, uploadImage } from './api';
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -44,6 +46,28 @@ describe('api', () => {
     expect(fetchMock.mock.calls[3]![0]).toBe('/api/games/by-code/123456/prizes');
     await placePrizes('123456', ['a', null, null]);
     expect(fetchMock.mock.calls[4]![1]).toMatchObject({ method: 'PUT', body: JSON.stringify({ places: ['a', null, null] }) });
+  });
+
+  it('a successful change to the own profile data drops the cached profile, a failed one does not', async () => {
+    const cached = { id: 'u1' } as unknown as OwnProfile;
+    const content = { name: 'x', trophy: null, engraving: null, real: null, title: null, diploma: false };
+    const calls: [string, () => Promise<unknown>][] = [
+      ['deletePrize', () => deletePrize('p1')],
+      ['createPrize', () => createPrize(content)],
+      ['follow', () => follow('u2')],
+      ['unfollow', () => unfollow('u2')],
+      ['deleteQuiz', () => deleteQuiz('q1')],
+      ['pin', () => pinToShowcase({ kind: 'prize', id: 'p1' } as never)],
+    ];
+    for (const [name, run] of calls) {
+      rememberMyProfile(cached);
+      respond(500, { error: 'boom' });
+      await run();
+      expect(cachedMyProfile('u1'), `${name} failed`).toBe(cached);
+      respond(200, {});
+      await run();
+      expect(cachedMyProfile('u1'), `${name} ok`).toBeNull();
+    }
   });
 
   it('translates sign-in and sign-up failures into our codes', async () => {

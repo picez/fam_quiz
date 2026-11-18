@@ -18,7 +18,7 @@ import {
 } from '@quiz/shared';
 import { and, asc, count, eq, inArray, isNull, like, lt, ne, or } from 'drizzle-orm';
 import type { CurrentUser } from './account-routes';
-import { achievementList, antiHidden, careerInputs, syncAchievements } from './achievement-store';
+import { achievementList, antiHidden, syncAchievements } from './achievement-store';
 import { isBanned } from './bans';
 import type { Db } from './db/client';
 import { follow, game, profile, user } from './db/schema';
@@ -122,15 +122,15 @@ export async function profileFacts(
   userId: string,
   own = true,
 ): Promise<{ stats: ProfileStats; achievements: Achievement[]; wins: ProfileWin[] }> {
-  const prepared = await careerInputs(db, userId);
-  const { earned } = await syncAchievements(db, userId, null, { prepared, types: own });
-  const wins = prepared.games
+  // Кар'єру читає сама синхронізація ачівок (раз) і віддає її в inputs.
+  const { earned, inputs } = await syncAchievements(db, userId, null, { types: own });
+  const wins = inputs.games
     .map((g) => g.played)
     .filter(isWin)
     .slice(0, WINS_SHOWN)
     // isWin гарантує rank === 1.
     .map((g) => ({ gameId: g.gameId, title: g.title, startedAt: g.startedAt, rank: g.rank ?? 1 }));
-  return { stats: prepared.stats, achievements: achievementList(earned), wins };
+  return { stats: inputs.stats, achievements: achievementList(earned), wins };
 }
 
 /** Друзі (на кого підписаний), за нікнеймом. */
@@ -233,8 +233,15 @@ export async function ownProfile(db: Db, current: CurrentUser): Promise<OwnProfi
   const base = await ensureProfile(db, current.id);
   if (!base) throw new Error('profile of a signed-in user must exist');
   const facts = await profileFacts(db, current.id);
-  const quizzes = await popularQuizzes(db, current.id);
-  const [level, likes, leagueTitles] = await Promise.all([ownLevel(db, current.id), likeTotals(db, current.id), safeLeagueTitles(db, current.id)]);
+  // Решта — поруч, але після ачівок: рівень і «щойно відкрите» рахують XP за щойно записані ачівки.
+  const [quizzes, level, likes, leagueTitles, friends, showcase] = await Promise.all([
+    popularQuizzes(db, current.id),
+    ownLevel(db, current.id),
+    likeTotals(db, current.id),
+    safeLeagueTitles(db, current.id),
+    friendsOf(db, current.id),
+    showcaseOf(db, current.id),
+  ]);
   return {
     ...base,
     email: current.email,
@@ -242,8 +249,8 @@ export async function ownProfile(db: Db, current: CurrentUser): Promise<OwnProfi
     achievements: facts.achievements,
     quizzes,
     wins: facts.wins,
-    friends: await friendsOf(db, current.id),
-    showcase: await showcaseOf(db, current.id),
+    friends,
+    showcase,
     // Ретро й наздоганяння досвіду (15a) — усередині ownLevel, раз і перед читанням рівня; збій профіль не ламає.
     level,
     likes,
@@ -257,11 +264,17 @@ export async function publicProfile(db: Db, id: string, viewerId: string | null)
   const base = await ensureProfile(db, id);
   if (!base) return null;
   const { stats, achievements } = await profileFacts(db, id, false);
-  const following = viewerId === null || viewerId === id ? null : await isFollowing(db, viewerId, id);
-  const showcase = await showcaseOf(db, id);
+  // Решта — поруч, але після ачівок (рівень рахує XP за щойно записані).
+  const [following, showcase, hidden, level, likes, leagueTitles] = await Promise.all([
+    viewerId === null || viewerId === id ? null : isFollowing(db, viewerId, id),
+    showcaseOf(db, id),
+    antiHidden(db, [id]),
+    publicLevel(db, id),
+    likeTotals(db, id),
+    safeLeagueTitles(db, id),
+  ]);
   // Антидосягнення, які власник ховає (12j): ні в списку, ні закріплених на вітрині.
-  const hide = (await antiHidden(db, [id])).has(id);
-  const [level, likes, leagueTitles] = await Promise.all([publicLevel(db, id), likeTotals(db, id), safeLeagueTitles(db, id)]);
+  const hide = hidden.has(id);
   return {
     id: base.id,
     nickname: base.nickname,

@@ -1,10 +1,10 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { eq } from 'drizzle-orm';
-import { breakdownOf, DEFAULT_RULES, memoryLayout, defaultTeams, packStrokes, SPLASH_MS, type Answer, type GameDetail, type Question } from '@quiz/shared';
+import { breakdownOf, DEFAULT_RULES, memoryLayout, defaultTeams, packStrokes, quizSchema, SPLASH_MS, type Answer, type GameDetail, type Question } from '@quiz/shared';
 import { LADDER_RIGHT, LADDER_WRONG, auctionRound, betsRound, bluff, blitzRound, boardRound, bool, chain, classicRound, clues, cloud, finalRound, poll, wall, makeQuiz, makeRoundsQuiz, match, pin, single, slider, sortQ, survey, surveyCloud, text, letterwords, moreless, drawing, timedlist, withId, withReveal, withVideo, survivalQuestions, survivalRound, survivalTrials, wipeoutLadder, wipeoutRound, ladderRound, truthRound, think, thinkRound, puzzlesRound, sudoku, crosswordKey, jigsaw, jigsawQuiz, spotdiff, spotdiffQuiz, memoryQuiz, melodyQuiz, videoclipQuiz, alikeQuiz, spyQuiz } from '@quiz/engine/testing';
 import { buildApp } from './app';
 import { rankPlayers, scoreLines, sortOf } from '@quiz/engine';
-import { answeredTypes, gameQuestionCount, gameTables, hostGame, hostGameWithFacts, hostGames, playerGames } from './history';
+import { answeredTypes, forgetPlayedShapes, gameQuestionCount, gameTables, hostGame, hostGameWithFacts, hostGames, playerGames } from './history';
 import type { Db } from './db/client';
 import { ADJUSTMENT_ATTEMPT, answer, game, participant, PENALTY_ATTEMPT, prizeAward, profile, user, userAchievement, VOTE_ATTEMPT } from './db/schema';
 import { TEST_AUTH, signUp } from './testing/accounts';
@@ -2915,5 +2915,110 @@ describe('game result extras (38c)', () => {
     await db.insert(userAchievement).values({ userId: w.ids.olya, achievementId: 'first_game', gameId: w.gameId });
     const json = JSON.stringify((await hostGame(db, w.ids.host, w.gameId))?.result);
     for (const secret of [w.ids.olya, w.ids.petro, w.ids.host, '@example.com', 'Акаунт', 'Секретн', 'secret']) expect(json).not.toContain(secret);
+  });
+});
+
+describe('history: slim reads (46)', () => {
+  /** Гравчиня з акаунта без інших ігор: її історія — лише засіяні тут ігри. */
+  async function player(id: string) {
+    await db.insert(user).values({ id, name: 'Оля', email: `${id}@example.com` });
+    return id;
+  }
+  const mark = (questionIndex: number, accepted: boolean) => ({ questionIndex, accepted, points: accepted ? 1000 : 0 });
+  const vote = (questionIndex: number, payload: Answer) => ({ questionIndex, attempt: VOTE_ATTEMPT, accepted: false, points: 0, payload });
+
+  it('a game whose first poll sits in a board cell and whose snapshot is broken keeps its questions played', async () => {
+    const olya = await player('slim-board-olya');
+    const cellIds = ['bp1', 'bc1', 'bt1', 'bt2'];
+    const board = await seedGame(db, {
+      hostId: olya,
+      title: 'Опитування на полі',
+      startedAt: new Date(2026, 9, 1),
+      snapshot: makeRoundsQuiz([
+        boardRound('b1', [
+          { title: 'Річки', cells: [withId(poll, 'bp1'), withId(cloud, 'bc1'), withId(text, 'bt1')] },
+          { title: 'Гори', cells: [withId(text, 'bt2'), withId(text, 'bt3'), withId(text, 'bt4')] },
+          { title: 'Міста', cells: [withId(text, 'bt5'), withId(text, 'bt6'), withId(text, 'bt7')] },
+        ]),
+      ]),
+      questionsPlayed: 4,
+      players: [
+        {
+          userId: olya,
+          nickname: 'Оля',
+          score: 1000,
+          rank: 1,
+          rows: [vote(0, { type: 'poll', optionId: 'a' }), vote(1, { type: 'wordcloud', words: ['Говерла'] }), mark(2, true), mark(3, false)],
+        },
+      ],
+    });
+    await db
+      .update(game)
+      .set({ plays: cellIds.map((id) => ({ roundIndex: 0, questionId: id, cell: { cellId: id, chooserId: board.participantIds[0] } })) })
+      .where(eq(game.id, board.gameId));
+    // Дві сходинки замість щонайменше п'яти: знімок не проходить схему, віднімати нічого.
+    const broken = await seedGame(db, {
+      hostId: olya,
+      title: 'Зіпсований ва-банк',
+      startedAt: new Date(2026, 9, 2),
+      snapshot: makeRoundsQuiz([wipeoutRound('w', wipeoutLadder.slice(0, 2))]),
+      questionsPlayed: 2,
+      players: [{ userId: olya, nickname: 'Оля', score: 100, rank: 1, rows: [mark(0, true)] }],
+    });
+    await db
+      .update(game)
+      .set({ plays: [{ roundIndex: 0, questionId: 'w1', wipeout: { took: [broken.participantIds[0]] } }, { roundIndex: 0, questionId: 'w2', wipeout: { took: [], end: true } }] })
+      .where(eq(game.id, broken.gameId));
+
+    const history = (await playerGames(db, olya, null)).map((g) => g.played);
+    expect(history.map(({ title, questionsPlayed, correct, answered }) => ({ title, questionsPlayed, correct, answered }))).toEqual([
+      { title: 'Зіпсований ва-банк', questionsPlayed: 2, correct: 1, answered: 1 },
+      { title: 'Опитування на полі', questionsPlayed: 4, correct: 1, answered: 2 },
+    ]);
+  });
+
+  it('a wipeout game parses its snapshot once', async () => {
+    const olya = await player('slim-once-olya');
+    const { gameId, participantIds } = await seedGame(db, {
+      hostId: olya,
+      title: 'Три раунди',
+      startedAt: new Date(2026, 9, 3),
+      snapshot: makeRoundsQuiz([wipeoutRound('w', wipeoutLadder), survivalRound('s', survivalQuestions, survivalTrials), ladderRound('l')]),
+      questionsPlayed: 6,
+      players: [
+        { userId: olya, nickname: 'Оля', score: 300, rank: 2, rows: [mark(0, true), mark(2, true), mark(3, false)] },
+        { userId: null, nickname: 'Петро', score: 900, rank: 1, rows: [mark(0, true), mark(1, true), mark(2, true), mark(3, true), mark(4, true), mark(5, true)] },
+      ],
+    });
+    const [me, rival] = participantIds;
+    await db
+      .update(game)
+      .set({
+        plays: [
+          { roundIndex: 0, questionId: 'w1', wipeout: { took: [me] } },
+          { roundIndex: 0, questionId: 'w2', wipeout: { took: [rival], end: true } },
+          { roundIndex: 1, questionId: 's1' },
+          { roundIndex: 1, questionId: 's2', survival: { edge: [me], trial: { kind: 'question', questionId: 't1', out: [me] } } },
+          { roundIndex: 1, questionId: 's3', survival: { end: true } },
+          { roundIndex: 2, questionId: 'l1', ladder: { contestant: rival, step: 0, level: 100 } },
+        ],
+      })
+      .where(eq(game.id, gameId));
+
+    forgetPlayedShapes();
+    const parse = vi.spyOn(quizSchema, 'safeParse');
+    try {
+      const [only] = await playerGames(db, olya, null);
+      expect(parse).toHaveBeenCalledTimes(1);
+      // Ва-банк: забрала на першій з двох (−1); вибування: вибула на другому з трьох (−1); «Мільйонер»: глядачка без відповіді (−1).
+      expect(only.played.questionsPlayed).toBe(3);
+      // Наступне читання бере форму гри з кешу: знімок більше не розбирається, числа ті самі.
+      parse.mockClear();
+      const [again] = await playerGames(db, olya, null);
+      expect(parse).not.toHaveBeenCalled();
+      expect(again.played).toEqual(only.played);
+    } finally {
+      parse.mockRestore();
+    }
   });
 });

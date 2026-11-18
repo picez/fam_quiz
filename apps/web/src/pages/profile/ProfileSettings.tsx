@@ -20,7 +20,7 @@ export function ProfileSettings(): JSX.Element {
   const [params] = useSearchParams();
   const [editing, setEditing] = useState(params.get('edit') === '1');
   const [leaving, setLeaving] = useState(false);
-  const { state, reload } = useMyProfile();
+  const { state, reload } = useMyProfile({ cached: false });
 
   const leave = async () => {
     if (leaving) return;

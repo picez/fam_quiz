@@ -7,7 +7,7 @@ import { useMyProfile } from '../../profile/useMyProfile';
 
 /** /profile/looks: нагороди рівнів і вибір вигляду ніка. */
 export function ProfileLooks(): JSX.Element {
-  const { state, reload } = useMyProfile();
+  const { state, reload } = useMyProfile({ cached: false });
   return (
     <SubpageData state={state} title={t('profileTileLooks')}>
       {(profile) => <LevelCard level={profile.level} nickname={nickText(profile.nickname)} profile={profile} onSaved={reload} />}

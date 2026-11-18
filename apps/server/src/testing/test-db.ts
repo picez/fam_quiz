@@ -6,11 +6,20 @@ import { drizzle } from 'drizzle-orm/pglite';
 import { migrate } from 'drizzle-orm/pglite/migrator';
 import { MIGRATIONS, type Db } from '../db/client';
 import * as schema from '../db/schema';
+import { forgetPlayedShapes } from '../history';
 
-/** Порожня база в пам'яті з усіма міграціями. */
-export async function createTestDb(): Promise<Db> {
-  const db = drizzle(new PGlite(), { schema });
+/** Порожня база в пам'яті з усіма міграціями; onQuery — шпигун: кожен запит drizzle після міграцій (SQL і параметри). */
+export async function createTestDb(options: { onQuery?: (query: string, params: unknown[]) => void } = {}): Promise<Db> {
+  const { onQuery } = options;
+  // Кеш форм ігор глобальний за id гри: нова база не успадковує форми попередньої.
+  forgetPlayedShapes();
+  let migrated = false;
+  const logQuery = (query: string, params: unknown[]) => {
+    if (migrated) onQuery?.(query, params);
+  };
+  const db = drizzle(new PGlite(), { schema, ...(onQuery === undefined ? {} : { logger: { logQuery } }) });
   await migrate(db, { migrationsFolder: MIGRATIONS });
+  migrated = true;
   return db as unknown as Db;
 }
 

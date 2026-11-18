@@ -1,7 +1,9 @@
 // @vitest-environment jsdom
 import { cleanup, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { OwnProfile } from '@quiz/shared';
 import { me, type ApiData } from './api';
+import { cachedMyProfile, rememberMyProfile } from './profile/my-profile-cache';
 import { forgetAccount, useAccount } from './useAccount';
 import { usePrivateData } from './usePrivateData';
 
@@ -61,6 +63,19 @@ describe('useAccount', () => {
     render(<Who />);
     expect(screen.getByText('loading')).toBeTruthy();
     expect(await screen.findByText('Олена')).toBeTruthy();
+  });
+
+  it('drops the cached own profile on sign-in/sign-out and when the check sees no session', async () => {
+    const cached = { id: 'u1' } as unknown as OwnProfile;
+    rememberMyProfile(cached);
+    forgetAccount();
+    expect(cachedMyProfile('u1')).toBeNull();
+
+    rememberMyProfile(cached);
+    vi.mocked(me).mockResolvedValue({ ok: false, error: 'unauthorized' });
+    render(<Who />);
+    expect(await screen.findByText('anonymous')).toBeTruthy();
+    expect(cachedMyProfile('u1')).toBeNull();
   });
 
   it('forgets the account on sign-out', async () => {

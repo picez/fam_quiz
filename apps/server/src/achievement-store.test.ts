@@ -137,6 +137,18 @@ describe('filling the history once', () => {
     expect(stored.filter((r) => r.achievementId === 'fast_answer')).toHaveLength(1);
     expect(new Set([...a.fresh, ...b.fresh]).size).toBe(a.fresh.length + b.fresh.length);
   });
+
+  it('sync returns the career inputs it read, and the ones it was given', async () => {
+    const me = 'store-inputs';
+    await addUser(me, 'Ніна');
+    await playGame(me, new Date('2026-09-04T18:00:00Z'));
+    await playGame(me, new Date('2026-09-05T18:00:00Z'));
+    const read = await syncAchievements(db, me, null);
+    expect(read.inputs.stats.games).toBe(2);
+    expect(read.inputs.games).toHaveLength(2);
+    const given = await syncAchievements(db, me, null, { prepared: read.inputs });
+    expect(given.inputs).toBe(read.inputs);
+  });
 });
 
 describe('a finished game', () => {

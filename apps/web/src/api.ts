@@ -3,6 +3,7 @@ import type { LeaguePickInfo, LeagueTable, NickLooks, PrizeContent, PrizeItem, P
 import type { ShowcasePin, ShowcasePins } from '@quiz/shared';
 import type { CodeInfo, LobbyRow, LobbySettings } from '@quiz/shared';
 import type { GivenLike, LikesPage, ReceivedLike } from '@quiz/shared';
+import { forgetMyProfile } from './profile/my-profile-cache';
 import type { HostTokens } from './storage';
 import { loadDeviceId } from './storage';
 import type { Locale } from '@quiz/shared';
@@ -148,9 +149,16 @@ export async function checkLetterWords(letters: string): Promise<{ possible: num
   if (!result.ok || typeof result.possible !== 'number' || !Array.isArray(result.best)) return null;
   return { possible: result.possible, best: result.best.filter((word): word is string => typeof word === 'string') };
 }
-export const createQuiz = (quiz: Quiz) => request<{ id: string }>('/api/quizzes', { body: quiz });
-export const updateQuiz = (id: string, quiz: Quiz) => request<{ id: string }>(quizUrl(id), { method: 'PUT', body: quiz });
-export const deleteQuiz = (id: string) => request<object>(quizUrl(id), { method: 'DELETE' });
+/** Вдала правка, що змінює щось у власному профілі (вітрина, друзі, квізи, нагороди): кешований профіль уже застарів. */
+async function dropsMyProfile<T extends { ok: boolean }>(result: Promise<T>): Promise<T> {
+  const done = await result;
+  if (done.ok) forgetMyProfile();
+  return done;
+}
+
+export const createQuiz = (quiz: Quiz) => dropsMyProfile(request<{ id: string }>('/api/quizzes', { body: quiz }));
+export const updateQuiz = (id: string, quiz: Quiz) => dropsMyProfile(request<{ id: string }>(quizUrl(id), { method: 'PUT', body: quiz }));
+export const deleteQuiz = (id: string) => dropsMyProfile(request<object>(quizUrl(id), { method: 'DELETE' }));
 
 export const createGame = (quizId: string) =>
   request<{ gameId: string; code: string } & HostTokens>('/api/games', { body: { quizId } });
@@ -206,9 +214,9 @@ const prizeUrl = (id: string) => `/api/me/prizes/${encodeURIComponent(id)}`;
 export const getLikesGiven = (offset = 0) => fetchData<LikesPage<GivenLike>>(`/api/me/likes/given?offset=${offset}`);
 export const getLikesReceived = (offset = 0) => fetchData<LikesPage<ReceivedLike>>(`/api/me/likes/received?offset=${offset}`);
 export const myPrizes = () => fetchData<PrizeItem[]>('/api/me/prizes');
-export const createPrize = (content: PrizeContent) => request<PrizeItem>('/api/me/prizes', { body: content });
-export const updatePrize = (id: string, content: PrizeContent) => request<PrizeItem>(prizeUrl(id), { method: 'PUT', body: content });
-export const deletePrize = (id: string) => request<object>(prizeUrl(id), { method: 'DELETE' });
+export const createPrize = (content: PrizeContent) => dropsMyProfile(request<PrizeItem>('/api/me/prizes', { body: content }));
+export const updatePrize = (id: string, content: PrizeContent) => dropsMyProfile(request<PrizeItem>(prizeUrl(id), { method: 'PUT', body: content }));
+export const deletePrize = (id: string) => dropsMyProfile(request<object>(prizeUrl(id), { method: 'DELETE' }));
 /** Призи, які ведучий може покласти в лобі, і що лежить на місцях зараз. */
 export const gamePrizes = (code: string) => fetchData<PrizePlacesInfo>(`${gameUrl(code)}/prizes`);
 export const placePrizes = (code: string, places: (string | null)[]) =>
@@ -241,8 +249,8 @@ export const getAchievements = (id: string) => fetchData<AchievementsPage>(`/api
 export const getVersus = (id: string) => fetchData<Versus>(`/api/me/versus/${encodeURIComponent(id)}`);
 export const findProfile = (nickname: string) => fetchData<ProfileCard>(`/api/profiles?nickname=${encodeURIComponent(nickname)}`);
 export const searchProfiles = (query: string) => fetchData<ProfileCard[]>(`/api/profiles/search?q=${encodeURIComponent(query)}`);
-export const follow = (id: string) => request<object>(`/api/me/friends/${encodeURIComponent(id)}`, { method: 'PUT' });
-export const unfollow = (id: string) => request<object>(`/api/me/friends/${encodeURIComponent(id)}`, { method: 'DELETE' });
+export const follow = (id: string) => dropsMyProfile(request<object>(`/api/me/friends/${encodeURIComponent(id)}`, { method: 'PUT' }));
+export const unfollow = (id: string) => dropsMyProfile(request<object>(`/api/me/friends/${encodeURIComponent(id)}`, { method: 'DELETE' }));
 
 export const getMyFriends = () => fetchData<FriendCard[]>('/api/me/friends');
 export const inviteFriends = (code: string, userIds: string[]) => fetchData<{ invited: string[] }>(`${gameUrl(code)}/invites`, { body: { userIds } });
@@ -272,9 +280,9 @@ export const saveFavoriteStickers = (favorites: string[]) => request<{ favorites
 
 /** Закріплене на вітрині (23a): до 3 виграних нагород і 5 отриманих ачівок. */
 export const getShowcasePins = () => fetchData<ShowcasePins>('/api/me/showcase/pins');
-export const pinToShowcase = (pin: ShowcasePin) => fetchData<ShowcasePins>('/api/me/showcase/pins', { body: pin });
+export const pinToShowcase = (pin: ShowcasePin) => dropsMyProfile(fetchData<ShowcasePins>('/api/me/showcase/pins', { body: pin }));
 export const unpinFromShowcase = (pin: ShowcasePin) =>
-  fetchData<ShowcasePins>(`/api/me/showcase/pins/${pin.kind}/${encodeURIComponent(pin.id)}`, { method: 'DELETE' });
+  dropsMyProfile(fetchData<ShowcasePins>(`/api/me/showcase/pins/${pin.kind}/${encodeURIComponent(pin.id)}`, { method: 'DELETE' }));
 
 /** Групи (12k): усі маршрути — для учасників, чужий отримує group_not_found. */
 const groupUrl = (id: string) => `/api/groups/${encodeURIComponent(id)}`;
