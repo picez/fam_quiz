@@ -3666,10 +3666,12 @@ describe('HostScreen: family league (45)', () => {
   });
 
   it('the finish lists every member with the points', () => {
-    show(view({ phase: 'finished', questionIndex: 1, league: { group: 'Родина', rows: [{ nickname: 'Тарас', points: 10 }, { nickname: 'Олена', points: 0 }] } }));
+    show(view({ phase: 'finished', questionIndex: 1, league: { group: 'Родина', rows: [{ nickname: 'Тарас', points: 10 }, { nickname: 'Олена', points: 0 }, { nickname: 'Тарас', points: 3 }, { nickname: 'Іра', points: 1 }] } }));
     expect(screen.getByText('Ліга «Родина»')).toBeTruthy();
-    expect(screen.getByText('Тарас — +10')).toBeTruthy();
-    expect(screen.getByText('Олена — +0')).toBeTruthy();
+    expect(screen.getByText('Олена — +0 балів')).toBeTruthy();
+    expect(screen.getByText('Тарас — +10 балів')).toBeTruthy();
+    expect(screen.getByText('Тарас — +3 бали')).toBeTruthy();
+    expect(screen.getByText('Іра — +1 бал')).toBeTruthy();
   });
 
   it('too few members: the one line, no table', () => {

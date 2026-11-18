@@ -80,6 +80,19 @@ describe('LeagueTable', () => {
     expect(await screen.findByText(/Переможців ще немає/)).toBeTruthy();
   });
 
+  it('a failed month keeps the select, shows the error under it, and another month still works', async () => {
+    render(<LeagueTable groupId="g1" me="u1" />);
+    const select = await screen.findByRole('combobox', { name: 'Місяць' });
+    vi.mocked(groupLeague).mockResolvedValue({ ok: false, error: 'group_not_found' });
+    fireEvent.change(select, { target: { value: '2026-10' } });
+    expect(await screen.findByRole('alert')).toBeTruthy();
+    expect(screen.getByRole('combobox', { name: 'Місяць' })).toBeTruthy();
+    vi.mocked(groupLeague).mockResolvedValue({ ok: true, data: november });
+    fireEvent.change(screen.getByRole('combobox', { name: 'Місяць' }), { target: { value: '2026-11' } });
+    await waitFor(() => expect(screen.queryByRole('alert')).toBeNull());
+    expect(await screen.findByRole('table')).toBeTruthy();
+  });
+
   it('shows the error when the table cannot be read', async () => {
     vi.mocked(groupLeague).mockResolvedValue({ ok: false, error: 'group_not_found' });
     render(<LeagueTable groupId="g1" me="u1" />);

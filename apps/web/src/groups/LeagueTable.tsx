@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useId, useState } from 'react';
 import type { LeagueTable as LeagueTableData } from '@quiz/shared';
 import { groupLeague } from '../api';
 import { monthText, num } from '../format';
@@ -13,9 +13,11 @@ export function LeagueTable({ groupId, me }: { groupId: string; me?: string }) {
   const [month, setMonth] = useState<string | undefined>(undefined);
   const [data, setData] = useState<LeagueTableData | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const selectId = useId();
 
   useEffect(() => {
     let current = true;
+    setError(null);
     void groupLeague(groupId, month).then((result) => {
       if (!current) return;
       if (result.ok) {
@@ -28,7 +30,8 @@ export function LeagueTable({ groupId, me }: { groupId: string; me?: string }) {
     };
   }, [groupId, month]);
 
-  if (error !== null) {
+  // Перший запит не вдався — лише помилка; пізніші збої показуємо під вибором місяця, щоб можна було обрати інший.
+  if (data === null && error !== null) {
     return (
       <p className="error" role="alert">
         {error}
@@ -40,16 +43,21 @@ export function LeagueTable({ groupId, me }: { groupId: string; me?: string }) {
   return (
     <section className="group-league">
       {data.months.length > 1 && (
-        <label className="league-month">
-          <span>{t('leagueMonthLabel')}</span>
-          <select value={data.month} onChange={(event) => setMonth(event.target.value)}>
+        <div className="league-month">
+          <label htmlFor={selectId}>{t('leagueMonthLabel')}</label>
+          <select id={selectId} value={data.month} onChange={(event) => setMonth(event.target.value)}>
             {data.months.map((value, index) => (
               <option key={value} value={value}>
                 {index === 0 ? t('leagueCurrentMonth', { month: monthText(value) }) : monthText(value)}
               </option>
             ))}
           </select>
-        </label>
+        </div>
+      )}
+      {error !== null && (
+        <p className="error" role="alert">
+          {error}
+        </p>
       )}
       {data.rows.length === 0 ? (
         <p className="meta">{t('leagueEmpty')}</p>

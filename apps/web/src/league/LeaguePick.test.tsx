@@ -30,6 +30,7 @@ describe('LeaguePick', () => {
     expect(screen.getByText('🏆 Сімейна ліга')).toBeTruthy();
     expect(Array.from(select.options).map((o) => o.textContent)).toEqual(['— не для ліги', '🏡 Родина', '🎲 Друзі']);
     expect(select.value).toBe('');
+    expect(screen.getByRole('combobox', { name: 'Гра для групи' })).toBe(select);
     expect(screen.getByText(/Після старту змінити не можна/)).toBeTruthy();
   });
 

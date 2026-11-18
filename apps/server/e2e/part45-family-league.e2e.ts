@@ -129,7 +129,7 @@ async function league45() {
   const code1 = await hostLobby('Міста 45');
   const panel = olena.locator('section.league-pick');
   await panel.getByRole('heading', { name: /Сімейна ліга/ }).waitFor();
-  await panel.getByLabel('Гра для групи').selectOption(groupId);
+  await panel.getByLabel('Гра для групи', { exact: true }).selectOption(groupId);
   await panel.getByText('Збережено', exact).waitFor();
   await panel.scrollIntoViewIfNeeded();
   await expectNoSideScroll(olena, 'p45-pick');
@@ -186,7 +186,7 @@ async function league45() {
   const result = olena.locator('section.league-result');
   await result.waitFor();
   expect(await result.locator('h3').innerText()).toBe('Ліга «Родина Коваленків»');
-  expect(await result.locator('li').allInnerTexts()).toEqual(['Тарас — +10', 'Ірина — +7', 'Петро — +5']);
+  expect(await result.locator('li').allInnerTexts()).toEqual(['Тарас — +10 балів', 'Ірина — +7 балів', 'Петро — +5 балів']);
   await result.scrollIntoViewIfNeeded();
   await expectNoSideScroll(olena, 'p45-host-end');
   await viewportShot(olena, 'p45-host-end-viewport');
@@ -194,7 +194,7 @@ async function league45() {
 
   // ── 4. Гра 2: командна — «Червоні» (Тарас + гість) виграють, «Сині» (Ірина + Петро) — другі. ──
   const code2 = await hostLobby('Команди міст 45');
-  await olena.locator('section.league-pick').getByLabel('Гра для групи').selectOption(groupId);
+  await olena.locator('section.league-pick').getByLabel('Гра для групи', { exact: true }).selectOption(groupId);
   await olena.locator('section.league-pick').getByText('Збережено', exact).waitFor();
   const phones2: [Page, string, string][] = [[taras, 'Тарас', 'Червоні'], [guest, 'Гість', 'Червоні'], [iryna, 'Ірина', 'Сині'], [petro, 'Петро', 'Сині']];
   for (const [page, nickname, team] of phones2) {
@@ -232,12 +232,12 @@ async function league45() {
   expect(await gained(iryna).innerText()).toBe('Ліга «Родина Коваленків»: +7 балів');
   expect(await gained(petro).innerText()).toBe('Ліга «Родина Коваленків»: +7 балів');
   expect(await gained(guest).count()).toBe(0);
-  expect((await olena.locator('section.league-result li').allInnerTexts()).sort()).toEqual(['Ірина — +7', 'Петро — +7', 'Тарас — +10']);
+  expect((await olena.locator('section.league-result li').allInnerTexts()).sort()).toEqual(['Ірина — +7 балів', 'Петро — +7 балів', 'Тарас — +10 балів']);
 
   // ── 5. Гра 3: автопілот Ірини, грають лише Ірина й Петро — замало членів групи. ──
   const code3 = await launchBot11h(iryna, 'Міста 45 Ірини', 'Ірина');
   const irynaPanel = iryna.locator('section.league-pick');
-  await irynaPanel.getByLabel('Гра для групи').selectOption(groupId);
+  await irynaPanel.getByLabel('Гра для групи', { exact: true }).selectOption(groupId);
   await irynaPanel.getByText('Збережено', exact).waitFor();
   await joinBy11h(petro, code3, 'Петро');
   await click(iryna, 'Почати гру');
@@ -294,7 +294,7 @@ async function league45() {
   await taras.reload();
   await taras.getByRole('tab', { name: 'Ліга', ...exact }).click();
   await taras.getByText('Цього місяця ще не було ігор для ліги.', exact).waitFor();
-  const picker = taras.getByLabel('Місяць');
+  const picker = taras.getByLabel('Місяць', { exact: true });
   await picker.selectOption(past);
   await rows.nth(2).waitFor();
   expect(await cells()).toEqual(table);
@@ -338,7 +338,7 @@ async function league45() {
   expect(afterLeave.rows, 'nobody has points this month').toEqual([]);
   await taras.goto(`${base}/profile/groups/${groupId}`);
   await taras.getByRole('tab', { name: 'Ліга', ...exact }).click();
-  await taras.getByLabel('Місяць').selectOption(past);
+  await taras.getByLabel('Місяць', { exact: true }).selectOption(past);
   await rows.nth(2).waitFor();
   const former = taras.locator('table.league-table tbody tr', { hasText: LONG });
   expect(await former.innerText()).toContain('вже не в групі');
@@ -354,7 +354,7 @@ async function league45() {
   await tarasPl.goto(`${base}/profile/groups/${groupId}`);
   await tarasPl.getByRole('tab', { name: 'Liga', ...exact }).click();
   await tarasPl.locator('section.group-league').waitFor();
-  await tarasPl.getByLabel('Miesiąc', { exact: false }).selectOption(past);
+  await tarasPl.getByLabel('Miesiąc', { exact: true }).selectOption(past);
   await tarasPl.locator('table.league-table tbody tr').nth(2).waitFor();
   await expectNoSideScroll(tarasPl, 'p45-table-pl');
   await phoneFit(tarasPl, 'p45-table-pl');

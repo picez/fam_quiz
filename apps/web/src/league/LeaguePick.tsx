@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useId, useState } from 'react';
 import type { LeaguePickInfo } from '@quiz/shared';
 import { gameLeague, pickLeague } from '../api';
 import { HelpButton } from '../help/HelpButton';
@@ -10,6 +10,7 @@ export function LeaguePick({ code }: { code: string }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
+  const selectId = useId();
 
   useEffect(() => {
     let alive = true;
@@ -54,12 +55,14 @@ export function LeaguePick({ code }: { code: string }) {
   return (
     <section className="panel league-pick">
       <h2>
-          {t('leaguePickTitle')}
-          <HelpButton id="setting.league" />
-        </h2>
-      <label className="league-pick-field">
-        <span className="meta">{t('leaguePickLabel')}</span>
-        <select value={info.groupId ?? ''} disabled={busy} onChange={(event) => void pick(event.target.value === '' ? null : event.target.value)}>
+        {t('leaguePickTitle')}
+        <HelpButton id="setting.league" />
+      </h2>
+      <div className="league-pick-field">
+        <label className="meta" htmlFor={selectId}>
+          {t('leaguePickLabel')}
+        </label>
+        <select id={selectId} value={info.groupId ?? ''} disabled={busy} onChange={(event) => void pick(event.target.value === '' ? null : event.target.value)}>
           <option value="">{t('leaguePickNone')}</option>
           {info.groups.map((group) => (
             <option key={group.id} value={group.id}>
@@ -67,7 +70,7 @@ export function LeaguePick({ code }: { code: string }) {
             </option>
           ))}
         </select>
-      </label>
+      </div>
       <p className="meta">{t('leaguePickHint')}</p>
       {saved && <p className="meta" role="status">{t('leaguePickSaved')}</p>}
       {error !== null && <p className="error" role="alert">{error}</p>}

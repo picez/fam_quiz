@@ -4451,6 +4451,8 @@
   "leagueHostTitle": "League “{group}”",
   "leagueGained_one": "League “{group}”: +{count} point",
   "leagueGained_other": "League “{group}”: +{count} points",
+  "leagueHostRow_one": "{nick} — +{count} point",
+  "leagueHostRow_other": "{nick} — +{count} points",
   "groupTabLeague": "League",
   "leagueMonthLabel": "Month",
   "leagueCurrentMonth": "{month} (current)",

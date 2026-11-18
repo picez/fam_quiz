@@ -4451,6 +4451,8 @@
   "leagueHostTitle": "Liga „{group}“",
   "leagueGained_one": "Liga „{group}“: +{count} Punkt",
   "leagueGained_other": "Liga „{group}“: +{count} Punkte",
+  "leagueHostRow_one": "{nick} — +{count} Punkt",
+  "leagueHostRow_other": "{nick} — +{count} Punkte",
   "groupTabLeague": "Liga",
   "leagueMonthLabel": "Monat",
   "leagueCurrentMonth": "{month} (aktuell)",
@@ -4463,7 +4465,7 @@
   "leagueFormer": "nicht mehr in der Gruppe",
   "leagueRules": "Punkte 10 / 7 / 5 / 3 / 1 für die Plätze 1–5 unter den Gruppenmitgliedern in einem Spiel; es zählen Spiele mit mindestens 3 Gruppenmitgliedern. Den ersten Platz im Monat belegt, wer die meisten Punkte hat, dann die meisten ersten Plätze, dann die meisten Spiele.",
   "leagueHall": "Ruhmeshalle",
-  "leagueHallEmpty": "Noch keine Siegerplätze — sie erscheinen, sobald ein Monat endet.",
+  "leagueHallEmpty": "Noch keine Sieger – sie erscheinen, sobald ein Monat endet.",
   "leagueChampionTitle": "🏆 Erster Platz in der Liga „{group}“ — {month}",
   "leagueTitlesHeading": "Ligatitel"
 }
