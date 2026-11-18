@@ -68,6 +68,12 @@ describe('ImportDialog', () => {
   const choose = (input: HTMLInputElement, f: File) => fireEvent.change(input, { target: { files: [f] } });
   const input = () => document.querySelector('input[type=file]') as HTMLInputElement;
 
+  it('import dialog has the help button with the import and export entry', () => {
+    render(<ImportDialog onClose={vi.fn()} onImported={vi.fn()} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Довідка: Імпорт і експорт' }));
+    expect(screen.getByRole('heading', { name: 'Імпорт і експорт' })).toBeTruthy();
+  });
+
   it('import dialog picks a file and goes on', async () => {
     const onImported = vi.fn();
     vi.mocked(importQuizFile).mockResolvedValueOnce({ ok: true, id: 'n1' });

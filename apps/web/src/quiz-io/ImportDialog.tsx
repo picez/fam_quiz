@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState, type JSX } from 'react';
 import { createPortal } from 'react-dom';
+import { HelpButton } from '../help/HelpButton';
 import { errorText, t } from '../i18n';
 import type { IoProgress } from './actions';
 import { progressText } from './ExportMenu';
@@ -86,7 +87,9 @@ export function ImportDialog({ onClose, onImported }: { onClose: () => void; onI
         <h2 id="io-dialog-title" className="io-dialog-title">
           {t('ioImportTitle')}
         </h2>
-        <p className="meta">{t('ioImportHint')}</p>
+        <p className="meta">
+          {t('ioImportHint')} <HelpButton id="setting.importExport" />
+        </p>
         <input
           ref={input}
           type="file"
