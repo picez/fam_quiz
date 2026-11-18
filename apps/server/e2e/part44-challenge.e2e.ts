@@ -78,10 +78,12 @@ async function challenge44() {
   const item = olena.locator('.quiz-list li', { hasText: 'Річки 44' });
   await item.getByRole('button', { name: '🏁 Виклик', ...exact }).click();
   const dialog = olena.getByRole('dialog', { name: 'Виклик другові', ...exact });
-  await dialog.getByText('Запитання, що потребують кількох гравців, буде пропущено:').waitFor();
+  await dialog.getByText('Буде пропущено те, що потребує кількох гравців:', exact).waitFor();
   const skipped = (await dialog.locator('.autopilot-changes li').allTextContents()).join(' | ');
   expect(skipped).toContain('Раунд 2 (Правда про гравця)');
-  expect(skipped).toMatch(/Раунд 1 \(.+\) · Запитань: 1/);
+  expect(skipped).toMatch(/Раунд 1 \(.+\): буде пропущено 1 запитання/);
+  expect(skipped).toContain('Крамниця дебафів');
+  await viewportShot(olena, 'p44-launch-skipped-viewport');
   await expectNoSideScroll(olena, 'p44-launch');
   await viewportShot(olena, 'p44-launch-viewport');
   await dialog.getByRole('button', { name: 'Створити виклик', ...exact }).click();
@@ -94,12 +96,37 @@ async function challenge44() {
   expect(await olena.evaluate(() => navigator.clipboard.readText())).toBe(url);
   await expectNoSideScroll(olena, 'p44-launch-created');
   await viewportShot(olena, 'p44-launch-created-viewport');
-  await dialog.getByRole('button', { name: 'Скасувати', ...exact }).click();
+  // Щойно створено: вступу й списку пропущеного вже немає, «Закрити» видно на 360 × 740 без прокручування.
+  expect(await dialog.locator('.autopilot-changes').count()).toBe(0);
+  expect(await dialog.getByText('Друзі проходять цю вікторину самі', { exact: false }).count()).toBe(0);
+  expect(await dialog.getByRole('button', { name: 'Скасувати', ...exact }).count()).toBe(0);
+  const closeButton = dialog.getByRole('button', { name: 'Закрити', ...exact });
+  const closeBox = (await closeButton.boundingBox())!;
+  expect(closeBox.x).toBeGreaterThanOrEqual(0);
+  expect(closeBox.y).toBeGreaterThanOrEqual(0);
+  expect(closeBox.x + closeBox.width).toBeLessThanOrEqual(360);
+  expect(closeBox.y + closeBox.height, 'Close is on screen without scrolling').toBeLessThanOrEqual(740);
+  expect(await dialog.locator('.challenge-sheet').evaluate((card) => card.scrollTop)).toBe(0);
+  await closeButton.click();
   await dialog.waitFor({ state: 'detached' });
   const line = item.locator('.challenge-line');
   await line.waitFor();
   expect(await line.innerText()).toContain('🏁 Виклик: лишилося 7 днів · зіграли 0 людей');
   await viewportShot(olena, 'p44-quizzes-line-viewport');
+  // Знову «🏁 Виклик»: те саме посилання, «Копіювати» без заміни; «Новий виклик» — другорядна кнопка.
+  await olena.evaluate(() => navigator.clipboard.writeText(''));
+  await item.getByRole('button', { name: '🏁 Виклик', ...exact }).click();
+  const again = olena.getByRole('dialog', { name: 'Виклик другові', ...exact });
+  await expect.poll(async () => again.getByLabel('Посилання на виклик', exact).inputValue().catch(() => '')).toBe(url);
+  await again.getByRole('button', { name: 'Копіювати', ...exact }).click();
+  await again.getByText('Скопійовано', exact).waitFor();
+  expect(await olena.evaluate(() => navigator.clipboard.readText())).toBe(url);
+  expect(await again.getByRole('button', { name: 'Новий виклик', ...exact }).getAttribute('class')).not.toContain('btn-primary');
+  await expectNoSideScroll(olena, 'p44-launch-active');
+  await viewportShot(olena, 'p44-launch-active-viewport');
+  await again.getByRole('button', { name: 'Скасувати', ...exact }).click();
+  await again.waitFor({ state: 'detached' });
+  expect(((await (await olena.request.get(`${base}/api/challenges`)).json()) as { code: string }[]).map((c) => c.code)).toEqual([code]);
 
   // ── 3. Гість: «Увійдіть, щоб прийняти виклик». ──
   const guest = await light(await open('guest44', 360, 740));
@@ -127,7 +154,7 @@ async function challenge44() {
   await taras.waitForURL(/\/play\/[^/]+$/);
   const room = taras.url().split('/').pop()!;
   await taras.getByText('🏁 Виклик: Річки 44', exact).waitFor();
-  await taras.getByText('Ти граєш сам; запитання для кількох гравців пропущено.', exact).waitFor();
+  await taras.getByText('Граєш наодинці; запитання для кількох гравців пропущено.', exact).waitFor();
   expect(await taras.locator('.author-code, .qr').count(), 'no room code or QR in a challenge lobby').toBe(0);
   expect(await taras.locator('body').innerText()).not.toContain(room.slice(0, 3));
   await expectNoSideScroll(taras, 'p44-lobby');
@@ -153,7 +180,7 @@ async function challenge44() {
   await taras2.context().addCookies(await taras.context().cookies());
   const tarasFrames2 = socketFrames(taras2);
   await taras2.goto(url);
-  await taras2.getByText('Ти вже зіграв цей виклик.', exact).waitFor({ timeout: 500 }).then(
+  await taras2.getByText('Ти вже зіграв(-ла) цей виклик.', exact).waitFor({ timeout: 500 }).then(
     () => {
       throw new Error('the interrupted attempt is not done');
     },
@@ -175,12 +202,17 @@ async function challenge44() {
   const boardLink = taras2.locator('a.challenge-board-link');
   await boardLink.waitFor({ timeout: 180_000 });
   expect(await boardLink.innerText()).toContain('🏁 Таблиця виклику');
+  // Одразу під місцем; картинка підсумку — з назвою виклику, без запиту до кімнати.
+  expect(await boardLink.evaluate((a) => a.previousElementSibling?.classList.contains('place') ?? false)).toBe(true);
   await viewportShot(taras2, 'p44-finished-viewport');
   const framesText = [...tarasFrames, ...tarasFrames2].join('\n');
   expect(framesText, 'the poll never reaches a challenge player').not.toContain(POLL);
   expect(framesText, 'the truth round never reaches a challenge player').not.toContain('"type":"truth"');
+  // Позначка у window переживає лише перехід без перезавантаження сторінки.
+  await taras2.evaluate(() => Object.assign(window, { noReload44: true }));
   await boardLink.click();
   await taras2.locator('table.challenge-results').waitFor();
+  expect(await taras2.evaluate(() => (window as unknown as { noReload44?: boolean }).noReload44), 'the table link is a client-side route change, not a reload').toBe(true);
   await taras2.locator('table.challenge-results tbody tr.is-me').waitFor();
   expect(await taras2.locator('table.challenge-results tbody tr').count()).toBe(1);
   await expectNoSideScroll(taras2, 'p44-results');
@@ -190,12 +222,15 @@ async function challenge44() {
   expect((await taras2.request.post(`${base}/api/challenges/${code}/attempt`)).status()).toBe(409);
   expect(await (await taras2.request.post(`${base}/api/challenges/${code}/attempt`)).json()).toEqual({ error: 'challenge_done' });
   await taras2.goto(url);
-  await taras2.getByText('Ти вже зіграв цей виклик.', exact).waitFor();
+  await taras2.getByText('Ти вже зіграв(-ла) цей виклик.', exact).waitFor();
   expect(await taras2.getByRole('button', { name: 'Почати', ...exact }).count()).toBe(0);
   expect(await taras2.getByRole('button', { name: 'Продовжити', ...exact }).count()).toBe(0);
   await expectNoSideScroll(taras2, 'p44-card-done');
   await viewportShot(taras2, 'p44-card-done-viewport');
 
+  // Власна сторінка гри (/play) і «Мої вікторини» гравця не дають жодного 404 за кодом кімнати.
+  const byCode404 = /404 \(Not Found\) @ .*\/api\/games\/by-code\//;
+  expect(problems.filter((problem) => byCode404.test(problem)), 'no by-code 404 for the challenge player').toEqual([]);
   const iryna = await light(await open('iryna44', 360, 740));
   await register(iryna, 'menu', 'Ірина', 'iryna44@example.com');
   flags.slots404Expected = true;
@@ -241,12 +276,33 @@ async function challenge44() {
   const long = await light(await open('long44', 360, 740));
   await register(long, 'menu', longName, 'long44@example.com');
   expect((await long.request.post(`${base}/api/challenges/${code}/attempt`)).status()).toBe(201);
+  // Лише почав — таблиці ще не бачить.
   await long.goto(url);
-  await long.locator('table.challenge-results tbody tr').nth(2).waitFor();
-  expect(await long.locator('table.challenge-results').innerText()).toContain(longName);
-  expect(await long.locator('table.challenge-results').innerText()).toContain('не завершено');
-  await expectNoSideScroll(long, 'p44-results-long-nick');
-  await viewportShot(long, 'p44-results-long-nick-viewport');
+  await long.getByText('Таблицю видно після власної гри.', exact).waitFor();
+  await long.getByRole('button', { name: 'Продовжити', ...exact }).waitFor();
+  expect(await long.locator('table.challenge-results').count()).toBe(0);
+  expect((await long.request.get(`${base}/api/challenges/${code}/results`)).status()).toBe(403);
+  // Автор бачить рядок: «не завершено», «—» замість часу, нижче тих, хто дограв, при рівних балах.
+  await olena.goto(url);
+  await olena.locator('table.challenge-results tbody tr').nth(2).waitFor();
+  const table = olena.locator('table.challenge-results');
+  expect(await table.innerText()).toContain(longName);
+  const longRow = table.locator('tbody tr', { hasText: longName });
+  expect(await longRow.innerText()).toContain('не завершено');
+  expect(await longRow.locator('td.cr-num').nth(1).innerText()).toBe('—');
+  const authorView = await rowsFor(olena);
+  expect(authorView.map((r) => r.nickname).at(-1), 'an unfinished 0-point row sits below the finished ones').toBe(longName);
+  // Час не переноситься: комірка в один рядок.
+  for (const cell of await table.locator('td.cr-num').all()) {
+    const lines = await cell.evaluate((el) => {
+      const range = document.createRange();
+      range.selectNodeContents(el);
+      return new Set([...range.getClientRects()].map((rect) => Math.round(rect.top))).size;
+    });
+    expect(lines, await cell.innerText()).toBe(1);
+  }
+  await expectNoSideScroll(olena, 'p44-results-long-nick');
+  await viewportShot(olena, 'p44-results-long-nick-viewport');
 
   // Автор теж грає: рядок «автор» (перше запитання, далі лишає).
   await olena.goto(url);
@@ -256,6 +312,13 @@ async function challenge44() {
   await olena.getByText(Q1).first().waitFor({ timeout: 120_000 });
   await pickOption(olena, 'Дніпро');
   await olena.getByText(Q2).first().waitFor({ timeout: 120_000 });
+  const olenaRoom = olena.url().split('/').pop()!;
+  // «Мої вікторини»: банер «Повернутися до гри» веде назад у власну кімнату виклику (код кімнати відповідає своєму гравцеві).
+  await olena.goto(`${base}/quizzes`);
+  const banner = olena.locator('a.banner', { hasText: 'Повернутися до гри' });
+  await banner.waitFor();
+  expect(await banner.getAttribute('href')).toBe(`/play/${olenaRoom}`);
+  expect(problems.filter((problem) => byCode404.test(problem) && !problem.startsWith('iryna44 ')), 'no by-code 404 on the author’s own pages').toEqual([]);
   await olena.goto(url);
   await olena.locator('table.challenge-results tbody tr').nth(3).waitFor();
   const authorRows = (await rowsFor(olena)).filter((r) => r.author);
@@ -301,15 +364,22 @@ async function challenge44() {
   await olena.goto(`${base}/quizzes`);
   await olena.locator('.quiz-list li', { hasText: 'Річки 44' }).getByRole('button', { name: '🏁 Виклик', ...exact }).click();
   const dialog2 = olena.getByRole('dialog', { name: 'Виклик другові', ...exact });
-  await dialog2.getByRole('button', { name: /^(Створити виклик|Новий виклик)$/ }).click();
-  const second = CODE.exec(await dialog2.getByLabel('Посилання на виклик', exact).inputValue())![1]!;
-  expect(second).not.toBe(code);
-  await dialog2.getByRole('button', { name: 'Новий виклик', ...exact }).click();
   const linkNow = async () => CODE.exec(await dialog2.getByLabel('Посилання на виклик', exact).inputValue())![1]!;
+  // Виклик уже прострочено: активного немає, тож кнопка — «Створити виклик».
+  await dialog2.getByRole('button', { name: /^(Створити виклик|Новий виклик)$/ }).click();
+  await expect.poll(linkNow).not.toBe(code);
+  const second = await linkNow();
+  // Щойно створено — замінити в тому самому вікні нічим; знову «🏁 Виклик» — і «Новий виклик» замінює активний.
+  expect(await dialog2.getByRole('button', { name: 'Новий виклик', ...exact }).count()).toBe(0);
+  await dialog2.getByRole('button', { name: 'Закрити', ...exact }).click();
+  await dialog2.waitFor({ state: 'detached' });
+  await olena.locator('.quiz-list li', { hasText: 'Річки 44' }).getByRole('button', { name: '🏁 Виклик', ...exact }).click();
+  await expect.poll(linkNow).toBe(second);
+  await dialog2.getByRole('button', { name: 'Новий виклик', ...exact }).click();
   await expect.poll(linkNow).not.toBe(second);
   const third = await linkNow();
   await expectNoSideScroll(olena, 'p44-launch-replaced');
-  await dialog2.getByRole('button', { name: 'Скасувати', ...exact }).click();
+  await dialog2.getByRole('button', { name: 'Закрити', ...exact }).click();
   await oksana.goto(`${base}/challenge/${second}`);
   await oksana.getByText('Виклик завершено.', exact).waitFor();
   expect(await oksana.getByRole('button', { name: 'Почати', ...exact }).count()).toBe(0);
@@ -328,7 +398,7 @@ async function challenge44() {
   for (const [name, page] of [['olena', olena], ['guest', guest], ['taras2', taras2], ['iryna', iryna], ['long', long], ['petro', petro], ['oksana', oksana]] as const) {
     expect(await isLight(page), `${name}: light theme class`).toBe(true);
   }
-  // Кімната виклику прихована: пошук за кодом дає тихий 404 (і на сторінці власної гри, і для чужого входу) — це очікувано.
-  const hiddenRoom404 = /404 \(Not Found\) @ .*\/api\/games\/by-code\/\d{6}(\/join|\/slots)?$/;
+  // Кімната виклику прихована від чужих: лише спроба Ірини увійти в кімнату Тараса (код, join, slots) дає очікуваний 404.
+  const hiddenRoom404 = new RegExp(`^iryna44 console: .*404 \\(Not Found\\) @ .*/api/games/by-code/${room}(/join|/slots)?$`);
   expect(problems.filter((problem) => !hiddenRoom404.test(problem))).toEqual([]);
 }
