@@ -4439,5 +4439,16 @@
   "challengePlayed_one": "{count} person played",
   "challengePlayed_other": "{count} people played",
   "challengeSkipQuestions_one": "Round {index} ({type}): {count} question will be skipped",
-  "challengeSkipQuestions_other": "Round {index} ({type}): {count} questions will be skipped"
+  "challengeSkipQuestions_other": "Round {index} ({type}): {count} questions will be skipped",
+  "leaguePickTitle": "🏆 Family league",
+  "leaguePickLabel": "Game for group",
+  "leaguePickNone": "— not for the league",
+  "leaguePickHint": "Group members playing from their own accounts get league points 10 / 7 / 5 / 3 / 1. A game counts from 3 group members. It can’t be changed after the start.",
+  "leaguePickNoGroups": "You’re not in any group yet — a league can only be run for your own group.",
+  "leaguePickSaved": "Saved",
+  "leagueLobbyMark": "🏆 Game for the league “{group}”",
+  "leagueTooFew": "Too few group members for the league",
+  "leagueHostTitle": "League “{group}”",
+  "leagueGained_one": "League “{group}”: +{count} point",
+  "leagueGained_other": "League “{group}”: +{count} points"
 }

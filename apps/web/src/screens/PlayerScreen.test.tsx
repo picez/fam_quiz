@@ -4943,6 +4943,41 @@ describe('PlayerScreen: the prize ceremony (14a)', () => {
   });
 });
 
+describe('PlayerScreen: family league (45)', () => {
+  const standings = [{ participantId: 'p1', nickname: 'Олена', score: 750, totalTimeMs: 1, rank: 1 }];
+
+  it('the lobby says the game is for the league', () => {
+    show(view({ phase: 'lobby', league: { group: 'Родина' } }));
+    expect(screen.getByText('🏆 Гра для ліги «Родина»')).toBeTruthy();
+  });
+
+  it('the finish says the points with the right plural', () => {
+    for (const [points, text] of [[7, 'Ліга «Родина»: +7 балів'], [1, 'Ліга «Родина»: +1 бал'], [3, 'Ліга «Родина»: +3 бали'], [0, 'Ліга «Родина»: +0 балів']] as const) {
+      show(view({ phase: 'finished', questionIndex: 1, standings, league: { group: 'Родина', points } }));
+      expect(screen.getByText(text)).toBeTruthy();
+      cleanup();
+    }
+  });
+
+  it('too few group members: said once, no points', () => {
+    show(view({ phase: 'finished', questionIndex: 1, standings, league: { group: 'Родина', tooFew: true } }));
+    expect(screen.getByText('Для ліги замало учасників групи')).toBeTruthy();
+    expect(screen.queryByText(/Ліга «Родина»: \+/)).toBeNull();
+  });
+
+  it('no league on the view: nothing', () => {
+    show(view({ phase: 'lobby' }));
+    cleanup();
+    show(view({ phase: 'finished', questionIndex: 1, standings }));
+    expect(screen.queryByText(/ліги|Ліга/)).toBeNull();
+  });
+
+  it('a finished game with a league view but no result yet shows no points line', () => {
+    show(view({ phase: 'finished', questionIndex: 1, standings, league: { group: 'Родина' } }));
+    expect(screen.queryByText(/Ліга «Родина»/)).toBeNull();
+  });
+});
+
 describe('PlayerScreen: likes (17a)', () => {
   afterEach(() => vi.useRealTimers());
   const reveal = { phase: 'reveal' as const, questionIndex: 0, question: publicQuestion, reveal: fullQuestion };

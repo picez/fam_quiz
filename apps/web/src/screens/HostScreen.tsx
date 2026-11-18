@@ -63,6 +63,7 @@ import { useBlinkingRows, useVerdictBlink } from './verdict-blink';
 import { InviteFriends } from './InviteFriends';
 import { LobbyAccess } from './LobbyAccess';
 import { PrizePlaces } from './PrizePlaces';
+import { LeaguePick } from '../league/LeaguePick';
 import { HostCeremony } from './HostCeremony';
 import { PrizeResults } from './MyPrize';
 import { Timer, timerStatus, useTimeOver } from '../live/Timer';
@@ -1488,6 +1489,21 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
           <Standings standings={view.standings} teams={view.teams} titles={view.titles} levels={view.levels} />
           {view.standings.length > 0 && <ResultImageButton className="btn result-image-button" build={() => resultFromHost(view, quizTitle, new Date(), location.host)} />}
           {/* Призи (14a): хто що взяв; церемонію пульт показує на дотик — сцени може й не бути. */}
+          {view.league !== undefined && (
+            <section className="league-result">
+              <h3 dir="auto">{t('leagueHostTitle', { group: view.league.group })}</h3>
+              {view.league.tooFew === true && <p className="meta">{t('leagueTooFew')}</p>}
+              {view.league.rows !== undefined && view.league.rows.length > 0 && (
+                <ul>
+                  {view.league.rows.map((row) => (
+                    <li key={row.nickname} dir="auto">
+                      {`${row.nickname} — +${row.points}`}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
+          )}
           {view.prizes !== undefined && <PrizeResults prizes={view.prizes} role="host" />}
           {view.prizes !== undefined && <HostCeremony prizes={view.prizes} stageGone={stageGone} stageUrl={stageUrl} />}
           {view.facts?.awards != null && <FactCards cards={view.facts.awards} withRound={(round?.total ?? 1) > 1} title={t('awardsTitle')} />}
@@ -1581,6 +1597,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
       {phase === 'lobby' && <LobbyAccess code={code} />}
       {phase === 'lobby' && <InviteFriends code={code} />}
       {phase === 'lobby' && <PrizePlaces code={code} />}
+      {phase === 'lobby' && <LeaguePick code={code} />}
 
       <nav className="links">
         <a href={stageUrl} target="_blank" rel="noreferrer">

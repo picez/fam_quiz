@@ -1058,6 +1058,8 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
         </div>
       )}
       {phase === 'lobby' && view.author === null && view.prizes !== undefined && view.prizes.places.length > 0 && <PlayingFor prizes={view.prizes} size="phone" />}
+      {/* Сімейна ліга (45): у лобі — позначка гри. */}
+      {phase === 'lobby' && view.league !== undefined && <p className="meta league-mark" dir="auto">{t('leagueLobbyMark', { group: view.league.group })}</p>}
       {/* «Правда про гравця» (28b): лише число фактів — чиї вони, телефон не каже. */}
       {phase === 'lobby' && view.truth !== undefined && <p className="meta truth-lobby-count">{t('truthFactsCount', { count: view.truth.count })}</p>}
       {(phase === 'lobby' || (truthOpen && truthCanLate)) && me.truth !== undefined && <TruthFactForm truth={me.truth} send={send} onError={setError} />}
@@ -1863,6 +1865,9 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
           {survivalStateLine(me.survival) !== null && <p className="lead survival-state">{survivalStateLine(me.survival)}</p>}
           {me.ladder?.won != null && <p className="lead ladder-state">{t('ladderWon', { points: num(me.ladder.won) })}</p>}
           {place}
+          {/* Сімейна ліга (45): свої бали або «замало учасників» (автору автопілота). */}
+          {view.league?.points !== undefined && <p className="lead league-gained" dir="auto">{countText('leagueGained', view.league.points, { count: view.league.points, group: view.league.group })}</p>}
+          {view.league?.tooFew === true && <p className="meta league-too-few">{t('leagueTooFew')}</p>}
           {/* Спроба виклику (44): таблиця виклику одразу під місцем, без перезавантаження сторінки. */}
           {view.author?.challenge !== undefined && (
             <Link className="btn challenge-board-link" to={`/challenge/${view.author.challenge.code}`}>

@@ -15356,6 +15356,30 @@ button.wall-tile:disabled {
   font-weight: 600;
 }
 
+/* Сімейна ліга (45): вибір групи в лобі, позначка й бали в кінці гри */
+.league-pick .league-pick-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin-block: 0.4rem;
+}
+.league-pick select {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+.league-mark,
+.league-gained,
+.league-result h3,
+.league-result li {
+  overflow-wrap: anywhere;
+}
+.league-result ul {
+  margin: 0.4rem 0 0;
+  padding-inline-start: 1.1rem;
+}
+
 /* Призи гри (14a): панель в лобі, «Граємо за» на сцені й телефоні, титул біля ніку */
 .prize-places .prize-place {
   display: flex;

@@ -4513,5 +4513,18 @@
   "challengeSkipQuestions_one": "Runda {index} ({type}): zostanie pominięte {count} pytanie",
   "challengeSkipQuestions_few": "Runda {index} ({type}): zostaną pominięte {count} pytania",
   "challengeSkipQuestions_many": "Runda {index} ({type}): zostanie pominiętych {count} pytań",
-  "challengeSkipQuestions_other": "Runda {index} ({type}): zostanie pominiętych {count} pytania"
+  "challengeSkipQuestions_other": "Runda {index} ({type}): zostanie pominiętych {count} pytania",
+  "leaguePickTitle": "🏆 Rodzinna liga",
+  "leaguePickLabel": "Gra dla grupy",
+  "leaguePickNone": "— nie dla ligi",
+  "leaguePickHint": "Członkowie grupy grający ze swoich kont dostaną punkty ligi 10 / 7 / 5 / 3 / 1. Gra liczy się od 3 członków grupy. Po starcie nie można tego zmienić.",
+  "leaguePickNoGroups": "Nie należysz jeszcze do żadnej grupy — ligę można prowadzić tylko dla własnej grupy.",
+  "leaguePickSaved": "Zapisano",
+  "leagueLobbyMark": "🏆 Gra do ligi „{group}”",
+  "leagueTooFew": "Za mało członków grupy do ligi",
+  "leagueHostTitle": "Liga „{group}”",
+  "leagueGained_one": "Liga „{group}”: +{count} punkt",
+  "leagueGained_few": "Liga „{group}”: +{count} punkty",
+  "leagueGained_many": "Liga „{group}”: +{count} punktów",
+  "leagueGained_other": "Liga „{group}”: +{count} punktu"
 }

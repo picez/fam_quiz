@@ -4439,5 +4439,16 @@
   "challengePlayed_one": "{count} Person hat gespielt",
   "challengePlayed_other": "{count} Personen haben gespielt",
   "challengeSkipQuestions_one": "Runde {index} ({type}): {count} Frage wird übersprungen",
-  "challengeSkipQuestions_other": "Runde {index} ({type}): {count} Fragen werden übersprungen"
+  "challengeSkipQuestions_other": "Runde {index} ({type}): {count} Fragen werden übersprungen",
+  "leaguePickTitle": "🏆 Familienliga",
+  "leaguePickLabel": "Spiel für Gruppe",
+  "leaguePickNone": "— nicht für die Liga",
+  "leaguePickHint": "Gruppenmitglieder, die mit ihrem eigenen Konto spielen, bekommen Ligapunkte 10 / 7 / 5 / 3 / 1. Ein Spiel zählt ab 3 Gruppenmitgliedern. Nach dem Start lässt es sich nicht mehr ändern.",
+  "leaguePickNoGroups": "Du bist noch in keiner Gruppe – eine Liga lässt sich nur für die eigene Gruppe führen.",
+  "leaguePickSaved": "Gespeichert",
+  "leagueLobbyMark": "🏆 Spiel für die Liga „{group}“",
+  "leagueTooFew": "Zu wenige Gruppenmitglieder für die Liga",
+  "leagueHostTitle": "Liga „{group}“",
+  "leagueGained_one": "Liga „{group}“: +{count} Punkt",
+  "leagueGained_other": "Liga „{group}“: +{count} Punkte"
 }

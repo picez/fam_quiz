@@ -21,6 +21,15 @@ function show(options: { challenge?: { code: string; title: string }; family?: t
 }
 
 describe('AuthorLobby', () => {
+  it('45: a plain autopilot lobby has the league panel', async () => {
+    const leagueInfo = { groupId: null, groups: [{ id: '11111111-1111-4111-8111-111111111111', name: 'Родина', emoji: '🏡', people: 4 }] };
+    vi.stubGlobal('fetch', vi.fn(async (url: RequestInfo | URL) => (String(url).includes('/league') ? new Response(JSON.stringify(leagueInfo), { status: 200, headers: { 'content-type': 'application/json' } }) : new Response('{}', { status: 404 }))));
+    show();
+    expect(await screen.findByLabelText('Гра для групи')).toBeTruthy();
+    expect(screen.getByText('🏆 Сімейна ліга')).toBeTruthy();
+    vi.unstubAllGlobals();
+  });
+
   it('a challenge lobby: title, hint and Start, no code, QR, stage link, prizes or resume panel', () => {
     // Призи не просто сховані — їх навіть не питають у кімнати.
     const fetchSpy = vi.fn(async (_url: RequestInfo | URL, _init?: RequestInit) => new Response('{}', { status: 404 }));
@@ -36,6 +45,8 @@ describe('AuthorLobby', () => {
     expect(screen.queryByText('Почніть, коли всі зайдуть.')).toBeNull();
     expect(document.querySelector('.prize-places, .resume-panel')).toBeNull();
     expect(fetchSpy.mock.calls.some(([url]) => String(url).includes('/prizes'))).toBe(false);
+    expect(fetchSpy.mock.calls.some(([url]) => String(url).includes('/league'))).toBe(false);
+    expect(document.querySelector('.league-pick')).toBeNull();
     vi.unstubAllGlobals();
   });
 

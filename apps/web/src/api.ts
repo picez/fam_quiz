@@ -1,5 +1,5 @@
 import { AUDIO_LIMITS, isObjectLike } from '@quiz/shared';
-import type { NickLooks, PrizeContent, PrizeItem, PrizePlacesInfo, AchievementsPage, AutopilotCheck, CalendarEvent, CalendarInput, CalendarPage, CalendarRequestStatus, ContinueResponse, FeedBadge, FeedPage, FriendCard, GameDetail, GameInvite, GameSummary, OwnProfile, Phase, PlayedGame, ProfileCard, ProfileUpdate, PublicProfile, PushSubscriptionInput, Quiz, QuizLikes, ResumeOption, SlotsResponse, Versus } from '@quiz/shared';
+import type { LeaguePickInfo, NickLooks, PrizeContent, PrizeItem, PrizePlacesInfo, AchievementsPage, AutopilotCheck, CalendarEvent, CalendarInput, CalendarPage, CalendarRequestStatus, ContinueResponse, FeedBadge, FeedPage, FriendCard, GameDetail, GameInvite, GameSummary, OwnProfile, Phase, PlayedGame, ProfileCard, ProfileUpdate, PublicProfile, PushSubscriptionInput, Quiz, QuizLikes, ResumeOption, SlotsResponse, Versus } from '@quiz/shared';
 import type { ShowcasePin, ShowcasePins } from '@quiz/shared';
 import type { CodeInfo, LobbyRow, LobbySettings } from '@quiz/shared';
 import type { GivenLike, LikesPage, ReceivedLike } from '@quiz/shared';
@@ -213,6 +213,10 @@ export const deletePrize = (id: string) => request<object>(prizeUrl(id), { metho
 export const gamePrizes = (code: string) => fetchData<PrizePlacesInfo>(`${gameUrl(code)}/prizes`);
 export const placePrizes = (code: string, places: (string | null)[]) =>
   fetchData<PrizePlacesInfo>(`${gameUrl(code)}/prizes`, { method: 'PUT', body: { places } });
+/** Сімейна ліга (45): групи ведучого й та, для якої позначено гру; лише в лобі. */
+export const gameLeague = (code: string) => fetchData<LeaguePickInfo>(`${gameUrl(code)}/league`);
+export const pickLeague = (code: string, groupId: string | null) =>
+  fetchData<LeaguePickInfo>(`${gameUrl(code)}/league`, { method: 'PUT', body: { groupId } });
 
 export const listGames = () => fetchData<GameSummary[]>('/api/games');
 export const getGame = (id: string) => fetchData<GameDetail>(`/api/games/${encodeURIComponent(id)}`);
