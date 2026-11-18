@@ -458,3 +458,13 @@ describe('league titles (45)', () => {
     expect(loser.leagueTitles).toEqual([]);
   });
 });
+
+describe('achievement shares route (49)', () => {
+  it('the shares route needs no sign-in', async () => {
+    const response = await request('GET', '/api/achievements/shares');
+    expect(response.statusCode).toBe(200);
+    const body = response.json() as { players: number; holders: Record<string, number> };
+    expect(typeof body.players).toBe('number');
+    expect(typeof body.holders).toBe('object');
+  });
+});

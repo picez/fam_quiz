@@ -92,3 +92,10 @@ describe('achievement share (49)', () => {
     expect(achievementScarcity(0, 9)).toEqual({ percent: 0, tier: null });
   });
 });
+
+describe('achievementScarcity clamp (49)', () => {
+  it('never exceeds 100 percent', () => {
+    expect(achievementScarcity(15, 12)).toEqual({ percent: 100, tier: null });
+    expect(achievementScarcity(5, 3).percent).toBe(100);
+  });
+});

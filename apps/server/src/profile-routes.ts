@@ -2,6 +2,7 @@ import { favoriteStickersSchema, likesOffsetSchema, localeUpdateSchema, looksSch
 import { z } from 'zod';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { CurrentUser } from './account-routes';
+import { achievementShares } from './achievement-shares';
 import { achievementsPage, setHideAnti } from './achievement-store';
 import { isBanned } from './bans';
 import type { Db } from './db/client';
@@ -133,6 +134,9 @@ export async function registerProfileRoutes(app: FastifyInstance, deps: ProfileD
       return found ?? reply.code(404).send(NOT_FOUND);
     },
   );
+
+  // Лише агрегати (кількості), без id користувачів; годинний кеш у achievementShares.
+  app.get('/api/achievements/shares', { config: { rateLimit: { max: 120, timeWindow: '1 minute' } } }, async () => achievementShares(db));
 
   app.get('/api/me/achievements', async (request, reply) => {
     const user = await currentUser(request);

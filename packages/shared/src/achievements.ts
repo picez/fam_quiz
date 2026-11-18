@@ -176,7 +176,7 @@ export type AchievementScarcity = 'rare' | 'very_rare';
 export function achievementScarcity(holders: number, players: number): { percent: number; tier: AchievementScarcity | null } {
   if (holders <= 0 || players <= 0) return { percent: 0, tier: null };
   const exact = (holders / players) * 100;
-  const percent = Math.max(1, Math.round(exact));
+  const percent = Math.min(100, Math.max(1, Math.round(exact)));
   if (players < ACHIEVEMENT_SHARE.minPlayers) return { percent, tier: null };
   const tier = exact < ACHIEVEMENT_SHARE.veryRare ? 'very_rare' : exact < ACHIEVEMENT_SHARE.rare ? 'rare' : null;
   return { percent, tier };
