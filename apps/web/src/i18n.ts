@@ -4431,6 +4431,8 @@ const uk = {
   ioImportHint: 'Файл вікторини (.quiz) або таблиця (.xlsx, .csv). Завжди створюється нова вікторина.',
   ioChooseFile: 'Вибрати файл',
   ioTemplate: 'Завантажити шаблон',
+  bankNoFitType: 'Цей тип не підходить до раунду.',
+  bankNoFitLadder: 'У «Мільйонері» — лише «один варіант» з {count} варіантами.',
   ioClose: 'Закрити',
   ioPreparing: 'Готую файл…',
   ioChecking: 'Перевіряю файл…',

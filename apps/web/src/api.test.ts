@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { acceptGroupInvite, markGroupUses, createGroup, createGroupItem, joinGroup, setHideAnti, deletePushSubscription, fetchQuizLikes, createPrize, deletePrize, gamePrizes, myPrizes, placePrizes, updatePrize, authProviders, claimSlot, continueGame, deleteSavedGame, gameSlots, getFavoriteStickers, saveFavoriteStickers, createAutopilotGame, getAutopilotCheck, deleteQuiz, follow, unfollow, googleSignIn, listQuizzes, me, signIn, signOut, signUp, updateQuiz, uploadAudio, uploadImage } from './api';
+import { acceptGroupInvite, markGroupUses, createGroup, createGroupItem, joinGroup, setHideAnti, deletePushSubscription, fetchQuizLikes, createPrize, deletePrize, gamePrizes, myPrizes, placePrizes, updatePrize, authProviders, claimSlot, continueGame, deleteSavedGame, gameSlots, getFavoriteStickers, saveFavoriteStickers, createAutopilotGame, getAutopilotCheck, deleteQuiz, follow, unfollow, googleSignIn, listQuizzes, me, signIn, signOut, signUp, searchQuestionBank, updateQuiz, uploadAudio, uploadImage } from './api';
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -302,5 +302,13 @@ describe('groups (12k)', () => {
   it('keeps the reason of a bad group', async () => {
     respond(400, { error: 'invalid_payload', reason: 'group_name' });
     expect(await createGroup({ name: '', emoji: '👪', description: '' })).toEqual({ ok: false, error: 'invalid_payload:group_name' });
+  });
+});
+
+describe('question bank request', () => {
+  it('searchQuestionBank builds the url', async () => {
+    const fetchMock = respond(200, { items: [], page: 2, pages: 2, total: 31 }) as unknown as { mock: { calls: any[][] } };
+    await searchQuestionBank({ q: 'Дніпро', types: ['single', 'boolean'], page: 2 });
+    expect(fetchMock.mock.calls[0]![0]).toBe('/api/question-bank?q=' + encodeURIComponent('Дніпро') + '&types=single%2Cboolean&page=2');
   });
 });

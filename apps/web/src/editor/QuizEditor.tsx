@@ -27,8 +27,10 @@ import {
   newThinkRound,
   newClassicRound,
   newQuestion,
+  placedPoints,
   problemsOf,
   questionTypesFor,
+  roundCapacity,
   swapGaps,
 } from './draft';
 import { BoardEditor } from './BoardEditor';
@@ -113,22 +115,7 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
   /** Запитань у всій вікторині: ліміт 200 діє на всі раунди разом. */
   const total = questionsOf(quiz).length + quiz.rounds.reduce((sum, r) => sum + roundTrials(r).length, 0);
   const gaps = swapGaps(quiz);
-  const roomForMore =
-    questions.length <
-      (round.type === 'wipeout'
-        ? LIMITS.maxWipeoutQuestions
-        : round.type === 'survival'
-          ? LIMITS.maxSurvivalQuestions
-          : round.type === 'ladder'
-            ? LIMITS.maxLadderQuestions
-            : round.type === 'puzzles'
-              ? LIMITS.maxPuzzles
-              : round.type === 'quest'
-                ? LIMITS.maxQuestQuestions
-                : round.type === 'think'
-                  ? LIMITS.maxThinkQuestions
-                  : LIMITS.maxQuestions) &&
-    total < LIMITS.maxQuizQuestions;
+  const roomForMore = questions.length < roundCapacity(round) && total < LIMITS.maxQuizQuestions;
   const setAwayPenalty = (on: boolean) => {
     const { awayPenalty: _off, ...rest } = settings;
     update({ ...quiz, settings: on ? { ...rest, awayPenalty: true } : rest });
@@ -184,7 +171,7 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
 
   /** Чернетка із запису групи — в кінець списку, як «Додати запитання», і з тією самою ціною (12l). */
   const addFromGroup = (draft: GroupDraft, source: { groupId: string; itemId: string }) => {
-    const points = round.type === 'wipeout' ? newWipeoutQuestion(questions[last]).points : round.type === 'survival' ? 100 : draft.question.points;
+    const points = placedPoints(round, questions[last], draft.question);
     const question = { ...draft.question, points } as Question;
     setQuestions([...questions, question]);
     select(questions.length);

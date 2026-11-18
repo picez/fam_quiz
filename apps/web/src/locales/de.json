@@ -4311,6 +4311,8 @@
   "ioImportHint": "Quiz-Datei (.quiz) oder Tabelle (.xlsx, .csv). Es wird immer ein neues Quiz erstellt.",
   "ioChooseFile": "Datei auswählen",
   "ioTemplate": "Vorlage herunterladen",
+  "bankNoFitType": "Dieser Typ passt nicht in die Runde.",
+  "bankNoFitLadder": "In «Millionär» passen nur Fragen mit einer richtigen Antwort und {count} Optionen.",
   "ioClose": "Schließen",
   "ioPreparing": "Datei wird vorbereitet…",
   "ioChecking": "Datei wird geprüft…",

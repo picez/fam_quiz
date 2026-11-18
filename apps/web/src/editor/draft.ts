@@ -521,6 +521,52 @@ export function applyRoundTime(round: Round, seconds: number): Round {
   return { ...round, questions: round.questions.map(timed) } as Round;
 }
 
+/** Найбільше запитань у раунді цього типу (без урахування ліміту вікторини). */
+export function roundCapacity(round: Round): number {
+  return round.type === 'wipeout'
+    ? LIMITS.maxWipeoutQuestions
+    : round.type === 'survival'
+      ? LIMITS.maxSurvivalQuestions
+      : round.type === 'ladder'
+        ? LIMITS.maxLadderQuestions
+        : round.type === 'puzzles'
+          ? LIMITS.maxPuzzles
+          : round.type === 'quest'
+            ? LIMITS.maxQuestQuestions
+            : round.type === 'think'
+              ? LIMITS.maxThinkQuestions
+              : LIMITS.maxQuestions;
+}
+
+/** Ціна запитання, що стає в раунд після `after`: «Ва-банк» — драбина, «Вибування» — 100, інакше своя. */
+export function placedPoints(round: Round, after: Question | undefined, question: Question): number {
+  return round.type === 'wipeout' ? newWipeoutQuestion(after).points : round.type === 'survival' ? 100 : question.points;
+}
+
+export type BankFit = { question: Question } | { issue: TextKey; vars?: Record<string, number> };
+
+/** Копія запитання з банку для раунду `roundIndex`, що стане після `after`; або причина, чому вона там не стане. */
+export function bankCopy(quiz: Quiz, roundIndex: number, question: Question, after: Question | undefined): BankFit {
+  const round = quiz.rounds[roundIndex];
+  if (!questionTypesFor(round.type).includes(question.type)) return { issue: 'bankNoFitType' };
+  if (round.type === 'ladder' && (question.type !== 'single' || question.options.length !== LIMITS.ladderOptions)) {
+    return { issue: 'bankNoFitLadder', vars: { count: LIMITS.ladderOptions } };
+  }
+  const copied = duplicateQuestion(structuredClone(question));
+  const { betsCut, reveal, ...rest } = copied;
+  const keepCut = round.type === 'bets' || round.type === 'auction';
+  const adapted = {
+    ...rest,
+    ...(keepCut && betsCut !== undefined ? { betsCut } : {}),
+    ...(round.type === 'classic' && reveal !== undefined ? { reveal } : {}),
+    points: placedPoints(round, after, question),
+  } as Question;
+  if (adapted.type === 'survey') delete adapted.cloudId;
+  const questions = roundQuestions(round);
+  const key = problemKey(adapted, roundPlace(quiz, roundIndex, questions.length));
+  return key === null ? { question: adapted } : { issue: key };
+}
+
 /** Копія запитання з власними ідентифікаторами; правильні відповіді вказують на варіанти копії. */
 export function duplicateQuestion(question: Question): Question {
   const id = newId();

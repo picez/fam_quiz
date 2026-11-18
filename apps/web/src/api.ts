@@ -6,6 +6,7 @@ import type { GivenLike, LikesPage, ReceivedLike } from '@quiz/shared';
 import type { HostTokens } from './storage';
 import { loadDeviceId } from './storage';
 import type { Locale } from '@quiz/shared';
+import type { QuestionBankPage, QuestionType } from '@quiz/shared';
 import type { GroupDetail, GroupInput, GroupInviteCard, GroupItem, GroupItemInput, GroupJoinPreview, GroupsPage, GroupUsesInput } from '@quiz/shared';
 
 export type ApiResult<T> = ({ ok: true } & T) | { ok: false; error: string };
@@ -126,6 +127,8 @@ export const savePushSubscription = (sub: PushSubscriptionInput) => request<obje
 export const deletePushSubscription = (endpoint: string) => request<object>('/api/me/push', { method: 'DELETE', body: { endpoint } });
 
 export const listQuizzes = () => fetchData<QuizSummary[]>('/api/quizzes');
+export const searchQuestionBank = (query: { q: string; types: readonly QuestionType[]; page: number }) =>
+  fetchData<QuestionBankPage>(`/api/question-bank?${new URLSearchParams({ q: query.q, types: query.types.join(','), page: String(query.page) })}`);
 export const getQuiz = (id: string) => fetchData<Quiz>(quizUrl(id));
 /** Лічильники лайків для редактора; збій чи не 200 — null, і редактор просто не показує сердець. */
 export async function fetchQuizLikes(id: string): Promise<QuizLikes | null> {

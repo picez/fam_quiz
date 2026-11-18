@@ -4547,6 +4547,8 @@
   "ioImportHint": "ملف اختبار (.quiz) أو جدول (.xlsx, .csv). يتم دائمًا إنشاء اختبار جديد.",
   "ioChooseFile": "اختيار ملف",
   "ioTemplate": "تنزيل القالب",
+  "bankNoFitType": "هذا النوع لا يناسب الجولة.",
+  "bankNoFitLadder": "في «المليونير» تناسب فقط أسئلة «إجابة واحدة» ذات {count} خيارات.",
   "ioClose": "إغلاق",
   "ioPreparing": "جارٍ تجهيز الملف…",
   "ioChecking": "جارٍ فحص الملف…",

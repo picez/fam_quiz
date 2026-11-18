@@ -4370,6 +4370,8 @@
   "ioImportHint": "Un archivo de quiz (.quiz) o una tabla (.xlsx, .csv). Siempre se crea un quiz nuevo.",
   "ioChooseFile": "Elegir archivo",
   "ioTemplate": "Descargar la plantilla",
+  "bankNoFitType": "Este tipo no encaja en la ronda.",
+  "bankNoFitLadder": "En «Millonario» solo caben preguntas de «una respuesta» con {count} opciones.",
   "ioClose": "Cerrar",
   "ioPreparing": "Preparando el archivo…",
   "ioChecking": "Comprobando el archivo…",
