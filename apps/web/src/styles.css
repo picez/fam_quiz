@@ -15356,6 +15356,30 @@ button.wall-tile:disabled {
   font-weight: 600;
 }
 
+/* Сімейна ліга (45): вибір групи в лобі, позначка й бали в кінці гри */
+.league-pick .league-pick-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin-block: 0.4rem;
+}
+.league-pick select {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+.league-mark,
+.league-gained,
+.league-result h3,
+.league-result li {
+  overflow-wrap: anywhere;
+}
+.league-result ul {
+  margin: 0.4rem 0 0;
+  padding-inline-start: 1.1rem;
+}
+
 /* Призи гри (14a): панель в лобі, «Граємо за» на сцені й телефоні, титул біля ніку */
 .prize-places .prize-place {
   display: flex;
@@ -25838,4 +25862,95 @@ input.sudoku-editor-cell:focus-visible {
 
 .challenge-board-link {
   justify-self: center;
+}
+
+/* Вкладка «Ліга» й титули ліги (45). */
+.group-league h3 {
+  margin: 1.25rem 0 0.5rem;
+}
+
+.league-month {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0.75rem 0;
+}
+
+.league-month select {
+  max-width: 100%;
+  min-width: 0;
+}
+
+.league-table {
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: collapse;
+  margin: 0.5rem 0;
+}
+
+.league-table th,
+.league-table td {
+  padding: 0.375rem 0.25rem;
+  border-bottom: 1px solid var(--line, rgba(128, 128, 128, 0.3));
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+  vertical-align: middle;
+}
+
+.league-table thead th {
+  font-size: 0.75rem;
+  font-weight: 600;
+  overflow-wrap: normal;
+  hyphens: manual;
+}
+
+.league-table th:nth-child(1),
+.league-table td:nth-child(1) {
+  width: 3rem;
+}
+
+.league-table th:nth-child(3),
+.league-table td:nth-child(3) {
+  width: 3.5rem;
+}
+
+.league-table th:nth-child(4),
+.league-table td:nth-child(4) {
+  width: 3.75rem;
+}
+
+.league-table th:nth-child(5),
+.league-table td:nth-child(5) {
+  width: 4.25rem;
+}
+
+.league-table .league-player {
+  display: table-cell;
+  text-align: start;
+  font-weight: 400;
+}
+
+.league-table tr.is-me {
+  background: rgba(124, 92, 255, 0.14);
+  font-weight: 700;
+}
+
+.league-rules {
+  margin: 0.5rem 0;
+}
+
+.league-hall,
+.league-titles {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 0.375rem;
+}
+
+.league-hall li,
+.league-titles li {
+  overflow-wrap: anywhere;
 }

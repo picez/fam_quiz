@@ -1,14 +1,15 @@
 import { answeredByOf, appealTally, cluesAnswered, debuffOn, isSilentRisk, memberOf, packedStrokes, rankPlayers, recordOf, teamMembers, teamsOn, thinkPlaces, thinkVerdicts, voteTally, type DrawingPlay, type GameState, type LadderPlay, type SurvivalPlay, type ThinkPlay, type TruthPlay } from '@quiz/engine';
-import { AWAY_MS, isUnscored, type Answer, type BuffKind, type DebuffKind, type Question } from '@quiz/shared';
+import { AWAY_MS, isUnscored, type Answer, type BuffKind, type DebuffKind, type LeagueEntry, type Question } from '@quiz/shared';
 import { and, eq, gt, gte, inArray, max, notInArray, sql } from 'drizzle-orm';
 import { antiHidden, awardedIn, awardGame } from './achievement-store';
 import type { Db } from './db/client';
 import { answer, appeal, AWAY_ATTEMPT, game, participant, PENALTY_ATTEMPT, savedGame, scoreAdjustment, VOTE_ATTEMPT, type PlayRef } from './db/schema';
 import { publishGameFeed } from './feed-publish';
+import { recordLeague, type LeagueGameResult } from './league-store';
 import { awardPrizes, releaseUnsaved, type PrizeOutcome } from './prizes';
 import type { SavedGameData } from './rooms/continuation';
 import type { Room, RoomManager } from './rooms/manager';
-import { prizeOutcome } from './rooms/prizes';
+import { leagueEntries, leagueNicknames, prizeOutcome } from './rooms/prizes';
 import { creditGame } from './xp-store';
 import { guarded, reportError } from './log';
 
@@ -36,6 +37,20 @@ interface Snapshot {
   replaces: string | null;
   /** Точне продовження (13b): перший запис прибирає рядки після стану (trimToCheckpoint) — їх могло лишити продовження, що впало. */
   trim?: boolean;
+  /** Сімейна ліга (45): лише фініш гри для ліги, що дає бали (finished, plays > 0, не виклик); null — нічого не писати. */
+  league?: LeagueSnapshot | null;
+}
+
+/** Що рекордер пише в лігу (45): група й рядки таблиці гри з акаунтами людей на мить фінішу. */
+interface LeagueSnapshot {
+  groupId: string;
+  entries: LeagueEntry[];
+  nicknames: Map<string, string>;
+  /**
+   * Остання спроба запису: ліга пишеться в точці збереження (savepoint) тієї ж транзакції, і її збій уже не тримає гру —
+   * гра записується без балів, а збій іде сюди.
+   */
+  spare?: (error: unknown) => void;
 }
 
 /** Знімок запису рекордера: поза save ще й призи фінішу (14a). */
@@ -470,9 +485,10 @@ async function writeGame(tx: Tx, snapshot: Snapshot, saving: boolean): Promise<v
   }
 }
 
-async function save(db: Db, snapshot: Snapshot): Promise<void> {
+/** Пише хід гри; на фініші гри для ліги — і бали ліги в тій самій транзакції (45). Повертає підсумок ліги; null — немає. */
+async function save(db: Db, snapshot: Snapshot): Promise<LeagueGameResult | null> {
   const finished = snapshot.state.phase === 'finished';
-  await db.transaction(async (tx) => {
+  return db.transaction(async (tx) => {
     await writeGame(tx, snapshot, false);
     // Точне продовження: рядки після стану (запитання, коригування, апеляції продовження, що впало без live_room) — геть.
     if (snapshot.trim === true) await trimToCheckpoint(tx, snapshot.id, snapshot.state);
@@ -480,6 +496,17 @@ async function save(db: Db, snapshot: Snapshot): Promise<void> {
     if (finished) await tx.delete(savedGame).where(eq(savedGame.gameId, snapshot.id));
     // Шлях 12r: нова гра закрила перше запитання — старий збережений запис геть (одна гра в історії).
     if (snapshot.replaces !== null && closedQuestions(snapshot.state) >= 1) await dropReplaced(tx, snapshot.replaces);
+    // Ліга (45) — після writeGame: місяць береться з уже записаного finishedAt гри.
+    const league = finished ? (snapshot.league ?? null) : null;
+    if (league === null) return null;
+    const input = { gameId: snapshot.id, groupId: league.groupId, entries: league.entries, nicknames: league.nicknames };
+    if (league.spare === undefined) return recordLeague(tx, input);
+    try {
+      return await tx.transaction((point) => recordLeague(point, input));
+    } catch (error) {
+      league.spare(error);
+      return null;
+    }
   });
 }
 
@@ -575,6 +602,8 @@ export function attachRecorder(
   const credited = new Set<string>();
   /** Кімнати, чия завершена гра вже потрапила в стрічку (18a). */
   const published = new Set<string>();
+  /** Кімнати, чий підсумок ліги (45) вже записано й покладено в кімнату. */
+  const leagued = new Set<string>();
   /** Збережені кімнати (13b): їхній запис робить лише persistSaved; запізнілий повтор record нічого не дописує. */
   const sealed = new WeakSet<Room>();
   /** Кімната, що зараз веде кожен id (13b): точне продовження бере той самий id, що й збережена кімната. */
@@ -591,6 +620,7 @@ export function attachRecorder(
     prized.delete(roomId);
     credited.delete(roomId);
     published.delete(roomId);
+    leagued.delete(roomId);
     untrimmed.delete(roomId);
   };
 
@@ -612,6 +642,7 @@ export function attachRecorder(
     prized.delete(room.id);
     credited.delete(room.id);
     published.delete(room.id);
+    leagued.delete(room.id);
     if (room.continued !== null && room.continued.replaces === null) untrimmed.add(room.id);
   };
 
@@ -655,14 +686,28 @@ export function attachRecorder(
       prizes: state.phase === 'finished' ? prizeOutcome(room) : null,
       quizTitle: state.quiz.title,
     };
+    // Ліга (45): лише фініш з хоча б одним запитанням, не спроба виклику; рядки — на мить фінішу.
+    const league =
+      room.league !== null && room.challenge === null && state.phase === 'finished' && state.plays.length > 0
+        ? { groupId: room.league.groupId, entries: leagueEntries(room), nicknames: leagueNicknames(room) }
+        : null;
 
     const job = async () => {
       // Останнє закрите запитання записується повторно: його оцінки могли змінити вручну.
       const fromQuestion = Math.max(0, Math.min(savedQuestions.get(room.id) ?? 0, closed - 1));
       const trim = untrimmed.has(room.id);
-      await save(db, { ...snapshot, fromQuestion, trim });
+      // Остання спроба: збій ліги вже не тримає запис гри (гра без балів, збій — у журнал з id гри).
+      const lastTry = (failures.get(room.id) ?? 0) >= maxRetries;
+      const spare = (error: unknown) => onError(new Error(`Бали ліги гри ${room.id} не записано: повтори запису вичерпано`, { cause: error }));
+      const leagueNow = league === null || leagued.has(room.id) ? null : { ...league, ...(lastTry ? { spare } : {}) };
+      const leagueResult = await save(db, { ...snapshot, fromQuestion, trim, league: leagueNow });
       if (trim) untrimmed.delete(room.id);
       savedQuestions.set(room.id, closed);
+      // Підсумок ліги — у кімнату (рядок «+N» на телефоні й бали на пульті); групи вже немає — гра без балів.
+      if (leagueNow !== null) {
+        if (leagueResult !== null && !manager.frozen && manager.get(room.code) === room) manager.setLeagueResult(room, leagueResult);
+        leagued.add(room.id);
+      }
       // Гра вже записана; збій нагородження — як збій запису: журнал і повтор (повтор нічого не дублює).
       // Збій одного користувача awardGame сам віддає в журнал і йде далі; його ачівки наздожене наступне читання.
       if (state.phase === 'finished' && !awarded.has(room.id)) {

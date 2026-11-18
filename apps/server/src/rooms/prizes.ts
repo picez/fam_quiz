@@ -1,5 +1,5 @@
 import { rankPlayers, teamMembers, teamsOn, type GameState } from '@quiz/engine';
-import { publicContent, type PrizePlace, type PrizeShown, type PrizesView } from '@quiz/shared';
+import { publicContent, type LeagueEntry, type PrizePlace, type PrizeShown, type PrizesView } from '@quiz/shared';
 import type { PrizeOutcome } from '../prizes';
 import type { Room } from './manager';
 
@@ -24,6 +24,34 @@ export function placeHolders(state: GameState): PlaceHolder[] {
         ? teamMembers(state, row.participantId).map((m) => ({ id: m.id, nickname: m.nickname }))
         : [{ id: row.participantId, nickname: row.nickname }],
     }));
+}
+
+/** Люди рядка таблиці гри з акаунтами (45): соло — гравець, команда — її члени; гості відкинуті. */
+function leaguePeople(room: Room, participantId: string, nickname: string): { userId: string; nickname: string }[] {
+  const people = teamsOn(room.state)
+    ? teamMembers(room.state, participantId).map((m) => ({ id: m.id, nickname: m.nickname }))
+    : [{ id: participantId, nickname }];
+  return people.flatMap((person) => {
+    const userId = room.playerUsers.get(person.id);
+    return userId === undefined ? [] : [{ userId, nickname: person.nickname }];
+  });
+}
+
+/** Усі рядки rankPlayers(state.players) з акаунтами людей (45): той самий розбір соло/команд, що в placeHolders. */
+export function leagueEntries(room: Room): LeagueEntry[] {
+  return rankPlayers(room.state.players).map((row) => ({
+    rank: row.rank,
+    userIds: leaguePeople(room, row.participantId, row.nickname).map((person) => person.userId),
+  }));
+}
+
+/** Нік у грі кожного акаунта рядків таблиці (45): соло — нік гравця, команда — нік людини. */
+export function leagueNicknames(room: Room): Map<string, string> {
+  const nicknames = new Map<string, string>();
+  for (const row of rankPlayers(room.state.players)) {
+    for (const person of leaguePeople(room, row.participantId, row.nickname)) if (!nicknames.has(person.userId)) nicknames.set(person.userId, person.nickname);
+  }
+  return nicknames;
 }
 
 /** Гра, що дає призи: finished і хоча б одне зігране запитання. */

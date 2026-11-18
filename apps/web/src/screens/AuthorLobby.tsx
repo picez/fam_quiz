@@ -6,6 +6,7 @@ import type { Send } from '../live/types';
 import { useGuardedSend } from '../live/useGuardedSend';
 import { emptyDraft, restartNoteText, resumePayload } from '../resume';
 import { PrizePlaces } from './PrizePlaces';
+import { LeaguePick } from '../league/LeaguePick';
 import { ResumePanel } from './ResumePanel';
 
 const COPIED_MS = 2000;
@@ -103,6 +104,7 @@ export function AuthorLobby({
       </section>
       )}
       {!solo && <PrizePlaces code={code} />}
+      {!solo && <LeaguePick code={code} />}
       {!solo && continued === undefined && resume !== null && resume.rounds.length > 0 && <ResumePanel code={code} info={resume} draft={resumeDraft} onChange={setResumeDraft} />}
       {!solo && continued !== undefined && continued.carryRound !== null && <p className="meta">{restartNoteText(continued.carryRound, resume)}</p>}
       {levelBonuses !== 'none' && <p className="meta">{t(levelBonuses === 'off' ? 'levelBonusesOff' : 'levelBonusesOn')}</p>}

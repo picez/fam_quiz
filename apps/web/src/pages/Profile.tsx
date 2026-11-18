@@ -5,6 +5,7 @@ import { t } from '../i18n';
 import { AchievementShowcase } from '../profile/AchievementShowcase';
 import { InviteList } from '../profile/InviteList';
 import { PopularQuizzes } from '../profile/PopularQuizzes';
+import { LeagueTitles } from '../profile/LeagueTitles';
 import { ProfileHeader } from '../profile/ProfileHeader';
 import { ProfileTiles } from '../profile/ProfileTiles';
 import { ShowcaseShelf } from '../profile/ShowcaseShelf';
@@ -66,6 +67,7 @@ export function Profile() {
           progress={profile.level.progress}
           editTo="/profile/settings?edit=1"
         />
+        <LeagueTitles titles={profile.leagueTitles} />
         <InviteList
           invites={invites.filter((invite) => !gone.includes(invite.code))}
           onDismissed={(code) => {

@@ -3,7 +3,7 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-li
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { GroupDetail } from '@quiz/shared';
-import { deleteGroup, getGroup, getGroupItems, getMyFriends, inviteToGroup, leaveGroup, me, removeGroupMember, transferGroup, updateGroup } from '../api';
+import { groupLeague, deleteGroup, getGroup, getGroupItems, getMyFriends, inviteToGroup, leaveGroup, me, removeGroupMember, transferGroup, updateGroup } from '../api';
 import { forgetAccount } from '../useAccount';
 import { GroupPage } from './GroupPage';
 
@@ -18,6 +18,7 @@ vi.mock('../api', () => ({
   removeGroupMember: vi.fn(),
   leaveGroup: vi.fn(),
   getMyFriends: vi.fn(),
+  groupLeague: vi.fn(),
   inviteToGroup: vi.fn(),
   cancelGroupInvite: vi.fn(),
   refreshGroupCode: vi.fn(),
@@ -78,13 +79,28 @@ describe('GroupPage (12k)', () => {
     open();
     expect(await screen.findByRole('heading', { name: '🌻 Родина Квіткових' })).toBeTruthy();
     expect(screen.getByText('2 людини · 1 запис')).toBeTruthy();
-    expect(tabs()).toEqual(['Записи', 'Учасники', 'Налаштування']);
+    expect(tabs()).toEqual(['Записи', 'Учасники', 'Ліга', 'Налаштування']);
     cleanup();
     vi.mocked(getGroup).mockResolvedValue({ ok: true, ...detail('member') });
     open('/profile/groups/g1?tab=settings');
     await screen.findByRole('heading', { name: '🌻 Родина Квіткових' });
-    expect(tabs()).toEqual(['Записи', 'Учасники']);
+    expect(tabs()).toEqual(['Записи', 'Учасники', 'Ліга']);
     expect(screen.getByRole('tab', { name: 'Записи' }).getAttribute('aria-selected')).toBe('true');
+  });
+
+  it('?tab=league opens the league table, and the tab switches to it', async () => {
+    vi.mocked(groupLeague).mockResolvedValue({
+      ok: true,
+      data: { month: '2026-11', current: true, months: ['2026-11'], rows: [{ place: 1, user: { id: 'u1', nickname: 'Оля', avatar: null }, points: 10, games: 1, firsts: 1, former: false }], champions: [] },
+    });
+    open('/profile/groups/g1?tab=league');
+    expect(await screen.findByRole('table')).toBeTruthy();
+    expect(screen.getByRole('tab', { name: 'Ліга' }).getAttribute('aria-selected')).toBe('true');
+    expect(screen.getAllByRole('row')[1].className).toContain('is-me');
+    cleanup();
+    open();
+    fireEvent.click(await screen.findByRole('tab', { name: 'Ліга' }));
+    expect(await screen.findByRole('table')).toBeTruthy();
   });
 
   it('?tab=people opens the members with the owner first; handing over hides the settings', async () => {

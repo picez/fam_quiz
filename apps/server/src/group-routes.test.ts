@@ -1,7 +1,8 @@
 import type { GroupDetail, GroupInviteCard, GroupItem } from '@quiz/shared';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { buildApp } from './app';
-import { groupItem, groupMember, user } from './db/schema';
+import type { LeagueTable } from '@quiz/shared';
+import { groupItem, groupMember, leagueGame, leaguePoint, user, userBan } from './db/schema';
 import { TEST_AUTH, signUp } from './testing/accounts';
 import { createTestDb } from './testing/test-db';
 
@@ -306,5 +307,56 @@ describe('«Літописець» right after the 20th record (12l)', () => {
     expect(earned.gameId).toBeNull();
     expect(earned.earnedAt?.getTime()).toBe(created.getTime());
     expect(created.getTime()).toBeGreaterThanOrEqual(before - 1);
+  });
+});
+
+describe('the family league table (45)', () => {
+  let n = 0;
+  async function past(groupId: string, month: string, places: [string, number][]) {
+    n += 1;
+    const gameId = `00000000-0000-4000-a000-${String(n).padStart(12, '0')}`;
+    await db.insert(leagueGame).values({ gameId, groupId, month, members: places.length, counted: true });
+    await db.insert(leaguePoint).values(
+      places.map(([userId, place]) => ({ gameId, userId, groupId, month, place, points: [10, 7, 5, 3, 1][place - 1] ?? 0, nickname: userId })),
+    );
+  }
+
+  it('the league table is for members only', async () => {
+    const { olia, petro, id } = await family();
+    const vira = await person('Віра');
+    await past(id, '2020-03', [[olia.id, 1], [petro.id, 2]]);
+
+    const own = await call('GET', `/api/groups/${id}/league`, olia.cookie);
+    expect(own.statusCode).toBe(200);
+    const table = own.json() as LeagueTable;
+    expect(table.current).toBe(true);
+    expect(table.rows).toEqual([]);
+    expect(table.months).toContain('2020-03');
+    expect(table.champions.map((c) => c.month)).toEqual(['2020-03']);
+    expect(table.champions[0].users.map((u) => u.id)).toEqual([olia.id]);
+    expect(JSON.stringify(table)).not.toContain('@');
+
+    const old = (await call('GET', `/api/groups/${id}/league?month=2020-03`, petro.cookie)).json() as LeagueTable;
+    expect(old.current).toBe(false);
+    expect(old.rows.map((r) => [r.user.id, r.place, r.points])).toEqual([[olia.id, 1, 10], [petro.id, 2, 7]]);
+
+    const bad = (await call('GET', `/api/groups/${id}/league?month=2026-13`, olia.cookie)).json() as LeagueTable;
+    expect(bad.current).toBe(true);
+
+    for (const target of [id, MISSING]) {
+      const res = await call('GET', `/api/groups/${target}/league`, vira.cookie);
+      expect(res.statusCode).toBe(404);
+      expect(res.json()).toEqual({ error: 'group_not_found' });
+    }
+    expect((await call('GET', `/api/groups/${id}/league`)).statusCode).toBe(401);
+  });
+
+  it('hides banned members from the table and the hall', async () => {
+    const { olia, petro, id } = await family();
+    await past(id, '2020-04', [[petro.id, 1], [olia.id, 2]]);
+    await db.insert(userBan).values({ userId: petro.id, reason: null, bannedBy: null, bannedAt: new Date() });
+    const table = (await call('GET', `/api/groups/${id}/league?month=2020-04`, olia.cookie)).json() as LeagueTable;
+    expect(table.rows.map((r) => r.user.id)).toEqual([olia.id]);
+    expect(table.champions.flatMap((c) => c.users.map((u) => u.id))).not.toContain(petro.id);
   });
 });

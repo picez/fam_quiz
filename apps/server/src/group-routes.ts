@@ -15,6 +15,7 @@ import type { CurrentUser } from './account-routes';
 import { syncAchievements } from './achievement-store';
 import type { Db } from './db/client';
 import { groupItem, userAchievement } from './db/schema';
+import { leagueTable } from './league-store';
 import { createItem, deleteItem, listItems, updateItem } from './group-items';
 import { markUses } from './group-uses';
 import { reportError } from './log';
@@ -236,6 +237,15 @@ export async function registerGroupRoutes(app: FastifyInstance, deps: GroupDeps)
     if (ok === null) return reply;
     await cancelInvite(db, ok.groupId, request.params.userId);
     return reply.code(204).send();
+  });
+
+  app.get<GroupParams & { Querystring: { month?: string } }>('/api/groups/:id/league', read, async (request, reply) => {
+    const ok = await member(request, reply);
+    if (ok === null) return reply;
+    const month = typeof request.query.month === 'string' ? request.query.month : null;
+    const table = await leagueTable(db, ok.groupId, month, now());
+    if (table === null) return reply.code(404).send(GROUP_NOT_FOUND);
+    return table;
   });
 
   app.get<GroupParams>('/api/groups/:id/items', read, async (request, reply) => {

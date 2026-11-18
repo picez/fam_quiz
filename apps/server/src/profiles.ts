@@ -7,6 +7,7 @@ import {
   normalizeFavorites,
   type Achievement,
   type FriendCard,
+  type LeagueTitle,
   type Locale,
   type OwnProfile,
   type ProfileCard,
@@ -23,7 +24,9 @@ import type { Db } from './db/client';
 import { follow, game, profile, user } from './db/schema';
 import { isUniqueViolation } from './db/unique';
 import { notHidden } from './feed-store';
+import { leagueTitlesOf } from './league-store';
 import { likeTotals } from './like-store';
+import { reportError } from './log';
 import { showcaseOf } from './prizes';
 import { listQuizzes } from './quizzes';
 import { ownLevel, publicLevel } from './xp-store';
@@ -215,12 +218,23 @@ export async function popularQuizzes(db: Db, ownerId: string): Promise<OwnProfil
   return list.map(({ id, title }) => ({ id, title, plays: plays.get(id) ?? 0 })).sort((a, b) => b.plays - a.plays);
 }
 
+/** Титули ліги, що профіль не ламають: збій читання чи підсумовування — порожній список і запис у журнал. */
+async function safeLeagueTitles(db: Db, userId: string): Promise<LeagueTitle[]> {
+  try {
+    return await leagueTitlesOf(db, userId, new Date());
+  } catch (error) {
+    reportError(error, { where: 'league-titles' });
+    return [];
+  }
+}
+
 /** Повний профіль власника; лише для нього. */
 export async function ownProfile(db: Db, current: CurrentUser): Promise<OwnProfile> {
   const base = await ensureProfile(db, current.id);
   if (!base) throw new Error('profile of a signed-in user must exist');
   const facts = await profileFacts(db, current.id);
   const quizzes = await popularQuizzes(db, current.id);
+  const [level, likes, leagueTitles] = await Promise.all([ownLevel(db, current.id), likeTotals(db, current.id), safeLeagueTitles(db, current.id)]);
   return {
     ...base,
     email: current.email,
@@ -231,8 +245,9 @@ export async function ownProfile(db: Db, current: CurrentUser): Promise<OwnProfi
     friends: await friendsOf(db, current.id),
     showcase: await showcaseOf(db, current.id),
     // Ретро й наздоганяння досвіду (15a) — усередині ownLevel, раз і перед читанням рівня; збій профіль не ламає.
-    level: await ownLevel(db, current.id),
-    likes: await likeTotals(db, current.id),
+    level,
+    likes,
+    leagueTitles,
   };
 }
 
@@ -246,6 +261,7 @@ export async function publicProfile(db: Db, id: string, viewerId: string | null)
   const showcase = await showcaseOf(db, id);
   // Антидосягнення, які власник ховає (12j): ні в списку, ні закріплених на вітрині.
   const hide = (await antiHidden(db, [id])).has(id);
+  const [level, likes, leagueTitles] = await Promise.all([publicLevel(db, id), likeTotals(db, id), safeLeagueTitles(db, id)]);
   return {
     id: base.id,
     nickname: base.nickname,
@@ -254,8 +270,9 @@ export async function publicProfile(db: Db, id: string, viewerId: string | null)
     achievements: hide ? achievements.filter((a) => !isAnti(a.id)) : achievements,
     following,
     showcase: hide ? { ...showcase, pins: { ...showcase.pins, achievements: showcase.pins.achievements.filter((a) => !isAnti(a)) } } : showcase,
-    level: await publicLevel(db, id),
-    likes: await likeTotals(db, id),
+    level,
+    likes,
+    leagueTitles,
   };
 }
 

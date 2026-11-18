@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isUniqueViolation } from './unique';
+import { isForeignKeyViolation, isUniqueViolation } from './unique';
 
 describe('isUniqueViolation', () => {
   it('finds 23505 on the error or down its cause chain', () => {
@@ -13,5 +13,14 @@ describe('isUniqueViolation', () => {
     expect(isUniqueViolation(new Error('plain'))).toBe(false);
     expect(isUniqueViolation(null)).toBe(false);
     expect(isUniqueViolation('23505')).toBe(false);
+  });
+});
+
+describe('isForeignKeyViolation', () => {
+  it('finds 23503 on the error or down its cause chain, nothing else', () => {
+    expect(isForeignKeyViolation({ code: '23503' })).toBe(true);
+    expect(isForeignKeyViolation(new Error('wrapped', { cause: { code: '23503' } }))).toBe(true);
+    expect(isForeignKeyViolation({ code: '23505' })).toBe(false);
+    expect(isForeignKeyViolation(null)).toBe(false);
   });
 });

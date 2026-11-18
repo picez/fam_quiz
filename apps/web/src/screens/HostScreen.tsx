@@ -41,7 +41,7 @@ import { HostSurvival } from './HostSurvival';
 import { HostLadder } from './HostLadder';
 import { SurveyBoard } from './SurveyBoard';
 import { answerText, correctText, markText, num, questionClass, questionLabel, roundLabel, seriesOf, signed, streaksOf } from '../format';
-import { errorText, t, type TextKey } from '../i18n';
+import { countText as countLabel, errorText, t, type TextKey } from '../i18n';
 import { RoundBriefing, RoundFacts } from './RoundBriefing';
 import type { Send } from '../live/types';
 import { BlitzCellNotes, Board, BoardLegend } from './Board';
@@ -63,6 +63,7 @@ import { useBlinkingRows, useVerdictBlink } from './verdict-blink';
 import { InviteFriends } from './InviteFriends';
 import { LobbyAccess } from './LobbyAccess';
 import { PrizePlaces } from './PrizePlaces';
+import { LeaguePick } from '../league/LeaguePick';
 import { HostCeremony } from './HostCeremony';
 import { PrizeResults } from './MyPrize';
 import { Timer, timerStatus, useTimeOver } from '../live/Timer';
@@ -1487,6 +1488,22 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
           <h2>{t('gameOver')}</h2>
           <Standings standings={view.standings} teams={view.teams} titles={view.titles} levels={view.levels} />
           {view.standings.length > 0 && <ResultImageButton className="btn result-image-button" build={() => resultFromHost(view, quizTitle, new Date(), location.host)} />}
+          {/* Сімейна ліга (45): бали кожного учасника за цю гру; рядки позначені індексом — два ніки можуть збігтися. */}
+          {view.league !== undefined && (
+            <section className="league-result">
+              <h3 dir="auto">{t('leagueHostTitle', { group: view.league.group })}</h3>
+              {view.league.tooFew === true && <p className="meta">{t('leagueTooFew')}</p>}
+              {view.league.rows !== undefined && view.league.rows.length > 0 && (
+                <ul>
+                  {view.league.rows.map((row, index) => (
+                    <li key={index} dir="auto">
+                      {countLabel('leagueHostRow', row.points, { nick: row.nickname, count: row.points })}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
+          )}
           {/* Призи (14a): хто що взяв; церемонію пульт показує на дотик — сцени може й не бути. */}
           {view.prizes !== undefined && <PrizeResults prizes={view.prizes} role="host" />}
           {view.prizes !== undefined && <HostCeremony prizes={view.prizes} stageGone={stageGone} stageUrl={stageUrl} />}
@@ -1581,6 +1598,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
       {phase === 'lobby' && <LobbyAccess code={code} />}
       {phase === 'lobby' && <InviteFriends code={code} />}
       {phase === 'lobby' && <PrizePlaces code={code} />}
+      {phase === 'lobby' && <LeaguePick code={code} />}
 
       <nav className="links">
         <a href={stageUrl} target="_blank" rel="noreferrer">

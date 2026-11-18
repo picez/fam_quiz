@@ -15,6 +15,7 @@ vi.mock('../api', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../api')>()),
   checkCode: vi.fn(async () => ({ ok: true as const, title: 'Зимова вікторина' })),
   gamePrizes: vi.fn(async () => ({ ok: true as const, data: { options: [], places: [null, null, null] } })),
+  gameLeague: vi.fn(async () => ({ ok: true as const, data: { groupId: null, groups: [{ id: '11111111-1111-4111-8111-111111111111', name: 'Родина', emoji: '🏡', people: 4 }] } })),
   getLobbySettings: vi.fn(async () => ({ ok: true as const, visibility: 'friends' as const, password: null })),
   saveLobbySettings: vi.fn(),
 }));
@@ -3651,6 +3652,46 @@ describe('HostScreen prize places (14a)', () => {
     cleanup();
     show(during('question', single));
     expect(screen.queryByText('Призи гри')).toBeNull();
+  });
+});
+
+describe('HostScreen: family league (45)', () => {
+  it('the lobby has the league panel next to the prizes, and it is only in the lobby', async () => {
+    show(view());
+    expect(await screen.findByText('🏆 Сімейна ліга')).toBeTruthy();
+    expect(await screen.findByLabelText('Гра для групи')).toBeTruthy();
+    cleanup();
+    show(during('question', single));
+    expect(screen.queryByText('🏆 Сімейна ліга')).toBeNull();
+  });
+
+  it('the finish lists every member with the points', () => {
+    show(view({ phase: 'finished', questionIndex: 1, league: { group: 'Родина', rows: [{ nickname: 'Тарас', points: 10 }, { nickname: 'Олена', points: 0 }, { nickname: 'Тарас', points: 3 }, { nickname: 'Іра', points: 1 }] } }));
+    expect(screen.getByText('Ліга «Родина»')).toBeTruthy();
+    expect(screen.getByText('Олена — +0 балів')).toBeTruthy();
+    expect(screen.getByText('Тарас — +10 балів')).toBeTruthy();
+    expect(screen.getByText('Тарас — +3 бали')).toBeTruthy();
+    expect(screen.getByText('Іра — +1 бал')).toBeTruthy();
+  });
+
+  it('too few members: the one line, no table', () => {
+    show(view({ phase: 'finished', questionIndex: 1, league: { group: 'Родина', tooFew: true } }));
+    expect(screen.getByText('Ліга «Родина»')).toBeTruthy();
+    expect(screen.getByText('Для ліги замало учасників групи')).toBeTruthy();
+    expect(document.querySelector('.league-result li')).toBeNull();
+  });
+
+  it('a league view with no rows and no flag (the group was deleted): only the title', () => {
+    show(view({ phase: 'finished', questionIndex: 1, league: { group: 'Родина' } }));
+    expect(screen.getByText('Ліга «Родина»')).toBeTruthy();
+    expect(document.querySelector('.league-result li')).toBeNull();
+    expect(screen.queryByText(/\+0/)).toBeNull();
+    expect(screen.queryByText('Для ліги замало учасників групи')).toBeNull();
+  });
+
+  it('no league: no block', () => {
+    show(view({ phase: 'finished', questionIndex: 1 }));
+    expect(document.querySelector('.league-result')).toBeNull();
   });
 });
 

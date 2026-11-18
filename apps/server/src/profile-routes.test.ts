@@ -3,7 +3,8 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { makeQuiz, single } from '@quiz/engine/testing';
 import { isAnti, STICKERS, xpForLevel, type AchievementId } from '@quiz/shared';
 import { buildApp } from './app';
-import { follow, profile, user, userAchievement, xpEntry } from './db/schema';
+import { follow, groupMember, leagueGame, leaguePoint, profile, user, userAchievement, xpEntry } from './db/schema';
+import { createGroup } from './group-store';
 import { awardPrizes, createPrize, reservePlaces } from './prizes';
 import { seedGame } from './testing/history-rows';
 import { TEST_AUTH, signUp } from './testing/accounts';
@@ -71,7 +72,7 @@ describe('public profile', () => {
       const response = await request('GET', `/api/profiles/${olenaId}`, cookie);
       expect(response.statusCode).toBe(200);
       const body = response.json();
-      expect(Object.keys(body).sort()).toEqual(['achievements', 'avatar', 'following', 'id', 'level', 'likes', 'nickname', 'showcase', 'stats']);
+      expect(Object.keys(body).sort()).toEqual(['achievements', 'avatar', 'following', 'id', 'leagueTitles', 'level', 'likes', 'nickname', 'showcase', 'stats']);
       expect(Object.keys(body.stats).sort()).toEqual(['accuracy', 'avgPlace', 'bestScore', 'games', 'hosted', 'podium', 'quizzes', 'top3', 'wins']);
       expect(response.body).not.toContain(olena.email);
       expect(response.body).not.toContain('Таємна вікторина');
@@ -427,5 +428,33 @@ describe('easy mode in the profile (31)', () => {
       expect(response.statusCode).toBe(400);
       expect(response.json()).toEqual({ error: 'invalid_payload' });
     }
+  });
+});
+
+describe('league titles (45)', () => {
+  it('a league champion shows only the title', async () => {
+    const created = await createGroup(db, olenaId, { name: 'Родина Коваленків', emoji: '🌻', description: '' }, new Date());
+    if (!created.ok) throw new Error(created.error);
+    await db.insert(groupMember).values({ groupId: created.id, userId: tarasId, role: 'member', joinedAt: new Date() });
+    const gameId = '00000000-0000-4000-b000-000000000001';
+    await db.insert(leagueGame).values({ gameId, groupId: created.id, month: '2020-05', members: 3, counted: true });
+    await db.insert(leaguePoint).values([
+      { gameId, userId: olenaId, groupId: created.id, month: '2020-05', place: 1, points: 10, nickname: 'Олена' },
+      { gameId, userId: tarasId, groupId: created.id, month: '2020-05', place: 2, points: 7, nickname: 'Тарас' },
+    ]);
+    const stranger = await signUp(ctx.app, 'Стороння');
+
+    const own = (await request('GET', '/api/me/profile', olena.cookie)).json() as { leagueTitles: unknown };
+    expect(own.leagueTitles).toEqual([{ group: 'Родина Коваленків', month: '2020-05' }]);
+    for (const cookie of [stranger.cookie, undefined]) {
+      const res = await request('GET', `/api/profiles/${olenaId}`, cookie);
+      expect(res.statusCode).toBe(200);
+      expect((res.json() as { leagueTitles: unknown }).leagueTitles).toEqual([{ group: 'Родина Коваленків', month: '2020-05' }]);
+      expect(res.body).not.toContain('groupId');
+      expect(res.body).not.toContain(created.id);
+      expect(res.body).not.toContain('league_point');
+    }
+    const loser = (await request('GET', `/api/profiles/${tarasId}`, olena.cookie)).json() as { leagueTitles: unknown };
+    expect(loser.leagueTitles).toEqual([]);
   });
 });

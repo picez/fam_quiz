@@ -8,6 +8,7 @@ import type { HostUndoTarget } from './events';
 import type { AnswerMode, AuctionBidMode, MoreLessSide, AuctionLoss, LadderPick, LifelineKind, CellKind, CellMark, CellPenalty, PinMap, Question, QuestionAudio, RevealMode, Round, RoundType, ThinkWord, TrialKind, Video, WagerMode } from './quiz';
 import type { FactCard, GameCard, OwnRevealFact, RevealFacts, RoundCard, RoundShare } from './facts';
 import type { GuidePage } from './guide';
+import type { HostLeagueView, PlayerLeagueView } from './league';
 import type { LadderOutcomeKind } from './ladder';
 import type { ResumeLobby } from './resume';
 import type { PrizesView } from './prizes';
@@ -2296,6 +2297,8 @@ export interface PlayerTable {
 
 export interface PlayerView extends BaseView {
   role: 'player';
+  /** Гра для ліги (45): група, свої бали після фінішу, «замало» лише автору автопілота. Ставить сервер; рушій ключа не ставить. */
+  league?: PlayerLeagueView;
   /**
    * Скільки відповідей цього телефона сервер прийняв (32), і епоха — процес сервера, що рахує (лічильник лише в пам'яті).
    * Клієнт порівнює його після перепідключення: зросло — відповідь дійшла (навіть якщо баф «Друга спроба» чи «Перевибрати»
@@ -2566,6 +2569,8 @@ export interface PaceWindow { from: number; until: number }
 export interface HostPace { next: PaceWindow | null; lock: PaceWindow | null; skip: PaceWindow | null }
 
 export interface HostView extends BaseView {
+  /** Гра для ліги (45): група й бали рядків після фінішу або «замало». Ставить сервер; рушій ключа не ставить. */
+  league?: HostLeagueView;
   /** «Нові досягнення» (12j): у каруселі «Нагород гри» є слайд досягнень — кнопка показу потрібна й без нагород. Ставить сервер; немає — false. */
   awardsExtra?: boolean;
   /** Нові досягнення кімнати (38c), як у сцени; ставить сервер; немає — ніхто нічого не отримав. */

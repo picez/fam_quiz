@@ -168,7 +168,8 @@ import {
   type Result,
   type TeamAct,
 } from '@quiz/engine';
-import { ANSWERER_PICKS_PER_SECOND, REACTION_GAP_MS, reactionAllowed, type Reaction, type ReactionItem, APPEAL_VOTES_PER_SECOND, AWAY_EVENTS_PER_SECOND, awayGapMs, draftQuestionType, DRAFTS_PER_SECOND, isAnswerDraft, isUnscored, SORT_TILT_GAP_MS, LIST_WORDS_PER_SECOND, MORELESS_PICKS_PER_SECOND, PUZZLE_BATCHES_PER_SECOND, JIGSAW_MOVES_PER_SECOND, SPOTDIFF_TAPS_PER_SECOND, MEMORY_FLIPS_PER_SECOND, DRAW_GUESSES_PER_SECOND, DRAW_OPS_PER_SECOND, type DrawingEvent, type DrawOp, type AckResult, type Answer, type MoreLessSide, type AnswererScope, type AppealReason, type BuffKind, type DebuffKind, type DraftValue, type DuelSide, type ErrorCode, type GameView, type Grade, type HostDrafts, type HostUndoTarget, type LifelineKind, type Phase, type PlayerView, type Question, type Quiz, type ResumeSetup, RESUME_POINTS_MAX, clamp, isObjectLike, type ContinuedView, type PlacedPrize, placedPrizeSchema, type SlotsResponse, type Role, type SortTilt, type SubmittedAnswer, type TeamForm, type ThinkWord, type ActivePerk, type NickLevel, type StickerExtra, stickerOpen, LIKE_RATE, type LikePayload, LOBBY_VISIBILITIES, lobbyPasswordSchema, type LobbySettings, type LobbyVisibility, type AchievementId } from '@quiz/shared';
+import { ANSWERER_PICKS_PER_SECOND, REACTION_GAP_MS, reactionAllowed, type Reaction, type ReactionItem, APPEAL_VOTES_PER_SECOND, AWAY_EVENTS_PER_SECOND, awayGapMs, draftQuestionType, DRAFTS_PER_SECOND, isAnswerDraft, isUnscored, SORT_TILT_GAP_MS, LIST_WORDS_PER_SECOND, MORELESS_PICKS_PER_SECOND, PUZZLE_BATCHES_PER_SECOND, JIGSAW_MOVES_PER_SECOND, SPOTDIFF_TAPS_PER_SECOND, MEMORY_FLIPS_PER_SECOND, DRAW_GUESSES_PER_SECOND, DRAW_OPS_PER_SECOND, type DrawingEvent, type DrawOp, type AckResult, type Answer, type MoreLessSide, type AnswererScope, type AppealReason, type BuffKind, type DebuffKind, type DraftValue, type DuelSide, type ErrorCode, type GameView, type Grade, type HostDrafts, type HostUndoTarget, type LifelineKind, type Phase, type PlayerView, type Question, type Quiz, type ResumeSetup, RESUME_POINTS_MAX, clamp, isObjectLike, type ContinuedView, type PlacedPrize, placedPrizeSchema, type SlotsResponse, type Role, type SortTilt, type SubmittedAnswer, type TeamForm, type ThinkWord, type ActivePerk, type NickLevel, type StickerExtra, stickerOpen, LIKE_RATE, type LikePayload, LOBBY_VISIBILITIES, lobbyPasswordSchema, type LobbySettings, type LobbyVisibility, type AchievementId, type HostLeagueView, type PlayerLeagueView } from '@quiz/shared';
+import type { LeagueGameResult } from '../league-store';
 import type { LikeChange, LikeKey } from '../like-store';
 import { SAVED_GAME_VERSION, type ContinueResult, type RestartInput, type SavedGameData } from './continuation';
 import { newAchievementsMine, newAchievementsStage } from './achievements';
@@ -278,6 +279,10 @@ export interface Room {
   lobby: LobbyState;
   /** Спроба виклику (44): соло-автопілот, у який ніхто інший не входить; null — звичайна кімната. Іде в знімок кімнати. */
   challenge: RoomChallenge | null;
+  /** Гра для сімейної ліги (45): група й назва на мить вибору; лише лобі ставить і знімає. Іде в знімок кімнати; null — гра не для ліги. */
+  league: RoomLeague | null;
+  /** Підсумок ліги цієї гри (45): кладе рекордер після запису; лише в пам'яті. null — ще немає. */
+  leagueResult: LeagueGameResult | null;
   /** Призи на місцях (10): кладе лише ведучий/автор у лобі; резерв — у базі. Іде в знімок кімнати. */
   prizes: PlacedPrize[];
   /** Чинні титули акаунтів кімнати (15): userId → текст. Лише в пам'яті; заповнює attachTitles. */
@@ -290,6 +295,12 @@ export interface Room {
   likes: RoomLikes;
   /** «Нове досягнення!» (12j): userId → щойно отримані цією грою; hideAnti — хто ховає анти від сцени. null — ще не нагороджено. Лише в пам'яті; заповнює рекордер. */
   newAchievements: { byUser: Map<string, AchievementId[]>; hideAnti: Set<string> } | null;
+}
+
+/** Позначка гри для сімейної ліги (45): id групи й назва на мить вибору (для рядків у грі). */
+export interface RoomLeague {
+  groupId: string;
+  groupName: string;
 }
 
 /** Позначка кімнати спроби виклику (44): id виклику, його код і назва (для посилання «Таблиця виклику» на телефоні). */
@@ -526,6 +537,8 @@ export interface SavedRoom {
   lobby?: LobbyState;
   /** Спроба виклику (44); немає чи зіпсовано — звичайна кімната. */
   challenge?: RoomChallenge;
+  /** Гра для сімейної ліги (45); немає чи зіпсовано — гра не для ліги (старий сервер поле ігнорує). */
+  league?: RoomLeague;
 }
 
 /** Перевірка рядка з бази: та сама версія знімка, версія стану, що читається як поточна, на місці поля, без яких кімнату не підняти. */
@@ -577,6 +590,41 @@ function challengeOf(raw: unknown): RoomChallenge | null {
   if (!isObjectLike(raw)) return null;
   const { id, code, title } = raw;
   return typeof id === 'string' && typeof code === 'string' && typeof title === 'string' ? { id, code, title } : null;
+}
+
+const LEAGUE_GROUP_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** Позначка ліги з рядка бази (45): лише об'єкт з рядками groupId (UUID) і groupName, інакше null. */
+function leagueOf(raw: unknown): RoomLeague | null {
+  if (!isObjectLike(raw)) return null;
+  const { groupId, groupName } = raw;
+  return typeof groupId === 'string' && LEAGUE_GROUP_ID.test(groupId) && typeof groupName === 'string' ? { groupId, groupName } : null;
+}
+
+/**
+ * Рядок ліги на телефоні (45): є, лише коли кімната для ліги; points — свій підсумок акаунта, tooFew — лише автору автопілота,
+ * коли гра не врахувалась.
+ */
+function playerLeagueView(room: Room, playerId: string, isAuthor: boolean): PlayerLeagueView | undefined {
+  if (room.league === null) return undefined;
+  const result = room.leagueResult;
+  const userId = room.playerUsers.get(playerId);
+  const points = result === null || userId === undefined ? undefined : result.rows.find((row) => row.userId === userId)?.points;
+  return {
+    group: room.league.groupName,
+    ...(points === undefined ? {} : { points }),
+    ...(isAuthor && result !== null && !result.counted ? { tooFew: true as const } : {}),
+  };
+}
+
+/** Рядок ліги на пульті (45): після підсумку — бали за спаданням або «замало учасників». */
+function hostLeagueView(room: Room): HostLeagueView | undefined {
+  if (room.league === null) return undefined;
+  const result = room.leagueResult;
+  if (result === null) return { group: room.league.groupName };
+  if (!result.counted) return { group: room.league.groupName, tooFew: true };
+  const rows = [...result.rows].sort((a, b) => b.points - a.points).map(({ nickname, points }) => ({ nickname, points }));
+  return { group: room.league.groupName, rows };
 }
 
 /** Лобі з рядка бази (24c): що читається — те й береться, інакше типове («Лише друзі», без ведучого — «Прихована»). */
@@ -808,6 +856,8 @@ export class RoomManager {
       continued: null,
       lobby: { visibility: hostUserId === null || challenge !== null ? 'hidden' : 'friends', password: null, openedAt: this.now() },
       challenge,
+      league: null,
+      leagueResult: null,
       prizes: [],
       titles: new Map(),
       levels: new Map(),
@@ -841,6 +891,7 @@ export class RoomManager {
       ...(room.prizes.length === 0 ? {} : { prizes: room.prizes }),
       lobby: room.lobby,
       ...(room.challenge === null ? {} : { challenge: room.challenge }),
+      ...(room.league === null ? {} : { league: room.league }),
     };
   }
 
@@ -882,6 +933,9 @@ export class RoomManager {
       continued: continuedOf(saved.continued),
       lobby: challenge === null ? lobby : { ...lobby, visibility: 'hidden', password: null },
       challenge,
+      // Спроба виклику (44) ліги не має, навіть якщо знімок каже інше.
+      league: challenge === null ? leagueOf(saved.league) : null,
+      leagueResult: null,
       prizes: prizesOf(saved.prizes),
       titles: new Map(),
       levels: new Map(),
@@ -956,6 +1010,23 @@ export class RoomManager {
     room.lobby = { ...room.lobby, visibility: settings.visibility, password: settings.password };
     this.commit(room, room.state);
     return { ok: true };
+  }
+
+  /** Гра для ліги (45): лише лобі (інакше wrong_phase), не в спробі виклику (not_allowed), frozen → restarting; пише й commit, щоб RoomStore записав. */
+  setLeague(room: Room, league: RoomLeague | null): AckResult {
+    if (!this.alive(room)) return this.gone();
+    if (room.challenge !== null) return NOT_ALLOWED;
+    if (room.state.phase !== 'lobby') return { ok: false, error: 'wrong_phase' };
+    room.league = league === null ? null : { groupId: league.groupId, groupName: league.groupName };
+    this.commit(room, room.state);
+    return { ok: true };
+  }
+
+  /** Підсумок ліги гри (45) від рекордера; emit changed, лише якщо змінився. */
+  setLeagueResult(room: Room, result: LeagueGameResult): void {
+    if (JSON.stringify(room.leagueResult) === JSON.stringify(result)) return;
+    room.leagueResult = { counted: result.counted, rows: result.rows.map((row) => ({ ...row })) };
+    this.emit(room, { type: 'changed' });
   }
 
   /** Призи на місця (14a): лише лобі (інакше wrong_phase), frozen → restarting; кладе placed, emit changed. Резерв у базі — справа маршруту. */
@@ -1489,13 +1560,15 @@ export class RoomManager {
     };
     // «Нове досягнення!» (12j): телефон — своє, сцена — слайд, пульт — позначка й ті самі досягнення, що на сцені (38c, для картинки підсумку; кнопка «Нагороди на сцені»).
     if (base.role === 'player') {
+      const league = identity.playerId === null ? undefined : playerLeagueView(room, identity.playerId, base.author !== null);
       const mine = identity.playerId === null ? undefined : newAchievementsMine(room, identity.playerId);
       const answerMark = identity.playerId === null ? undefined : { epoch: this.answerEpoch, count: this.answerCounts.get(room)?.get(identity.playerId) ?? 0 };
-      return { ...base, ...extra, ...(mine === undefined ? {} : { newAchievements: mine }), ...(answerMark === undefined ? {} : { answerMark }) };
+      return { ...base, ...extra, ...(league === undefined ? {} : { league }), ...(mine === undefined ? {} : { newAchievements: mine }), ...(answerMark === undefined ? {} : { answerMark }) };
     }
     const slide = newAchievementsStage(room);
     if (base.role === 'stage') return { ...base, ...extra, ...(slide === undefined ? {} : { newAchievements: slide }) };
-    return { ...base, ...extra, ...(slide === undefined ? {} : { awardsExtra: true, newAchievements: slide }) };
+    const league = hostLeagueView(room);
+    return { ...base, ...extra, ...(league === undefined ? {} : { league }), ...(slide === undefined ? {} : { awardsExtra: true, newAchievements: slide }) };
   }
 
   private baseView(room: Room, identity: Identity): GameView | null {
