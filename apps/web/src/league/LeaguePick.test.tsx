@@ -33,6 +33,13 @@ describe('LeaguePick', () => {
     expect(screen.getByText(/Після старту змінити не можна/)).toBeTruthy();
   });
 
+  it('has the ⓘ in the title that opens the «Сімейна ліга» help', async () => {
+    render(<LeaguePick code="123456" />);
+    await screen.findByLabelText('Гра для групи');
+    fireEvent.click(screen.getByRole('button', { name: 'Довідка: Сімейна ліга' }));
+    expect(screen.getByRole('dialog', { name: 'Сімейна ліга' })).toBeTruthy();
+  });
+
   it('shows the group already marked', async () => {
     vi.mocked(gameLeague).mockResolvedValue({ ok: true, data: info(friends) });
     render(<LeaguePick code="123456" />);

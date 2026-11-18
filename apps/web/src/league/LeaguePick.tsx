@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { LeaguePickInfo } from '@quiz/shared';
 import { gameLeague, pickLeague } from '../api';
+import { HelpButton } from '../help/HelpButton';
 import { errorText, t } from '../i18n';
 
 /** Панель «Сімейна ліга» в лобі пульта й автора: для якої з груп ведучого ця гра дає бали ліги. */
@@ -30,7 +31,10 @@ export function LeaguePick({ code }: { code: string }) {
   if (info.groups.length === 0)
     return (
       <section className="panel league-pick">
-        <h2>{t('leaguePickTitle')}</h2>
+        <h2>
+          {t('leaguePickTitle')}
+          <HelpButton id="setting.league" />
+        </h2>
         <p className="meta">{t('leaguePickNoGroups')}</p>
       </section>
     );
@@ -49,7 +53,10 @@ export function LeaguePick({ code }: { code: string }) {
 
   return (
     <section className="panel league-pick">
-      <h2>{t('leaguePickTitle')}</h2>
+      <h2>
+          {t('leaguePickTitle')}
+          <HelpButton id="setting.league" />
+        </h2>
       <label className="league-pick-field">
         <span className="meta">{t('leaguePickLabel')}</span>
         <select value={info.groupId ?? ''} disabled={busy} onChange={(event) => void pick(event.target.value === '' ? null : event.target.value)}>
