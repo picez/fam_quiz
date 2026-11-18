@@ -42,7 +42,10 @@ export function tableRepresentable(question: Question): boolean {
   if (question.imageUrl !== null || (question.video ?? null) !== null || question.audio !== undefined || question.reveal !== undefined) return false;
   switch (question.type) {
     case 'single':
-      return question.options.every((option) => option.imageUrl === undefined && option.text.trim() !== '');
+      return (
+        question.options.every((option) => option.imageUrl === undefined && option.text.trim() !== '') &&
+        new Set(question.options.map((option) => fold(option.text))).size === question.options.length
+      );
     case 'boolean':
       return true;
     case 'text':
@@ -80,9 +83,7 @@ export function quizToRows(quiz: Quiz): { rows: XlsxCell[][]; skipped: number } 
         cells[1] = words.types.single[0]!;
         question.options.forEach((option, i) => (cells[4 + i] = option.text));
         const index = question.options.findIndex((option) => option.id === question.correctId);
-        const texts = question.options.map((option) => fold(option.text));
-        const repeated = new Set(texts).size !== texts.length;
-        cells[3] = repeated ? index + 1 : (question.options[index]?.text ?? '');
+        cells[3] = question.options[index]?.text ?? '';
       } else if (question.type === 'boolean') {
         cells[1] = words.types.boolean[0]!;
         cells[3] = question.correct ? words.yes[0]! : words.no[0]!;

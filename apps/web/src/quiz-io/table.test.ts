@@ -84,10 +84,7 @@ describe('quizToRows', () => {
     expect(rows[2]![0]).toBe('Раунд 2');
   });
 
-  it('writes the answer of a choice by number when option texts repeat', () => {
-    const { rows } = quizToRows(quizOf([single('a', 'Q', ['Кіт', 'кіт', 'Пес'], 1)]));
-    expect(rows[1]![3]).toBe(2);
-  });
+it('keeps choice questions with options repeating in another case in the quiz file only', () => {    const repeated = single('a', 'Q', ['Кіт', 'кіт', 'Пес'], 1);    expect(tableRepresentable(repeated)).toBe(false);    const { rows, skipped } = quizToRows(quizOf([repeated, bool('b')]));    expect(rows).toHaveLength(2);    expect(skipped).toBe(1);  });
 
   it('headers follow the interface language', () => {
     activateLocaleForTests('en', { ui: en as Record<string, string> });
