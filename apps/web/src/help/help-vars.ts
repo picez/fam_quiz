@@ -58,6 +58,8 @@ const LIMIT_KEYS = [
   'maxOrderItems',
   'maxPairs',
   'maxPoints',
+  'maxQuestions',
+  'maxQuizQuestions',
   'maxSliderSteps',
   'maxSortCategories',
   'maxSortWords',
