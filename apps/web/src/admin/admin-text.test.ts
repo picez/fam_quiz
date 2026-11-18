@@ -34,7 +34,7 @@ describe('logLine', () => {
 describe('logLine for moderation', () => {
   it('writes the library and report lines', () => {
     expect(logLine(entry({ kind: 'library_hide', details: { title: 'Карпати' } }))).toBe('Адмін сховав(-ла) вікторину «Карпати» (Богдан)');
-    expect(logLine(entry({ kind: 'library_restore', details: { title: 'Карпати' } }))).toBe('Адмін повернув(-ла) вікторину «Карпати» (Богдан) у каталог');
+    expect(logLine(entry({ kind: 'library_restore', details: { title: 'Карпати' } }))).toBe('Адмін зняв(-ла) приховування з вікторини «Карпати» (Богдан)');
     expect(logLine(entry({ kind: 'report_dismiss' }))).toBe('Адмін відхилив(-ла) скаргу на Богдан');
     expect(logLine(entry({ kind: 'appeal_reject', details: { title: 'Карпати' } }))).toBe('Адмін відхилив(-ла) оскарження «Карпати» (Богдан)');
     expect(logLine(entry({ kind: 'avatar_reset' }))).toBe('Адмін скинув(-ла) аватар Богдан');

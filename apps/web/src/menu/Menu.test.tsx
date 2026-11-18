@@ -98,7 +98,7 @@ describe('Menu', () => {
     show('/library');
     await vi.waitFor(() => expect(items()).toEqual(['🎮Меню', '📚Бібліотека', '🔑Увійти']));
     expect(screen.getByRole('link', { name: 'Бібліотека' }).getAttribute('href')).toBe('/library');
-    expect(screen.getByRole('link', { name: 'Бібліотека' }).getAttribute('data-short')).toBe('Бібліо');
+    expect(screen.getByRole('link', { name: 'Бібліотека' }).getAttribute('data-short')).toBe('Каталог');
   });
 
   it.each(['/library', '/library/e1'])('a signed-in person keeps five items and sees My quizzes marked on %s', async (path) => {
