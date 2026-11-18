@@ -58,7 +58,20 @@ describe('«Нове досягнення!» in the room (12j)', () => {
     expect(stage(w.manager, w.room).newAchievements).toEqual({ people: [{ nickname: 'Оля', ids: ['fast_answer', 'in_debt'] }] });
     w.manager.setNewAchievements(w.room, new Map([['u-olya', ['in_debt', 'fast_answer']]]), new Set());
     expect(w.changes()).toBe(before + 1);
-    expect('newAchievements' in (w.manager.view(w.room, HOST) as unknown as Record<string, unknown>)).toBe(false);
+  });
+
+  it('the host gets the room achievements like the stage', () => {
+    const w = world();
+    w.enter('Оля', 'u-olya');
+    w.enter('Віра', 'u-vira');
+    finish(w.manager, w.room);
+    const host = () => w.manager.view(w.room, HOST) as unknown as Record<string, unknown>;
+    expect('newAchievements' in host()).toBe(false);
+    expect('awardsExtra' in host()).toBe(false);
+    w.manager.setNewAchievements(w.room, new Map([['u-olya', ['in_debt', 'fast_answer']], ['u-vira', ['in_debt']]]), new Set(['u-vira']));
+    expect(host().newAchievements).toEqual({ people: [{ nickname: 'Оля', ids: ['fast_answer', 'in_debt'] }] });
+    expect(host().newAchievements).toEqual(stage(w.manager, w.room).newAchievements);
+    expect(host().awardsExtra).toBe(true);
   });
 
   it('hidden anti-achievements leave the stage, never the own phone', () => {

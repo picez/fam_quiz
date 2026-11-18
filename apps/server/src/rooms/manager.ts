@@ -1446,7 +1446,7 @@ export class RoomManager {
     }
     const slide = newAchievementsStage(room);
     if (base.role === 'stage') return { ...base, ...extra, ...(slide === undefined ? {} : { newAchievements: slide }) };
-    return { ...base, ...extra, ...(slide === undefined ? {} : { awardsExtra: true }) };
+    return { ...base, ...extra, ...(slide === undefined ? {} : { awardsExtra: true, newAchievements: slide }) };
   }
 
   private baseView(room: Room, identity: Identity): GameView | null {

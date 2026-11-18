@@ -32,7 +32,11 @@ import {
   type FactInput,
   type FactQuestion,
   type GameAppeal,
+  type AchievementId,
+  ACHIEVEMENTS,
+  isAnti,
   type GameDetail,
+  type GameResultExtras,
   type Answer,
   type GameQuestionResult,
   type GameResponse,
@@ -51,7 +55,7 @@ import { orderBluffOptions } from '@quiz/engine';
 import { and, asc, count, desc, eq, inArray, isNull, ne, or, sql } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
 import type { Db } from './db/client';
-import { ADJUSTMENT_ATTEMPT, answer, appeal, AWAY_ATTEMPT, game, participant, PENALTY_ATTEMPT, scoreAdjustment, VOTE_ATTEMPT, type PlayRef } from './db/schema';
+import { ADJUSTMENT_ATTEMPT, answer, appeal, AWAY_ATTEMPT, game, participant, PENALTY_ATTEMPT, prizeAward, profile, scoreAdjustment, userAchievement, VOTE_ATTEMPT, type PlayRef } from './db/schema';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const LIMIT = 100;
@@ -779,8 +783,59 @@ export async function hostGameWithFacts(db: Db, hostId: string, id: string): Pro
     })),
 
     facts: factsOf(factInput),
+    ...(row.status === 'finished' ? { result: await resultExtras(db, id, participants, standings) } : {}),
   };
   return { detail, factInput };
+}
+
+/**
+ * Для картинки підсумку (38c): вручені призи гри за місцем і досягнення, здобуті вперше в ній. Лише нікнейми й id ачівок:
+ * ні user id, ні email, ні змісту призу крім вигляду трофея (без декору).
+ */
+async function resultExtras(
+  db: Db,
+  gameId: string,
+  participants: { id: string; userId: string | null; nickname: string; teamId: string | null }[],
+  standings: { participantId: string }[],
+): Promise<GameResultExtras> {
+  const awards = await db
+    .select({ place: prizeAward.place, content: prizeAward.content, nickname: prizeAward.nickname })
+    .from(prizeAward)
+    .where(eq(prizeAward.gameId, gameId))
+    .orderBy(asc(prizeAward.place), asc(prizeAward.awardedAt), asc(prizeAward.nickname));
+  const prizes: GameResultExtras['prizes'] = [];
+  for (const award of awards) {
+    const line = prizes.find((p) => p.place === award.place);
+    if (line !== undefined) line.winners.push(award.nickname);
+    else {
+      const trophy = award.content.trophy;
+      prizes.push({ place: award.place, trophy: trophy === null ? null : { kind: trophy.kind, material: trophy.material }, winners: [award.nickname] });
+    }
+  }
+
+  const earned = await db.select({ userId: userAchievement.userId, id: userAchievement.achievementId }).from(userAchievement).where(eq(userAchievement.gameId, gameId));
+  // Без achievement-store (він сам читає історію): хто ховає антидосягнення — profile.hide_anti.
+  const earnedBy = [...new Set(earned.map((e) => e.userId))];
+  const hidden = new Set(
+    earnedBy.length === 0
+      ? []
+      : (await db.select({ id: profile.userId }).from(profile).where(and(inArray(profile.userId, earnedBy), eq(profile.hideAnti, true)))).map((r) => r.id),
+  );
+  const idsOf = (userId: string): AchievementId[] => {
+    const mine = new Set(earned.filter((e) => e.userId === userId && !(hidden.has(userId) && isAnti(e.id))).map((e) => e.id));
+    const all = ACHIEVEMENTS.filter((id) => mine.has(id));
+    return [...all.filter((id) => !isAnti(id)), ...all.filter(isAnti)];
+  };
+  // Люди в порядку таблиці: у командній грі — після рядка команди її люди; нікнейм — з цієї гри.
+  const people = standings.flatMap((s) => {
+    const own = participants.find((p) => p.id === s.participantId);
+    return [...(own === undefined ? [] : [own]), ...participants.filter((p) => p.teamId === s.participantId)];
+  });
+  const achievements = people.flatMap((p) => {
+    const ids = p.userId === null ? [] : idsOf(p.userId);
+    return ids.length === 0 ? [] : [{ nickname: p.nickname, ids }];
+  });
+  return { prizes, achievements };
 }
 
 export interface AnswerMark {

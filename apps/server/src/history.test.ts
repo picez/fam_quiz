@@ -6,7 +6,7 @@ import { buildApp } from './app';
 import { rankPlayers, scoreLines, sortOf } from '@quiz/engine';
 import { answeredTypes, gameQuestionCount, gameTables, hostGame, hostGameWithFacts, hostGames, playerGames } from './history';
 import type { Db } from './db/client';
-import { ADJUSTMENT_ATTEMPT, answer, game, participant, PENALTY_ATTEMPT, user, VOTE_ATTEMPT } from './db/schema';
+import { ADJUSTMENT_ATTEMPT, answer, game, participant, PENALTY_ATTEMPT, prizeAward, profile, user, userAchievement, VOTE_ATTEMPT } from './db/schema';
 import { TEST_AUTH, signUp } from './testing/accounts';
 import { toBetsWager } from './testing/bets-game';
 import { playToEnd } from './testing/final-game';
@@ -2796,5 +2796,102 @@ describe('history: think (35)', () => {
     const own = table.players.find((p) => p.userId === olena.userId);
     expect(own?.rows.some((r) => r.roundIndex === 0 && r.attempt === VOTE_ATTEMPT)).toBe(true);
     expect(await answeredTypes(db, olena.userId)).toEqual(new Set(['think', 'single']));
+  });
+});
+
+describe('game result extras (38c)', () => {
+  const content = (trophy: { kind: 'cup' | 'medal'; material: 'gold' | 'silver' } | null) => ({
+    name: 'Секретна назва',
+    trophy: trophy === null ? null : { ...trophy, decor: { secret: 'stars' } as never },
+    engraving: 'Секретний напис',
+    real: { text: 'Секретний подарунок', photoUrl: null },
+    title: null,
+    diploma: false,
+  });
+
+  async function world(tag: string, status: 'finished' | 'aborted' | 'saved' = 'finished') {
+    const ids = { host: `${tag}-host`, olya: `${tag}-olya`, petro: `${tag}-petro`, ira: `${tag}-ira` };
+    await db.insert(user).values([
+      { id: ids.host, name: 'Ведуча', email: `${ids.host}@example.com` },
+      { id: ids.olya, name: 'Оля Акаунт', email: `${ids.olya}@example.com` },
+      { id: ids.petro, name: 'Петро Акаунт', email: `${ids.petro}@example.com` },
+      { id: ids.ira, name: 'Іра Акаунт', email: `${ids.ira}@example.com` },
+    ]);
+    const { gameId } = await seedGame(db, {
+      hostId: ids.host,
+      status,
+      startedAt: new Date(),
+      players: [
+        { userId: ids.olya, nickname: 'Оля', score: 300, rank: 1 },
+        { userId: ids.petro, nickname: 'Петро', score: 200, rank: 2 },
+        { userId: ids.ira, nickname: 'Іра', score: 100, rank: 3 },
+        { userId: null, nickname: 'Тарас', score: 50, rank: 4 },
+      ],
+    });
+    const award = (userId: string, nickname: string, place: 1 | 2 | 3, trophy: Parameters<typeof content>[0], at: number) =>
+      db.insert(prizeAward).values({ userId, prizeId: crypto.randomUUID(), gameId, place, content: content(trophy), quizTitle: 'Назва', nickname, awardedAt: new Date(at) });
+    return { ids, gameId, award };
+  }
+
+  it('a finished game lists the awarded prizes by place', async () => {
+    const w = await world('res-prizes');
+    await w.award(w.ids.petro, 'Петро', 2, { kind: 'medal', material: 'silver' }, 1000);
+    await w.award(w.ids.olya, 'Оля', 1, { kind: 'cup', material: 'gold' }, 2000);
+    const detail = await hostGame(db, w.ids.host, w.gameId);
+    expect(detail?.result?.prizes).toEqual([
+      { place: 1, trophy: { kind: 'cup', material: 'gold' }, winners: ['Оля'] },
+      { place: 2, trophy: { kind: 'medal', material: 'silver' }, winners: ['Петро'] },
+    ]);
+  });
+
+  it('two members of one team share a prize line', async () => {
+    const w = await world('res-team');
+    await w.award(w.ids.olya, 'Оля', 1, null, 1000);
+    await w.award(w.ids.ira, 'Іра', 1, null, 2000);
+    const detail = await hostGame(db, w.ids.host, w.gameId);
+    expect(detail?.result?.prizes).toEqual([{ place: 1, trophy: null, winners: ['Оля', 'Іра'] }]);
+  });
+
+  it('achievements earned in this game with the game nickname', async () => {
+    const w = await world('res-ach');
+    const other = await seedGame(db, { hostId: w.ids.host, startedAt: new Date(), players: [] });
+    await db.insert(profile).values([{ userId: w.ids.petro, hideAnti: true }, { userId: w.ids.ira, hideAnti: true }]);
+    await db.insert(userAchievement).values([
+      { userId: w.ids.petro, achievementId: 'fast_answer', gameId: w.gameId },
+      { userId: w.ids.petro, achievementId: 'in_debt', gameId: w.gameId },
+      { userId: w.ids.ira, achievementId: 'in_debt', gameId: w.gameId },
+      { userId: w.ids.olya, achievementId: 'in_debt', gameId: w.gameId },
+      { userId: w.ids.olya, achievementId: 'first_game', gameId: w.gameId },
+      { userId: w.ids.olya, achievementId: 'fast_answer', gameId: other.gameId },
+      { userId: w.ids.olya, achievementId: 'team_win', gameId: null },
+    ]);
+    const detail = await hostGame(db, w.ids.host, w.gameId);
+    // Оля — перша в standings; Петро без антидосягнення (ховає); Іра з самим антидосягненням не входить.
+    expect(detail?.result?.achievements).toEqual([
+      { nickname: 'Оля', ids: ['first_game', 'in_debt'] },
+      { nickname: 'Петро', ids: ['fast_answer'] },
+    ]);
+  });
+
+  it('no result key for an aborted or saved game', async () => {
+    for (const status of ['aborted', 'saved'] as const) {
+      const w = await world(`res-${status}`, status);
+      const detail = await hostGame(db, w.ids.host, w.gameId);
+      expect(detail !== null && 'result' in detail).toBe(false);
+    }
+  });
+
+  it('an old finished game has empty lists', async () => {
+    const w = await world('res-old');
+    const detail = await hostGame(db, w.ids.host, w.gameId);
+    expect(detail?.result).toEqual({ prizes: [], achievements: [] });
+  });
+
+  it('no private fields', async () => {
+    const w = await world('res-private');
+    await w.award(w.ids.olya, 'Оля', 1, { kind: 'cup', material: 'gold' }, 1000);
+    await db.insert(userAchievement).values({ userId: w.ids.olya, achievementId: 'first_game', gameId: w.gameId });
+    const json = JSON.stringify((await hostGame(db, w.ids.host, w.gameId))?.result);
+    for (const secret of [w.ids.olya, w.ids.petro, w.ids.host, '@example.com', 'Акаунт', 'Секретн', 'secret']) expect(json).not.toContain(secret);
   });
 });

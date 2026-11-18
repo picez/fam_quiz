@@ -2564,6 +2564,8 @@ export interface HostPace { next: PaceWindow | null; lock: PaceWindow | null; sk
 export interface HostView extends BaseView {
   /** «Нові досягнення» (12j): у каруселі «Нагород гри» є слайд досягнень — кнопка показу потрібна й без нагород. Ставить сервер; немає — false. */
   awardsExtra?: boolean;
+  /** Нові досягнення кімнати (38c), як у сцени; ставить сервер; немає — ніхто нічого не отримав. */
+  newAchievements?: NewAchievementsStage;
   /** Оберіг гравців (15a): id гравця → готовий чи спрацював; ключа немає, коли оберегів немає. */
   wards?: Record<string, 'ready' | 'spent'>;
   role: 'host';
