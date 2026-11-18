@@ -45,9 +45,9 @@ export interface QuestionBankPage {
 }
 
 /** Ключі, під якими лежить текст для пошуку (на будь-якій глибині). */
-const TEXT_KEYS = new Set(['text', 'hint']);
+const TEXT_KEYS = new Set(['text', 'hint', 'word']);
 /** Ключі масивів рядків (відповіді, підказки, слова, шлях). */
-const LIST_KEYS = new Set(['accepted', 'clues', 'lies', 'words', 'path']);
+const LIST_KEYS = new Set(['accepted', 'clues', 'lies', 'words', 'path', 'synonyms']);
 /** Адреси, ідентифікатори й медіа в пошук не входять. */
 const SKIP_KEYS = new Set(['id', 'imageUrl', 'url', 'video', 'audio', 'photo', 'original', 'changed']);
 
@@ -62,6 +62,7 @@ function collect(value: unknown, out: string[]): void {
     if (TEXT_KEYS.has(key) && typeof child === 'string') out.push(child);
     else if (LIST_KEYS.has(key) && Array.isArray(child)) {
       for (const item of child) if (typeof item === 'string') out.push(item);
+        else collect(item, out);
     } else collect(child, out);
   }
 }

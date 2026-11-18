@@ -81,3 +81,31 @@ describe('question bank search', () => {
     for (const raw of bad) expect(questionBankQuerySchema.safeParse(raw).success, JSON.stringify(raw)).toBe(false);
   });
 });
+
+describe('question bank search, lists of objects', () => {
+  it('finds sort words and think words with their synonyms, not their ids', () => {
+    const sort = parse({
+      id: 's1',
+      type: 'sort',
+      text: 'Овочі й фрукти',
+      points: 100,
+      lockSeconds: 3,
+      categories: [
+        { id: 'cat-veg', text: 'Овочі' },
+        { id: 'cat-fruit', text: 'Фрукти' },
+      ],
+      words: [
+        { id: 'w1', text: 'Морква', categoryId: 'cat-veg' },
+        { id: 'w2', text: 'Яблуко', categoryId: 'cat-fruit' },
+        { id: 'w3', text: 'Буряк', categoryId: 'cat-veg' },
+        { id: 'w4', text: 'Груша', categoryId: 'cat-fruit' },
+      ],
+    });
+    const found = questionSearchText(sort);
+    for (const part of ['Морква', 'Яблуко', 'Овочі', 'Фрукти']) expect(found).toContain(part);
+    expect(found).not.toContain('cat-veg');
+    expect(matchesBankQuery(sort, 'морква')).toBe(true);
+    const think = parse({ id: 't1', type: 'think', text: 'Море', points: 0, words: [{ word: 'Хвиля', synonyms: ['Прибій', 'Вал'] }] });
+    for (const part of ['Хвиля', 'Прибій', 'Вал']) expect(questionSearchText(think)).toContain(part);
+  });
+});
