@@ -4,6 +4,7 @@ import { Link, useParams } from 'react-router-dom';
 import { follow, getProfile, unfollow } from '../api';
 import { errorText, t } from '../i18n';
 import { AchievementShowcase } from '../profile/AchievementShowcase';
+import { ReportDialog } from '../library/ReportDialog';
 import { LikesCard } from '../profile/LikesCard';
 import { LeagueTitles } from '../profile/LeagueTitles';
 import { ProfileHeader } from '../profile/ProfileHeader';
@@ -24,6 +25,7 @@ export function PublicProfile() {
   const [problem, setProblem] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [allAwards, setAllAwards] = useState(false);
+  const [reporting, setReporting] = useState(false);
   const inFlight = useRef(false);
 
   useEffect(() => {
@@ -95,6 +97,11 @@ export function PublicProfile() {
             </button>
           </p>
         )}
+        {following !== null && (
+          <button type="button" className="btn btn-small" onClick={() => setReporting(true)}>
+            {t('reportButton')}
+          </button>
+        )}
         {following === null && isOwner && <Link to="/profile">{t('thisIsYou')}</Link>}
         {following === null && account.status === 'anonymous' && (
           <Link to={`/login?next=${encodeURIComponent(`/profile/${profile.id}`)}`}>{t('signInToFollow')}</Link>
@@ -120,6 +127,7 @@ export function PublicProfile() {
         <StatsView stats={profile.stats} />
       </section>
       {account.status === 'signed-in' && !isOwner && <VersusBlock id={profile.id} nickname={nickText(profile.nickname)} />}
+      {reporting && <ReportDialog target={{ kind: 'profile', userId: profile.id }} onClose={() => setReporting(false)} />}
     </main>
   );
 }

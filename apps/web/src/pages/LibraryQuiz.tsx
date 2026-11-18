@@ -4,6 +4,7 @@ import { Link, useLocation, useParams } from 'react-router-dom';
 import { ROUND_NAMES } from '../guide-text';
 import { errorText, t } from '../i18n';
 import { LibraryFacts } from '../library/LibraryCardView';
+import { ReportDialog } from '../library/ReportDialog';
 import { copyLibrary, libraryQuiz, likeLibrary } from '../library/library-api';
 import { useAccount } from '../useAccount';
 
@@ -19,6 +20,7 @@ export function LibraryQuiz(): JSX.Element {
   const [copyId, setCopyId] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [reporting, setReporting] = useState(false);
 
   useEffect(() => {
     let current = true;
@@ -103,6 +105,9 @@ export function LibraryQuiz(): JSX.Element {
           <button type="button" className="btn btn-primary" disabled={busy || copyId !== null} onClick={copy}>
             {t('libraryCopy')}
           </button>
+          <button type="button" className="btn" onClick={() => setReporting(true)}>
+            {t('reportButton')}
+          </button>
         </div>
       )}
       {copyId !== null && (
@@ -123,6 +128,7 @@ export function LibraryQuiz(): JSX.Element {
           {actionError}
         </p>
       )}
+      {reporting && <ReportDialog target={{ kind: 'quiz', entryId: quiz.id }} onClose={() => setReporting(false)} />}
     </main>
   );
 }

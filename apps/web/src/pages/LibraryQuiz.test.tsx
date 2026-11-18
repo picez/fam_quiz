@@ -5,11 +5,11 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { forgetAccount } from '../useAccount';
 import { me } from '../api';
-import { copyLibrary, libraryQuiz, likeLibrary } from '../library/library-api';
+import { copyLibrary, libraryQuiz, likeLibrary, sendReport } from '../library/library-api';
 import { LibraryQuiz } from './LibraryQuiz';
 
 vi.mock('../api', () => ({ me: vi.fn() }));
-vi.mock('../library/library-api', () => ({ libraryQuiz: vi.fn(), likeLibrary: vi.fn(), copyLibrary: vi.fn() }));
+vi.mock('../library/library-api', () => ({ libraryQuiz: vi.fn(), likeLibrary: vi.fn(), copyLibrary: vi.fn(), sendReport: vi.fn() }));
 
 const detail = (over: Partial<LibraryDetail> = {}): LibraryDetail => ({
   id: 'e1',
@@ -44,6 +44,7 @@ beforeEach(() => {
   vi.mocked(libraryQuiz).mockResolvedValue({ ok: true, data: detail() });
   vi.mocked(likeLibrary).mockResolvedValue({ ok: true, data: { likes: 4, liked: true } });
   vi.mocked(copyLibrary).mockResolvedValue({ ok: true, data: { id: 'q9' } });
+  vi.mocked(sendReport).mockResolvedValue({ ok: true });
 });
 afterEach(cleanup);
 
@@ -101,6 +102,30 @@ describe('LibraryQuiz', () => {
     await screen.findByRole('heading', { level: 1 });
     expect(screen.queryByRole('button', { name: 'Копіювати собі' })).toBeNull();
     expect(screen.queryByRole('button', { name: /Подобається/ })).toBeNull();
+  });
+
+  it('opens the report dialog for an account and reports the quiz entry', async () => {
+    show();
+    fireEvent.click(await screen.findByRole('button', { name: 'Поскаржитись' }));
+    expect(screen.getByRole('dialog', { name: 'Скарга' })).toBeTruthy();
+    expect(sendReport).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByLabelText('Спам'));
+    fireEvent.click(screen.getByRole('button', { name: 'Надіслати' }));
+    await vi.waitFor(() => expect(sendReport).toHaveBeenCalledWith({ target: { kind: 'quiz', entryId: 'e1' }, reason: 'spam' }));
+  });
+
+  it('offers no report button to a guest or to the author', async () => {
+    vi.mocked(me).mockResolvedValue({ ok: false, error: 'unauthorized' });
+    show();
+    await screen.findByText('Увійди, щоб копіювати, вподобати чи поскаржитись');
+    expect(screen.queryByRole('button', { name: 'Поскаржитись' })).toBeNull();
+    cleanup();
+    forgetAccount();
+    vi.mocked(me).mockResolvedValue(OLENA);
+    vi.mocked(libraryQuiz).mockResolvedValue({ ok: true, data: detail({ mine: true }) });
+    show();
+    await screen.findByRole('heading', { level: 1 });
+    expect(screen.queryByRole('button', { name: 'Поскаржитись' })).toBeNull();
   });
 
   it('says not found for a missing quiz', async () => {

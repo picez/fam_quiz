@@ -5,9 +5,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { shelfColumns, type PublicProfile as PublicProfileData } from '@quiz/shared';
 import { t } from '../i18n';
 import { follow, getProfile, getVersus, me, unfollow } from '../api';
+import { sendReport } from '../library/library-api';
 import { PublicProfile } from './PublicProfile';
 
 vi.mock('../api', () => ({ me: vi.fn(), getProfile: vi.fn(), follow: vi.fn(), unfollow: vi.fn(), getVersus: vi.fn() }));
+vi.mock('../library/library-api', () => ({ sendReport: vi.fn() }));
 
 const profile = (over: Partial<PublicProfileData> = {}): PublicProfileData => ({
   leagueTitles: [],
@@ -54,6 +56,35 @@ const open = () =>
   );
 
 describe('PublicProfile', () => {
+  it('reports another profile from an account, without any extra request on opening', async () => {
+    const spy = vi.spyOn(globalThis, 'fetch');
+    vi.mocked(sendReport).mockResolvedValue({ ok: true });
+    open();
+    const button = await screen.findByRole('button', { name: 'Поскаржитись' });
+    expect(getProfile).toHaveBeenCalledTimes(1);
+    expect(me).toHaveBeenCalledTimes(1);
+    expect(sendReport).not.toHaveBeenCalled();
+    expect(spy).not.toHaveBeenCalled();
+    fireEvent.click(button);
+    fireEvent.click(screen.getByLabelText('Особисті дані'));
+    fireEvent.click(screen.getByRole('button', { name: 'Надіслати' }));
+    await vi.waitFor(() => expect(sendReport).toHaveBeenCalledWith({ target: { kind: 'profile', userId: 'u2' }, reason: 'personal' }));
+    spy.mockRestore();
+  });
+
+  it('offers no report button to a guest or on your own profile', async () => {
+    vi.mocked(me).mockResolvedValue({ ok: false, error: 'unauthorized' });
+    vi.mocked(getProfile).mockResolvedValue({ ok: true, data: profile({ following: null }) });
+    open();
+    await screen.findByRole('heading', { name: /Тарас/ });
+    expect(screen.queryByRole('button', { name: 'Поскаржитись' })).toBeNull();
+    cleanup();
+    vi.mocked(me).mockResolvedValue({ ok: true, id: 'u2', name: 'Тарас', email: 't@example.com', admin: false });
+    open();
+    await screen.findByRole('heading', { name: /Тарас/ });
+    expect(screen.queryByRole('button', { name: 'Поскаржитись' })).toBeNull();
+  });
+
   it('shows the league titles, and nothing else about the league', async () => {
     vi.mocked(getProfile).mockResolvedValue({ ok: true, data: profile({ leagueTitles: [{ group: 'Родина', month: '2026-10' }] }) });
     open();
