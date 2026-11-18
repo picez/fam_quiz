@@ -4,6 +4,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { CHALLENGE_SKIP_SETTINGS, type ChallengeCheck, type ChallengeMine } from '@quiz/shared';
 import { createChallenge, getChallengeCheck, type QuizSummary } from '../api';
 import { ROUND_NAMES } from '../guide-text';
+import { HelpButton } from '../help/HelpButton';
 import { errorText, t } from '../i18n';
 import { daysLeftText, playedText } from './challenge-text';
 
@@ -132,6 +133,7 @@ export function ChallengeLaunch({ quiz, onClose, onCreated }: { quiz: QuizSummar
       <div ref={cardRef} className="table-card autopilot-card challenge-card" onClick={(event) => event.stopPropagation()}>
         <div className="autopilot-head">
           <h2>{t('challengeTitle')}</h2>
+          <HelpButton id="setting.challenge" />
         </div>
         <p className="meta" dir="auto">{quiz.title}</p>
         <p>{t('challengeLead')}</p>

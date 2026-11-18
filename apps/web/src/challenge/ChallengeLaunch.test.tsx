@@ -142,4 +142,14 @@ describe('ChallengeLaunch', () => {
     fireEvent.keyDown(document, { key: 'Escape' });
     expect(onClose).toHaveBeenCalledTimes(1);
   });
+  it('the header has the ⓘ help; it opens the entry and Escape then closes only the help', async () => {
+    open();
+    await createButton();
+    fireEvent.click(screen.getByRole('button', { name: t('helpOpen', { title: t('challengeTitle') }) }));
+    const pop = document.querySelector('.help-pop');
+    expect(pop).not.toBeNull();
+    expect(pop!.textContent).toContain(t('challengeTitle'));
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(onClose).not.toHaveBeenCalled();
+  });
 });
