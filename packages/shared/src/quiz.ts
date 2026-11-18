@@ -193,6 +193,12 @@ export const LIMITS = {
   maxWordLadderWords: 40,
   wordLadderWord: 30,
   defaultWordLadderTime: 90,
+  /** «Вгадай слово» (48): літер у слові (найменше, найбільше), спроб, символів у слові до нормалізації, типовий час (с). */
+  minWordleLetters: 4,
+  maxWordleLetters: 7,
+  wordleTries: 6,
+  wordleWord: 20,
+  defaultWordleTime: 120,
   /** «Ставки» (27a): стеля початкової ставки, кроку й найбільшої ставки; типові початок і крок. */
   maxBet: 100_000,
   defaultBetStart: 200,
