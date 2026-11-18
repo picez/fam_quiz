@@ -7,6 +7,7 @@ import { forgetAccount } from '../useAccount';
 import { checkCode, createGame, createQuiz, deleteQuiz, getAutopilotCheck, getMyProfile, listQuizzes, me } from '../api';
 import { t } from '../i18n';
 import { loadHost, loadLastGame, saveAuthor, saveHost, saveLastGame } from '../storage';
+import { importQuizFile } from '../quiz-io/actions';
 import { Quizzes } from './Quizzes';
 
 vi.mock('../api', () => ({
@@ -20,6 +21,8 @@ vi.mock('../api', () => ({
   getMyProfile: vi.fn(),
   createAutopilotGame: vi.fn(),
 }));
+
+vi.mock('../quiz-io/actions');
 
 const account = { ok: true as const, id: 'u1', name: 'Олена', email: 'o@example.com', admin: false };
 const summary = { id: 'q1', title: 'Географія', description: 'Про Україну', questionCount: 6, updatedAt: '2026-10-12T10:00:00.000Z' };
@@ -45,6 +48,7 @@ const open = () =>
         <Route path="/login" element={<p>сторінка входу</p>} />
         <Route path="/host/:code" element={<p>пульт</p>} />
         <Route path="/play/:code" element={<p>телефон</p>} />
+        <Route path="/quizzes/:id" element={<p>редактор</p>} />
         <Route path="/" element={<p>головна</p>} />
       </Routes>
     </MemoryRouter>,
@@ -121,6 +125,28 @@ describe('Quizzes', () => {
     await waitFor(() => expect(createQuiz).toHaveBeenCalledTimes(1));
     expect(roundQuestions(vi.mocked(createQuiz).mock.calls[0][0].rounds[0])).toHaveLength(8);
     await waitFor(() => expect(listQuizzes).toHaveBeenCalledTimes(2));
+  });
+
+  it('offers Export on each quiz and Import next to the new quiz', async () => {
+    open();
+    await screen.findByText('Географія');
+    expect(screen.getAllByText('Експорт')).toHaveLength(1);
+    expect(screen.getByRole('button', { name: 'Імпорт' })).toBeTruthy();
+  });
+
+  it('imports a file, opens the editor and returns focus on close', async () => {
+    vi.mocked(importQuizFile).mockResolvedValue({ ok: true, id: 'n1' });
+    open();
+    const button = await screen.findByRole('button', { name: 'Імпорт' });
+    button.focus();
+    fireEvent.click(button);
+    expect(screen.getByRole('dialog', { name: 'Імпорт вікторини' })).toBeTruthy();
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(document.activeElement).toBe(button);
+    fireEvent.click(button);
+    fireEvent.change(document.querySelector('input[type=file]')!, { target: { files: [new File(['x'], 'a.quiz')] } });
+    expect(await screen.findByText('редактор')).toBeTruthy();
   });
 
   it('has no sign-out button: it moved to the profile', async () => {

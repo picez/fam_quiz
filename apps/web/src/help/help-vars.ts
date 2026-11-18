@@ -20,6 +20,7 @@ const LIMIT_KEYS = [
   'defaultMelodyTime',
   'defaultVideoclipTime',
   'defaultMemoryTime',
+  'defaultPoints',
   'defaultSpotdiffTime',
   'defaultSudokuTime',
   'defaultQuestTries',
