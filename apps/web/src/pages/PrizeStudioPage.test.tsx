@@ -34,6 +34,7 @@ const item = (id: string, name: string, over: Partial<PrizeItem> = {}): PrizeIte
 });
 
 const profile: OwnProfile = {
+  leagueTitles: [],
   id: 'u1',
   nickname: 'Олена',
   avatar: null,

@@ -51,6 +51,7 @@ const award = (id: string): AwardCard => ({
 });
 
 const mine: OwnProfile = {
+  leagueTitles: [],
   id: 'u1',
   nickname: 'Олена',
   avatar: null,

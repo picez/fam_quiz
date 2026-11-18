@@ -233,6 +233,7 @@ export async function ownProfile(db: Db, current: CurrentUser): Promise<OwnProfi
     // Ретро й наздоганяння досвіду (15a) — усередині ownLevel, раз і перед читанням рівня; збій профіль не ламає.
     level: await ownLevel(db, current.id),
     likes: await likeTotals(db, current.id),
+    leagueTitles: [],
   };
 }
 
@@ -256,6 +257,7 @@ export async function publicProfile(db: Db, id: string, viewerId: string | null)
     showcase: hide ? { ...showcase, pins: { ...showcase.pins, achievements: showcase.pins.achievements.filter((a) => !isAnti(a)) } } : showcase,
     level: await publicLevel(db, id),
     likes: await likeTotals(db, id),
+    leagueTitles: [],
   };
 }
 

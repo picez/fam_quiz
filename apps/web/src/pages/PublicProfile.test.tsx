@@ -10,6 +10,7 @@ import { PublicProfile } from './PublicProfile';
 vi.mock('../api', () => ({ me: vi.fn(), getProfile: vi.fn(), follow: vi.fn(), unfollow: vi.fn(), getVersus: vi.fn() }));
 
 const profile = (over: Partial<PublicProfileData> = {}): PublicProfileData => ({
+  leagueTitles: [],
   id: 'u2',
   nickname: 'Тарас',
   avatar: null,

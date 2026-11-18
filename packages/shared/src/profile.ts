@@ -2,6 +2,7 @@ import { z } from 'zod';
 import type { Achievement } from './achievements';
 import type { PlayedGame } from './history';
 import type { OwnLevel, PublicLevel } from './levels';
+import type { LeagueTitle } from './league';
 import type { LikeTotals } from './likes';
 import type { Showcase } from './prizes';
 import { LIMITS } from './quiz';
@@ -54,6 +55,8 @@ export interface GameInvite {
 }
 
 export interface PublicProfile extends ProfileCard {
+  /** Титули ліги (45): лише назва групи й місяць; найновіші першими. */
+  leagueTitles: LeagueTitle[];
   stats: ProfileStats;
   achievements: Achievement[];
   /** Чи підписаний той, хто дивиться; null — не увійшов або це його власний профіль. */
@@ -91,6 +94,8 @@ export interface Versus {
 }
 
 export interface OwnProfile extends ProfileCard {
+  /** Титули ліги (45), найновіші першими. */
+  leagueTitles: LeagueTitle[];
   level: OwnLevel;
   likes: LikeTotals;
   email: string;

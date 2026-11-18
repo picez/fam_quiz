@@ -61,6 +61,7 @@ vi.mock('../../locales/locales', async (importOriginal) => {
 });
 
 const mine: OwnProfile = {
+  leagueTitles: [],
   id: 'u1',
   nickname: 'Олена',
   avatar: null,
