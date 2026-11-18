@@ -4,6 +4,7 @@ import {
   achievementRarity,
   levelOf,
   levelProgress,
+  levelUpRewards,
   looksAllowed,
   looksShown,
   nextRewards,
@@ -12,12 +13,14 @@ import {
   rewardsUpTo,
   xpForLevel,
   type AchievementId,
+  type GameXpMoment,
   type LooksInput,
   type NickLevel,
   type NickLooks,
   type OwnLevel,
   type PublicLevel,
   type StickerExtra,
+  type XpLine,
 } from '@quiz/shared';
 import { and, asc, eq, gt, inArray, isNotNull, isNull, notExists, sql } from 'drizzle-orm';
 import { loadAchievementGames, type AchievementGame } from './achievement-games';
@@ -41,6 +44,12 @@ const authorOf = sql<string>`coalesce(${quiz.ownerId}, ${game.hostId})`;
 interface GameMeta {
   quizId: string | null;
   ownerId: string | null;
+}
+
+/** Вікторина, автор і ведучий гри одним запитом; гри немає — усе null. */
+async function gameMeta(db: Db, gameId: string): Promise<GameMeta & { hostId: string | null }> {
+  const [roles] = await db.select({ quizId: game.quizId, hostId: game.hostId, ownerId: authorOf }).from(game).leftJoin(quiz, eq(quiz.id, game.quizId)).where(eq(game.id, gameId));
+  return { quizId: roles?.quizId ?? null, ownerId: roles?.ownerId ?? null, hostId: roles?.hostId ?? null };
 }
 
 type EntryInsert = typeof xpEntry.$inferInsert;
@@ -246,8 +255,7 @@ export async function syncXp(db: Db, userId: string, onError: (e: unknown) => vo
 export async function creditGame(db: Db, gameId: string, onError: (e: unknown) => void = logError): Promise<void> {
   const [loaded] = await loadAchievementGames(db, [gameId]);
   if (loaded === undefined) return;
-  const [roles] = await db.select({ quizId: game.quizId, hostId: game.hostId, ownerId: authorOf }).from(game).leftJoin(quiz, eq(quiz.id, game.quizId)).where(eq(game.id, gameId));
-  const meta: GameMeta = { quizId: roles?.quizId ?? null, ownerId: roles?.ownerId ?? null };
+  const meta = await gameMeta(db, gameId);
   const players = gameXp(loaded, meta.ownerId, () => false).map((a) => a.userId);
   for (const userId of players) {
     try {
@@ -266,7 +274,7 @@ export async function creditGame(db: Db, gameId: string, onError: (e: unknown) =
     }
   }
   // Ачівки ведучого й автора (12i видає й їм).
-  for (const userId of new Set([roles?.hostId ?? null, meta.ownerId])) {
+  for (const userId of new Set([meta.hostId, meta.ownerId])) {
     if (userId === null || players.includes(userId)) continue;
     try {
       await creditAchievements(db, userId);
@@ -274,6 +282,69 @@ export async function creditGame(db: Db, gameId: string, onError: (e: unknown) =
       onError(error);
     }
   }
+}
+
+/** Місце акаунта в таблиці гри (перший рядок, як у gameXp; команда — місце команди). */
+function rankOf(loaded: AchievementGame, userId: string): number {
+  for (const player of loaded.players) {
+    if (player.rank === null) continue;
+    if (loaded.teams ? player.members.some((m) => m.userId === userId) : player.userId === userId) return player.rank;
+  }
+  return 0;
+}
+
+/**
+ * Після creditGame (49): userId → картка для кожного акаунта таблиці, що має рядок xp_entry цієї гри; читає лише записане
+ * (повтор і перезапуск дають те саме). Розбивка — з правил (gameXp.parts), факт — рядок гри: причина-правило — рядків гри немає,
+ * cap — рядок зі знаком мінус (amount − base). Досягнення — рядки 'achievement' тих user_achievement, що з цієї гри, у порядку ACHIEVEMENTS.
+ * Незавершена гра — порожньо.
+ */
+export async function gameXpMoments(db: Db, gameId: string): Promise<Map<string, GameXpMoment>> {
+  const moments = new Map<string, GameXpMoment>();
+  const [loaded] = await loadAchievementGames(db, [gameId]);
+  if (loaded === undefined) return moments;
+  const meta = await gameMeta(db, gameId);
+  const awards = new Map(gameXp(loaded, meta.ownerId, () => false).map((a) => [a.userId, a]));
+  if (awards.size === 0) return moments;
+  const ids = [...awards.keys()];
+  const games = await db
+    .select({ userId: xpEntry.userId, amount: xpEntry.amount, reason: xpEntry.reason })
+    .from(xpEntry)
+    .where(and(eq(xpEntry.source, 'game'), eq(xpEntry.gameId, gameId), inArray(xpEntry.userId, ids)));
+  if (games.length === 0) return moments;
+  const earned = await db
+    .select({ userId: xpEntry.userId, id: xpEntry.achievementId, amount: xpEntry.amount })
+    .from(xpEntry)
+    .innerJoin(userAchievement, and(eq(userAchievement.userId, xpEntry.userId), eq(userAchievement.achievementId, xpEntry.achievementId)))
+    .where(and(eq(xpEntry.source, 'achievement'), eq(userAchievement.gameId, gameId), inArray(xpEntry.userId, ids)));
+  const totals = await xpTotals(
+    db,
+    games.map((row) => row.userId),
+  );
+  for (const row of games) {
+    const award = awards.get(row.userId)!;
+    const lines: XpLine[] = [];
+    if (row.reason === null || row.reason === 'cap') {
+      const { parts } = award;
+      if (parts.join > 0) lines.push({ kind: 'join', xp: parts.join });
+      if (parts.correct > 0) lines.push({ kind: 'correct', xp: parts.correct, count: parts.correctCount });
+      if (parts.place > 0) lines.push({ kind: 'place', xp: parts.place, place: rankOf(loaded, row.userId) });
+      if (row.reason === 'cap') lines.push({ kind: 'cap', xp: row.amount - award.base });
+    }
+    let gained = row.amount;
+    const mine = new Map(earned.filter((e) => e.userId === row.userId && e.id !== null).map((e) => [e.id!, e.amount]));
+    for (const id of ACHIEVEMENTS) {
+      const xp = mine.get(id);
+      if (xp === undefined) continue;
+      lines.push({ kind: 'achievement', xp, id });
+      gained += xp;
+    }
+    const now = totals.get(row.userId) ?? 0;
+    const before = levelProgress(now - gained);
+    const after = levelProgress(now);
+    moments.set(row.userId, { gained, lines, reason: row.reason, before, after, unlocked: levelUpRewards(before.level, after.level) });
+  }
+  return moments;
 }
 
 export async function xpTotals(db: Db, userIds: string[]): Promise<Map<string, number>> {

@@ -7,7 +7,8 @@ import { profile, quiz, user, userAchievement, xpEntry } from './db/schema';
 import { ensureProfile } from './profiles';
 import { seedGame, type SeedPlayer } from './testing/history-rows';
 import { createTestDb } from './testing/test-db';
-import { accountLevel, creditAchievements, creditGame, ownLevel, publicLevel, roomLevels, saveLooks, settleStickerLegacy, stickerAccess, syncXp, unlockTimes, xpTotals } from './xp-store';
+import { kyivDay } from './xp-rules';
+import { accountLevel, creditAchievements, creditGame, gameXpMoments, ownLevel, publicLevel, roomLevels, saveLooks, settleStickerLegacy, stickerAccess, syncXp, unlockTimes, xpTotals } from './xp-store';
 
 const HOST = 'xp-host';
 const AUTHOR = 'xp-author';
@@ -646,5 +647,161 @@ describe('sticker inheritance (34, «м\'якше»)', () => {
     expect(access.get(owl)).toEqual({ packs: ['spooky'], legacyLevel: null });
     expect(access.get(waiting)).toEqual({ packs: [], legacyLevel: 7 });
     expect(access.get('nobody')).toEqual({ packs: [], legacyLevel: null });
+  });
+});
+
+describe('the xp moment of a game (49)', () => {
+  /** Гра з 3 акаунтами: winner — 1-е місце з 4 правильними, ще один — 2-ге, гість — 3-тє, last — 4-те з 0. */
+  async function threeAccounts(spec: { quizId?: string | null; finishedAt: Date; ids?: string[] }) {
+    const [winner, second, last] = spec.ids ?? (await accounts(3));
+    const gameId = await finishedGame({
+      quizId: spec.quizId,
+      questions: 5,
+      finishedAt: spec.finishedAt,
+      players: [
+        { userId: winner, rank: 1, correct: 4 },
+        { userId: second, rank: 2, correct: 1 },
+        { userId: null, rank: 3, correct: 5 },
+        { userId: last, rank: 4, correct: 0 },
+      ],
+    });
+    return { gameId, winner, second, last };
+  }
+
+  const earn = (userId: string, achievementId: 'first_game' | 'first_win', gameId: string, at: Date) =>
+    db.insert(userAchievement).values({ userId, achievementId, earnedAt: at, gameId });
+
+  it('lines from the rules, gained from the rows', async () => {
+    const ids = await accounts(3);
+    for (const id of ids) await synced(id);
+    const finishedAt = new Date('2026-10-23T18:00:00Z');
+    const { gameId, winner, last } = await threeAccounts({ finishedAt, ids });
+    await earn(winner, 'first_game', gameId, finishedAt);
+    await creditGame(db, gameId);
+    const moments = await gameXpMoments(db, gameId);
+    expect([...moments.keys()].sort()).toEqual([...ids].sort());
+    const mine = moments.get(winner)!;
+    expect(mine.lines).toEqual([
+      { kind: 'join', xp: 50 },
+      { kind: 'correct', xp: 40, count: 4 },
+      { kind: 'place', xp: 100, place: 1 },
+      { kind: 'achievement', xp: 25, id: 'first_game' },
+    ]);
+    expect(mine.gained).toBe(215);
+    expect(mine.reason).toBeNull();
+    expect(mine.after.xp).toBe(await total(winner));
+    expect(mine.before.xp).toBe(mine.after.xp - 215);
+    expect(moments.get(last)!).toMatchObject({ lines: [{ kind: 'join', xp: 50 }], gained: 50, reason: null });
+  });
+
+  it('the daily cap shows as a minus line', async () => {
+    const ids = await accounts(3);
+    for (const id of ids) await synced(id);
+    const finishedAt = new Date('2026-10-24T18:00:00Z');
+    await db.insert(xpEntry).values({ userId: ids[0], source: 'game', amount: 550, counted: true, day: kyivDay(finishedAt), at: finishedAt, createdAt: finishedAt });
+    const { gameId, winner } = await threeAccounts({ finishedAt, ids });
+    await earn(winner, 'first_win', gameId, finishedAt);
+    await earn(winner, 'first_game', gameId, finishedAt);
+    await creditGame(db, gameId);
+    const mine = (await gameXpMoments(db, gameId)).get(winner)!;
+    expect(mine.lines).toEqual([
+      { kind: 'join', xp: 50 },
+      { kind: 'correct', xp: 40, count: 4 },
+      { kind: 'place', xp: 100, place: 1 },
+      { kind: 'cap', xp: -140 },
+      { kind: 'achievement', xp: 25, id: 'first_game' },
+      { kind: 'achievement', xp: 25, id: 'first_win' },
+    ]);
+    expect(mine.gained).toBe(50 + 25 + 25);
+    expect(mine.reason).toBe('cap');
+    expect(mine.after.xp).toBe(550 + 100);
+  });
+
+  it('a zero game keeps only the reason and the achievements', async () => {
+    // Соло: один акаунт у таблиці.
+    const [me] = await accounts(1);
+    await synced(me);
+    const finishedAt = new Date('2026-10-25T18:00:00Z');
+    const solo = await finishedGame({ questions: 5, finishedAt, players: [{ userId: me, rank: 1, correct: 5 }] });
+    await earn(me, 'first_game', solo, finishedAt);
+    await creditGame(db, solo);
+    expect((await gameXpMoments(db, solo)).get(me)).toMatchObject({ lines: [{ kind: 'achievement', xp: 25, id: 'first_game' }], gained: 25, reason: 'few_accounts' });
+
+    // Автор у таблиці.
+    const [author, a, b, c] = await accounts(4);
+    for (const id of [author, a, b, c]) await synced(id);
+    const quizId = await newQuiz(author);
+    const own = await finishedGame({
+      quizId,
+      questions: 5,
+      finishedAt,
+      players: [author, a, b, c].map((userId, i) => ({ userId, rank: i + 1, correct: 2 })),
+    });
+    await creditGame(db, own);
+    expect((await gameXpMoments(db, own)).get(author)).toMatchObject({ lines: [], gained: 0, reason: 'author' });
+
+    // Друга гра з тією ж вікториною.
+    const ids = await accounts(3);
+    for (const id of ids) await synced(id);
+    const same = await newQuiz();
+    const first = await threeAccounts({ quizId: same, finishedAt, ids });
+    await creditGame(db, first.gameId);
+    const again = await threeAccounts({ quizId: same, finishedAt: new Date('2026-10-25T20:00:00Z'), ids });
+    await creditGame(db, again.gameId);
+    const repeat = (await gameXpMoments(db, again.gameId)).get(again.winner)!;
+    expect(repeat).toMatchObject({ lines: [], gained: 0, reason: 'repeat_quiz' });
+    expect(repeat.before).toEqual(repeat.after);
+  });
+
+  it('a level up lists what opened', async () => {
+    const ids = await accounts(3);
+    for (const id of ids) await synced(id);
+    const finishedAt = new Date('2026-10-26T18:00:00Z');
+    const yesterday = new Date('2026-10-25T18:00:00Z');
+    await db.insert(xpEntry).values({ userId: ids[0], source: 'game', amount: xpForLevel(2) - 10, counted: true, day: kyivDay(yesterday), at: yesterday, createdAt: yesterday });
+    const { gameId, winner } = await threeAccounts({ finishedAt, ids });
+    await earn(winner, 'first_game', gameId, finishedAt);
+    await creditGame(db, gameId);
+    const mine = (await gameXpMoments(db, gameId)).get(winner)!;
+    expect(mine.before.level).toBe(1);
+    expect(mine.after.level).toBe(2);
+    expect(mine.unlocked).toContainEqual({ level: 2, reward: { kind: 'color', id: 'sky' } });
+    expect(mine.unlocked.every((u) => u.level === 2)).toBe(true);
+  });
+
+  it('retro and repeats give the same moment', async () => {
+    const finishedAt = new Date('2026-10-27T18:00:00Z');
+    const live = await accounts(3);
+    for (const id of live) await synced(id);
+    const liveGame = await threeAccounts({ finishedAt, ids: live });
+    await earn(liveGame.winner, 'first_game', liveGame.gameId, finishedAt);
+    await creditGame(db, liveGame.gameId);
+    // Без мітки: creditGame іде через syncXp (ретро).
+    const fresh = await threeAccounts({ finishedAt });
+    await earn(fresh.winner, 'first_game', fresh.gameId, finishedAt);
+    await creditGame(db, fresh.gameId);
+    expect(await gameRow(fresh.winner, fresh.gameId)).toMatchObject({ retro: true });
+
+    const first = await gameXpMoments(db, fresh.gameId);
+    const liveMoments = await gameXpMoments(db, liveGame.gameId);
+    expect(first.get(fresh.winner)).toEqual(liveMoments.get(liveGame.winner));
+    expect(first.get(fresh.last)).toEqual(liveMoments.get(liveGame.last));
+    const count = async () => (await db.select().from(xpEntry).where(inArray(xpEntry.userId, [fresh.winner, fresh.second, fresh.last]))).length;
+    const before = await count();
+    await creditGame(db, fresh.gameId);
+    expect(await gameXpMoments(db, fresh.gameId)).toEqual(first);
+    expect(await count()).toBe(before);
+  });
+
+  it('a game that never finished', async () => {
+    const [a, b, c] = await accounts(3);
+    const { gameId } = await seedGame(db, {
+      hostId: HOST,
+      status: 'running',
+      startedAt: new Date('2026-10-28T18:00:00Z'),
+      questionsPlayed: 6,
+      players: [a, b, c].map((userId, i) => ({ userId, nickname: `Н${i}`, score: 0, rank: i + 1 })),
+    });
+    expect(await gameXpMoments(db, gameId)).toEqual(new Map());
   });
 });
