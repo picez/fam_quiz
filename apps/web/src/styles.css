@@ -25954,3 +25954,21 @@ input.sudoku-editor-cell:focus-visible {
 .league-titles li {
   overflow-wrap: anywhere;
 }
+
+/* 47: аркуш «📚 Відкрити для всіх» у «Моїх вікторинах». */
+.library-sheet .field select {
+  min-width: 0;
+  width: 100%;
+}
+
+.library-warning {
+  margin: 0;
+  padding: 0.625rem 0.75rem;
+  border: 1px solid var(--amber);
+  border-radius: var(--radius);
+  font-weight: 700;
+}
+
+.library-line {
+  overflow-wrap: anywhere;
+}

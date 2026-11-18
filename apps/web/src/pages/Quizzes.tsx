@@ -1,12 +1,14 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link, Navigate, useNavigate } from 'react-router-dom';
-import type { ChallengeMine } from '@quiz/shared';
+import type { ChallengeMine, LibraryMine } from '@quiz/shared';
 import { deleteQuiz, listMyChallenges, listQuizzes, type QuizSummary } from '../api';
 import { ChallengeLaunch } from '../challenge/ChallengeLaunch';
 import { daysLeftText, playedText } from '../challenge/challenge-text';
 import { RunningGameBanner, addDemoQuiz, useStartGame } from '../host-game';
 import { quizSizeText } from '../format';
 import { errorText, t } from '../i18n';
+import { myLibrary } from '../library/library-api';
+import { LibraryShare, libraryStatusText } from '../library/LibraryShare';
 import { useAccount } from '../useAccount';
 import { ExportMenu } from '../quiz-io/ExportMenu';
 import { ImportDialog } from '../quiz-io/ImportDialog';
@@ -24,6 +26,8 @@ export function Quizzes() {
   const [launch, setLaunch] = useState<QuizSummary | null>(null);
   const [challengeFor, setChallengeFor] = useState<QuizSummary | null>(null);
   const [challenges, setChallenges] = useState<ChallengeMine[]>([]);
+  const [libraryFor, setLibraryFor] = useState<QuizSummary | null>(null);
+  const [library, setLibrary] = useState<LibraryMine[]>([]);
   const [importOpen, setImportOpen] = useState(false);
   const navigate = useNavigate();
   const signedIn = account.status === 'signed-in';
@@ -41,6 +45,9 @@ export function Quizzes() {
     // Рядок про виклик — додатковий: якщо список викликів не прийшов, вікторини все одно видно.
     const active = await listMyChallenges();
     if (active.ok) setChallenges(active.data);
+    // Так само — стан «у бібліотеці»: окремий запит, його збій не ховає вікторини.
+    const shared = await myLibrary();
+    if (shared.ok) setLibrary(shared.data);
   }, [fail]);
 
   useEffect(() => {
@@ -111,6 +118,9 @@ export function Quizzes() {
         <button type="button" className="btn" disabled={busy} onClick={() => setImportOpen(true)}>
           {t('ioImport')}
         </button>
+        <Link className="btn" to="/library">
+          {t('libraryButton')}
+        </Link>
         <Link className="btn" to="/help">
           {t('helpLink')}
         </Link>
@@ -132,6 +142,11 @@ export function Quizzes() {
                 <h2 dir="auto">{quiz.title}</h2>
                 {quiz.description !== '' && <p className="meta">{quiz.description}</p>}
                 <p className="meta">{quizSizeText(t('questionCount', { count: quiz.questionCount }), quiz.questionCount, quiz.truth)}</p>
+                {library.filter((one) => one.quizId === quiz.id).map((one) => (
+                  <p className="meta library-line" key={one.entryId}>
+                    {libraryStatusText(one)}
+                  </p>
+                ))}
                 {challenges.filter((one) => one.quizId === quiz.id).map((one) => (
                   <p className="meta challenge-line" key={one.code}>
                     {t('challengeActive', { days: daysLeftText(one.expiresAt), played: playedText(one.played) })}{' '}
@@ -148,6 +163,9 @@ export function Quizzes() {
                 </button>
                 <button type="button" className="btn" disabled={busy} onClick={() => setChallengeFor(quiz)}>
                   {t('challengeButton')}
+                </button>
+                <button type="button" className="btn" disabled={busy} onClick={() => setLibraryFor(quiz)}>
+                  {t('libraryButton')}
                 </button>
                 <Link className="btn" to={`/quizzes/${quiz.id}`}>
                   {t('edit')}
@@ -167,6 +185,14 @@ export function Quizzes() {
           quiz={challengeFor}
           onClose={() => setChallengeFor(null)}
           onCreated={(mine) => setChallenges((all) => [...all.filter((one) => one.quizId !== mine.quizId), mine])}
+        />
+      )}
+      {libraryFor !== null && (
+        <LibraryShare
+          quiz={libraryFor}
+          entry={library.find((one) => one.quizId === libraryFor.id) ?? null}
+          onClose={() => setLibraryFor(null)}
+          onChanged={(mine) => setLibrary((all) => [...all.filter((one) => one.quizId !== libraryFor.id), ...(mine === null ? [] : [mine])])}
         />
       )}
       {launch !== null && <AutopilotLaunch quiz={launch} onClose={() => setLaunch(null)} />}
