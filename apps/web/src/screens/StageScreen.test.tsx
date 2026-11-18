@@ -964,6 +964,33 @@ describe('StageScreen final', () => {
     expect(screen.queryByText(/Правильна відповідь:/)).toBeNull();
   });
 
+  it('48: a wordle shows colour-only grids while playing, then the word, letters and points', () => {
+    const wordleQ = { ...question, type: 'wordle' as const, text: 'Вгадайте слово', choices: [], wordle: { letters: 5, tries: 6 } };
+    const marks = [['near', 'hit', 'miss', 'miss', 'miss'] as ('hit' | 'near' | 'miss')[]];
+    const info = {
+      letters: 5,
+      tries: 6,
+      word: null,
+      rows: [
+        { playerId: 'p1', nickname: 'Олена', marks, guesses: null, solved: false, tries: 1, points: null },
+        { playerId: 'p2', nickname: 'Тарас', marks: [], guesses: null, solved: false, tries: 0, points: null },
+      ],
+    };
+    const { unmount } = show(view({ phase: 'question', questionIndex: 0, question: wordleQ, endsAt: Date.now() + 20_000, playerCount: 2, answeredCount: 0, wordle: info }));
+    expect(screen.getByText('Вгадуйте на телефонах')).toBeTruthy();
+    expect(document.querySelector('.wordle-board .wordle-cell.is-hit')?.getAttribute('aria-label')).toBe('на місці');
+    expect(document.body.textContent).not.toContain('колос');
+    expect(document.body.textContent).not.toContain('сосна');
+    expect([...document.querySelectorAll('.wordle-board .wordle-cell')].every((cell) => cell.textContent === '')).toBe(true);
+    unmount();
+    const rows = [{ ...info.rows[0], guesses: [['с', 'о', 'с', 'н', 'а']], points: 0 }, { ...info.rows[1], points: 0 }];
+    show(view({ phase: 'reveal', questionIndex: 0, question: wordleQ, playerCount: 2, answeredCount: 1, wordle: { ...info, word: 'колос', rows } }));
+    expect(screen.getByText('КОЛОС')).toBeTruthy();
+    expect(screen.getByLabelText('о — на місці')).toBeTruthy();
+    expect(screen.getAllByText('не вгадав').length).toBe(2);
+    expect(screen.queryByText(/Правильна відповідь:/)).toBeNull();
+  });
+
   it('letter words show only counts while playing', () => {
     const lettersQ = { ...question, type: 'letterwords' as const, text: 'Складіть слова з літер', choices: [], letterwords: { letters: ['м', 'о', 'р', 'к', 'в', 'а', 'с', 'т', 'і'], goal: 'most' as const, per: 'word' as const, unit: 20 } };
     const rows = [

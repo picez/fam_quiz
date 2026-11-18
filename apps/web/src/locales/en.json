@@ -4583,7 +4583,7 @@
   "wordleMiss": "not in the word",
   "wordleCell": "{letter} — {state}",
   "wordleLegend": "Marks",
-  "wordleSolved": "Solved in {tries}!",
+  "wordleSolved": "Solved on try {tries}!",
   "wordleOut": "No tries left",
   "wordleWatch": "The captain is guessing — watch the team grid",
   "wordleWordIs": "Word: {word}",

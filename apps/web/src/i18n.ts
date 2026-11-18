@@ -4453,7 +4453,7 @@ const uk = {
   wordleMiss: 'немає',
   wordleCell: '{letter} — {state}',
   wordleLegend: 'Позначки',
-  wordleSolved: 'Вгадано за {tries}!',
+  wordleSolved: 'Вгадано з {tries}-ї спроби!',
   wordleOut: 'Спроби скінчилися',
   wordleWatch: 'Вгадує капітан — дивіться на сітку команди',
   wordleWordIs: 'Слово: {word}',

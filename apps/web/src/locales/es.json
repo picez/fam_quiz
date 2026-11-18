@@ -4651,7 +4651,7 @@
   "wordleMiss": "no está",
   "wordleCell": "{letter} — {state}",
   "wordleLegend": "Marcas",
-  "wordleSolved": "¡Acertada en {tries}!",
+  "wordleSolved": "¡Acertada en el intento {tries}!",
   "wordleOut": "Se acabaron los intentos",
   "wordleWatch": "Adivina el capitán: mira la cuadrícula del equipo",
   "wordleWordIs": "Palabra: {word}",

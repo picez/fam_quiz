@@ -4583,7 +4583,7 @@
   "wordleMiss": "nicht im Wort",
   "wordleCell": "{letter} — {state}",
   "wordleLegend": "Markierungen",
-  "wordleSolved": "Erraten in {tries}!",
+  "wordleSolved": "Im {tries}. Versuch erraten!",
   "wordleOut": "Keine Versuche mehr",
   "wordleWatch": "Der Kapitän rät — schau auf das Raster des Teams",
   "wordleWordIs": "Wort: {word}",

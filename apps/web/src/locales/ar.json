@@ -4855,7 +4855,7 @@
   "wordleMiss": "ليس في الكلمة",
   "wordleCell": "{letter} — {state}",
   "wordleLegend": "العلامات",
-  "wordleSolved": "تم التخمين في {tries}!",
+  "wordleSolved": "خمّنتها في المحاولة رقم {tries}!",
   "wordleOut": "انتهت المحاولات",
   "wordleWatch": "القائد يخمّن — تابعوا شبكة الفريق",
   "wordleWordIs": "الكلمة: {word}",

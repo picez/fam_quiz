@@ -4651,7 +4651,7 @@
   "wordleMiss": "non c’è",
   "wordleCell": "{letter} — {state}",
   "wordleLegend": "Segni",
-  "wordleSolved": "Indovinata in {tries}!",
+  "wordleSolved": "Indovinata al tentativo {tries}!",
   "wordleOut": "Tentativi esauriti",
   "wordleWatch": "Indovina il capitano: guarda la griglia della squadra",
   "wordleWordIs": "Parola: {word}",

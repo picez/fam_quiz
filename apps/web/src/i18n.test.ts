@@ -435,6 +435,26 @@ describe('uk golden (22a)', () => {
     expect(ar).toHaveProperty('summaryWordles_zero');
   });
 
+  it('«solved on try N» reads correctly for every try 1…6 in every language', () => {
+    const tries = [1, 2, 3, 4, 5, 6];
+    const solved = (dict: Record<string, string>) => {
+      activateLocaleForTests(dict === ukMessages ? 'uk' : 'en', dict === ukMessages ? undefined : { ui: dict });
+      return tries.map((n) => t('wordleSolved', { tries: n }));
+    };
+    try {
+      // Порядковий номер, а не кількість: «з 1-ї спроби», «on try 1», «im 1. Versuch» — без відмінків числа.
+      expect(solved(ukMessages)).toEqual(tries.map((n) => `Вгадано з ${n}-ї спроби!`));
+      expect(solved(en)).toEqual(tries.map((n) => `Solved on try ${n}!`));
+      expect(solved(de)).toEqual(tries.map((n) => `Im ${n}. Versuch erraten!`));
+      expect(solved(es)).toEqual(tries.map((n) => `¡Acertada en el intento ${n}!`));
+      expect(solved(it_)).toEqual(tries.map((n) => `Indovinata al tentativo ${n}!`));
+      expect(solved(pl)).toEqual(tries.map((n) => `Odgadnięte za ${n}. razem!`));
+      expect(solved(ar)).toEqual(tries.map((n) => `خمّنتها في المحاولة رقم ${n}!`));
+    } finally {
+      activateLocaleForTests('uk');
+    }
+  });
+
   it('wordle help page is in every language', () => {
     const pages: Record<string, Record<string, string>> = { en: enHelp, pl: plHelp, de: deHelp, es: esHelp, it: itHelp, ar: arHelp };
     for (const [lang, dict] of Object.entries(pages)) {

@@ -4667,7 +4667,7 @@
   "wordleMiss": "brak w słowie",
   "wordleCell": "{letter} — {state}",
   "wordleLegend": "Oznaczenia",
-  "wordleSolved": "Odgadnięto w {tries}!",
+  "wordleSolved": "Odgadnięte za {tries}. razem!",
   "wordleOut": "Próby się skończyły",
   "wordleWatch": "Zgaduje kapitan — patrz na siatkę drużyny",
   "wordleWordIs": "Słowo: {word}",
