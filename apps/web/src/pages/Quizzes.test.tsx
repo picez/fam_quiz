@@ -4,7 +4,7 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { roundQuestions } from '@quiz/shared';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { forgetAccount } from '../useAccount';
-import { checkCode, createGame, createQuiz, deleteQuiz, getAutopilotCheck, getMyProfile, listQuizzes, me } from '../api';
+import { checkCode, createGame, createQuiz, deleteQuiz, getAutopilotCheck, getChallengeCheck, getMyProfile, listMyChallenges, listQuizzes, me } from '../api';
 import { t } from '../i18n';
 import { loadHost, loadLastGame, saveAuthor, saveHost, saveLastGame } from '../storage';
 import { importQuizFile } from '../quiz-io/actions';
@@ -18,6 +18,8 @@ vi.mock('../api', () => ({
   deleteQuiz: vi.fn(),
   createGame: vi.fn(),
   getAutopilotCheck: vi.fn(),
+  getChallengeCheck: vi.fn(),
+  listMyChallenges: vi.fn(),
   getMyProfile: vi.fn(),
   createAutopilotGame: vi.fn(),
 }));
@@ -34,6 +36,7 @@ beforeEach(() => {
   localStorage.clear();
   vi.mocked(me).mockResolvedValue(account);
   vi.mocked(listQuizzes).mockResolvedValue({ ok: true, data: [summary] });
+  vi.mocked(listMyChallenges).mockResolvedValue({ ok: true, data: [] });
 });
 afterEach(() => {
   cleanup();
@@ -147,6 +150,25 @@ describe('Quizzes', () => {
     fireEvent.click(button);
     fireEvent.change(document.querySelector('input[type=file]')!, { target: { files: [new File(['x'], 'a.quiz')] } });
     expect(await screen.findByText('редактор')).toBeTruthy();
+  });
+
+  it('the challenge button and the active line', async () => {
+    vi.mocked(listQuizzes).mockResolvedValue({ ok: true, data: [summary, { ...summary, id: 'q2', title: 'Історія' }] });
+    vi.mocked(listMyChallenges).mockResolvedValue({ ok: true, data: [{ quizId: 'q1', code: 'abcdefghjkmn', expiresAt: new Date(Date.now() + 6.5 * 86_400_000).toISOString(), played: 2 }] });
+    vi.mocked(getChallengeCheck).mockResolvedValue({ ok: true, data: { skipped: { rounds: [], questions: [], settings: [] }, empty: false, active: null } });
+    open();
+    await screen.findByText('Історія');
+    const rows = screen.getAllByRole('listitem');
+    const first = rows.find((row) => row.textContent!.includes('Географія'))!;
+    const second = rows.find((row) => row.textContent!.includes('Історія'))!;
+    await waitFor(() => expect(first.textContent).toContain('🏁 Виклик: лишилося 7 днів · зіграли 2 людини'));
+    const link = [...first.querySelectorAll('a')].find((a) => a.textContent === 'Таблиця')!;
+    expect(link.getAttribute('href')).toBe('/challenge/abcdefghjkmn');
+    expect(second.textContent).not.toContain('лишилося');
+    expect(screen.getAllByRole('button', { name: '🏁 Виклик' })).toHaveLength(2);
+    fireEvent.click(screen.getAllByRole('button', { name: '🏁 Виклик' })[1]!);
+    expect(screen.getByRole('dialog', { name: 'Виклик другові' })).toBeTruthy();
+    expect(getChallengeCheck).toHaveBeenCalledWith('q2');
   });
 
   it('has no sign-out button: it moved to the profile', async () => {

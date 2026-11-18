@@ -12635,6 +12635,27 @@ button.wall-tile:disabled {
   gap: 0.5rem;
 }
 
+/* 44: вікно «🏁 Виклик» і рядок про активний виклик у списку вікторин. */
+.challenge-card {
+  overflow-wrap: anywhere;
+}
+
+.challenge-link {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.challenge-link .field input {
+  min-width: 0;
+  font-size: 1rem;
+}
+
+.challenge-line {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
 /* 11h: лобі автора на телефоні */
 .author-lobby {
   display: grid;

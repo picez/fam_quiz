@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link, Navigate, useNavigate } from 'react-router-dom';
-import { deleteQuiz, listQuizzes, type QuizSummary } from '../api';
+import type { ChallengeMine } from '@quiz/shared';
+import { deleteQuiz, listMyChallenges, listQuizzes, type QuizSummary } from '../api';
+import { ChallengeLaunch } from '../challenge/ChallengeLaunch';
+import { daysLeftText, playedText } from '../challenge/challenge-text';
 import { RunningGameBanner, addDemoQuiz, useStartGame } from '../host-game';
 import { quizSizeText } from '../format';
 import { errorText, t } from '../i18n';
@@ -19,6 +22,8 @@ export function Quizzes() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [launch, setLaunch] = useState<QuizSummary | null>(null);
+  const [challengeFor, setChallengeFor] = useState<QuizSummary | null>(null);
+  const [challenges, setChallenges] = useState<ChallengeMine[]>([]);
   const [importOpen, setImportOpen] = useState(false);
   const navigate = useNavigate();
   const signedIn = account.status === 'signed-in';
@@ -33,6 +38,9 @@ export function Quizzes() {
     const result = await listQuizzes();
     if (result.ok) setQuizzes(result.data);
     else fail(result.error);
+    // Рядок про виклик — додатковий: якщо список викликів не прийшов, вікторини все одно видно.
+    const active = await listMyChallenges();
+    if (active.ok) setChallenges(active.data);
   }, [fail]);
 
   useEffect(() => {
@@ -124,6 +132,12 @@ export function Quizzes() {
                 <h2 dir="auto">{quiz.title}</h2>
                 {quiz.description !== '' && <p className="meta">{quiz.description}</p>}
                 <p className="meta">{quizSizeText(t('questionCount', { count: quiz.questionCount }), quiz.questionCount, quiz.truth)}</p>
+                {challenges.filter((one) => one.quizId === quiz.id).map((one) => (
+                  <p className="meta challenge-line" key={one.code}>
+                    {t('challengeActive', { days: daysLeftText(one.expiresAt), played: playedText(one.played) })}{' '}
+                    <Link to={`/challenge/${one.code}`}>{t('challengeResultsLink')}</Link>
+                  </p>
+                ))}
               </div>
               <div className="toolbar">
                 <button type="button" className="btn btn-primary" disabled={busy} onClick={() => play(quiz)}>
@@ -131,6 +145,9 @@ export function Quizzes() {
                 </button>
                 <button type="button" className="btn" disabled={busy} onClick={() => setLaunch(quiz)}>
                   {t('autopilotLaunch')}
+                </button>
+                <button type="button" className="btn" disabled={busy} onClick={() => setChallengeFor(quiz)}>
+                  {t('challengeButton')}
                 </button>
                 <Link className="btn" to={`/quizzes/${quiz.id}`}>
                   {t('edit')}
@@ -145,6 +162,13 @@ export function Quizzes() {
         </ul>
       )}
       {importOpen && <ImportDialog onClose={() => setImportOpen(false)} onImported={(id) => navigate(`/quizzes/${id}`)} />}
+      {challengeFor !== null && (
+        <ChallengeLaunch
+          quiz={challengeFor}
+          onClose={() => setChallengeFor(null)}
+          onCreated={(mine) => setChallenges((all) => [...all.filter((one) => one.quizId !== mine.quizId), mine])}
+        />
+      )}
       {launch !== null && <AutopilotLaunch quiz={launch} onClose={() => setLaunch(null)} />}
     </main>
   );
