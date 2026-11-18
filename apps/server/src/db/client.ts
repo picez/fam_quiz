@@ -14,7 +14,8 @@ export const MIGRATIONS = resolve(import.meta.dirname, '../../drizzle');
 const logError = (error: Error) => log.error({ err: error }, 'Database connection error');
 
 export function createPool(url: string, onError: (error: Error) => void = logError): pg.Pool {
-  // Одне завантаження профілю тепер займає до ~7 з'єднань одразу, тож стеля вища за типові 10.
+  // Одне холодне завантаження профілю тримає до ~10–12 з'єднань на піку (хвилі паралельних читань), тож стеля вища за типові 10.
+  // Понад max запити стають у чергу, а не падають (connectionTimeoutMillis за замовчуванням 0): запис ігор чекає, але не губиться.
   const pool = new pg.Pool({ connectionString: url, max: 20 });
   // Без слухача помилка простою з'єднання (перезапуск бази, обрив мережі) завершила б
   // увесь процес разом з іграми, яким база під час гри не потрібна.

@@ -5,7 +5,10 @@
  *   pnpm --filter @quiz/server profile:timing <userId> [--runs 5]   — база DATABASE_URL (локальна копія після db:restore)
  *   pnpm --filter @quiz/server profile:timing --fixture [--runs 5]  — засіяна кар'єра плану 46 у PGlite в пам'яті
  *
- * Базу не мігрує (не connectDb). Перші проходи першого виклику доповнюють історію й синхронізують ачівки — тому медіана.
+ * УВАГА: скрипт ПИШЕ в базу так само, як перегляд сторінки: ensureProfile, синхронізація ачівок (доповнення історії й пропущених ігор),
+ * дарування XP і закриття місяця ліги. Це не «лише читання».
+ * Базу не мігрує (не connectDb). Прогін 1 — холодний (перший перегляд після деплою: порожній кеш форм ігор, перша синхронізація),
+ * тому виводиться окремо; медіана — по теплих прогонах 2 і далі.
  * Нелокальна база (не localhost) — лише з --allow-remote: на прод скрипт не ходить без явного дозволу.
  */
 import { PGlite } from '@electric-sql/pglite';
@@ -81,7 +84,12 @@ async function measure(name: string, runs: number, run: () => Promise<unknown>):
     last = log;
     log = null;
   }
-  console.log(`\n${name}: median ${median(totals).toFixed(1)} ms over ${runs} runs (${totals.map((t) => t.toFixed(0)).join(', ')}), ${last.length} queries in the last run`);
+  const warm = totals.slice(1);
+  const summary =
+    warm.length > 0
+      ? `cold run 1: ${totals[0]!.toFixed(1)} ms; warm median ${median(warm).toFixed(1)} ms over runs 2-${runs}`
+      : `cold run 1: ${totals[0]!.toFixed(1)} ms (no warm runs: use --runs 2 or more)`;
+  console.log(`\n${name}: ${summary} (${totals.map((t) => t.toFixed(0)).join(', ')}), ${last.length} queries in the last run`);
   for (const q of [...last].sort((a, b) => b.ms - a.ms).slice(0, 5)) console.log(`  ${q.ms.toFixed(1).padStart(8)} ms  ${String(q.rows).padStart(5)} rows  ${q.sql}`);
 }
 
@@ -109,7 +117,7 @@ async function main(): Promise<void> {
     } catch {
       // describeTarget уже сказав, що адреса не читається.
     }
-    if (!LOCAL_HOSTS.has(host) && !args.includes('--allow-remote')) throw new Error(`${host || 'this'} is not a local database: pass --allow-remote only with the owner's permission`);
+    if (!LOCAL_HOSTS.has(host) && !args.includes('--allow-remote')) throw new Error(`${host || 'this'} is not a local database: pass --allow-remote only with the owner's permission (the script WRITES like a page view: achievement sync, XP, league settlement)`);
     target = { ...(await openPostgres(url)), userId };
   }
 
