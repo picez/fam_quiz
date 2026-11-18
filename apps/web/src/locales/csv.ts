@@ -10,8 +10,29 @@ export function toCsv(rows: string[][]): string {
   return BOM + rows.map((row) => `${row.map(cell).join(',')}\r\n`).join('');
 }
 
-/** Знімає BOM, приймає LF і CRLF, лапки й переноси в лапках. Порожні рядки пропускає. */
-export function parseCsv(text: string): string[][] {
+/** Роздільник — той із `,` і `;`, якого більше в першому рядку поза лапками (нічия — кома). */
+export function detectDelimiter(text: string): ',' | ';' {
+  const source = text.startsWith(BOM) ? text.slice(1) : text;
+  let commas = 0;
+  let semicolons = 0;
+  let quoted = false;
+  for (const char of source) {
+    if (char === '"') quoted = !quoted;
+    else if (!quoted) {
+      if (char === '\n' || char === '\r') break;
+      if (char === ',') commas++;
+      else if (char === ';') semicolons++;
+    }
+  }
+  return semicolons > commas ? ';' : ',';
+}
+
+/**
+ * Знімає BOM, приймає LF і CRLF, лапки й переноси в лапках. Порожні рядки пропускає,
+ * а з `keepEmpty` лишає як `['']` (щоб номери рядків збігалися з файлом).
+ */
+export function parseCsv(text: string, options: { delimiter?: ',' | ';'; keepEmpty?: boolean } = {}): string[][] {
+  const delimiter = options.delimiter ?? ',';
   const source = text.startsWith(BOM) ? text.slice(1) : text;
   const rows: string[][] = [];
   let row: string[] = [];
@@ -20,7 +41,7 @@ export function parseCsv(text: string): string[][] {
   const endRow = () => {
     row.push(field);
     field = '';
-    if (!(row.length === 1 && row[0] === '')) rows.push(row);
+    if (options.keepEmpty || !(row.length === 1 && row[0] === '')) rows.push(row);
     row = [];
   };
   for (let index = 0; index < source.length; index++) {
@@ -32,7 +53,7 @@ export function parseCsv(text: string): string[][] {
         index++;
       } else quoted = false;
     } else if (char === '"') quoted = true;
-    else if (char === ',') {
+    else if (char === delimiter) {
       row.push(field);
       field = '';
     } else if (char === '\n') endRow();
