@@ -50,6 +50,8 @@ function filled(question: Question): Question {
       return { ...question, text, accepted: ['Правда'], lies: ['Вигадка 1', 'Вигадка 2'] };
     case 'spy':
       return { ...question, text, accepted: ['Кава'], spyWord: 'Чай' };
+    case 'wordle':
+      return { ...question, text, word: 'сосна' };
     case 'survey':
       return { ...question, text, rows: question.rows.map((row, i) => ({ ...row, text: `Відповідь ${i + 1}`, popularity: 10 + i })) };
     case 'timedlist':
@@ -400,11 +402,19 @@ describe('wall, poll and word cloud: checks and drafts (10d)', () => {
   });
 });
 
+describe('a new wordle question (48)', () => {
+  it('starts with an empty word, the default timer and no video, hint or reveal', () => {
+    const question = newQuestion('wordle');
+    expect(question).toMatchObject({ type: 'wordle', word: '', timeLimit: LIMITS.defaultWordleTime, video: null });
+    expect(question).not.toHaveProperty('hint');
+  });
+});
+
 describe('changeType', () => {
   it('keeps the question text, time and points', () => {
     const source = { ...newQuestion('single'), text: 'Скільки?', timeLimit: 45, points: 500 };
     // Сортування, стіна, блеф, опитування й хмара мають власні час чи бали: їх перевіряють окремі тести.
-    for (const type of QUESTION_TYPES.filter((candidate) => !['sort', 'wall', 'poll', 'wordcloud', 'bluff', 'wordladder', 'timedlist', 'letterwords', 'moreless', 'drawing', 'sudoku', 'crossword', 'jigsaw', 'spotdiff', 'memory', 'melody', 'videoclip', 'spy', 'think'].includes(candidate))) {
+    for (const type of QUESTION_TYPES.filter((candidate) => !['sort', 'wall', 'poll', 'wordcloud', 'bluff', 'wordladder', 'timedlist', 'letterwords', 'moreless', 'drawing', 'sudoku', 'crossword', 'jigsaw', 'spotdiff', 'memory', 'melody', 'videoclip', 'spy', 'wordle', 'think'].includes(candidate))) {
       const changed = changeType(source, type);
       expect(changed.type).toBe(type);
       expect([changed.id, changed.text, changed.timeLimit, changed.points]).toEqual([source.id, 'Скільки?', 45, 500]);

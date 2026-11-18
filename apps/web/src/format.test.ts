@@ -43,6 +43,11 @@ describe('survey texts (10e)', () => {
     expect(answerText(spyAnswer, null)).toBe('аромат');
     expect(answerText({ ...spyAnswer, word: null }, null)).toBe('—');
     expect(correctText({ ...base, type: 'spy' } as never)).toBe('Шпигун і слово гравців');
+    const wordle = (tries: number, solved: boolean): Answer => ({ type: 'wordle', guesses: ['сосна', 'колос'].slice(0, tries), tries, solved });
+    expect(answerText(wordle(2, true), null)).toBe('вгадав за 2 спроби');
+    expect(answerText(wordle(1, true), null)).toBe('вгадав за 1 спробу');
+    expect(answerText(wordle(6, false), null)).toBe('не вгадав');
+    expect(correctText({ ...base, type: 'wordle', word: "м'ясо" } as never)).toBe("М'ЯСО");
     expect(answerText({ type: 'survey', values: ['яблучко', 'ананас'], rows: ['a', null] }, survey)).toBe('яблучко ✓, ананас ✗');
     expect(answerText({ type: 'survey', values: ['яблучко', 'ананас'] } as unknown as Answer, survey)).toBe('яблучко, ананас');
   });

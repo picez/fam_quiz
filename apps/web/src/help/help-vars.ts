@@ -75,6 +75,7 @@ const LIMIT_KEYS = [
   'maxWipeoutQuestions',
   'maxWordLadderLetters',
   'maxWordLadderSteps',
+  'maxWordleLetters',
   'minAudioSeconds',
   'minBluffSpares',
   'minCategories',
@@ -110,6 +111,7 @@ const LIMIT_KEYS = [
   'minWallMistakes',
   'minWipeoutQuestions',
   'minWordLadderLetters',
+  'minWordleLetters',
   'pinMaxAspect',
   'pinMaxFullRadius',
   'pinMaxZeroRadius',
@@ -125,6 +127,7 @@ const LIMIT_KEYS = [
   'wallGroupName',
   'wallTile',
   'wipeoutDecideSeconds',
+  'wordleTries',
 ] as const satisfies readonly (keyof typeof LIMITS)[];
 
 /** Секунди з мс без одиниці (одиницю «с» пише текст): десятковий знак мови — «1,5» (uk) / «1.5» (en). */

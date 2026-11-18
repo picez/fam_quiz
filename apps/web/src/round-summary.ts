@@ -86,6 +86,7 @@ export function roundSummary(brief: RoundBrief, autopilot = false): string[] {
     if (brief.videoclips !== undefined && brief.videoclips > 0) lines.push(countText('summaryVideoclips', brief.videoclips, { count: brief.videoclips }));
     if (brief.thinkalikes !== undefined && brief.thinkalikes > 0) lines.push(countText('summaryAlikes', brief.thinkalikes, { count: brief.thinkalikes }));
     if (brief.spies !== undefined && brief.spies > 0) lines.push(countText('summarySpies', brief.spies, { count: brief.spies }));
+    if (brief.wordles !== undefined && brief.wordles > 0) lines.push(countText('summaryWordles', brief.wordles, { count: brief.wordles }));
   } else if (brief.type === 'blitz' && brief.instant) {
     lines.push(t('summaryBlitz'), t('summaryBlitzInstant'), modifiers(brief, []));
   } else if (brief.type === 'blitz') {

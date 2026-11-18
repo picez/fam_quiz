@@ -43,6 +43,8 @@ export function questionLines(question: Question): string[] {
         return question.words;
       case 'wordladder':
         return question.path;
+      case 'wordle':
+        return [question.word];
       case 'sort':
         return [...question.categories.map((c) => c.text), ...question.words.map((w) => w.text)];
       case 'clues':

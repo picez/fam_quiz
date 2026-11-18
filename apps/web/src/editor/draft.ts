@@ -416,6 +416,11 @@ function build(common: Common, type: QuestionType): Question {
     case 'wordladder':
       // Старт, одне проміжне слово й ціль; без відео — без таймера драбина не закінчиться.
       return { ...common, video: null, type, timeLimit: LIMITS.defaultWordLadderTime, path: ['', '', ''], maxSteps: LIMITS.defaultWordLadderSteps };
+    case 'wordle': {
+      // 48: «Вгадай слово» — без відео (потрібен таймер), «перевертання» й підказки (бафів немає); слово вписує ведучий (задача 8).
+      const { hint: _hint, reveal: _reveal, ...rest } = common;
+      return { ...rest, video: null, type, text: rest.text === '' ? t('wordleDefaultText') : rest.text, timeLimit: LIMITS.defaultWordleTime, word: '' };
+    }
     case 'think':
       // «Думай інакше» (35): тема й слова ведучого; бали дають місця раунду, тож ціна 0; без відео, звуку й «перевертання».
       return { ...common, video: null, points: 0, type, words: [] };
