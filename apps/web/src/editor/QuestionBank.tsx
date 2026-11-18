@@ -3,6 +3,7 @@ import type { Question, QuestionBankItem, QuestionType } from '@quiz/shared';
 import { searchQuestionBank } from '../api';
 import { errorText, t } from '../i18n';
 import { typeIcon } from '../guide-text';
+import { HelpButton } from '../help/HelpButton';
 import type { BankFit } from './draft';
 
 const SEARCH_DELAY = 300;
@@ -125,6 +126,7 @@ export function QuestionBank({
           <h2 id={titleId} ref={heading} tabIndex={-1}>
             {t('bankTitle')}
           </h2>
+          <HelpButton id="setting.questionBank" />
           <button type="button" className="btn btn-small group-picker-close" aria-label={t('bankClose')} onClick={onClose}>
             ✕
           </button>

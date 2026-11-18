@@ -167,4 +167,16 @@ describe('QuestionBank', () => {
     fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: t('bankClose') }));
     expect(onClose).toHaveBeenCalledTimes(2);
   });
+
+  it('has the help button in the header; it opens the entry, and Escape closes only the help', async () => {
+    reply(page([item('Перше')]));
+    const { onClose } = open();
+    await screen.findByText('Перше');
+    const dialog = screen.getByRole('dialog', { name: t('bankTitle') });
+    fireEvent.click(within(dialog).getByRole('button', { name: t('helpOpen', { title: 'Банк запитань' }) }));
+    const pop = document.querySelector('.help-pop') as HTMLElement;
+    expect(within(pop).getByRole('heading', { name: 'Банк запитань' })).toBeTruthy();
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(onClose).not.toHaveBeenCalled();
+  });
 });
