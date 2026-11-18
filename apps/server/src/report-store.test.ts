@@ -83,7 +83,9 @@ describe('reports (39-A2)', () => {
     expect(await quizReport('u-petro')).toBe('ok');
     expect(await moderation()).toBe('auto_hidden');
     expect((await catalog(db, { sort: 'popular', offset: 0 }, null)).items).toEqual([]);
-    expect(await quizReport('u-maria')).toBe('not_found');
+    // Щойно авто-приховану вікторину ще можна поскаржитись (скаржник бачив її секунди тому).
+    expect(await quizReport('u-maria')).toBe('ok');
+    expect(await moderation()).toBe('auto_hidden');
   });
 
   it('two third reports in a row switch once (serial path)', async () => {
@@ -91,11 +93,11 @@ describe('reports (39-A2)', () => {
     await quizReport('u-taras');
     await quizReport('u-iryna');
     const results = await Promise.all([quizReport('u-petro'), quizReport('u-maria')]);
-    // PGlite виконує транзакції по черзі, тож це послідовний шлях: перша скарга ховає запис, друга вже бачить
-    // приховану ціль (not_found). Справжню паралельність (блокування, deadlock) тут не перевірити — потрібен справжній Postgres.
-    expect(results).toEqual(['ok', 'not_found']);
+    // PGlite виконує транзакції по черзі (послідовний шлях): друга скарга приходить уже на авто-приховану вікторину
+    // і теж проходить. Справжню паралельність (блокування, deadlock) тут не перевірити — потрібен справжній Postgres.
+    expect(results).toEqual(['ok', 'ok']);
     expect(await moderation()).toBe('auto_hidden');
-    expect(await db.select().from(userReport)).toHaveLength(3);
+    expect(await db.select().from(userReport)).toHaveLength(4);
   });
 
   it('dismissed reports do not count', async () => {

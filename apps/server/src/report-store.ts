@@ -4,8 +4,10 @@ import { isBanned, logAction } from './bans';
 import type { Db } from './db/client';
 import { isUniqueViolation } from './db/unique';
 import { libraryEntry, profile, user, userReport } from './db/schema';
-import { visibleEntry } from './library-store';
+import { notHidden } from './feed-store';
 import { ensureProfile } from './profiles';
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export type ReportResult = 'ok' | 'not_found' | 'cannot_report_self' | 'already_reported';
 
@@ -32,8 +34,14 @@ export async function fileReport(
         return 'ok';
       }
 
-      const entry = await visibleEntry(tx, target.entryId);
-      if (entry === null) return 'not_found';
+      // Скаржитись можна й на щойно авто-приховану вікторину (скаржник бачив її секунди тому); закриті й приховані адміном — ні.
+      const [entry] = UUID.test(target.entryId)
+        ? await tx
+            .select({ id: libraryEntry.id, ownerId: libraryEntry.ownerId })
+            .from(libraryEntry)
+            .where(and(eq(libraryEntry.id, target.entryId), eq(libraryEntry.listed, true), inArray(libraryEntry.moderation, ['ok', 'auto_hidden']), notHidden(libraryEntry.ownerId)))
+        : [];
+      if (entry === undefined) return 'not_found';
       if (entry.ownerId === reporterId) return 'cannot_report_self';
       await tx.insert(userReport).values({ reporterId, targetKind: 'quiz', entryId: entry.id, targetUserId: entry.ownerId, reason, text, createdAt: now });
       // Блокуємо запис після вставки: паралельні скарги рахують по черзі, кожна бачить уже зафіксовані інші.
