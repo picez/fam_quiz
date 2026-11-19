@@ -4,10 +4,10 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { me } from '../api';
 import { Admin } from './Admin';
-import { adminStats } from './admin-api';
+import { adminCharts, adminHealth, adminStats } from './admin-api';
 
 vi.mock('../api', () => ({ me: vi.fn() }));
-vi.mock('./admin-api', () => ({ adminStats: vi.fn() }));
+vi.mock('./admin-api', () => ({ adminStats: vi.fn(), adminCharts: vi.fn(), adminHealth: vi.fn() }));
 
 const stats = {
   users: { total: 12, new7: 3, new30: 5, online: 2 },
@@ -30,6 +30,8 @@ const account = (admin: boolean) => ({ ok: true as const, id: 'u1', name: 'Ол�
 
 beforeEach(() => {
   vi.clearAllMocks();
+  vi.mocked(adminCharts).mockResolvedValue({ ok: false, error: 'offline' });
+  vi.mocked(adminHealth).mockResolvedValue({ ok: false, error: 'offline' });
 });
 afterEach(cleanup);
 
@@ -55,7 +57,7 @@ describe('Admin', () => {
     expect(await screen.findByText('головна')).toBeTruthy();
   });
 
-  it('shows the stats and the five section links', async () => {
+  it('shows the stats and the seven section links', async () => {
     vi.mocked(me).mockResolvedValue(account(true));
     vi.mocked(adminStats).mockResolvedValue({ ok: true, data: stats });
     open();
@@ -66,7 +68,8 @@ describe('Admin', () => {
     expect(screen.getByText('«Карпати» — Оля, ігор: 6')).toBeTruthy();
     const nav = screen.getByRole('navigation', { name: 'Розділи адмінки' });
     const links = within(nav).getAllByRole('link');
-    expect(links).toHaveLength(5);
+    expect(links.map((link) => link.textContent)).toEqual(['Статистика', 'Живі ігри', 'Користувачі', 'Вікторини', 'Скарги', 'Оголошення', 'Журнал']);
+    expect(within(nav).getByRole('link', { name: 'Живі ігри' }).getAttribute('href')).toBe('/admin/live');
     expect(within(nav).getByRole('link', { name: 'Скарги' }).getAttribute('href')).toBe('/admin/reports');
     await waitFor(() => expect(within(nav).getByRole('link', { name: 'Статистика' }).getAttribute('aria-current')).toBe('page'));
     expect(within(nav).getByRole('link', { name: 'Користувачі' }).getAttribute('aria-current')).toBeNull();

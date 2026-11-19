@@ -5,7 +5,7 @@ import { cleanup, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { levelProgress } from '@quiz/shared';
-import { getMyProfile, me } from './api';
+import { getAnnouncement, getMyProfile, me } from './api';
 import { AppRoutes } from './AppRoutes';
 import { FeedTabs } from './feed/FeedTabs';
 
@@ -16,6 +16,7 @@ vi.mock('./api', () => ({
   getFeedBadge: vi.fn().mockResolvedValue({ ok: true, events: 0, requests: 0, decisions: 0 }),
   myPrizes: vi.fn().mockResolvedValue({ ok: true, data: [] }),
   getMyProfile: vi.fn().mockResolvedValue({ ok: true, data: { level: { progress: { level: 1 } } } }),
+  getAnnouncement: vi.fn().mockResolvedValue({ ok: true, data: { announcement: { id: 'a1', text: 'Notice for everyone', url: null, expiresAt: null, createdAt: '2026-11-19T10:00:00.000Z' } } }),
 }));
 vi.mock('./trophy/loadEngine', () => ({ loadTrophyEngine: vi.fn(async () => null), webglAvailable: () => false }));
 vi.mock('./pages/Calendar', () => ({ Calendar: () => <FeedTabs badge={{ events: 0, requests: 0, decisions: 0 }} /> }));
@@ -69,6 +70,23 @@ describe('AppRoutes', () => {
     open(path);
     await screen.findByText(page);
     expect(screen.queryByRole('navigation', { name: 'Меню' })).toBeNull();
+  });
+
+  it('the announcement is on the home page and the library but not on /play, /host or /stage', async () => {
+    vi.mocked(me).mockResolvedValue({ ok: false, error: 'unauthorized' });
+    for (const path of ['/', '/library']) {
+      open(path);
+      expect(await screen.findByText('Notice for everyone')).toBeTruthy();
+      cleanup();
+    }
+    vi.mocked(getAnnouncement).mockClear();
+    for (const [path, page] of [['/play/123456', 'Play'], ['/host/123456', 'Host'], ['/stage/123456', 'Stage']]) {
+      open(path);
+      await screen.findByText(page);
+      expect(screen.queryByText('Notice for everyone')).toBeNull();
+      cleanup();
+    }
+    expect(getAnnouncement).not.toHaveBeenCalled();
   });
 
   it.each(['/', '/login', '/quizzes', '/quizzes/new', '/feed', '/history', '/history/g1', '/me', '/profile', '/help'])('the page %s has the menu', async (path) => {

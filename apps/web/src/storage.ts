@@ -120,3 +120,8 @@ const ALARM_SEEN = 'quiz:alarm';
 /** Останній вихід, для якого телефон уже показав тривогу (12e): `${code}:${personId}:${play}:${count}`; null — не було. Один ключ на пристрій. */
 export const loadAlarmSeen = (): string | null => read(ALARM_SEEN);
 export const saveAlarmSeen = (key: string): void => write(ALARM_SEEN, key);
+
+const ANNOUNCEMENT_SEEN = 'quiz:announcement';
+/** Id оголошення адміна (53), закритого хрестиком на цьому пристрої; null — нічого не закрито. Один ключ на пристрій. */
+export const loadAnnouncementSeen = (): string | null => read(ANNOUNCEMENT_SEEN);
+export const saveAnnouncementSeen = (id: string): void => write(ANNOUNCEMENT_SEEN, id);

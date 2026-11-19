@@ -2,21 +2,20 @@ import { useEffect, useState, type FormEvent, type JSX } from 'react';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { feedBadgeLabel, feedBadgeTotal } from '@quiz/shared';
 import { checkCode } from '../api';
-import { RunningGameBanner } from '../host-game';
 import { errorText, t, type TextKey } from '../i18n';
 import { MotifHero } from '../motifs/Motifs';
 import { ThemeSwitch } from '../ThemeSwitch';
 import { loadPlayer } from '../storage';
+import { HomeActions, JOIN_FORM, NextUpCard } from './HomeTop';
 import { LobbyList } from './LobbyList';
 import { useAccount } from '../useAccount';
 import { useFeedBadge } from '../useFeedBadge';
 import { useInvites } from '../useInvites';
 
-const JOIN_FORM = 'join-form';
 /** Скільки чекати на перевірку входу, перш ніж показати гостю форму коду. */
 export const ACCOUNT_WAIT_MS = 4000;
 
-/** Форма коду гри: та сама для гостя й під плиткою «Доєднатись до гри». */
+/** Форма коду гри: та сама для гостя й акаунта, під кнопкою «Приєднатися». */
 function JoinForm({ initialCode, autoFocus = false }: { initialCode: string; autoFocus?: boolean }): JSX.Element {
   const navigate = useNavigate();
   const [code, setCode] = useState(initialCode);
@@ -96,16 +95,30 @@ function TileLink({ to, icon, label, badge = null, name }: { to: string; icon: s
   );
 }
 
+/** Кнопка «Приєднатися» розкриває й ховає форму; розкрита кліком — фокус одразу в поле коду. */
+function useJoinToggle(initiallyOpen: boolean): { open: boolean; clicked: boolean; toggle: () => void } {
+  const [open, setOpen] = useState(initiallyOpen);
+  const [clicked, setClicked] = useState(false);
+  return {
+    open,
+    clicked,
+    toggle: () => {
+      setClicked(true);
+      setOpen((was) => !was);
+    },
+  };
+}
+
 /**
- * Стартове меню того, хто увійшов: 8 плиток (nav.start-menu), форма коду — під ними за плиткою «Доєднатись до гри».
+ * Головна того, хто увійшов (53): «Створити гру» і «Приєднатися» (форма коду — одразу під ними), картка «Продовжити гру» /
+ * «Найближча подія», далі 6 плиток (nav.start-menu).
  * Значки ті самі, що в меню: стрічка (useFeedBadge) і запрошення на профілі (useInvites). «Запитів у друзі» в застосунку
  * немає (дружба — односторонній follow), тож плитка «Друзі» без значка.
  */
 function StartMenu({ initialCode }: { initialCode: string }): JSX.Element {
   const location = useLocation();
-  // Відкрито з ?code= — форма вже розкрита; розкрита кліком — фокус одразу в поле коду.
-  const [open, setOpen] = useState(initialCode !== '');
-  const [clicked, setClicked] = useState(false);
+  // Відкрито з ?code= — форма вже розкрита.
+  const join = useJoinToggle(initialCode !== '');
   const invites = useInvites(true, location.key);
   const feedTotal = feedBadgeTotal(useFeedBadge(true));
   const feedLabel = feedBadgeLabel(feedTotal);
@@ -114,22 +127,11 @@ function StartMenu({ initialCode }: { initialCode: string }): JSX.Element {
     <main className="app wide start">
       <MotifHero>
         <h1 className="brand">{t('appName')}</h1>
+        <HomeActions joinOpen={join.open} onJoin={join.toggle} />
+        {join.open && <JoinForm initialCode={initialCode} autoFocus={join.clicked} />}
       </MotifHero>
-      <RunningGameBanner enabled />
+      <NextUpCard signedIn />
       <nav className="start-menu" aria-label={t('startMenuLabel')}>
-        <TileLink to="/create" icon="🎬" label="startCreate" />
-        <button
-          type="button"
-          className="start-tile"
-          aria-expanded={open}
-          aria-controls={open ? JOIN_FORM : undefined}
-          onClick={() => {
-            setClicked(true);
-            setOpen(!open);
-          }}
-        >
-          <TileFace icon="🎮" label="startJoin" />
-        </button>
         <TileLink to="/profile/friends" icon="👥" label="profileTileFriends" />
         <TileLink
           to="/feed"
@@ -149,7 +151,6 @@ function StartMenu({ initialCode }: { initialCode: string }): JSX.Element {
           name={invites.length > 0 ? `${t('menuProfile')}, ${t('invitesBadge', { count: invites.length })}` : undefined}
         />
       </nav>
-      {open && <JoinForm initialCode={initialCode} autoFocus={clicked} />}
     </main>
   );
 }
@@ -166,6 +167,8 @@ export function Home() {
     const timer = setTimeout(() => setWaited(true), ACCOUNT_WAIT_MS);
     return () => clearTimeout(timer);
   }, []);
+  // Гостю (53) форма коду розкрита з першого показу; «Приєднатися» її ховає й розкриває.
+  const join = useJoinToggle(true);
 
   if (account.status === 'signed-in') return <StartMenu initialCode={initialCode} />;
 
@@ -175,8 +178,11 @@ export function Home() {
     <main className="app narrow">
       <MotifHero>
         <h1 className="brand">{t('appName')}</h1>
-        {known && <JoinForm initialCode={initialCode} />}
+        {known && <HomeActions joinOpen={join.open} onJoin={join.toggle} />}
+        {known && join.open && <JoinForm initialCode={initialCode} autoFocus={join.clicked} />}
       </MotifHero>
+      {/* Гостю картка — лише для живої гри цього пристрою. */}
+      {known && <NextUpCard signedIn={false} />}
       {known && (
         <Link className="quiet-link" to="/quizzes">
           {t('hostEntry')}

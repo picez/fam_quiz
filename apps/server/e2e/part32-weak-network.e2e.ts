@@ -105,7 +105,7 @@ async function shellOffline32() {
   flags.offlineExpected = true;
   await page.context().setOffline(true);
   await page.reload();
-  await page.getByLabel('Код гри', exact).or(page.getByRole('button', { name: 'Доєднатись до гри', ...exact })).first().waitFor();
+  await page.getByLabel('Код гри', exact).or(page.getByRole('button', { name: 'Приєднатися', ...exact })).first().waitFor();
   const banner = page.getByRole('status').filter({ hasText: NET_OFFLINE });
   await banner.waitFor();
   await shot(page, 'part32-shell-offline-375');
@@ -140,7 +140,7 @@ async function offlinePage32() {
 
   await page.context().setOffline(false);
   await retry.click();
-  await page.getByLabel('Код гри', exact).or(page.getByRole('button', { name: 'Доєднатись до гри', ...exact })).first().waitFor();
+  await page.getByLabel('Код гри', exact).or(page.getByRole('button', { name: 'Приєднатися', ...exact })).first().waitFor();
 }
 
 /** Ведучий зберігає вікторину і відкриває гру: код гри. */

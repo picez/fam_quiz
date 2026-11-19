@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { blitzRound, bool, classicRound, makeQuiz, makeRoundsQuiz, multi, numeric, order, single, text, withId } from '@quiz/engine/testing';
-import type { AdminList, AdminLogEntry, AdminReportItem, LibraryPage, AdminQuizView, AdminStats, AdminUserDetail, CalendarEvent, PrizeContent, PrizeItem, PrizePlacesInfo, Question } from '@quiz/shared';
+import type { Announcement, AdminCharts, AdminHealth, AdminList, AdminLiveList, AdminLogEntry, AdminReportItem, LibraryPage, AdminQuizView, AdminStats, AdminUserDetail, CalendarEvent, PrizeContent, PrizeItem, PrizePlacesInfo, Question } from '@quiz/shared';
 import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import * as adminModule from './admin';
@@ -101,6 +101,13 @@ describe('hiding the admin panel (Review Focus 3)', () => {
     ['DELETE', `/api/admin/prizes/${UUID}`],
     ['DELETE', `/api/admin/awards/${UUID}`],
     ['GET', '/api/admin/log?page=1'],
+    ['GET', '/api/admin/live'],
+    ['POST', '/api/admin/live/123456/close'],
+    ['GET', '/api/admin/charts'],
+    ['GET', '/api/admin/health'],
+    ['GET', '/api/admin/announcement'],
+    ['PUT', '/api/admin/announcement'],
+    ['DELETE', '/api/admin/announcement'],
   ];
 
   it('answers anyone but an admin exactly like an unknown route', async () => {
@@ -438,6 +445,174 @@ describe('the report queue (39-A2)', () => {
     expect(await lastLog()).toMatchObject({ kind: 'report_dismiss', target: author.nickname });
     expect((await call('POST', `/api/admin/reports/profile/${r3.id}`, a.cookie, { action: 'reset_avatar' })).statusCode).toBe(204);
     expect(await lastLog()).toMatchObject({ kind: 'avatar_reset' });
+  });
+});
+
+describe('live games (39-A1)', () => {
+  it('lists rooms with the host nickname and no email', async () => {
+    const { game } = await startGame(ctx.app, makeQuiz([single]), o.cookie);
+    const response = await call('GET', '/api/admin/live', a.cookie);
+    expect(response.statusCode).toBe(200);
+    const list = response.json() as AdminLiveList;
+    const room = list.rooms.find((r) => r.code === game.code);
+    expect(room).toMatchObject({ host: o.nickname, autopilot: false, status: 'lobby', round: null, players: { online: 0, total: 0 } });
+    expect(room!.stageUrl).toBe(`/stage/${game.code}#${ctx.manager.get(game.code)!.stageToken}`);
+    expect(response.body).not.toContain('@');
+  });
+
+  it('closes a running game, logs it once and refuses a finished one', async () => {
+    const { game } = await startGame(ctx.app, makeQuiz([single, text]), o.cookie);
+    const room = await joinAndStart(game.code);
+    const title = room.state.quiz.title;
+    const closed = await call('POST', `/api/admin/live/${game.code}/close`, a.cookie);
+    expect(closed.statusCode).toBe(204);
+    expect(room.state.phase).toBe('finished');
+    const logged = await lastLog();
+    expect(logged).toMatchObject({ kind: 'game_close', admin: a.nickname, target: o.nickname, details: { title, code: game.code } });
+    const again = await call('POST', `/api/admin/live/${game.code}/close`, a.cookie);
+    expect(again.statusCode).toBe(409);
+    expect(again.json()).toEqual({ error: 'game_finished' });
+    const page = (await call('GET', '/api/admin/log', a.cookie)).json() as AdminList<AdminLogEntry>;
+    expect(page.rows[0]!.id).toBe(logged.id);
+    expect(page.rows.filter((r) => r.kind === 'game_close' && r.details.code === game.code)).toHaveLength(1);
+  });
+
+  it('closes a lobby: the room is gone and a second call is 404 without a second log line', async () => {
+    const { game } = await startGame(ctx.app, makeQuiz([single]), o.cookie);
+    expect((await call('POST', `/api/admin/live/${game.code}/close`, a.cookie)).statusCode).toBe(204);
+    expect(ctx.manager.get(game.code)).toBeUndefined();
+    const logged = await lastLog();
+    expect(logged).toMatchObject({ kind: 'game_close', target: o.nickname, details: { code: game.code } });
+    expect((await call('POST', `/api/admin/live/${game.code}/close`, a.cookie)).statusCode).toBe(404);
+    expect((await lastLog()).id).toBe(logged.id);
+  });
+
+  it('answers 404 to a bad or unknown code and 503 on a frozen manager without a log line', async () => {
+    const before = await lastLog();
+    const bad = await call('POST', '/api/admin/live/12ab56/close', a.cookie);
+    expect(bad.statusCode).toBe(404);
+    expect(bad.json()).toEqual(NOT_FOUND);
+    const unknown = ctx.manager.get('999999') === undefined ? '999999' : '999998';
+    const missing = await call('POST', `/api/admin/live/${unknown}/close`, a.cookie);
+    expect(missing.statusCode).toBe(404);
+    expect(missing.json()).toEqual(NOT_FOUND);
+    const other = await buildApp({ db, auth: TEST_AUTH, adminEmails: emails });
+    try {
+      const host = await signUp(other.app, 'Тарас');
+      const { game } = await startGame(other.app, makeQuiz([single]), host.cookie);
+      other.manager.freeze();
+      const refused = await callOn(other.app, 'POST', `/api/admin/live/${game.code}/close`, a.cookie);
+      expect(refused.statusCode).toBe(503);
+      expect(refused.json()).toEqual({ error: 'restarting' });
+      expect(other.manager.get(game.code)).toBeDefined();
+    } finally {
+      await other.app.close();
+    }
+    expect((await lastLog()).id).toBe(before.id);
+  });
+});
+
+describe('charts and health (39-A3)', () => {
+  it('gives 30 days and caches them for 10 minutes', async () => {
+    const first = (await call('GET', '/api/admin/charts', a.cookie)).json() as AdminCharts;
+    expect(first.days).toHaveLength(30);
+    expect(first.days.at(-1)!.day).toBe(new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Kyiv' }).format(new Date()));
+    await startGame(ctx.app, makeQuiz([single]), o.cookie);
+    const second = (await call('GET', '/api/admin/charts', a.cookie)).json() as AdminCharts;
+    expect(second).toEqual(first);
+    expect(JSON.stringify(first)).not.toContain('@');
+  });
+
+  it('shows the newest backup from the list, uptime, memory, rooms and connections', async () => {
+    const lastModified = new Date('2026-11-16T10:05:00Z');
+    const key = 'backups/db/2026-11-16T10-05-00Z-m0040.jsonl.gz';
+    const withList = await buildApp({ db, auth: TEST_AUTH, adminEmails: emails, backupList: async () => [{ key, size: 3_500_000, lastModified }] });
+    try {
+      const health = (await callOn(withList.app, 'GET', '/api/admin/health', a.cookie)).json() as AdminHealth;
+      expect(health.backup).toEqual({ state: 'ok', at: '2026-11-16T10:05:00.000Z', bytes: 3_500_000 });
+      expect(health.uptimeSec).toBeGreaterThanOrEqual(0);
+      expect(health.memory.rss).toBeGreaterThan(0);
+      expect(typeof health.rooms).toBe('number');
+      expect(typeof health.connections).toBe('number');
+    } finally {
+      await withList.app.close();
+    }
+    const off = (await call('GET', '/api/admin/health', a.cookie)).json() as AdminHealth;
+    expect(off.backup).toEqual({ state: 'off' });
+    let down = true;
+    const broken = await buildApp({
+      db,
+      auth: TEST_AUTH,
+      adminEmails: emails,
+      backupList: async () => {
+        if (down) throw new Error('r2 down');
+        return [{ key, size: 3_500_000, lastModified }];
+      },
+    });
+    try {
+      const response = await callOn(broken.app, 'GET', '/api/admin/health', a.cookie);
+      expect(response.statusCode).toBe(200);
+      expect((response.json() as AdminHealth).backup).toEqual({ state: 'error' });
+      // Збій не кешується на 10 хв: щойно сховище ожило, наступний запит бачить копію.
+      down = false;
+      const healed = (await callOn(broken.app, 'GET', '/api/admin/health', a.cookie)).json() as AdminHealth;
+      expect(healed.backup).toEqual({ state: 'ok', at: '2026-11-16T10:05:00.000Z', bytes: 3_500_000 });
+    } finally {
+      await broken.app.close();
+    }
+  });
+});
+
+describe('announcement (39-A5)', () => {
+  const publicRead = async (cookie?: string) => ((await call('GET', '/api/announcement', cookie)).json() as { announcement: Announcement | null }).announcement;
+  const day = () => new Date(Date.now() + 86_400_000).toISOString();
+
+  it('a guest and an account read the active announcement', async () => {
+    await call('DELETE', '/api/admin/announcement', a.cookie);
+    expect(await publicRead()).toBeNull();
+    expect(((await call('GET', '/api/admin/announcement', a.cookie)).json() as { announcement: Announcement | null }).announcement).toBeNull();
+    const put = await call('PUT', '/api/admin/announcement', a.cookie, { text: 'Для всіх', url: null, expiresAt: null });
+    expect(put.statusCode).toBe(200);
+    const shown = put.json() as Announcement;
+    expect(await publicRead()).toEqual(shown);
+    expect(await publicRead(o.cookie)).toEqual(shown);
+    const admin = (await call('GET', '/api/admin/announcement', a.cookie)).json() as { announcement: Announcement | null };
+    expect(admin.announcement).toEqual(shown);
+    expect(JSON.stringify(shown)).not.toContain('@');
+  });
+
+  it('the admin publishes, replaces and clears it, each step in the log', async () => {
+    await call('DELETE', '/api/admin/announcement', a.cookie);
+    const first = await call('PUT', '/api/admin/announcement', a.cookie, { text: 'Субота — сімейна гра о 19:00', url: '/feed/calendar', expiresAt: day() });
+    expect(first.statusCode).toBe(200);
+    const one = first.json() as Announcement;
+    expect(one.id).toBeTruthy();
+    expect(await publicRead()).toEqual(one);
+    expect(await lastLog()).toMatchObject({ kind: 'announcement_set', details: { text: 'Субота — сімейна гра о 19:00' } });
+
+    const second = (await call('PUT', '/api/admin/announcement', a.cookie, { text: 'Інакше', url: null, expiresAt: null })).json() as Announcement;
+    expect(second.id).not.toBe(one.id);
+    expect((await publicRead())?.text).toBe('Інакше');
+    expect(await lastLog()).toMatchObject({ kind: 'announcement_set', details: { text: 'Інакше' } });
+
+    expect((await call('DELETE', '/api/admin/announcement', a.cookie)).statusCode).toBe(204);
+    expect(await publicRead()).toBeNull();
+    expect(await lastLog()).toMatchObject({ kind: 'announcement_clear', details: { text: 'Інакше' } });
+    expect((await call('DELETE', '/api/admin/announcement', a.cookie)).statusCode).toBe(204);
+    expect((await lastLog()).kind).toBe('announcement_clear');
+  });
+
+  it('refuses a past or a too distant limit, a long text and a bad link with 400', async () => {
+    const put = (payload: unknown) => call('PUT', '/api/admin/announcement', a.cookie, payload);
+    const past = await put({ text: 'Мить тому', expiresAt: new Date(Date.now() - 60_000).toISOString() });
+    expect(past.statusCode).toBe(400);
+    expect(past.json()).toEqual({ error: 'announcement_expiry' });
+    const far = await put({ text: 'Задалеко', expiresAt: new Date(Date.now() + 366 * 86_400_000).toISOString() });
+    expect(far.statusCode).toBe(400);
+    expect(far.json()).toEqual({ error: 'announcement_expiry' });
+    expect((await put({ text: 'а'.repeat(201) })).json()).toEqual({ error: 'invalid_payload' });
+    expect((await put({ text: 'Лінк', url: 'javascript:alert(1)' })).json()).toEqual({ error: 'invalid_payload' });
+    expect((await put({ text: 'Лінк', url: '/\\evil.example' })).statusCode).toBe(400);
   });
 });
 

@@ -586,7 +586,7 @@ it('part 23a: blood moon — five menu items fit 320–1280 px in all seven lang
   }
 });
 
-it('part 24a: start menu — a signed-in player sees seven tiles on «/» that fit 320 and 1280 px in Ukrainian and Arabic without side scroll, «Створити гру» → «Почати гру» opens the host room, «Доєднатись до гри» with the code brings Оля to the lobby, and a guest on «/» still gets the code form', async () => {
+it('part 24a: start menu — a signed-in player sees the two big buttons and six tiles on «/» that fit 320 and 1280 px in Ukrainian and Arabic without side scroll, «Створити гру» → «Почати гру» opens the host room, «Приєднатися» with the code brings Оля to the lobby, and a guest on «/» still gets the code form', async () => {
   try {
     await startMenu24a();
   } catch (error) {
@@ -597,30 +597,35 @@ it('part 24a: start menu — a signed-in player sees seven tiles on «/» that f
 
 async function startMenu24a() {
   const START = 'nav.start-menu';
-  const TILES = ['Створити гру', 'Доєднатись до гри', 'Друзі', 'Стрічка', 'Мої вікторини', 'Бібліотека', 'Історія', 'Профіль'];
+  const TILES = ['Друзі', 'Стрічка', 'Мої вікторини', 'Бібліотека', 'Історія', 'Профіль'];
   const host = await open('host24a', 1280, 800);
   const olya = await open('olya24a', 375, 812);
   await register(host, 'menu', 'Ведуча 24a', 'host24a@example.com');
   await register(olya, 'menu', 'Оля 24a', 'olya24a@example.com');
 
-  // ── 1. Вісім плиток у порядку; 320 і 1280 px у uk та ar без бокового скролу; ar — дзеркально. ──
+  // ── 1. Дві кнопки над меню й шість плиток у порядку; 320 і 1280 px у uk та ar без бокового скролу; ar — дзеркально. ──
   for (const lang of ['uk', 'ar'] as const) {
     expect((await olya.request.put(`${base}/api/me/locale`, { data: { locale: lang } })).status()).toBe(200);
     for (const width of [320, 375, 1280]) {
       await olya.setViewportSize({ width, height: 812 });
       await olya.goto(base);
       await expect.poll(() => htmlLang(olya), POLL).toBe(lang);
-      await olya.locator(`${START} > *`).nth(7).waitFor();
-      expect(await olya.locator(`${START} > *`).count()).toBe(8);
+      await olya.locator(`${START} > *`).nth(5).waitFor();
+      expect(await olya.locator(`${START} > *`).count()).toBe(6);
+      const actions = await olya.locator('.home-actions').evaluate((el) => [...el.children].map((child) => ({ text: child.textContent, top: child.getBoundingClientRect().top })));
+      expect(actions.length, `p24a-${lang}-${width}: two buttons`).toBe(2);
+      expect(actions[0]!.top, `p24a-${lang}-${width}: the buttons are side by side`).toBe(actions[1]!.top);
+      expect(actions[0]!.top, `p24a-${lang}-${width}: the buttons are above the tiles`).toBeLessThan((await olya.locator(START).boundingBox())!.y);
+      if (lang === 'uk') expect(actions.map((a) => a.text)).toEqual(['Створити гру', 'Приєднатися']);
       if (lang === 'uk') expect(await olya.locator(`${START} .start-label`).allTextContents()).toEqual(TILES);
       expect(await noSideScroll(olya), `p24a-${lang}-${width}: horizontal scroll`).toBe(true);
       const clipped = await olya.locator(`${START} > *`).evaluateAll((tiles) => tiles.filter((tile) => tile.scrollWidth > tile.clientWidth).map((tile) => tile.textContent));
       expect(clipped, `p24a-${lang}-${width}: clipped tiles`).toEqual([]);
       const boxes = await olya.locator(`${START} > *`).evaluateAll((tiles) => tiles.map((tile) => tile.getBoundingClientRect()).map((r) => ({ left: Math.round(r.left), top: Math.round(r.top), width: Math.round(r.width) })));
-      const columns = new Set(boxes.slice(0, 4).map((box) => box.top)).size === 1 ? 4 : 2;
-      expect(columns, `p24a-${lang}-${width}: columns`).toBe(width > 700 ? 4 : 2);
-      // На телефоні вісім плиток — чотири рівні рядки по дві, остання не розтягнута на всю ширину.
-      if (width <= 700) expect(boxes[7]!.width).toBeLessThan(boxes[0]!.width * 1.2);
+      const columns = new Set(boxes.slice(0, 3).map((box) => box.top)).size === 1 ? 3 : 2;
+      expect(columns, `p24a-${lang}-${width}: columns`).toBe(width > 700 ? 3 : 2);
+      // На телефоні шість плиток — три рівні рядки по дві.
+      if (width <= 700) expect(new Set(boxes.map((box) => box.top)).size).toBe(3);
       if (lang === 'ar') expect(boxes[0]!.left, `p24a-ar-${width}: the first tile is right of the second`).toBeGreaterThan(boxes[1]!.left);
       await shot(olya, `p24a-start-${lang}-${width}`);
     }
@@ -631,7 +636,7 @@ async function startMenu24a() {
   const saved = await host.request.post(`${base}/api/quizzes`, { data: { ...makeQuiz([single], { speedBonus: false }), title: 'Старт 24a' } });
   expect(saved.ok(), await saved.text()).toBe(true);
   await host.goto(base);
-  await host.locator(START).getByRole('link', { name: 'Створити гру', ...exact }).click();
+  await host.locator('.home-actions').getByRole('link', { name: 'Створити гру', ...exact }).click();
   await host.waitForURL(`${base}/create`);
   await host.getByRole('heading', { level: 1, name: 'Створити гру', ...exact }).waitFor();
   await host.getByRole('heading', { level: 2, name: 'Старт 24a', ...exact }).waitFor();
@@ -640,11 +645,11 @@ async function startMenu24a() {
   await host.waitForURL(/\/host\/\d{6}$/);
   const code = host.url().slice(-6);
 
-  // ── 3. «Доєднатись до гри» з кодом — у лобі. ──
+  // ── 3. «Приєднатися» з кодом — у лобі. ──
   await olya.setViewportSize({ width: 375, height: 812 });
   await olya.goto(base);
   await expect.poll(() => htmlLang(olya), POLL).toBe('uk');
-  const joinTile = olya.getByRole('button', { name: 'Доєднатись до гри', ...exact });
+  const joinTile = olya.getByRole('button', { name: 'Приєднатися', ...exact });
   await joinTile.waitFor();
   expect(await field(olya, 'Код гри').count()).toBe(0);
   await joinTile.click();
@@ -865,7 +870,7 @@ async function lobbyList24c() {
     await page.goto(base);
     await expect.poll(() => htmlLang(page), POLL).toBe(lang);
     if (lang === 'uk') await (await homeCodeField(page)).waitFor();
-    else await page.locator('nav.start-menu > *').nth(1).click();
+    else await page.locator('.home-actions button').click();
     await page.locator('section.lobby-list').waitFor();
     return page.locator('section.lobby-list');
   };

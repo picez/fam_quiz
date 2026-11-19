@@ -12,6 +12,7 @@ import {
   dbBackups,
   expiredBackups,
   isBackupDue,
+  latestBackup,
   parseBackupKey,
   r2BackupStore,
   writeBackup,
@@ -62,6 +63,18 @@ describe('backup keys', () => {
     }
     expect(asked).toEqual([]);
     await app.close();
+  });
+});
+
+describe('latestBackup', () => {
+  it('latestBackup picks the newest backup key and ignores foreign keys', () => {
+    const objects = [
+      object(backupKey(new Date('2026-11-09T10:00:00Z'), 39)),
+      object(backupKey(new Date('2026-11-16T10:00:00Z'), 40)),
+      object('backups/db/notes.txt'),
+    ];
+    expect(latestBackup(objects)).toBe(objects[1]);
+    expect(latestBackup([])).toBeNull();
   });
 });
 

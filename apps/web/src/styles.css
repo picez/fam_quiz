@@ -678,7 +678,8 @@ a {
   min-height: 2.75rem;
 }
 
-.field.field-check input[type='checkbox'] {
+.field.field-check input[type='checkbox'],
+.field.field-check input[type='radio'] {
   flex: none;
   width: 1.375rem;
   height: 1.375rem;
@@ -3771,7 +3772,71 @@ button.match-item {
   font-variant-numeric: tabular-nums;
 }
 
-/* Стартове меню (24a): плитки як у профілі, але більші. Телефон — 2 колонки (вісім плиток — чотири рівні рядки); від 701 px — 4 колонки.
+/* Головна (53): дві великі кнопки під заголовком — завжди поруч (і на 360 px), підпис переноситься, а не обрізається. */
+.home-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.625rem;
+}
+
+.home-action {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  min-height: 3.5rem;
+  padding: 0.75rem 0.625rem;
+  font-size: 1.0625rem;
+  line-height: 1.2;
+  text-align: center;
+  text-decoration: none;
+  overflow-wrap: anywhere;
+  hyphens: auto;
+}
+
+.home-action[aria-expanded='true'] {
+  border-color: var(--accent);
+}
+
+/* «Приєднатися» — непрозоре обличчя, як у «Створити гру»: місяць героя (z-index −1) не просвічує крізь рамку й підпис. */
+.home-action:not(.btn-primary) {
+  background: var(--surface);
+}
+
+/* Картка «Продовжити гру» / «Найближча подія» між кнопками й плитками. */
+.next-up {
+  gap: 0.5rem;
+}
+
+.next-up h2 {
+  margin: 0;
+  color: var(--dim);
+  font-size: 0.95rem;
+}
+
+.next-up p {
+  margin: 0;
+}
+
+.next-up-name {
+  font-size: 1.25rem;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.next-up-open {
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.next-up .btn {
+  align-self: flex-start;
+  margin-top: 0.5rem;
+  text-align: center;
+  text-decoration: none;
+}
+
+/* Стартове меню (24a; 53 — шість плиток): плитки як у профілі, але більші. Телефон — 2 колонки (три рівні рядки); від 701 px — 3.
    Підписи переносяться лише між словами: найдовше слово всіх 7 мов уміщається в плитку й на 320 px. */
 .start-menu {
   display: grid;
@@ -3781,7 +3846,7 @@ button.match-item {
 
 @media (min-width: 701px) {
   .start-menu {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 0.75rem;
   }
 }
@@ -17187,6 +17252,86 @@ button.wall-tile:disabled {
   opacity: 0.55;
 }
 
+/* 53: «Живі ігри» — картки кімнат; дії переносяться під текст на вузькому екрані. */
+.admin-live-bar {
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.admin-live-bar .meta {
+  margin: 0;
+}
+
+.admin-live .admin-live-code {
+  color: var(--dim);
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+}
+
+.admin-live .admin-actions {
+  margin-top: 0.35rem;
+}
+
+/* 53: стовпчики за 30 днів у «Статистиці»; кольори — лише змінні теми. */
+.admin-charts,
+.admin-health {
+  margin-top: 1.5rem;
+}
+
+.day-bars-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr));
+  gap: 0.75rem;
+}
+
+.day-bars {
+  min-width: 0;
+  margin: 0;
+  padding: 0.75rem;
+  border: 2px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.day-bars h3 {
+  margin: 0 0 0.25rem;
+  font-size: 1rem;
+  overflow-wrap: anywhere;
+}
+
+.day-bars .meta {
+  margin: 0 0 0.25rem;
+}
+
+/* Вісь часу завжди «старіші ліворуч»; без ltr арабський документ перевертає text-anchor, і підписи виходять за рамку. */
+.day-bars svg {
+  direction: ltr;
+  unicode-bidi: isolate;
+  display: block;
+  width: 100%;
+  height: auto;
+  color: var(--dim);
+}
+
+.day-bars rect {
+  fill: var(--accent);
+}
+
+.day-bars text {
+  fill: currentColor;
+  font-size: 10px;
+}
+
+.day-bars-axis {
+  stroke: var(--line);
+  stroke-width: 1;
+}
+
+.admin-health .admin-stat dd {
+  font-size: 1.1rem;
+  overflow-wrap: anywhere;
+}
+
 /* ---------- 23a: мотиви «Кривавого місяця» (власні CSS / inline SVG, лише декор) ---------- */
 
 /* Герой: місяць і ворони позаду, вміст поверх. isolation тримає від'ємні z-index мотивів усередині героя. */
@@ -27086,4 +27231,98 @@ a.library-card:focus-visible {
 .recent-form-streak {
   min-height: 0;
   font-size: 0.875rem;
+}
+
+/* 53: оголошення адміна — банер (вид і попередній перегляд) та вкладка «Оголошення». */
+.announce-banner {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 1rem;
+  box-sizing: border-box;
+  max-width: 100%;
+  padding: 0.6rem 0.9rem;
+  /* Місце під × у куті (логічна сторона: у RTL — ліворуч). */
+  padding-inline-end: 3.25rem;
+  border: 2px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--paper);
+}
+
+.announce-banner .announce-text {
+  flex: 1 1 12rem;
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.announce-banner .announce-more {
+  color: inherit;
+  font-weight: 700;
+  text-decoration: underline;
+}
+
+/* × приколотий у верхній кут і не переноситься окремим рядком під текст на 360 px. */
+.announce-banner .announce-close {
+  position: absolute;
+  inset-block-start: 0.25rem;
+  inset-inline-end: 0.25rem;
+  min-width: 2.75rem;
+  min-height: 2.75rem;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius);
+  background: transparent;
+  color: inherit;
+  font-size: 1.5rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.announce-banner .announce-close:hover {
+  background: var(--line);
+}
+
+.announce-banner .announce-close:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.admin-announce {
+  display: grid;
+  gap: 1rem;
+  max-width: 40rem;
+}
+
+.admin-announce textarea,
+.admin-announce input[type='text'],
+.admin-announce input[type='datetime-local'] {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  min-height: 3.25rem;
+  padding: 0.75rem 1rem;
+  border: 2px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--paper);
+  font: inherit;
+  font-size: 1.125rem;
+}
+
+.admin-announce-until {
+  min-width: 0;
+  margin: 1rem 0 0;
+  padding: 0;
+  border: 0;
+}
+
+.admin-announce-preview {
+  margin-top: 1rem;
+}
+
+.admin-announce-preview h3 {
+  margin: 0 0 0.5rem;
 }

@@ -71,10 +71,10 @@ export async function arrange(page: Page, wanted: string[]) {
   }
 }
 
-/** Поле коду на головній; тому, хто увійшов, — спершу плитка «Доєднатись до гри» стартового меню (24a). */
+/** Поле коду на головній; тому, хто увійшов, — спершу кнопка «Приєднатися» під заголовком (53). */
 export async function homeCodeField(page: Page): Promise<Locator> {
   const input = field(page, 'Код гри');
-  const tile = page.getByRole('button', { name: 'Доєднатись до гри', ...exact });
+  const tile = page.getByRole('button', { name: 'Приєднатися', ...exact });
   await input.or(tile).first().waitFor();
   if ((await tile.isVisible()) && (await tile.getAttribute('aria-expanded')) !== 'true') await tile.click();
   return input;

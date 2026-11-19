@@ -141,6 +141,8 @@ const { app, shutdown } = await buildApp({
   persist: { instanceId: randomUUID() },
   push,
   adminEmails: admins,
+  // Список копій бази для блоку «Стан» адмінки (53); без R2 — немає.
+  backupList: r2 !== null ? () => r2BackupStore(r2).list() : undefined,
 });
 await app.listen({ port, host: '0.0.0.0' });
 // Стрічка (18a): події завершених ігор за 90 днів дописуються у фоні, старт їх не чекає. Ідемпотентно (ключі), тож іде на кожному

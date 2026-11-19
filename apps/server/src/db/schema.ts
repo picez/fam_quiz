@@ -997,3 +997,14 @@ export const userReport = pgTable(
     index('user_report_open_idx').on(table.status, table.targetKind, table.createdAt),
   ],
 );
+
+/** Оголошення-банер адміна (53): активне — найновіше незняте й непротерміноване; будь-яка зміна — новий рядок. */
+export const announcement = pgTable('announcement', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  text: text('text').notNull(),
+  url: text('url'),
+  expiresAt: at('expires_at'),
+  createdBy: text('created_by').references(() => user.id, { onDelete: 'set null' }),
+  createdAt: at('created_at').notNull(),
+  clearedAt: at('cleared_at'),
+});

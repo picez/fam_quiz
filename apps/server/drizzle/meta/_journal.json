@@ -288,6 +288,13 @@
       "when": 1795010503350,
       "tag": "0040_library",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1795076199211,
+      "tag": "0041_announcement",
+      "breakpoints": true
     }
   ]
 }

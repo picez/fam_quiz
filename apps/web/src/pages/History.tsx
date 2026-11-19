@@ -1,10 +1,11 @@
 import { useState } from 'react';
-import { Link, Navigate, useNavigate } from 'react-router-dom';
+import { Link, Navigate } from 'react-router-dom';
 import type { GameSummary, SavedInfo } from '@quiz/shared';
-import { continueGame, deleteSavedGame, listGames } from '../api';
+import { deleteSavedGame, listGames } from '../api';
 import { formatDate } from '../format';
+import { useContinueSaved } from '../host-game';
 import { errorText, t } from '../i18n';
-import { loadAuthor, loadHost, saveAuthor, saveHost, saveLastGame, savePlayer } from '../storage';
+import { loadAuthor, loadHost } from '../storage';
 import { usePrivateData } from '../usePrivateData';
 import { HistoryTabs } from './HistoryTabs';
 
@@ -40,7 +41,7 @@ function returnPath(openCode: string | null): string | null {
 
 /** Збережена гра (13b): «Продовжити» відкриває кімнату з новим кодом, «Видалити» прибирає запис. */
 function SavedGame({ game, saved, onDeleted }: { game: GameSummary; saved: SavedInfo; onDeleted: () => void }) {
-  const navigate = useNavigate();
+  const continueSaved = useContinueSaved();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const note = savedNote(saved);
@@ -49,18 +50,9 @@ function SavedGame({ game, saved, onDeleted }: { game: GameSummary; saved: Saved
   const resume = async () => {
     setBusy(true);
     setError(null);
-    const result = await continueGame(game.id);
+    const failure = await continueSaved(game.id);
     setBusy(false);
-    if (!result.ok) return setError(errorText(result.error));
-    saveLastGame(result.code);
-    if ('token' in result) {
-      savePlayer(result.code, result.token);
-      saveAuthor(result.code, { stageToken: result.stageToken });
-      navigate(`/play/${result.code}`);
-    } else {
-      saveHost(result.code, { hostToken: result.hostToken, stageToken: result.stageToken });
-      navigate(`/host/${result.code}`);
-    }
+    if (failure !== null) setError(errorText(failure));
   };
 
   const remove = async () => {

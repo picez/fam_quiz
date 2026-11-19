@@ -10,7 +10,7 @@ import { getFeedBadge, getGroupInvites, getMyInvites, me } from '../api';
 import { announceInvitesChanged } from '../useInvites';
 import { WithMenu } from './WithMenu';
 
-vi.mock('../api', () => ({ me: vi.fn(), getMyInvites: vi.fn(), getGroupInvites: vi.fn(), getFeedBadge: vi.fn() }));
+vi.mock('../api', () => ({ me: vi.fn(), getMyInvites: vi.fn(), getGroupInvites: vi.fn(), getFeedBadge: vi.fn(), getAnnouncement: async () => ({ ok: false, error: 'offline' }) }));
 
 const OK = { ok: true, id: 'u1', name: 'Олена', email: 'o@example.com', admin: false } as const;
 const OUT = { ok: false, error: 'unauthorized' } as const;

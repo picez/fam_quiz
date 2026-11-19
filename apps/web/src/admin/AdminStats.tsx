@@ -2,6 +2,7 @@ import type { JSX } from 'react';
 import { Navigate } from 'react-router-dom';
 import { t, type TextKey } from '../i18n';
 import { adminStats } from './admin-api';
+import { AdminCharts, AdminHealth } from './AdminCharts';
 import { useAdminData } from './useAdminData';
 import { nickText } from '../nick';
 
@@ -50,6 +51,8 @@ export function AdminStats(): JSX.Element {
           <li key={quiz.id}>{t('adminTopRow', { title: quiz.title, author: nickText(quiz.author), count: quiz.games })}</li>
         ))}
       </ol>
+      <AdminCharts />
+      <AdminHealth />
     </>
   );
 }

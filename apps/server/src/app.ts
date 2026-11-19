@@ -21,6 +21,8 @@ import { registerProfileRoutes } from './profile-routes';
 import { registerPrizeRoutes } from './prize-routes';
 import { registerShowcaseRoutes } from './showcase-routes';
 import { registerAdminRoutes } from './admin-routes';
+import { announcementCache } from './announcement-store';
+import { registerAnnouncementRoutes } from './announcement-routes';
 import { attachRecorder } from './recorder';
 import { joinableOf, RoomManager } from './rooms/manager';
 import { realScheduler, type Scheduler } from './rooms/scheduler';
@@ -37,6 +39,7 @@ import { registerWordLadderRoutes } from './wordladder-routes';
 import { registerLetterWordsRoutes } from './letterwords-routes';
 import { lazyNouns, type NounDictionary } from './wordladder/nouns';
 import { log, reportError } from './log';
+import type { StoredObject } from './storage/r2-objects';
 
 export interface AppOptions {
   db: Db;
@@ -70,6 +73,8 @@ export interface AppOptions {
   persist?: { instanceId: string; saveDelayMs?: number };
   /** Адреси адмінів (config.adminEmails); типово порожній набір — адмінки немає. */
   adminEmails?: ReadonlySet<string>;
+  /** Список копій бази в сховищі для блоку «Стан» адмінки; без нього — «сховище не налаштоване». */
+  backupList?: () => Promise<StoredObject[]>;
   /** Словник «Словесної драбини» (26c); типово lazyNouns() — закомічений файл читається при першому слові чи перевірці. */
   nouns?: NounDictionary;
 }
@@ -137,7 +142,9 @@ export async function buildApp(options: AppOptions) {
   await registerProfileRoutes(app, { db: options.db, currentUser });
   await registerPrizeRoutes(app, { db: options.db, manager, locate, currentUser });
   await registerShowcaseRoutes(app, { db: options.db, currentUser });
-  await registerAdminRoutes(app, { db: options.db, manager, adminEmails: options.adminEmails ?? new Set<string>(), currentUser });
+  const announcements = announcementCache(options.db, () => Date.now());
+  await registerAnnouncementRoutes(app, { cache: announcements });
+  await registerAdminRoutes(app, { db: options.db, manager, adminEmails: options.adminEmails ?? new Set<string>(), currentUser, backupList: options.backupList, announcements });
   const invites = new Invites(manager);
   await registerInviteRoutes(app, { db: options.db, manager, invites, currentUser });
   const gate = new LobbyGate(options.db, invites, () => manager.now());

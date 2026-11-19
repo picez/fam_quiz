@@ -12,6 +12,7 @@ vi.mock('./api', () => ({
   getMyInvites: vi.fn().mockResolvedValue({ ok: true, data: [] }),
   getGroupInvites: vi.fn().mockResolvedValue({ ok: true, data: [] }),
   getFeedBadge: vi.fn().mockResolvedValue({ ok: true, events: 0, requests: 0, decisions: 0 }),
+  getAnnouncement: async () => ({ ok: false, error: 'offline' }),
 }));
 
 let online = true;

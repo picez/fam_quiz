@@ -1,5 +1,5 @@
 import { AUDIO_LIMITS, isObjectLike } from '@quiz/shared';
-import type { LeaguePickInfo, LeagueTable, NickLooks, PrizeContent, PrizeItem, PrizePlacesInfo, AchievementsPage, AutopilotCheck, CalendarEvent, CalendarInput, CalendarPage, CalendarRequestStatus, ContinueResponse, FeedBadge, FeedPage, FriendCard, GameDetail, GameInvite, GameSummary, OwnProfile, Phase, PlayedGame, ProfileCard, ProfileUpdate, PublicProfile, PushSubscriptionInput, Quiz, QuizLikes, ResumeOption, SlotsResponse, Versus } from '@quiz/shared';
+import type { LeaguePickInfo, LeagueTable, NickLooks, PrizeContent, PrizeItem, PrizePlacesInfo, AchievementsPage, Announcement, AutopilotCheck, CalendarEvent, CalendarInput, CalendarPage, CalendarRequestStatus, ContinueResponse, FeedBadge, FeedPage, FriendCard, GameDetail, GameInvite, GameSummary, OwnProfile, Phase, PlayedGame, ProfileCard, ProfileUpdate, PublicProfile, PushSubscriptionInput, Quiz, QuizLikes, ResumeOption, SlotsResponse, Versus } from '@quiz/shared';
 import type { AchievementShares, ShowcasePin, ShowcasePins } from '@quiz/shared';
 import type { CodeInfo, LobbyRow, LobbySettings } from '@quiz/shared';
 import type { GivenLike, LikesPage, ReceivedLike } from '@quiz/shared';
@@ -260,6 +260,8 @@ export const getFeed = (cursor?: string) => request<FeedPage>(`/api/me/feed${cur
 export const getFeedBadge = () => request<FeedBadge>('/api/me/feed/badge');
 export const markFeedSeen = (upTo: string) => request<object>('/api/me/feed/seen', { method: 'POST', body: { upTo } });
 export const getCalendar = () => request<CalendarPage>('/api/me/calendar');
+/** Публічне оголошення адміна (53): для гостей і акаунтів; без нього — {announcement: null}. */
+export const getAnnouncement = () => fetchData<{ announcement: Announcement | null }>('/api/announcement');
 export const markCalendarSeen = (upTo: string) => request<object>('/api/me/calendar/seen', { method: 'POST', body: { upTo } });
 export const createCalendarEvent = (input: CalendarInput) => request<CalendarEvent>('/api/calendar', { method: 'POST', body: input });
 export const updateCalendarEvent = (id: string, input: CalendarInput) => request<CalendarEvent>(`/api/calendar/${encodeURIComponent(id)}`, { method: 'PUT', body: input });

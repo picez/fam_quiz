@@ -114,7 +114,7 @@ export function r2Objects(settings: R2Settings, partBytes = MIN_PART_BYTES): R2O
         }
         const number = parts.length + 1;
         const query = `?partNumber=${number}&uploadId=${encodeURIComponent(uploadId)}`;
-        const response = await call(urlOf(key, query), { method: 'PUT', body }, 'part upload');
+        const response = await call(urlOf(key, query), { method: 'PUT', body: new Uint8Array(body) }, 'part upload');
         const etag = response.headers.get('etag');
         if (etag === null) throw new Error('backup storage gave no ETag for a part');
         parts.push({ number, etag });
