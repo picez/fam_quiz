@@ -1,6 +1,6 @@
 /**
  * Додає демо-вікторину користувачу за email або оновлює вже наявну вікторину за її id.
- * Запуск: DATABASE_URL=... pnpm --filter @quiz/server seed:demo you@example.com [demo|party|party-media|movies|erudite|school|mosaic|compass|horizon|teams|showcase|grand|family|family2|evening|classroom|movies90|logic|world|fun|halloween|mix|quick|mix2|mega|fest|detective|think|video|alike|spy|school3|wordle]
+ * Запуск: DATABASE_URL=... pnpm --filter @quiz/server seed:demo you@example.com [demo|party|party-media|movies|erudite|school|mosaic|compass|horizon|teams|showcase|grand|family|family2|evening|classroom|movies90|logic|world|fun|halloween|mix|quick|mix2|mega|fest|detective|think|video|alike|spy|school3|wordle|big1]
  * Оновлення: DATABASE_URL=... pnpm --filter @quiz/server seed:demo --update <quizId> <seedName>
  * — замінює назву, опис, налаштування й раунди рядка новим вмістом сіда (як збереження в редакторі,
  * з новим updatedAt); власник лишається той самий, вікторина зберігає своє посилання й історію ігор.
@@ -52,6 +52,7 @@ import { alikeQuiz } from './alike-quiz';
 import { spyQuiz } from './spy-quiz';
 import { school3Quiz } from './school3-quiz';
 import { wordleQuiz } from './wordle-quiz';
+import { big1Quiz } from './big1-quiz';
 
 /** Ключ картинки → стаття англійської Вікіпедії, чия головна ілюстрація підходить до запитання. */
 const ARTICLES: Record<string, string> = {
@@ -135,7 +136,7 @@ const uploadImages = (
   sources: () => Promise<Record<string, string>> = () => thumbnails(keys),
 ): Promise<Record<string, string>> => uploadSiteImages(site, db, keys, sources);
 
-const SEEDS = ['demo', 'party', 'party-media', 'movies', 'erudite', 'school', 'mosaic', 'compass', 'horizon', 'teams', 'showcase', 'grand', 'family', 'family2', 'evening', 'classroom', 'movies90', 'logic', 'world', 'fun', 'halloween', 'mix', 'quick', 'mix2', 'mega', 'fest', 'detective', 'think', 'video', 'alike', 'spy', 'school3', 'wordle'] as const;
+const SEEDS = ['demo', 'party', 'party-media', 'movies', 'erudite', 'school', 'mosaic', 'compass', 'horizon', 'teams', 'showcase', 'grand', 'family', 'family2', 'evening', 'classroom', 'movies90', 'logic', 'world', 'fun', 'halloween', 'mix', 'quick', 'mix2', 'mega', 'fest', 'detective', 'think', 'video', 'alike', 'spy', 'school3', 'wordle', 'big1'] as const;
 type SeedName = (typeof SEEDS)[number];
 const isSeed = (arg: string | undefined): arg is SeedName => (SEEDS as readonly string[]).includes(arg ?? '');
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -163,6 +164,8 @@ async function seedQuiz(name: SeedName, db: Db, site: string | undefined): Promi
       return school3Quiz();
     case 'wordle':
       return wordleQuiz();
+    case 'big1':
+      return big1Quiz();
     case 'video':
       return videoQuiz();
     case 'quick':
