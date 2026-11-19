@@ -17,7 +17,7 @@ export interface PushOptions {
 /** Відправник: статус відповіді push-сервісу (201 — ок, 404/410 — підписка мертва). Кидати не повинен; мережева помилка → status 0. */
 export type PushSend = (target: PushTarget, payload: string, options: PushOptions) => Promise<{ status: number }>;
 
-export const PUSH_TTL = { reminder: 3600, opened: 21_600, cancelled: 86_400 } as const;
+export const PUSH_TTL = { reminder: 3600, opened: 21_600, cancelled: 86_400, bot: 3600 } as const;
 
 export interface PushService {
   readonly publicKey: string;

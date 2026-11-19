@@ -1,10 +1,11 @@
-import { BOT_ACTIONS, BOT_ROOMS_MAX, BOT_USER_ID, adminBotCopySchema, autopilotCheck, type AdminBot, type AdminBotRoom, type AdminBotStatus, type BotAction } from '@quiz/shared';
+import { BOT_ACTIONS, BOT_PLANS_MAX, BOT_ROOMS_MAX, BOT_USER_ID, adminBotCopySchema, autopilotCheck, type AdminBot, type AdminBotRoom, type AdminBotStatus, type BotAction } from '@quiz/shared';
 import { eq } from 'drizzle-orm';
 import type { FastifyInstance, FastifyRequest, RouteShorthandOptions } from 'fastify';
 import type { CurrentUser } from './account-routes';
 import type { AdminDeps } from './admin-routes';
 import { botQuizzes } from './admin-store';
 import { ensureBotAccount } from './bot-account';
+import { botGroups, listPlans } from './bot-plan-store';
 import { logAction } from './bans';
 import { profile, user } from './db/schema';
 import { createQuiz, deleteQuiz, getQuiz } from './quizzes';
@@ -59,6 +60,7 @@ export async function registerAdminBotRoutes(app: FastifyInstance, deps: AdminDe
       quizzes: await botQuizzes(db),
       rooms: rooms.map((item) => item.view),
       roomsMax: BOT_ROOMS_MAX,
+      schedule: { plans: await listPlans(db, now()), groups: await botGroups(db), max: BOT_PLANS_MAX },
     };
   });
 

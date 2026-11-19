@@ -886,3 +886,40 @@ describe('announcement (53)', () => {
     expect(kept.createdBy).toBeNull();
   });
 });
+
+describe('bot plan (56)', () => {
+  const T = new Date('2026-11-20T10:00:00.000Z');
+
+  it('migration 0042 adds the bot_plan table over an older database, old data stays', async () => {
+    const { announcement, botPlan } = await import('./schema');
+    const { db, migrateRest } = await createTestDbUpTo('0041_announcement');
+    await db.insert(user).values({ id: 'a', name: 'Адмін', email: 'a@example.com' });
+    await db.insert(announcement).values({ text: 'Привіт', createdBy: 'a', createdAt: T });
+
+    await migrateRest();
+
+    const [kept] = await db.select().from(announcement);
+    expect(kept).toMatchObject({ text: 'Привіт', createdBy: 'a' });
+    expect(await db.select().from(botPlan)).toEqual([]);
+  });
+
+  it('deleting the quiz, the group or the author keeps the plan', async () => {
+    const { botPlan, familyGroup } = await import('./schema');
+    const db = await createTestDb();
+    await db.insert(user).values({ id: 'a', name: 'Адмін', email: 'a@example.com' });
+    const source = makeQuiz([single]);
+    const [q] = await db.insert(quiz).values({ ownerId: 'a', title: 'Q', description: '', settings: source.settings, rounds: source.rounds }).returning();
+    const [g] = await db.insert(familyGroup).values({ name: 'Родина', emoji: '👪', inviteCode: 'code56' }).returning();
+    const [row] = await db
+      .insert(botPlan)
+      .values({ quizId: q.id, title: 'Q', startsAt: T, recipients: 'group', groupId: g.id, createdBy: 'a', createdAt: T, updatedAt: T })
+      .returning();
+    expect(row).toMatchObject({ status: 'scheduled', people: [], weekly: false, autoStartMin: null, reason: null, remindedAt: null, previousId: null });
+
+    await db.delete(quiz).where(eq(quiz.id, q.id));
+    await db.delete(familyGroup).where(eq(familyGroup.id, g.id));
+    await db.delete(user).where(eq(user.id, 'a'));
+    const [kept] = await db.select().from(botPlan);
+    expect(kept).toMatchObject({ id: row.id, title: 'Q', quizId: null, groupId: null, createdBy: null });
+  });
+});

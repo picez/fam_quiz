@@ -295,6 +295,13 @@
       "when": 1795076199211,
       "tag": "0041_announcement",
       "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "7",
+      "when": 1795101871420,
+      "tag": "0042_bot_plan",
+      "breakpoints": true
     }
   ]
 }

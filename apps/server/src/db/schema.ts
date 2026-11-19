@@ -2,6 +2,8 @@ import type { BluffOption } from '@quiz/engine';
 import type {
   AchievementId,
   AdminActionKind,
+  BotPlanReason,
+  BotPlanStatus,
   AdminLogDetails,
   AdjustmentSource,
   AppealOutcome,
@@ -1008,3 +1010,35 @@ export const announcement = pgTable('announcement', {
   createdAt: at('created_at').notNull(),
   clearedAt: at('cleared_at'),
 });
+
+/**
+ * План гри бота за розкладом (56): нагадування за 15 хв, відкриття кімнати, автостарт, щотижневий повтор.
+ * title — знімок назви вікторини при створенні/зміні; previous_id — попередній план серії (без FK).
+ */
+export const botPlan = pgTable(
+  'bot_plan',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    quizId: uuid('quiz_id').references(() => quiz.id, { onDelete: 'set null' }),
+    title: text('title').notNull(),
+    startsAt: at('starts_at').notNull(),
+    recipients: text('recipients').$type<'none' | 'all' | 'group' | 'people'>().notNull(),
+    groupId: uuid('group_id').references(() => familyGroup.id, { onDelete: 'set null' }),
+    people: jsonb('people').$type<string[]>().notNull().default([]),
+    /** null — без автостарту. */
+    autoStartMin: integer('auto_start_min'),
+    weekly: boolean('weekly').notNull().default(false),
+    status: text('status').$type<BotPlanStatus>().notNull().default('scheduled'),
+    reason: text('reason').$type<BotPlanReason>(),
+    roomId: text('room_id'),
+    roomCode: text('room_code'),
+    remindedAt: at('reminded_at'),
+    openedAt: at('opened_at'),
+    finishedAt: at('finished_at'),
+    previousId: uuid('previous_id'),
+    createdBy: text('created_by').references(() => user.id, { onDelete: 'set null' }),
+    createdAt: at('created_at').notNull(),
+    updatedAt: at('updated_at').notNull(),
+  },
+  (table) => [index('bot_plan_status_starts_idx').on(table.status, table.startsAt)],
+);
