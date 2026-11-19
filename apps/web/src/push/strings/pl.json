@@ -2,7 +2,7 @@
   "pushBotOpenBody": "Kod: {code}. Dotknij, aby dołączyć.",
   "pushBotOpenTitle": "Bot quizu otworzył „{title}”",
   "pushBotSoonBody": "Kod przyjdzie w osobnym powiadomieniu, gdy tylko pokój się otworzy.",
-  "pushBotSoonTitle": "Bot quizu otwiera „{title}” o {time}",
+  "pushBotSoonTitle": "Bot quizu otwiera „{title}” o {time} (Kijów)",
   "pushCancelledBody": "Prowadzący odwołał grę zaplanowaną na {when}.",
   "pushCancelledTitle": "Gra „{title}” odwołana",
   "pushFallbackBody": "Jest nowa informacja o zaplanowanej grze.",

@@ -2,7 +2,7 @@
   "pushBotOpenBody": "Código: {code}. Toca para unirte.",
   "pushBotOpenTitle": "El bot de quiz ha abierto «{title}»",
   "pushBotSoonBody": "El código llegará en otra notificación en cuanto se abra la sala.",
-  "pushBotSoonTitle": "El bot de quiz abre «{title}» a las {time}",
+  "pushBotSoonTitle": "El bot de quiz abre «{title}» a las {time} (Kyiv)",
   "pushCancelledBody": "El presentador ha cancelado la partida planeada para {when}.",
   "pushCancelledTitle": "Partida «{title}» cancelada",
   "pushFallbackBody": "Hay novedades sobre una partida planeada.",

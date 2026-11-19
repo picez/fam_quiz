@@ -20,6 +20,16 @@ const STATUS_KEY: Record<BotPlanStatus, TextKey> = {
   failed: 'adminBotPlan_failed',
 };
 
+/** Колір стану (56): тема-залежні змінні; nobody, cancelled і not_started — приглушені, не червоні. */
+const STATUS_TONE: Record<BotPlanStatus, string> = {
+  scheduled: 'is-pending',
+  opened: 'is-opened',
+  played: 'is-correct',
+  nobody: 'is-muted',
+  cancelled: 'is-muted',
+  failed: 'is-wrong',
+};
+
 type ToKind = AdminBotPlanTo['kind'];
 const TO_KINDS: { kind: ToKind; key: TextKey }[] = [
   { kind: 'none', key: 'adminBotPlanToNone' },
@@ -114,7 +124,15 @@ function toText(to: AdminBotPlanTo): string {
   }
 }
 
-const statusText = (plan: AdminBotPlan): string => (plan.status === 'failed' ? t('adminBotPlan_failed', { reason: botPlanReasonText(plan.reason) }) : t(STATUS_KEY[plan.status]));
+/** «Ніхто не почав гру» — не збій сервера: власний текст замість «Не вдалося: …». */
+const notStarted = (plan: AdminBotPlan): boolean => plan.status === 'failed' && plan.reason === 'not_started';
+
+function statusText(plan: AdminBotPlan): string {
+  if (notStarted(plan)) return t('adminBotPlan_not_started');
+  return plan.status === 'failed' ? t('adminBotPlan_failed', { reason: botPlanReasonText(plan.reason) }) : t(STATUS_KEY[plan.status]);
+}
+
+const toneOf = (plan: AdminBotPlan): string => (notStarted(plan) ? 'is-muted' : STATUS_TONE[plan.status]);
 
 /** Пошук людей за ніком: від двох символів, із затримкою; помилка — текстом. */
 function usePeopleSearch(query: string): { found: AdminBotPerson[]; error: string | null } {
@@ -149,13 +167,32 @@ export function AdminBotSchedule({ schedule, quizzes, onChanged }: { schedule: A
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  /** Форма згорнута за кнопкою «Запланувати гру»: на 360 px список видно одразу (56). */
+  const [open, setOpen] = useState(false);
   const heading = useRef<HTMLHeadingElement>(null);
+  const wantFocus = useRef(false);
 
   const patch = (change: Partial<Form>) => setForm((prev) => ({ ...prev, ...change }));
   const reset = () => {
     setForm(blank(quizzes, groups));
     setQuery('');
+    setOpen(false);
   };
+  /** Форму щойно відкрили («Запланувати гру» чи «Змінити») — фокус на її заголовок. */
+  useEffect(() => {
+    if (!open || !wantFocus.current) return;
+    wantFocus.current = false;
+    heading.current?.focus();
+  }, [open, draft.editing]);
+  /** План, який змінюють, тим часом відкрив прогін (чи скасували деінде): форма його відпускає з поясненням замість 409. */
+  const stale = draft.editing !== null && !plans.some((plan) => plan.id === draft.editing && plan.status === 'scheduled');
+  useEffect(() => {
+    if (!stale) return;
+    reset();
+    setNotice(null);
+    setError(t('err_plan_locked'));
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- лише коли план став незмінним
+  }, [stale]);
   const input = toInput(form);
   const active = plans.filter((plan) => plan.status === 'scheduled').length;
   const found = search.found.filter((person) => !form.people.some((chosen) => chosen.id === person.id));
@@ -187,7 +224,15 @@ export function AdminBotSchedule({ schedule, quizzes, onChanged }: { schedule: A
     setQuery('');
     setError(null);
     setNotice(null);
+    setOpen(true);
+    wantFocus.current = true;
     heading.current?.focus();
+  };
+  const openNew = () => {
+    setError(null);
+    setNotice(null);
+    setOpen(true);
+    wantFocus.current = true;
   };
   const cancel = (plan: AdminBotPlan) => {
     if (!window.confirm(t('adminBotPlanCancelConfirm', { title: plan.title, when: kyivWhenText(plan.startsAt) }))) return;
@@ -208,8 +253,44 @@ export function AdminBotSchedule({ schedule, quizzes, onChanged }: { schedule: A
           {notice}
         </p>
       )}
+      <p className="meta">{t('adminBotPlansCount', { count: active, max })}</p>
+      {plans.length === 0 ? (
+        <p className="meta">{t('adminBotPlansEmpty')}</p>
+      ) : (
+        <ul className="admin-list">
+          {plans.map((plan) => (
+            <li key={plan.id} className={plan.id === form.editing ? 'admin-card is-editing' : 'admin-card'}>
+              <h3 dir="auto">{plan.title}</h3>
+              <p>{kyivWhenText(plan.startsAt)}</p>
+              <p className={`admin-mark tag ${toneOf(plan)}`}>{statusText(plan)}</p>
+              {plan.status === 'opened' && plan.code !== null && <p className="admin-bot-code">{t('adminBotCode', { code: plan.code })}</p>}
+              <p className="meta" dir="auto">
+                {toText(plan.to)}
+              </p>
+              {plan.autoStartMin !== null && <p className="meta">{t('adminBotPlanAutoShown', { minutes: plan.autoStartMin })}</p>}
+              {plan.weekly && <p className="meta">{t('adminBotPlanWeeklyShown')}</p>}
+              {plan.status === 'scheduled' && (
+                <div className="admin-actions">
+                  <button type="button" className="btn" disabled={busy} onClick={() => change(plan)}>
+                    {t('adminBotPlanChange')}
+                  </button>
+                  <button type="button" className="btn btn-danger" disabled={busy} onClick={() => cancel(plan)}>
+                    {t('adminBotPlanCancel')}
+                  </button>
+                </div>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
       {quizzes.length === 0 ? (
         <p className="meta">{t('adminBotPlanNoQuizzes')}</p>
+      ) : !open ? (
+        <div className="admin-actions">
+          <button type="button" className="btn btn-primary" aria-expanded={false} onClick={openNew}>
+            {t('adminBotPlanNew')}
+          </button>
+        </div>
       ) : (
         <form className="admin-card admin-bot-plan-form" aria-labelledby="admin-bot-plan-form" onSubmit={submit}>
           <h3 id="admin-bot-plan-form" ref={heading} tabIndex={-1}>
@@ -298,7 +379,7 @@ export function AdminBotSchedule({ schedule, quizzes, onChanged }: { schedule: A
             {t('adminBotPlanWeekly')}
           </label>
           <div className="admin-actions">
-            <button type="submit" className="btn btn-primary" disabled={busy || input === null}>
+            <button type="submit" className="btn btn-primary" disabled={busy || input === null} aria-describedby={input === null ? 'bot-plan-missing' : undefined}>
               {t(form.editing === null ? 'adminBotPlanSave' : 'adminBotPlanSaveEdit')}
             </button>
             {form.editing !== null && (
@@ -307,37 +388,12 @@ export function AdminBotSchedule({ schedule, quizzes, onChanged }: { schedule: A
               </button>
             )}
           </div>
+          {input === null && (
+            <p className="meta" id="bot-plan-missing">
+              {t('adminBotPlanMissing')}
+            </p>
+          )}
         </form>
-      )}
-      <p className="meta">{t('adminBotPlansCount', { count: active, max })}</p>
-      {plans.length === 0 ? (
-        <p className="meta">{t('adminBotPlansEmpty')}</p>
-      ) : (
-        <ul className="admin-list">
-          {plans.map((plan) => (
-            <li key={plan.id} className={plan.id === form.editing ? 'admin-card is-editing' : 'admin-card'}>
-              <h3 dir="auto">{plan.title}</h3>
-              <p>{kyivWhenText(plan.startsAt)}</p>
-              <p className="admin-mark">{statusText(plan)}</p>
-              {plan.status === 'opened' && plan.code !== null && <p className="admin-bot-code">{t('adminBotCode', { code: plan.code })}</p>}
-              <p className="meta" dir="auto">
-                {toText(plan.to)}
-              </p>
-              {plan.autoStartMin !== null && <p className="meta">{t('adminBotPlanAutoShown', { minutes: plan.autoStartMin })}</p>}
-              {plan.weekly && <p className="meta">{t('adminBotPlanWeeklyShown')}</p>}
-              {plan.status === 'scheduled' && (
-                <div className="admin-actions">
-                  <button type="button" className="btn" disabled={busy} onClick={() => change(plan)}>
-                    {t('adminBotPlanChange')}
-                  </button>
-                  <button type="button" className="btn btn-danger" disabled={busy} onClick={() => cancel(plan)}>
-                    {t('adminBotPlanCancel')}
-                  </button>
-                </div>
-              )}
-            </li>
-          ))}
-        </ul>
       )}
     </section>
   );

@@ -65,11 +65,14 @@ afterEach(() => {
 const open = (data: AdminBot['schedule'] = schedule(), quizzes: AdminBotQuiz[] = [quiz(), quiz({ id: OTHER_QUIZ_ID, title: 'Карпати' })]) =>
   render(<AdminBotSchedule schedule={data} quizzes={quizzes} onChanged={onChanged} />);
 const card = (title: string) => screen.getByRole('heading', { name: title }).closest('li') as HTMLElement;
+/** Форма згорнута за кнопкою «Запланувати гру». */
+const openForm = () => fireEvent.click(screen.getByRole('button', { name: 'Запланувати гру' }));
 
 describe('AdminBotSchedule', () => {
   it('plans a game for Kyiv time with a group and auto start', async () => {
     replies['POST /api/admin/bot/plans'] = { status: 201, body: plan() };
     open();
+    openForm();
     fireEvent.change(screen.getByLabelText('Вікторина'), { target: { value: QUIZ_ID } });
     const when = screen.getByLabelText('Дата й час (за київським часом)');
     expect(when.getAttribute('type')).toBe('datetime-local');
@@ -85,6 +88,9 @@ describe('AdminBotSchedule', () => {
     expect((await screen.findByRole('status')).textContent).toBe('Гру заплановано.');
     expect(sent('POST', '/api/admin/bot/plans')[0]?.body).toEqual({ quizId: QUIZ_ID, startsAt: '2026-11-20T17:00:00.000Z', recipients: { kind: 'group', groupId: GROUP_ID }, autoStartMin: 10, weekly: true });
     expect(onChanged).toHaveBeenCalledTimes(1);
+    // Успіх згортає форму.
+    expect(screen.queryByLabelText('Вікторина')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Запланувати гру' }).getAttribute('aria-expanded')).toBe('false');
   });
 
   it('chooses people by nickname search and removes one', async () => {
@@ -97,6 +103,7 @@ describe('AdminBotSchedule', () => {
     };
     replies['POST /api/admin/bot/plans'] = { status: 201, body: plan() };
     open();
+    openForm();
     fireEvent.change(screen.getByLabelText('Дата й час (за київським часом)'), { target: { value: '2026-11-21T19:00' } });
     fireEvent.click(screen.getByLabelText('Вибраним людям'));
     fireEvent.change(screen.getByLabelText('Пошук за ніком'), { target: { value: 'О' } });
@@ -165,6 +172,9 @@ describe('AdminBotSchedule', () => {
     expect((screen.getByLabelText('Через скільки хвилин (5–30)') as HTMLInputElement).value).toBe('15');
     expect((screen.getByLabelText('Повторювати щотижня в цей день і час') as HTMLInputElement).checked).toBe(true);
     fireEvent.click(screen.getByRole('button', { name: 'Не змінювати' }));
+    // «Не змінювати» згортає форму; знову відкрита — порожня.
+    expect(screen.queryByLabelText('Вікторина')).toBeNull();
+    openForm();
     expect(screen.getByRole('heading', { name: 'Запланувати гру' })).toBeTruthy();
     expect((screen.getByLabelText('Дата й час (за київським часом)') as HTMLInputElement).value).toBe('');
     expect((screen.getByLabelText('Нікому') as HTMLInputElement).checked).toBe(true);
@@ -175,7 +185,8 @@ describe('AdminBotSchedule', () => {
     await waitFor(() => expect(sent('PUT', `/api/admin/bot/plans/${PLAN_ID}`)).toHaveLength(1));
     expect(sent('PUT', `/api/admin/bot/plans/${PLAN_ID}`)[0]?.body).toEqual({ quizId: OTHER_QUIZ_ID, startsAt: '2026-11-22T16:30:00.000Z', recipients: { kind: 'people', userIds: [OLYA] }, autoStartMin: 15, weekly: true });
     await waitFor(() => expect(onChanged).toHaveBeenCalledTimes(1));
-    expect(screen.getByRole('heading', { name: 'Запланувати гру' })).toBeTruthy();
+    expect(screen.queryByLabelText('Вікторина')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Запланувати гру' })).toBeTruthy();
   });
 
   it('a plan whose group was deleted opens in the form without a crash', () => {
@@ -202,6 +213,7 @@ describe('AdminBotSchedule', () => {
   it('errors are shown', async () => {
     replies['POST /api/admin/bot/plans'] = { status: 409, body: { error: 'plans_full' } };
     open();
+    openForm();
     fireEvent.change(screen.getByLabelText('Дата й час (за київським часом)'), { target: { value: '2026-11-21T19:00' } });
     fireEvent.click(screen.getByRole('button', { name: 'Запланувати' }));
     expect((await screen.findByRole('alert')).textContent).toBe('Уже 20 запланованих ігор. Скасуй одну, щоб додати нову.');
@@ -216,10 +228,75 @@ describe('AdminBotSchedule', () => {
     expect(screen.getByText('Спершу передай боту вікторину.')).toBeTruthy();
     expect(screen.queryByLabelText('Вікторина')).toBeNull();
     expect(screen.queryByRole('button', { name: 'Запланувати' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Запланувати гру' })).toBeNull();
+  });
+
+  it('the list comes first and the form is collapsed behind «Запланувати гру»', () => {
+    const { container } = open(schedule({ plans: [plan({ title: 'Ранкова' })] }));
+    const toggle = screen.getByRole('button', { name: 'Запланувати гру' });
+    expect(toggle.getAttribute('aria-expanded')).toBe('false');
+    expect(screen.queryByLabelText('Вікторина')).toBeNull();
+    const list = container.querySelector('ul.admin-list')!;
+    expect(list.compareDocumentPosition(toggle) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.getByText('Активних: 1 з 20').compareDocumentPosition(list) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    openForm();
+    expect(screen.queryByRole('button', { name: 'Запланувати гру' })).toBeNull();
+    expect(screen.getByRole('heading', { name: 'Запланувати гру' })).toBe(document.activeElement);
+    expect(list.compareDocumentPosition(container.querySelector('form')!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('states have their own colour classes', () => {
+    open(
+      schedule({
+        plans: [
+          plan({ id: 'p1', title: 'Перша' }),
+          plan({ id: 'p2', title: 'Друга', status: 'opened', code: '123456' }),
+          plan({ id: 'p3', title: 'Третя', status: 'played' }),
+          plan({ id: 'p4', title: 'Четверта', status: 'failed', reason: 'server_down' }),
+          plan({ id: 'p5', title: 'П’ята', status: 'nobody' }),
+          plan({ id: 'p6', title: 'Шоста', status: 'failed', reason: 'not_started' }),
+        ],
+      }),
+    );
+    const mark = (title: string) => card(title).querySelector('.admin-mark')!;
+    expect(mark('Перша').className).toContain('is-pending');
+    expect(mark('Друга').className).toContain('is-opened');
+    expect(mark('Третя').className).toContain('is-correct');
+    expect(mark('Четверта').className).toContain('is-wrong');
+    expect(mark('П’ята').className).toContain('is-muted');
+    // Ніхто не почав гру — не збій сервера: окремий текст, без червоного.
+    expect(mark('Шоста').textContent).toBe('Ніхто не почав гру');
+    expect(mark('Шоста').className).not.toContain('is-wrong');
+  });
+
+  it('a disabled submit says what is missing', () => {
+    open();
+    openForm();
+    const submit = screen.getByRole('button', { name: 'Запланувати' });
+    expect(submit.hasAttribute('disabled')).toBe(true);
+    expect(submit.getAttribute('aria-describedby')).toBe('bot-plan-missing');
+    expect(document.getElementById('bot-plan-missing')?.textContent).toBe('Заповни дату й час і вибери, кого сповістити.');
+    fireEvent.change(screen.getByLabelText('Дата й час (за київським часом)'), { target: { value: '2026-11-21T19:00' } });
+    expect(submit.hasAttribute('disabled')).toBe(false);
+    expect(submit.hasAttribute('aria-describedby')).toBe(false);
+    expect(document.getElementById('bot-plan-missing')).toBeNull();
+    fireEvent.click(screen.getByLabelText('Вибраним людям'));
+    expect(document.getElementById('bot-plan-missing')).not.toBeNull();
+  });
+
+  it('a plan the tick opened while it was being changed drops out of the form with the locked text', () => {
+    const { rerender } = open(schedule({ plans: [plan({ title: 'Карпати' })] }));
+    fireEvent.click(within(card('Карпати')).getByRole('button', { name: 'Змінити' }));
+    expect(screen.getByRole('heading', { name: 'Змінити план' })).toBeTruthy();
+    rerender(<AdminBotSchedule schedule={schedule({ plans: [plan({ title: 'Карпати', status: 'opened', code: '123456' })] })} quizzes={[quiz()]} onChanged={onChanged} />);
+    expect(screen.queryByRole('heading', { name: 'Змінити план' })).toBeNull();
+    expect(screen.queryByLabelText('Вікторина')).toBeNull();
+    expect(screen.getByRole('alert').textContent).toBe('Цей план уже не можна змінити.');
   });
 
   it('no groups — the group choice is disabled', () => {
     open(schedule({ groups: [] }));
+    openForm();
     expect((screen.getByLabelText('Родинній групі') as HTMLInputElement).disabled).toBe(true);
     expect(screen.getByText('Родинних груп ще немає.')).toBeTruthy();
   });

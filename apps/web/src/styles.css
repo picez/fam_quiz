@@ -27621,3 +27621,13 @@ a.library-card:focus-visible {
 .admin-bot-schedule .admin-card.is-editing {
   border-color: var(--amber);
 }
+
+/* 56: стани плану різняться кольором (змінні теми, обидві теми): заплановано — помаранч, відкрито — фіолет, зіграно — бірюза,
+   ніхто не прийшов / скасовано / ніхто не почав — приглушені, не вдалося — червоний (.tag.is-*). */
+.admin-bot-schedule .admin-mark.is-opened {
+  color: var(--voice);
+}
+
+.admin-bot-schedule .admin-mark.is-muted {
+  color: var(--dim);
+}
