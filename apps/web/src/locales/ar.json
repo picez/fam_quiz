@@ -5207,5 +5207,10 @@
   "adminCheck_short_timer": "المؤقت {detail} ث — أقل من 25 ث",
   "adminCheck_hint_leak": "الإجابة «{detail}» موجودة في التلميح",
   "adminCheck_media_unchecked": "تعذّر الفحص: {detail}",
-  "adminCheck_video_unchecked": "تعذّر فحص الفيديو {detail}"
+  "adminCheck_video_unchecked": "تعذّر فحص الفيديو {detail}",
+  "adminPreviewPin": "{x} % من العرض، {y} % من الارتفاع؛ النقاط كاملة حتى {full} %، وصفر ابتداءً من {zero} %",
+  "adminPreviewSpots": "الاختلافات: {count}",
+  "adminPreviewSolution": "الحل",
+  "adminCheckWholeQuiz": "الاختبار كله",
+  "adminCheck_media_blocked": "العنوان يقود إلى شبكة داخلية ولم يُفحص: {detail}"
 }

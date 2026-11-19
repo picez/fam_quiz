@@ -94,6 +94,11 @@ function PreviewBody({ question }: { question: Question }): JSX.Element {
         </ul>
       )}
       {preview.answer !== null && <p className="meta" dir="auto">{t('adminPreviewAnswer', { answer: preview.answer })}</p>}
+      {preview.grid !== null && (
+        <pre className="admin-preview-grid" dir="ltr" aria-label={t('adminPreviewSolution')}>
+          {preview.grid.join('\n')}
+        </pre>
+      )}
       {preview.accepted.length > 0 && <p className="meta" dir="auto">{t('adminPreviewAccepted', { list: preview.accepted.join(', ') })}</p>}
       {preview.hint !== null && <p className="meta" dir="auto">{t('adminPreviewHint', { hint: preview.hint })}</p>}
       {preview.images.length > 0 && (
@@ -103,6 +108,11 @@ function PreviewBody({ question }: { question: Question }): JSX.Element {
           ))}
         </div>
       )}
+      {preview.imageLinks.map((url) => (
+        <a key={url} className="quiet-link admin-preview-link" href={url} target="_blank" rel="noopener noreferrer" dir="ltr">
+          {url}
+        </a>
+      ))}
       {preview.video !== null && (
         <a className="quiet-link" href={preview.video.url} target="_blank" rel="noopener noreferrer">
           {t('adminPreviewVideo', { start: clockText(preview.video.start * 1000) })}
@@ -162,13 +172,15 @@ function QuizView({ loaded, mode }: { loaded: AdminQuizView; mode: Mode }): JSX.
     const round = target?.closest('details') ?? document.querySelector(`details[data-round="${issue.round ?? 'spares'}"]`);
     if (round instanceof HTMLDetailsElement) round.open = true;
     target?.scrollIntoView({ block: 'center' });
+    // Фокус переходить до запитання: клавіатура й програма читання екрана не лишаються на кнопці в списку перевірки.
+    target?.focus({ preventScroll: true });
   };
 
   const card = (question: Question, roundTitle: string): JSX.Element => {
     const body = <PreviewBody question={question} />;
     if (!moderate) {
       return (
-        <li key={question.id} id={`q-${question.id}`} className="admin-card">
+        <li key={question.id} id={`q-${question.id}`} tabIndex={-1} className="admin-card">
           {body}
         </li>
       );
@@ -178,7 +190,7 @@ function QuizView({ loaded, mode }: { loaded: AdminQuizView; mode: Mode }): JSX.
     const hintId = `hint-${question.id}`;
     const hint = effect === 'locked' ? t('err_question_locked') : effect === 'last_question' ? t('adminDeleteWholeQuiz') : null;
     return (
-      <li key={question.id} id={`q-${question.id}`} className="admin-card">
+      <li key={question.id} id={`q-${question.id}`} tabIndex={-1} className="admin-card">
         {body}
         <button
           type="button"
@@ -232,7 +244,7 @@ function QuizView({ loaded, mode }: { loaded: AdminQuizView; mode: Mode }): JSX.
         {t('adminAuthor', { name: '' })}
         <Link to={`/admin/users/${encodeURIComponent(view.author.id)}`}>{nickText(view.author.nickname)}</Link>
       </p>
-      <QuizCheckPanel quizId={view.id} onIssue={goTo} />
+      {mode !== 'report' && <QuizCheckPanel quizId={view.id} onIssue={goTo} />}
       {error !== null && (
         <p className="error" role="alert">
           {error}
@@ -249,7 +261,11 @@ function QuizView({ loaded, mode }: { loaded: AdminQuizView; mode: Mode }): JSX.
         const trials = trialsOf(round);
         return (
           <details key={round.id ?? index} className="admin-round" data-round={index} open={open}>
-            <summary dir="auto">{title}</summary>
+            <summary>
+              <h2 className="admin-round-title" dir="auto">
+                {title}
+              </h2>
+            </summary>
             {roundBody(round, title)}
             {trials.length > 0 && (
               <>
@@ -262,20 +278,24 @@ function QuizView({ loaded, mode }: { loaded: AdminQuizView; mode: Mode }): JSX.
       })}
       {spares.length > 0 && (
         <details className="admin-round" data-round="spares" open={open}>
-          <summary>{t('adminSpares')}</summary>
+          <summary>
+            <h2 className="admin-round-title">{t('adminSpares')}</h2>
+          </summary>
           <ul className="admin-list">{spares.map((question) => card(question, ''))}</ul>
         </details>
       )}
       {duels !== undefined && (
         <details className="admin-round" data-round="duels" open={open}>
-          <summary>{t('duelsTitle')}</summary>
+          <summary>
+            <h2 className="admin-round-title">{t('duelsTitle')}</h2>
+          </summary>
           {moderate && <p className="meta">{t('adminDuelsReadOnly')}</p>}
           {listOf(() => duels.categories).map((category) => (
             <section key={category.id}>
               <h3 dir="auto">{category.title}</h3>
               <ul className="admin-list">
                 {listOf(() => category.questions).map((question) => (
-                  <li key={question.id} id={`q-${question.id}`} className="admin-card">
+                  <li key={question.id} id={`q-${question.id}`} tabIndex={-1} className="admin-card">
                     <p dir="auto">{question.text}</p>
                     {listOf(() => question.accepted).length > 0 && (
                       <p className="meta" dir="auto">

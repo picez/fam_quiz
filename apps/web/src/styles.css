@@ -17408,6 +17408,37 @@ details.admin-round[open] > summary {
   margin-bottom: 0.5rem;
 }
 
+/* Назва раунду — заголовок h2 для навігації за заголовками, але виглядає як сам рядок summary. */
+details.admin-round > summary > .admin-round-title {
+  display: inline;
+  margin: 0;
+  font: inherit;
+  color: inherit;
+}
+
+/* Розв'язок судоку: моноширинний блок 6 × 6. */
+.admin-preview-grid {
+  justify-self: start;
+  margin: 0;
+  padding: 0.4rem 0.6rem;
+  border: 1px solid var(--line);
+  border-radius: 0.4rem;
+  font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
+  font-size: 1.05rem;
+  line-height: 1.4;
+  letter-spacing: 0.15em;
+}
+
+.admin-card a.admin-preview-link {
+  overflow-wrap: anywhere;
+}
+
+/* Фокус після «До запитання» (tabIndex -1): видно, куди перейшли. */
+.admin-card[tabindex='-1']:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
 .admin-preview-items {
   display: grid;
   gap: 0.2rem;
@@ -27708,6 +27739,15 @@ a.library-card:focus-visible {
   flex-basis: 100%;
   margin: 0;
   overflow-wrap: anywhere;
+}
+
+/* Рядок стану перевірки стоїть з першого показу; порожній не займає місця. */
+.admin-check-status:empty {
+  margin: 0;
+}
+
+.admin-actions .admin-check-line:empty {
+  flex-basis: 0;
 }
 
 .admin-check-badge {

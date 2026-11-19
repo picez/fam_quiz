@@ -1,5 +1,6 @@
 import { AUDIO_URL, SNIPPET_STEPS, mediaRefs, videoLink, type Question } from '@quiz/shared';
 import { t } from '../i18n';
+import { decimalText } from '../locales/grammar';
 import { questionLines } from './admin-text';
 
 export interface QuestionPreview {
@@ -13,6 +14,10 @@ export interface QuestionPreview {
   hint: string | null;
   /** Усі /uploads-картинки запитання (з mediaRefs), без повторів; аудіофайли — не картинки. */
   images: string[];
+  /** Зовнішні картинки старих вікторин (https://…): посилання, а не мініатюри, щоб сторінка адміна сама нікуди не ходила. */
+  imageLinks: string[];
+  /** Розв'язок судоку: 6 рядків по 6 цифр (пробіл між блоками). */
+  grid: string[] | null;
   /** Файл — /uploads/…, YouTube — videoLink; трек «Мелодії» — найдовший шматок. */
   audio: { url: string; start: number; duration: number } | null;
   /** video або clip, url = videoLink(...). */
@@ -65,6 +70,22 @@ function optionItems(q: Loose): QuestionPreview['items'] {
   return options.map((option) => ({ text: str(option.text) ?? '', correct: correctIds === null ? null : correctIds.includes(option.id) }));
 }
 
+/** Відсоток з одним знаком після коми лише за потреби: 50, 12,5. */
+const share = (value: number): string => {
+  const rounded = Math.round(value * 10) / 10;
+  return decimalText(rounded, Number.isInteger(rounded) ? 0 : 1);
+};
+
+/** Половина картки «Пам'яті»: текст або номер її мініатюри. */
+function memoryHalf(card: unknown, images: string[]): string {
+  if (!isRec(card)) return '';
+  const text = str(card.text)?.trim() ?? '';
+  if (text !== '') return text;
+  const url = str(card.imageUrl);
+  const index = url === null ? -1 : images.indexOf(url);
+  return index === -1 ? '' : t('adminPreviewImage', { number: index + 1 });
+}
+
 function answerOf(q: Loose): string | null {
   switch (q.type) {
     case 'boolean':
@@ -78,14 +99,53 @@ function answerOf(q: Loose): string | null {
     }
     case 'wordle':
       return str(q.word);
+    case 'pin': {
+      const target = isRec(q.target) ? q.target : {};
+      const x = num(target.x);
+      const y = num(target.y);
+      const full = num(q.fullRadius);
+      const zero = num(q.zeroRadius);
+      if (x === null || y === null || full === null || zero === null) return null;
+      return t('adminPreviewPin', { x: share(x * 100), y: share(y * 100), full: share(full), zero: share(zero) });
+    }
+    case 'spotdiff':
+      return Array.isArray(q.spots) ? t('adminPreviewSpots', { count: q.spots.length }) : null;
     default:
       return null;
   }
 }
 
 /** Рядки варіантів чи елементів за типом; решта типів — questionLines без тексту. */
-function itemsOf(question: Question, q: Loose): QuestionPreview['items'] {
+function itemsOf(question: Question, q: Loose, images: string[]): QuestionPreview['items'] {
+  const loose = (value: unknown): Loose[] => (Array.isArray(value) ? value.filter(isRec) : []);
   switch (q.type) {
+    case 'memory':
+      return loose(q.pairs).map((pair) => ({ text: `${memoryHalf(pair.a, images)} — ${memoryHalf(pair.b, images)}`, correct: null }));
+    case 'sort': {
+      const categories = new Map(loose(q.categories).map((category) => [category.id, str(category.text) ?? '']));
+      return loose(q.words).map((word) => {
+        const category = categories.get(word.categoryId);
+        const text = str(word.text) ?? '';
+        return { text: category === undefined ? text : `${text} — ${category}`, correct: null };
+      });
+    }
+    case 'survey':
+      return loose(q.rows).map((row) => {
+        const spellings = strings(row.accepted);
+        const popularity = num(row.popularity);
+        const text = popularity === null ? (str(row.text) ?? '') : `${str(row.text) ?? ''} — ${popularity}`;
+        return { text: spellings.length === 0 ? text : `${text} (${spellings.join(', ')})`, correct: null };
+      });
+    case 'think':
+      return loose(q.words).map((word) => {
+        const synonyms = strings(word.synonyms);
+        const text = str(word.word) ?? '';
+        return { text: synonyms.length === 0 ? text : `${text} (${synonyms.join(', ')})`, correct: null };
+      });
+    case 'pin':
+    case 'sudoku':
+    case 'spotdiff':
+      return [];
     case 'single':
     case 'multi':
     case 'poll':
@@ -113,6 +173,21 @@ function itemsOf(question: Question, q: Loose): QuestionPreview['items'] {
   }
 }
 
+/** Розв'язок судоку рядками: '123456…' → '123 456'. */
+function gridOf(q: Loose): string[] | null {
+  const solution = q.type === 'sudoku' ? str(q.solution) : null;
+  if (solution === null || !/^[0-9]{36}$/.test(solution)) return null;
+  return Array.from({ length: 6 }, (_, row) => `${solution.slice(row * 6, row * 6 + 3)} ${solution.slice(row * 6 + 3, row * 6 + 6)}`);
+}
+
+/** Зовнішні адреси картинок; звук за розширенням — не картинка. */
+function imageLinksOf(question: Question): string[] {
+  const links = mediaRefs(question)
+    .flatMap((ref) => (ref.kind === 'url' ? [ref.url] : []))
+    .filter((url) => !/\.(mp3|ogg|m4a|wav)([?#]|$)/i.test(url));
+  return [...new Set(links)];
+}
+
 function imagesOf(question: Question): string[] {
   const images = mediaRefs(question)
     .flatMap((ref) => (ref.kind === 'storage' ? [`/uploads/${ref.name}`] : []))
@@ -135,13 +210,16 @@ export function questionPreview(question: Question): QuestionPreview {
   const hasVideo = isRec(q.video);
   const video = q.type === 'videoclip' ? videoOf(q.clip) : videoOf(q.video);
   const audio = q.type === 'melody' ? audioOf(q.track, Math.max(...SNIPPET_STEPS)) : audioOf(q.audio, null);
+  const images = safe(() => imagesOf(question), []);
   return {
     text: str(q.text) ?? '',
-    items: safe(() => itemsOf(question, q), []),
+    items: safe(() => itemsOf(question, q, images), []),
     answer: safe(() => answerOf(q), null),
     accepted: typeof q.type === 'string' && ACCEPTED_TYPES.has(q.type) ? strings(q.accepted) : [],
     hint: str(q.hint),
-    images: safe(() => imagesOf(question), []),
+    images,
+    imageLinks: safe(() => imageLinksOf(question), []),
+    grid: safe(() => gridOf(q), null),
     audio,
     video,
     points: num(q.points) ?? 0,

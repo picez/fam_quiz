@@ -131,6 +131,8 @@ describe('AdminQuiz', () => {
     expect(screen.queryByRole('button', { name: 'Видалити вікторину' })).toBeNull();
     expect(screen.getByText(/^Знімок у бібліотеці від .+ — саме його бачать гравці.$/)).toBeTruthy();
     expect(screen.getByRole('link', { name: 'До списку' }).getAttribute('href')).toBe('/admin/reports');
+    // Знімок — не жива вікторина: перевірка жила б іншими запитаннями.
+    expect(screen.queryByRole('button', { name: 'Перевірити вікторину' })).toBeNull();
   });
 
   it('shows answers, spellings, hints, media, points and timers', async () => {
@@ -169,7 +171,8 @@ describe('AdminQuiz', () => {
     await screen.findByText('Текст m0');
     const folded = document.querySelector('details[data-round="0"]') as HTMLDetailsElement;
     expect(folded.open).toBe(false);
-    expect(folded.querySelector('summary')?.textContent).toContain('Розминка');
+    expect(folded.querySelector('summary > h2')?.textContent).toBe('Розминка');
+    expect(screen.getByRole('heading', { level: 2, name: 'Розминка' })).toBeTruthy();
     cleanup();
     vi.mocked(adminQuiz).mockResolvedValue({ ok: true, data: rich(many(20)) });
     open();
@@ -218,5 +221,23 @@ describe('AdminQuiz', () => {
     expect(round.open).toBe(true);
     expect(scroll).toHaveBeenCalledTimes(1);
     expect(scroll.mock.instances[0]).toBe(container.querySelector('#q-m20'));
+    expect(document.activeElement).toBe(container.querySelector('#q-m20'));
+    expect(container.querySelector('#q-m20')?.getAttribute('tabindex')).toBe('-1');
+  });
+
+  it('shows a sudoku solution and an external picture as a link', async () => {
+    const sudoku = { id: 'z9', type: 'sudoku', text: 'Судоку', imageUrl: null, video: null, timeLimit: 180, points: 300, level: 'easy', seed: 1, givens: '0'.repeat(36), solution: '123456456123231564564231312645645312' } as unknown as Question;
+    const external = { ...q('e1', 'Стара картинка'), imageUrl: 'https://example.com/old.jpg' } as Question;
+    vi.mocked(adminQuiz).mockResolvedValue({ ok: true, data: rich([sudoku, external]) });
+    open();
+    await screen.findByText('Судоку');
+    const grid = document.querySelector('#q-z9 pre') as HTMLElement;
+    expect(grid.textContent).toBe(['123 456', '456 123', '231 564', '564 231', '312 645', '645 312'].join('\n'));
+    expect(grid.getAttribute('aria-label')).toBe("Розв'язок");
+    const card = document.getElementById('q-e1') as HTMLElement;
+    expect(card.querySelector('img')).toBeNull();
+    const link = within(card).getByRole('link', { name: 'https://example.com/old.jpg' });
+    expect(link.getAttribute('href')).toBe('https://example.com/old.jpg');
+    expect(link.getAttribute('rel')).toBe('noopener noreferrer');
   });
 });

@@ -1,4 +1,4 @@
-import { QUESTION_TYPES, videoLink, type Question } from '@quiz/shared';
+import { QUESTION_TYPES, videoLink, type Question, type QuestionType } from '@quiz/shared';
 import { describe, expect, it } from 'vitest';
 import { t } from '../i18n';
 import { questionLines } from './admin-text';
@@ -86,4 +86,119 @@ describe('questionPreview', () => {
     }
     expect(() => questionPreview({} as unknown as Question)).not.toThrow();
   });
+
+  it('memory shows every pair, a picture half by its thumbnail number', () => {
+    const preview = questionPreview(BY_TYPE.memory);
+    expect(preview.items).toEqual([
+      { text: 'Україна — Київ', correct: null },
+      { text: `Італія — ${t('adminPreviewImage', { number: 1 })}`, correct: null },
+    ]);
+    expect(preview.images).toEqual([IMG_B]);
+  });
+
+  it('sort shows the category of every word', () => {
+    expect(questionPreview(BY_TYPE.sort).items.map((item) => item.text)).toEqual(['Морква — Овочі', 'Яблуко — Фрукти', 'Буряк — Овочі']);
+  });
+
+  it('survey shows the popularity and the spellings of every row', () => {
+    expect(questionPreview(BY_TYPE.survey).items.map((item) => item.text)).toEqual(['Яблуко — 32 (яблучко)', 'Банан — 25']);
+  });
+
+  it('pin gives the point and both radii', () => {
+    expect(questionPreview(BY_TYPE.pin).answer).toBe(t('adminPreviewPin', { x: '50', y: '12,5', full: '3', zero: '15' }));
+  });
+
+  it('sudoku gives its solution as six rows', () => {
+    const preview = questionPreview(BY_TYPE.sudoku);
+    expect(preview.grid).toEqual(['123 456', '456 123', '231 564', '564 231', '312 645', '645 312']);
+    expect(questionPreview(single).grid).toBeNull();
+  });
+
+  it('spotdiff gives the number of spots', () => {
+    expect(questionPreview(BY_TYPE.spotdiff).answer).toBe(t('adminPreviewSpots', { count: 2 }));
+  });
+
+  it('think shows the host words with their synonyms', () => {
+    expect(questionPreview(BY_TYPE.think).items.map((item) => item.text)).toEqual(['червоний (багряний)', 'синій']);
+  });
+
+  it('an external picture is a link, not a thumbnail', () => {
+    const preview = questionPreview({ ...single, imageUrl: 'https://example.com/a.jpg' });
+    expect(preview.images).toEqual([]);
+    expect(preview.imageLinks).toEqual(['https://example.com/a.jpg']);
+    expect(questionPreview(single).imageLinks).toEqual([]);
+  });
+
+  it('every type that has a correct answer shows it', () => {
+    for (const type of QUESTION_TYPES) {
+      if (NO_ANSWER.has(type)) continue;
+      const preview = questionPreview(BY_TYPE[type]);
+      expect(preview.items.length > 0 || preview.answer !== null || preview.accepted.length > 0 || preview.grid !== null, type).toBe(true);
+    }
+  });
 });
+
+/** Типи без правильної відповіді: «хмара слів», «Думай як усі» й пазл (його відповідь — сама картинка). */
+const NO_ANSWER: ReadonlySet<QuestionType> = new Set(['wordcloud', 'thinkalike', 'jigsaw']);
+
+/** По одному запитанню кожного типу; новий тип ламає компіляцію тесту. */
+const BY_TYPE = {
+  single,
+  multi: { ...base, id: 'm', type: 'multi', text: 'Міста на Дніпрі?', options: [{ id: 'a', text: 'Київ' }, { id: 'b', text: 'Львів' }], correctIds: ['a'] },
+  boolean: { ...base, id: 'b', type: 'boolean', text: 'Говерла вища за 2000 м?', correct: true },
+  text: { ...base, id: 't', type: 'text', text: 'Найвища гора?', accepted: ['Говерла'] },
+  numeric: { ...base, id: 'n', type: 'numeric', text: 'Скільки областей?', correct: 24, tolerance: 0 },
+  order: { ...base, id: 'o', type: 'order', text: 'З заходу на схід', items: [{ id: 'a', text: 'Львів' }, { id: 'b', text: 'Київ' }] },
+  match: { ...base, id: 'mt', type: 'match', text: 'Місто й річка', pairs: [{ left: { id: 'a', text: 'Київ' }, right: { id: 'x', text: 'Дніпро' } }] },
+  chain: { ...base, id: 'c', type: 'chain', text: 'Ланцюжок', words: ['Риба', 'Океан'], hintSeconds: 5 },
+  wordladder: { ...base, id: 'wl', type: 'wordladder', text: 'Драбина', path: ['поле', 'пола'], maxSteps: 4 },
+  sort: {
+    ...base,
+    id: 's',
+    type: 'sort',
+    text: 'Овочі й фрукти',
+    lockSeconds: 3,
+    categories: [
+      { id: 'c1', text: 'Овочі' },
+      { id: 'c2', text: 'Фрукти' },
+    ],
+    words: [
+      { id: 'w1', text: 'Морква', categoryId: 'c1' },
+      { id: 'w2', text: 'Яблуко', categoryId: 'c2' },
+      { id: 'w3', text: 'Буряк', categoryId: 'c1' },
+    ],
+  },
+  slider: { ...base, id: 'sl', type: 'slider', text: 'Скільки відсотків?', min: 0, max: 100, step: 1, correct: 70, tolerance: 2 },
+  clues: { ...base, id: 'cl', type: 'clues', text: 'Хто я?', clues: ['Я поет.'], accepted: ['Шевченко'], interval: 5 },
+  pin: { ...base, id: 'p', type: 'pin', text: 'Де Київ?', map: 'world', aspect: 2, target: { x: 0.5, y: 0.125 }, fullRadius: 3, zeroRadius: 15 },
+  wall: { ...base, id: 'wa', type: 'wall', text: 'Стіна', mistakes: 3, groups: [{ id: 'g', name: 'Річки', tiles: [{ id: 'r1', text: 'Дніпро' }] }] },
+  poll: { ...base, points: 0, id: 'po', type: 'poll', text: 'Пора року?', options: [{ id: 'a', text: 'Літо' }] },
+  wordcloud: { ...base, points: 0, id: 'wc', type: 'wordcloud', text: 'Асоціації', words: 3 },
+  survey: {
+    ...base,
+    id: 'sv',
+    type: 'survey',
+    text: 'Фрукт, який люблять діти',
+    answers: 3,
+    rows: [
+      { id: 'sa', text: 'Яблуко', popularity: 32, accepted: ['яблучко'] },
+      { id: 'sb', text: 'Банан', popularity: 25, accepted: [] },
+    ],
+  },
+  timedlist: { ...base, id: 'tl', type: 'timedlist', text: 'Планети', minus: null, items: [{ id: 'l1', text: 'Марс', accepted: [] }] },
+  letterwords: { ...base, id: 'lw', type: 'letterwords', text: 'Слова з літер', set: { kind: 'fixed', letters: 'морква' }, goal: 'most', per: 'word' },
+  wordle: { ...base, id: 'w', type: 'wordle', text: 'Слово', word: 'КАВУН' },
+  moreless: { ...base, id: 'ml', type: 'moreless', text: 'Більше чи менше', pairs: [{ id: 'm1', prompt: 'Що вище?', a: { text: 'Говерла', value: '2061 м' }, b: { text: 'Петрос', value: '2020 м' }, correct: 'a', points: 100 }] },
+  drawing: { ...base, id: 'd', type: 'drawing', text: 'Що на малюнку?', accepted: ['соняшник'] },
+  sudoku: { ...base, id: 'su', type: 'sudoku', text: 'Судоку', level: 'easy', seed: 1, givens: '0'.repeat(36), solution: '123456456123231564564231312645645312' },
+  crossword: { ...base, id: 'cw', type: 'crossword', text: 'Кросворд', mode: 'full', entries: [{ id: 'e1', answer: 'калина', clue: 'Червоні ягоди' }], key: null, layout: null },
+  jigsaw: { ...base, id: 'j', type: 'jigsaw', text: 'Пазл', photo: IMG_A, aspect: '4:3', focus: { x: 0.5, y: 0.5 }, rows: 3, cols: 4, seed: 1, tabs: '', preview: true },
+  spotdiff: { ...base, id: 'sd', type: 'spotdiff', text: 'Відмінності', original: IMG_A, changed: IMG_B, aspect: 4 / 3, spots: [{ x: 0.2, y: 0.3, r: 0.05 }, { x: 0.6, y: 0.5, r: 0.06 }] },
+  memory: { ...base, id: 'mm', type: 'memory', text: 'Пари', grid: '3x4', seed: 42, pairs: [{ a: { text: 'Україна' }, b: { text: 'Київ' } }, { a: { text: 'Італія' }, b: { text: '', imageUrl: IMG_B } }] },
+  melody: { ...base, id: 'me', type: 'melody', text: 'Пісня?', track: { source: 'file', url: SOUND, start: 5 }, accepted: ['Щедрик'] },
+  videoclip: { ...base, id: 'vc', type: 'videoclip', text: 'Кліп?', clip: { id: 'dQw4w9WgXcQ', start: 12 }, muted: true, accepted: ['Кліп'] },
+  bluff: { ...base, id: 'bl', type: 'bluff', text: 'Вежу ставили в …', choiceTime: 30, accepted: ['Барселона'], lies: ['Мадрид'] },
+  thinkalike: { ...base, id: 'ta', type: 'thinkalike', text: 'Фрукт' },
+  spy: { ...base, id: 'sp', type: 'spy', text: 'Асоціація', accepted: ['кава'], spyHint: "Що п'ють зранку", voteTime: 30 },
+  think: { ...base, points: 0, id: 'th', type: 'think', text: 'Колір веселки', words: [{ word: 'червоний', synonyms: ['багряний'] }, { word: 'синій', synonyms: [] }] },
+} satisfies Record<QuestionType, Question>;

@@ -5004,5 +5004,10 @@
   "adminCheck_short_timer": "Czas {detail} s — mniej niż 25 s",
   "adminCheck_hint_leak": "Odpowiedź „{detail}” jest we wskazówce",
   "adminCheck_media_unchecked": "Nie udało się sprawdzić: {detail}",
-  "adminCheck_video_unchecked": "Nie udało się sprawdzić filmu {detail}"
+  "adminCheck_video_unchecked": "Nie udało się sprawdzić filmu {detail}",
+  "adminPreviewPin": "{x} % szerokości, {y} % wysokości; pełne punkty do {full} %, zero od {zero} %",
+  "adminPreviewSpots": "Różnic: {count}",
+  "adminPreviewSolution": "Rozwiązanie",
+  "adminCheckWholeQuiz": "Cały quiz",
+  "adminCheck_media_blocked": "Adres prowadzi do sieci wewnętrznej, nie został sprawdzony: {detail}"
 }

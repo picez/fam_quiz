@@ -5050,6 +5050,11 @@ const uk = {
   adminCheck_hint_leak: 'Відповідь «{detail}» є в підказці',
   adminCheck_media_unchecked: 'Не вдалося перевірити: {detail}',
   adminCheck_video_unchecked: 'Не вдалося перевірити відео {detail}',
+  adminPreviewPin: '{x} % ширини, {y} % висоти; повні бали — до {full} %, нуль — від {zero} %',
+  adminPreviewSpots: 'Відмінностей: {count}',
+  adminPreviewSolution: "Розв'язок",
+  adminCheckWholeQuiz: 'Уся вікторина',
+  adminCheck_media_blocked: 'Адреса веде у внутрішню мережу, її не перевіряли: {detail}',
 } as const;
 
 /** uk-словник — той самий об'єкт, що читає t(); інші мови перевіряються проти нього. */

@@ -4907,5 +4907,10 @@
   "adminCheck_short_timer": "Timer {detail} s — unter 25 s",
   "adminCheck_hint_leak": "Die Antwort „{detail}“ steht im Hinweis",
   "adminCheck_media_unchecked": "Konnte nicht geprüft werden: {detail}",
-  "adminCheck_video_unchecked": "Video {detail} konnte nicht geprüft werden"
+  "adminCheck_video_unchecked": "Video {detail} konnte nicht geprüft werden",
+  "adminPreviewPin": "{x} % der Breite, {y} % der Höhe; volle Punkte bis {full} %, null ab {zero} %",
+  "adminPreviewSpots": "Unterschiede: {count}",
+  "adminPreviewSolution": "Lösung",
+  "adminCheckWholeQuiz": "Das ganze Quiz",
+  "adminCheck_media_blocked": "Die Adresse führt in ein internes Netz und wurde nicht geprüft: {detail}"
 }

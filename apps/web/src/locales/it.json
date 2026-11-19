@@ -4982,5 +4982,10 @@
   "adminCheck_short_timer": "Timer {detail} s — meno di 25 s",
   "adminCheck_hint_leak": "La risposta «{detail}» è nell'indizio",
   "adminCheck_media_unchecked": "Impossibile controllare: {detail}",
-  "adminCheck_video_unchecked": "Impossibile controllare il video {detail}"
+  "adminCheck_video_unchecked": "Impossibile controllare il video {detail}",
+  "adminPreviewPin": "{x} % della larghezza, {y} % dell'altezza; punti pieni fino a {full} %, zero da {zero} %",
+  "adminPreviewSpots": "Differenze: {count}",
+  "adminPreviewSolution": "Soluzione",
+  "adminCheckWholeQuiz": "Tutto il quiz",
+  "adminCheck_media_blocked": "L'indirizzo porta a una rete interna e non è stato controllato: {detail}"
 }
