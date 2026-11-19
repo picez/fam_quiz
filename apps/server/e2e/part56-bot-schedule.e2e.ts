@@ -152,6 +152,11 @@ async function schedule56() {
     const when = Math.ceil(ms / MINUTE) * MINUTE;
     await section.getByLabel('Дата й час (за київським часом)', exact).fill(kyivInput(when));
   };
+  // Форма згорнута за «Запланувати гру»: список іде першим.
+  const toggle = section.getByRole('button', { name: 'Запланувати гру', ...exact });
+  expect(await toggle.getAttribute('aria-expanded')).toBe('false');
+  expect(await section.locator('form').count(), 'the form is collapsed').toBe(0);
+  await toggle.click();
   await fillWhen(Date.now() + MINUTE);
   await section.getByLabel('Родинній групі', exact).check();
   await section.locator('#bot-plan-group').selectOption({ label: '🏡 Малинські' });
@@ -234,6 +239,7 @@ async function schedule56() {
   // ── 5. Другий план для нікого: відкрито, а через 5 хв ніхто не прийшов — лобі закрито. ──
   await admin.goto(`${base}/admin/bot`);
   const plan = async (when: number, auto: number | null) => {
+    await section.getByRole('button', { name: 'Запланувати гру', ...exact }).click();
     await fillWhen(when);
     await section.getByLabel('Нікому', exact).check();
     const box = section.getByLabel('Почати автоматично, якщо є гравці', exact);
@@ -294,9 +300,19 @@ async function schedule56() {
   expect(botPushes().length, 'no push for a missed start of a plan for nobody').toBe(4);
   expect(await section.innerText(), 'the schedule has an email').not.toContain('@');
 
-  // Список зі станами: світла й темна теми, 360 px.
+  // Список зі станами (кольори): світла й темна теми, 360 px; список — перший, форма — згорнута кнопка під ним.
+  expect(await section.locator('form').count(), 'the form collapsed after the last plan').toBe(0);
+  const listBox = await section.locator('ul.admin-list').boundingBox();
+  const toggleBox = await section.getByRole('button', { name: 'Запланувати гру', ...exact }).boundingBox();
+  expect(listBox!.y, 'the list is above the form button').toBeLessThan(toggleBox!.y);
+  await section.getByRole('heading', { name: 'Розклад', ...exact }).scrollIntoViewIfNeeded();
+  await view(admin, 'schedule56-top-360');
   await section.getByText(/Активних: \d+ з 20/).scrollIntoViewIfNeeded();
   await view(admin, 'schedule56-list-360');
+  await section.getByRole('button', { name: 'Запланувати гру', ...exact }).scrollIntoViewIfNeeded();
+  await viewportShot(admin, 'schedule56-form-collapsed-360');
+  await section.getByRole('button', { name: 'Запланувати гру', ...exact }).click();
+  await section.locator('#bot-plan-missing').waitFor();
   await section.getByRole('heading', { name: 'Запланувати гру', ...exact }).scrollIntoViewIfNeeded();
   await viewportShot(admin, 'schedule56-form-empty-360');
   const darkContext = await browser.newContext({ viewport: { width: 360, height: 740 }, locale: 'uk-UA', timezoneId: KYIV, colorScheme: 'dark', storageState: { cookies: (await admin.context().storageState()).cookies, origins: [] } });
@@ -307,10 +323,11 @@ async function schedule56() {
   await darkSection.getByRole('heading', { name: 'Розклад', ...exact }).waitFor();
   await darkSection.locator('ul.admin-list > li.admin-card').first().waitFor();
   expect(await isLight(dark), 'the dark page is dark').toBe(false);
-  await darkSection.getByRole('heading', { name: 'Запланувати гру', ...exact }).scrollIntoViewIfNeeded();
-  await view(dark, 'schedule56-form-dark-360');
   await darkSection.getByText(/Активних: \d+ з 20/).scrollIntoViewIfNeeded();
   await view(dark, 'schedule56-list-dark-360');
+  await darkSection.getByRole('button', { name: 'Запланувати гру', ...exact }).click();
+  await darkSection.getByRole('heading', { name: 'Запланувати гру', ...exact }).scrollIntoViewIfNeeded();
+  await view(dark, 'schedule56-form-dark-360');
   await dark.close();
 
   // ── 8. Журнал: заплановано, відкрито за розкладом, скасовано, не відкрито. ──
