@@ -183,7 +183,11 @@ describe('profile speed (46): the safety net', () => {
     const career = await seedCareer(db);
     const first = await readAll(db, career);
     expect(first.own.form?.games).toHaveLength(10);
-    expect(first.own.form).toEqual(first.public?.form);
+    // Публічна форма — ті самі ігри без назв, команд і id.
+    expect(first.public?.form).toEqual({
+      games: first.own.form?.games.map(({ startedAt, place, medal }) => ({ startedAt, place, medal })),
+      streak: first.own.form?.streak,
+    });
   });
 
   it('the first read levels up from the achievements it just wrote', { timeout: 120_000 }, async () => {

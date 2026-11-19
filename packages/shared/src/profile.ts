@@ -64,8 +64,8 @@ export interface PublicProfile extends ProfileCard {
   showcase: Showcase;
   level: PublicLevel;
   likes: LikeTotals;
-  /** Остання форма (49); необов'язкова — старий кеш вебу й фікстури без неї. */
-  form?: RecentForm;
+  /** Остання форма (49) без назв ігор (publicForm); необов'язкова — старий кеш вебу й фікстури без неї. */
+  form?: PublicRecentForm;
 }
 
 export interface ProfileWin {
@@ -195,6 +195,19 @@ export interface FormGame {
 export interface RecentForm {
   games: FormGame[];
   streak: { kind: 'wins' | 'top3'; count: number } | null;
+}
+
+/** Публічна гра форми (49): лише місце, медаль і дата — назви гри, команди й id чужим не показуються (рішення власника). */
+export type PublicFormGame = Pick<FormGame, 'startedAt' | 'place' | 'medal'>;
+
+export interface PublicRecentForm {
+  games: PublicFormGame[];
+  streak: RecentForm['streak'];
+}
+
+/** Форма для публічного профілю: ті самі ігри й серія без назв, команд і id. */
+export function publicForm(form: RecentForm): PublicRecentForm {
+  return { games: form.games.map(({ startedAt, place, medal }) => ({ startedAt, place, medal })), streak: form.streak };
 }
 
 /** Остання форма (49): games — новіші першими; рахуються завершені ігри з місцем і > 1 учасником. */

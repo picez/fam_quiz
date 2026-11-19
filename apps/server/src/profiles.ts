@@ -5,6 +5,7 @@ import {
   isWin,
   nicknameSchema,
   normalizeFavorites,
+  publicForm,
   recentForm,
   type Achievement,
   type FriendCard,
@@ -290,7 +291,8 @@ export async function publicProfile(db: Db, id: string, viewerId: string | null)
     level,
     likes,
     leagueTitles,
-    form,
+    // Чужому — лише місця й дати, без назв ігор.
+    form: publicForm(form),
   };
 }
 

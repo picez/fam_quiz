@@ -309,7 +309,15 @@ describe('profile facts', () => {
     };
     const own = await ownProfile(db, { id: me, name: 'Гравець', email: `${me}@example.com` } as Parameters<typeof ownProfile>[1]);
     expect(own.form).toEqual(expected);
-    expect((await publicProfile(db, me, null))?.form).toEqual(expected);
+    // Чужому — лише місця, медалі й дати: ні назв ігор, ні команд, ні id (рішення власника).
+    expect((await publicProfile(db, me, null))?.form).toEqual({
+      games: expected.games.map(({ startedAt, place, medal }) => ({ startedAt, place, medal })),
+      streak: expected.streak,
+    });
+    const response = await ctx.app.inject({ method: 'GET', url: `/api/profiles/${me}` });
+    expect(response.statusCode).toBe(200);
+    for (const title of ['Перша', 'Друга', 'Третя', 'Соло']) expect(response.body).not.toContain(title);
+    for (const g of response.json().form.games) expect(Object.keys(g).sort()).toEqual(['medal', 'place', 'startedAt']);
 
     await db.insert(userBan).values({ userId: me, reason: null, bannedBy: null, bannedAt: new Date() });
     expect(await publicProfile(db, me, null)).toBeNull();
