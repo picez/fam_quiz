@@ -54,7 +54,7 @@ export function writeLie(state: GameState, playerId: string, text: string, now: 
   if (state.paused) return fail('paused');
   if (notStarted(state, now)) return fail('not_started');
   if (!state.players.some((p) => p.id === playerId)) return fail('not_found');
-  // Одна вигадка на гравця: змінити не можна.
+  // Одна вигадка на гравця; змінити — editLie, потім writeLie.
   if (Object.hasOwn(play.bluff.lies, playerId)) return fail('already_answered');
   if (state.startedAt === null || timeOver(state, play, now)) return fail('time_over');
   const value = text.trim().replace(/\s+/g, ' ');
@@ -64,6 +64,24 @@ export function writeLie(state: GameState, playerId: string, text: string, now: 
   if (textMatches(play.question.accepted, value) || play.question.accepted.some((spelling) => bluffShownText(spelling) === bluffShownText(value))) return fail('bluff_truth');
   const written = withCurrentPlay(state, { ...play, bluff: { ...play.bluff, lies: { ...play.bluff.lies, [playerId]: { text: value, at: now } } } });
   return ok(bluffAuto(written, now));
+}
+
+/**
+ * «Змінити» (45c): гравець забирає свою вигадку, поки вигадки пишуть; доки не надішле нову (writeLie), він не написав.
+ * Помилки: wrong_phase (не question чи не lies), paused, not_started, not_found (немає гравця чи його вигадки), time_over.
+ * bluffAuto не кличе: видалення не може закрити етап.
+ */
+export function editLie(state: GameState, playerId: string, now: number): Result {
+  if (state.phase !== 'question') return fail('wrong_phase');
+  const play = bluffPlayOf(state);
+  if (play === null || play.bluff.stage !== 'lies') return fail('wrong_phase');
+  if (state.paused) return fail('paused');
+  if (notStarted(state, now)) return fail('not_started');
+  if (!state.players.some((p) => p.id === playerId)) return fail('not_found');
+  if (!Object.hasOwn(play.bluff.lies, playerId)) return fail('not_found');
+  if (state.startedAt === null || timeOver(state, play, now)) return fail('time_over');
+  const { [playerId]: _gone, ...lies } = play.bluff.lies;
+  return ok(withCurrentPlay(state, { ...play, bluff: { ...play.bluff, lies } }));
 }
 
 /**

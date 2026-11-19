@@ -102,7 +102,7 @@ import { GAME_STATE_VERSION, READABLE_STATE_VERSIONS, suspend } from './restore'
 import { openClue } from './clues';
 import { sortMarks, sortOf, sortWord } from './sort';
 import type { Splash } from './splash';
-import { seededRng, writeLie } from './bluff';
+import { editLie, seededRng, writeLie } from './bluff';
 import { T0, buffQuiz, toBuffCell, toBuffQuestion, toOthersQuestion } from './testing/buffs';
 import { T0 as DUEL_T0, T1 as DUEL_T1, toDeclarableWith, toDuelQuestion } from './testing/duel';
 import { answerDuel, betDuel, declareDuel, duelQuestionOf, pickDuelCategory } from './duel';
@@ -2925,5 +2925,18 @@ describe('60 snapshots', () => {
     expect(appealsLeft(back, 'p1')).toBe(1);
     const v22 = 'adjustmentSeq,adjustments,appealQueue,appeals,autopilot,awaiting,board,buffSeq,debuffs,deferredCharges,drawTurns,duel,duelUsed,duelsDeclared,endsAt,final,guidePage,heldAt,ladder,paused,pausedAt,perks,phase,players,plays,presented,quest,questBuffs,questionIndex,quiz,remainingMs,roundIndex,soundsOff,sparesUsed,splash,startedAt,stealth,stepAt,teams,transitions,truth'.split(',');
     expect(Object.keys(back).filter((k) => !v22.includes(k))).toEqual([]);
+  });
+
+  it('a bluff snapshot in the lies restores and the player can change the lie', () => {
+    expect(GAME_STATE_VERSION).toBe(22);
+    let open = openAt(lobbyWith(makeRoundsQuiz([classicRound('r1', [bluff])]), 'Оля', 'Петро', 'Іра'), T0, () => 0);
+    open = must(writeLie(open, 'p1', 'Рим', T0 + 1000));
+    const back = backAt(roundTrip(suspend(roundTrip(open), T0 + 2000)), T0 + 2000 + HOUR);
+    expect(back.plays[0].bluff?.lies.p1).toEqual({ text: 'Рим', at: T0 + 1000 });
+    const edited = must(editLie(back, 'p1', T0 + 3000 + HOUR));
+    expect(edited.plays[0].bluff?.lies).not.toHaveProperty('p1');
+    const rewritten = must(writeLie(edited, 'p1', 'Мілан', T0 + 4000 + HOUR));
+    expect(rewritten.plays[0].bluff?.lies.p1).toEqual({ text: 'Мілан', at: T0 + 4000 + HOUR });
+    expect(rewritten.plays[0].bluff?.stage).toBe('lies');
   });
 });

@@ -212,6 +212,11 @@ describe('solo live drafts (12b)', () => {
     expect(manager.liveDrafts(room).drafts).toMatchObject([{ id: olena.playerId, draft: { type: 'lie', text: 'Вигадка' } }]);
     expect(manager.lie(room, olena.playerId, 'Рим')).toEqual({ ok: true });
     expect(manager.liveDrafts(room).drafts).toEqual([]);
+    // «Змінити» (45c): вигадку забрано — чернетка знову приймається
+    expect(manager.lieEdit(room, olena.playerId)).toEqual({ ok: true });
+    expect(manager.draft(room, olena.playerId, { type: 'lie', text: 'Ще' })).toEqual({ ok: true });
+    expect(manager.lie(room, olena.playerId, 'Рим')).toEqual({ ok: true });
+    expect(manager.liveDrafts(room).drafts).toEqual([]);
     scheduler.advance(bluff.timeLimit * 1000 + 1);
     expect(room.state.plays[0]?.bluff?.stage).toBe('choice');
     expect(manager.draft(room, taras.playerId, { type: 'lie', text: 'Вигадка' })).toEqual({ ok: false, error: 'wrong_phase' });
