@@ -46,6 +46,7 @@ import {
   cellAnswerMode,
   QUESTION_TYPES,
   answerKey,
+  wordIn,
   isStorable,
   cloudKey,
   roundQuestions,
@@ -391,7 +392,7 @@ function build(common: Common, type: QuestionType): Question {
     case 'spy': {
       // 38: «Шпигун» — без відео, звуку, «перевертання» й підказки (бафів немає); слова вписує ведучий (задача 6).
       const { hint: _hint, audio: _audio, reveal: _reveal, ...rest } = common;
-      return { ...rest, video: null, type, text: rest.text === '' ? t('spyDefaultText') : rest.text, timeLimit: 40, voteTime: 30, accepted: [''], spyWord: '' };
+      return { ...rest, video: null, type, text: rest.text === '' ? t('spyDefaultText') : rest.text, timeLimit: 40, voteTime: 30, accepted: [''] };
     }
     case 'bluff':
       return { ...common, video: null, type, timeLimit: LIMITS.defaultBluffTime, choiceTime: LIMITS.defaultChoiceTime, accepted: [''], lies: ['', ''] };
@@ -1130,10 +1131,11 @@ const cleanBody = (question: Question): Question => {
       return { ...rest, text };
     }
     case 'spy': {
-      // Слово гравців — перше написання: порожнє лишається для перевірки, порожні додаткові відкидаються; без відео, звуку, «перевертання» й підказки.
-      const { hint: _hint, audio: _audio, reveal: _reveal, ...rest } = question;
+      // Слово гравців — перше написання: порожнє лишається для перевірки, порожні додаткові відкидаються; підказка шпигуну — лише непорожня, старе слово шпигуна відкидається; без відео, звуку, «перевертання» й підказки.
+      const { hint: _hint, audio: _audio, reveal: _reveal, spyHint, spyWord: _spyWord, ...rest } = question;
       const [playersWord = '', ...others] = question.accepted.map((s) => s.trim());
-      return { ...rest, text, video: null, accepted: [playersWord, ...others.filter((s) => s !== '')], spyWord: question.spyWord.trim() };
+      const hint = (spyHint ?? '').trim();
+      return { ...rest, text, video: null, accepted: [playersWord, ...others.filter((s) => s !== '')], ...(hint === '' ? {} : { spyHint: hint }) };
     }
     case 'wordle': {
       // Слово без зайвих пробілів; без відео, «перевертання» й підказки (бафів немає).
@@ -1383,14 +1385,14 @@ const CROSSWORD_PROBLEMS = {
   crossword_key_letters: 'problemCrosswordKeyLetters',
 } as const satisfies Record<string, TextKey>;
 
-/** Текст видно всім: жодного з двох слів пари цілим словом (те саме правило, що spy_leak схеми). */
+/** Текст видно всім: загальне слово цілим словом не має в ньому траплятися (те саме правило, що spy_leak схеми). */
 function spyLeaks(question: Extract<Question, { type: 'spy' }>): boolean {
-  const wordsOf = (value: string) => answerKey(value).split(/[^\p{L}\p{N}']+/u).filter(Boolean).join(' ');
-  const textKey = ' ' + wordsOf(question.text) + ' ';
-  return [question.accepted[0] ?? '', question.spyWord].some((word) => {
-    const key = wordsOf(word);
-    return key !== '' && textKey.includes(' ' + key + ' ');
-  });
+  return wordIn(question.text, question.accepted[0] ?? '');
+}
+
+/** Попередження (не блокує): підказка шпигуну містить саме загальне слово чи одне з його написань. */
+export function spyHintLeaks(question: Extract<Question, { type: 'spy' }>): boolean {
+  return question.accepted.some((word) => wordIn(question.spyHint ?? '', word));
 }
 
 function problemKey(question: Question, place: Place = ANYWHERE): TextKey | null {
@@ -1640,9 +1642,8 @@ function problemKey(question: Question, place: Place = ANYWHERE): TextKey | null
     }
     case 'spy': {
       const [playersWord = ''] = question.accepted;
-      if (answerKey(playersWord) === '' || answerKey(question.spyWord) === '') return 'problemSpyWordEmpty';
+      if (answerKey(playersWord) === '') return 'problemSpyWordEmpty';
       if (playersWord.trim().length > LIMITS.thinkWord) return 'problemSpyWordLong';
-      if (question.accepted.map(answerKey).includes(answerKey(question.spyWord))) return 'problemSpySame';
       if (spyLeaks(question)) return 'problemSpyLeak';
       if (question.video !== null || question.audio !== undefined) return 'problemSpyMedia';
       if (!Number.isInteger(question.voteTime) || question.voteTime < LIMITS.minTime || question.voteTime > LIMITS.maxTime) return 'problemSpyVoteTime';

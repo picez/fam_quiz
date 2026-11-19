@@ -12,16 +12,18 @@ afterEach(cleanup);
 
 const spy = (patch: Partial<Spy> = {}): Spy => ({ ...(newQuestion('spy') as Spy), ...patch });
 const last = (onChange: ReturnType<typeof vi.fn>) => onChange.mock.calls.at(-1)?.[0] as Spy;
+const legacy = (word: string) => t('spyLegacyWord', { word });
 
 describe('SpyEditor', () => {
-  it('edits both words and the vote timer', () => {
+  it('edits the common word, the hint and the vote timer; no spy word field', () => {
     const onChange = vi.fn();
     const { rerender } = render(<SpyEditor question={spy()} onChange={onChange} />);
     fireEvent.change(screen.getByLabelText(t('spyPlayersWord'), { selector: 'input' }), { target: { value: 'потяг' } });
     expect(last(onChange).accepted).toEqual(['потяг']);
     rerender(<SpyEditor question={spy({ accepted: ['потяг'] })} onChange={onChange} />);
-    fireEvent.change(screen.getByLabelText(t('spySpyWord')), { target: { value: 'автобус' } });
-    expect(last(onChange).spyWord).toBe('автобус');
+    fireEvent.change(screen.getByLabelText(t('spyHintField')), { target: { value: 'рейки' } });
+    expect(last(onChange).spyHint).toBe('рейки');
+    expect(screen.getByLabelText(t('spyHintField')).getAttribute('maxlength')).toBe('120');
     fireEvent.change(screen.getByLabelText(t('spyVoteTime')), { target: { value: '35' } });
     expect(last(onChange).voteTime).toBe(35);
     screen.getByText(t('spyEditorHint'));
@@ -37,10 +39,34 @@ describe('SpyEditor', () => {
     expect(last(onChange).accepted).toEqual(['потяг', 'поїзд']);
   });
 
-  it('same words warn', () => {
-    const { rerender } = render(<SpyEditor question={spy({ accepted: ['Потяг'], spyWord: 'автобус' })} onChange={vi.fn()} />);
-    expect(screen.queryByText(t('problemSpySame', { index: 1 }).replace(/^[^:]*:\s*/, ''))).toBeNull();
-    rerender(<SpyEditor question={spy({ accepted: ['Потяг'], spyWord: 'потяг' })} onChange={vi.fn()} />);
-    screen.getByText(t('problemSpySame', { index: 1 }).replace(/^[^:]*:\s*/, ''));
+  it('clearing the hint removes the key', () => {
+    const onChange = vi.fn();
+    render(<SpyEditor question={spy({ accepted: ['кава'], spyHint: 'напій' })} onChange={onChange} />);
+    fireEvent.change(screen.getByLabelText(t('spyHintField')), { target: { value: '' } });
+    expect(last(onChange)).not.toHaveProperty('spyHint');
+  });
+
+  it('a hint with the common word warns, a longer word does not', () => {
+    const { rerender } = render(<SpyEditor question={spy({ accepted: ['кава'], spyHint: 'кава з молоком' })} onChange={vi.fn()} />);
+    expect(screen.getByRole('status').textContent).toBe(t('spyHintLeak'));
+    rerender(<SpyEditor question={spy({ accepted: ['кава'], spyHint: 'Кавалерія' })} onChange={vi.fn()} />);
+    expect(screen.getByRole('status').textContent).toBe('');
+  });
+
+  it('an old spy word is offered as the hint', () => {
+    const onChange = vi.fn();
+    const { rerender } = render(<SpyEditor question={spy({ accepted: ['кава'], spyWord: 'чай' })} onChange={onChange} />);
+    screen.getByText(legacy('чай'));
+    fireEvent.click(screen.getByRole('button', { name: t('spyLegacyToHint') }));
+    expect(last(onChange).spyHint).toBe('чай');
+    expect(last(onChange)).not.toHaveProperty('spyWord');
+    fireEvent.click(screen.getByRole('button', { name: t('spyLegacyDrop') }));
+    expect(last(onChange)).not.toHaveProperty('spyWord');
+    expect(last(onChange)).not.toHaveProperty('spyHint');
+    rerender(<SpyEditor question={spy({ accepted: ['кава'], spyWord: 'чай', spyHint: 'напій' })} onChange={onChange} />);
+    screen.getByText(legacy('чай'));
+    expect(screen.queryByRole('button', { name: t('spyLegacyToHint') })).toBeNull();
+    rerender(<SpyEditor question={spy({ accepted: ['кава'] })} onChange={onChange} />);
+    expect(screen.queryByText(legacy('чай'))).toBeNull();
   });
 });
