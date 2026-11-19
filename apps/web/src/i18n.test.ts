@@ -468,7 +468,9 @@ describe('uk golden (22a)', () => {
 
   it('53 keys (live games, charts, health, announcement, home) are in every language', () => {
     const locales: Record<string, Record<string, string>> = { en, pl, de, es, it: it_, ar };
-    const vars = (text: string) => [...text.matchAll(/{(w+)}/g)].map((m) => m[1]).sort();
+    const vars = (text: string) => [...text.matchAll(/\{(\w+)\}/g)].map((m) => m[1]).sort();
+    // The guard itself must see placeholders, or every comparison below passes vacuously.
+    expect(vars('{b} and {a}')).toEqual(['a', 'b']);
     for (const key of ADDED_ADMIN_HOME_53) expect(ukMessages, key).toHaveProperty(key);
     for (const [lang, dict] of Object.entries(locales)) {
       expect(ADDED_ADMIN_HOME_53.filter((key) => !(key in dict)), lang).toEqual([]);
