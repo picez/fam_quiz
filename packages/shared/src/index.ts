@@ -69,3 +69,4 @@ export * from './question-bank';
 export * from './challenge';
 export * from './league';
 export * from './library';
+export * from './quiz-check';
