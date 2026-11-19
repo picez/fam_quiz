@@ -19,7 +19,7 @@ const room = (over: Partial<AdminBotRoom> = {}): AdminBotRoom => ({
   ...over,
 });
 const quiz = (over: Partial<AdminBotQuiz> = {}): AdminBotQuiz => ({ id: QUIZ_ID, title: 'Річки України', rounds: 2, questions: 10, truth: false, updatedAt: '2026-11-18T10:00:00.000Z', ...over });
-const bot = (over: Partial<AdminBotData> = {}): AdminBotData => ({ bot: { nickname: 'Квіз-бот', ready: true }, quizzes: [quiz()], rooms: [], roomsMax: 3, ...over });
+const bot = (over: Partial<AdminBotData> = {}): AdminBotData => ({ bot: { nickname: 'Квіз-бот', ready: true }, quizzes: [quiz()], rooms: [], roomsMax: 3, schedule: { plans: [], groups: [], max: 20 }, ...over });
 
 type Reply = { status: number; body?: unknown };
 let replies: Record<string, Reply | (() => Reply)>;
@@ -157,6 +157,16 @@ describe('AdminBot', () => {
     await waitFor(() => expect(screen.getByRole('button', { name: 'Видалити' }).hasAttribute('disabled')).toBe(false));
     fireEvent.click(screen.getByRole('button', { name: 'Видалити' }));
     await waitFor(() => expect(sent('DELETE', `/api/admin/bot/quizzes/${QUIZ_ID}`)).toHaveLength(1));
+  });
+
+  it('the schedule sits between the bot rooms and the bot quizzes', async () => {
+    open();
+    const schedule = await screen.findByRole('heading', { name: 'Розклад' });
+    const rooms = screen.getByRole('heading', { name: 'Кімнати бота' });
+    const quizzes = screen.getByRole('heading', { name: 'Вікторини бота' });
+    expect(rooms.compareDocumentPosition(schedule) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(schedule.compareDocumentPosition(quizzes) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(schedule.closest('section')?.classList.contains('admin-bot-schedule')).toBe(true);
   });
 
   it('the bot avatar is the bot picture', async () => {

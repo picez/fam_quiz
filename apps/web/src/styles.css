@@ -27543,3 +27543,81 @@ a.library-card:focus-visible {
 .admin-announce-preview h3 {
   margin: 0 0 0.5rem;
 }
+
+/* 56: «Розклад» у вкладці «Бот» — форма плану й картки; на 360 px усе в один стовпчик, «фішки» людей переносяться. */
+.admin-bot-plan-form {
+  gap: 0.75rem;
+}
+
+.admin-bot-plan-form h3:focus-visible {
+  outline: 2px solid var(--amber);
+  outline-offset: 2px;
+}
+
+.admin-bot-plan-form .field input:not([type='checkbox']):not([type='radio']),
+.admin-bot-plan-form .field select {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  min-height: 2.75rem;
+}
+
+.admin-bot-plan-to {
+  display: grid;
+  gap: 0.35rem;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.admin-bot-plan-to legend {
+  margin-bottom: 0.35rem;
+  padding: 0;
+  font-weight: 700;
+}
+
+.admin-bot-plan-to label:has(input:disabled) {
+  opacity: 0.55;
+}
+
+.admin-bot-people,
+.admin-bot-found {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.admin-bot-people li {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  max-width: 100%;
+  padding-inline-start: 0.85rem;
+  border: 2px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.admin-bot-people .btn,
+.admin-bot-found .btn {
+  min-width: 2.75rem;
+  min-height: 2.75rem;
+  max-width: 100%;
+  white-space: normal;
+}
+
+.admin-bot-people .btn {
+  border: 0;
+  border-radius: 999px;
+}
+
+.admin-bot-schedule .admin-card.is-editing {
+  border-color: var(--amber);
+}

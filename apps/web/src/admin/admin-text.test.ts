@@ -1,6 +1,6 @@
 import type { AdminLogEntry, Question } from '@quiz/shared';
 import { describe, expect, it } from 'vitest';
-import { bytesText, durationText, logLine, questionConfirm, questionLines, uptimeText } from './admin-text';
+import { bytesText, durationText, kyivWhenText, logLine, questionConfirm, questionLines, uptimeText } from './admin-text';
 
 const entry = (over: Partial<AdminLogEntry>): AdminLogEntry => ({ id: 'l1', at: '2026-11-01T10:00:00.000Z', admin: 'Адмін', kind: 'ban', target: 'Богдан', details: {}, ...over });
 const base = { imageUrl: null, video: null, timeLimit: 30, points: 1000 };
@@ -47,6 +47,15 @@ describe('logLine for moderation', () => {
     expect(logLine(entry({ admin: 'Оля', kind: 'bot_game_start', target: 'Квіз-бот', details: { title: 'Річки України 54', code: '123456' } }))).toBe('Оля запустив(-ла) гру бота «Річки України 54» (код 123456)');
     expect(logLine(entry({ admin: 'Оля', kind: 'bot_copy', target: 'Квіз-бот', details: { title: 'Карпати' } }))).toBe('Оля передав(-ла) боту копію «Карпати»');
     expect(logLine(entry({ admin: 'Оля', kind: 'bot_quiz_delete', target: 'Квіз-бот', details: { title: 'Карпати' } }))).toBe('Оля видалив(-ла) вікторину бота «Карпати»');
+  });
+  it('writes the bot schedule lines with the Kyiv time, the code and the reason', () => {
+    const details = { title: 'Поліські озера 56', when: '2026-11-20T17:00:00.000Z' };
+    expect(kyivWhenText('2026-11-20T17:00:00.000Z')).toBe('20 листопада 2026, 19:00 (Київ)');
+    expect(logLine(entry({ admin: 'Оля', kind: 'bot_plan_create', target: 'Квіз-бот', details }))).toBe('Оля запланував(-ла) гру бота «Поліські озера 56» на 20 листопада 2026, 19:00 (Київ)');
+    expect(logLine(entry({ admin: 'Оля', kind: 'bot_plan_update', target: 'Квіз-бот', details }))).toBe('Оля змінив(-ла) план гри бота «Поліські озера 56»: 20 листопада 2026, 19:00 (Київ)');
+    expect(logLine(entry({ admin: 'Оля', kind: 'bot_plan_cancel', target: 'Квіз-бот', details }))).toBe('Оля скасував(-ла) гру бота «Поліські озера 56» (20 листопада 2026, 19:00 (Київ))');
+    expect(logLine(entry({ admin: 'Квіз-бот', kind: 'bot_plan_run', target: 'Квіз-бот', details: { title: 'Поліські озера 56', code: '123456' } }))).toBe('Розклад: бот відкрив гру «Поліські озера 56» (код 123456)');
+    expect(logLine(entry({ admin: 'Квіз-бот', kind: 'bot_plan_fail', target: 'Квіз-бот', details: { title: 'Поліські озера 56', reason: 'server_down' } }))).toBe('Розклад: гру бота «Поліські озера 56» не відкрито — сервер був недоступний');
   });
   it('shows a player without a nickname as the default name', () => {
     expect(logLine(entry({ kind: 'avatar_reset', target: '' }))).toBe('Адмін скинув(-ла) аватар Гравець');

@@ -6,6 +6,7 @@ import { formatDay, quizSizeText } from '../format';
 import { countText, errorText, t, type TextKey } from '../i18n';
 import { Avatar } from '../profile/Avatar';
 import { adminBot, botRoomAct, copyToBot, deleteBotQuiz, startBotGame } from './admin-api';
+import { AdminBotSchedule } from './AdminBotSchedule';
 import { useAdminData } from './useAdminData';
 
 const STATUS_KEY: Record<AdminBotStatus, TextKey> = {
@@ -166,6 +167,7 @@ export function AdminBot(): JSX.Element {
               </ul>
             )}
           </section>
+          <AdminBotSchedule schedule={state.data.schedule} quizzes={state.data.quizzes} onChanged={reload} />
           <section aria-labelledby="admin-bot-quizzes">
             <h2 id="admin-bot-quizzes">{t('adminBotQuizzes')}</h2>
             {state.data.quizzes.length === 0 ? (

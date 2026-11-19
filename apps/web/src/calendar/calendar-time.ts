@@ -12,6 +12,9 @@ function zoneOk(zone: string): boolean {
   }
 }
 
+/** Київський пояс (56: розклад бота в адмінці); ICU без Europe/Kyiv знає лише Europe/Kiev. */
+export const KYIV_ZONE: string = zoneOk(FALLBACK) ? FALLBACK : 'Europe/Kiev';
+
 /** Пояс глядача; запасний Europe/Kyiv; ICU без Europe/Kyiv → Europe/Kiev. */
 export function viewerZone(): string {
   let zone: string | undefined;
