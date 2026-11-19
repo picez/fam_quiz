@@ -91,7 +91,7 @@ describe('showcase pin routes', () => {
     expect(profile.statusCode).toBe(200);
     const body = profile.json() as { showcase: { pins: ShowcasePins } };
     expect(body.showcase.pins).toEqual(expected);
-    expect(Object.keys(body).sort()).toEqual(['achievements', 'avatar', 'following', 'id', 'leagueTitles', 'level', 'likes', 'nickname', 'showcase', 'stats']);
+    expect(Object.keys(body).sort()).toEqual(['achievements', 'avatar', 'following', 'form', 'id', 'leagueTitles', 'level', 'likes', 'nickname', 'showcase', 'stats']);
     expect((await call('GET', '/api/me/showcase/pins', other.cookie)).json()).toEqual({ prizes: [], achievements: [] });
   });
 });
