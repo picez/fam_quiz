@@ -1,6 +1,6 @@
 /**
  * Додає демо-вікторину користувачу за email або оновлює вже наявну вікторину за її id.
- * Запуск: DATABASE_URL=... pnpm --filter @quiz/server seed:demo you@example.com [demo|party|party-media|movies|erudite|school|mosaic|compass|horizon|teams|showcase|grand|family|family2|evening|classroom|movies90|logic|world|fun|halloween|mix|quick|mix2|mega|fest|detective|think|video|alike|spy|school3|wordle]
+ * Запуск: DATABASE_URL=... pnpm --filter @quiz/server seed:demo you@example.com [demo|party|party-media|movies|erudite|school|mosaic|compass|horizon|teams|showcase|grand|family|family2|evening|classroom|movies90|logic|world|fun|halloween|mix|quick|mix2|mega|fest|detective|think|video|alike|spy|school3|wordle|big1|big2|big3|filmbluff]
  * Оновлення: DATABASE_URL=... pnpm --filter @quiz/server seed:demo --update <quizId> <seedName>
  * — замінює назву, опис, налаштування й раунди рядка новим вмістом сіда (як збереження в редакторі,
  * з новим updatedAt); власник лишається той самий, вікторина зберігає своє посилання й історію ігор.
@@ -9,6 +9,8 @@
  * що проявляються; без SITE_URL ці два запитання лишаються звичайними, текстовими. grand і family так само завантажують по три картинки.
  * logic потребує SITE_URL: завантажує намальовані PNG з scripts/logic/img і фото з Вікіпедії.
  * detective потребує SITE_URL: завантажує дві намальовані PNG «Знайди відмінності» з scripts/detective/img.
+ * big2 потребує SITE_URL: завантажує фото для пазлів і картини для «Пам’яті» з Wikimedia Commons (BIG2_PHOTOS).
+ * big3 потребує SITE_URL: «Знайди відмінності» — картина Аверкампа з Wikimedia Commons (BIG3_PHOTOS) і її змінена копія scripts/big3/img (BIG3_FILES).
  */
 import { join } from 'node:path';
 import { quizSchema, type Quiz } from '@quiz/shared';
@@ -51,7 +53,11 @@ import { videoQuiz } from './video-quiz';
 import { alikeQuiz } from './alike-quiz';
 import { spyQuiz } from './spy-quiz';
 import { school3Quiz } from './school3-quiz';
+import { filmbluffQuiz } from './filmbluff-quiz';
 import { wordleQuiz } from './wordle-quiz';
+import { big1Quiz } from './big1-quiz';
+import { BIG2_PHOTOS, big2Quiz } from './big2-quiz';
+import { BIG3_FILES, BIG3_PHOTOS, big3Quiz } from './big3-quiz';
 
 /** Ключ картинки → стаття англійської Вікіпедії, чия головна ілюстрація підходить до запитання. */
 const ARTICLES: Record<string, string> = {
@@ -135,7 +141,7 @@ const uploadImages = (
   sources: () => Promise<Record<string, string>> = () => thumbnails(keys),
 ): Promise<Record<string, string>> => uploadSiteImages(site, db, keys, sources);
 
-const SEEDS = ['demo', 'party', 'party-media', 'movies', 'erudite', 'school', 'mosaic', 'compass', 'horizon', 'teams', 'showcase', 'grand', 'family', 'family2', 'evening', 'classroom', 'movies90', 'logic', 'world', 'fun', 'halloween', 'mix', 'quick', 'mix2', 'mega', 'fest', 'detective', 'think', 'video', 'alike', 'spy', 'school3', 'wordle'] as const;
+const SEEDS = ['demo', 'party', 'party-media', 'movies', 'erudite', 'school', 'mosaic', 'compass', 'horizon', 'teams', 'showcase', 'grand', 'family', 'family2', 'evening', 'classroom', 'movies90', 'logic', 'world', 'fun', 'halloween', 'mix', 'quick', 'mix2', 'mega', 'fest', 'detective', 'think', 'video', 'alike', 'spy', 'school3', 'wordle', 'big1', 'big2', 'big3', 'filmbluff'] as const;
 type SeedName = (typeof SEEDS)[number];
 const isSeed = (arg: string | undefined): arg is SeedName => (SEEDS as readonly string[]).includes(arg ?? '');
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -161,8 +167,12 @@ async function seedQuiz(name: SeedName, db: Db, site: string | undefined): Promi
       return spyQuiz();
     case 'school3':
       return school3Quiz();
+    case 'filmbluff':
+      return filmbluffQuiz();
     case 'wordle':
       return wordleQuiz();
+    case 'big1':
+      return big1Quiz();
     case 'video':
       return videoQuiz();
     case 'quick':
@@ -216,6 +226,26 @@ async function seedQuiz(name: SeedName, db: Db, site: string | undefined): Promi
       if (!site) throw new Error('The movies90 quiz needs SITE_URL: its pictures are required');
       const urls = await uploadImages(site, db, Object.keys(MOVIES90_IMAGES), () => wideSources(MOVIES90_IMAGES));
       return movies90Quiz((key) => {
+        const url = urls[key];
+        if (!url) throw new Error(`Picture ${key} was not uploaded`);
+        return url;
+      });
+    }
+    case 'big2': {
+      if (!site) throw new Error('The big2 quiz needs SITE_URL: its jigsaw photos and memory paintings are required');
+      const urls = await uploadImages(site, db, Object.keys(BIG2_PHOTOS), () => wideSources(BIG2_PHOTOS));
+      return big2Quiz((key) => {
+        const url = urls[key];
+        if (!url) throw new Error(`Picture ${key} was not uploaded`);
+        return url;
+      });
+    }
+    case 'big3': {
+      if (!site) throw new Error('The big3 quiz needs SITE_URL: its spot-the-difference pictures are required');
+      const files = Object.fromEntries(BIG3_FILES.map((key) => [key, `file:${join(import.meta.dirname, 'big3', 'img', `${key}.png`)}`]));
+      const keys = [...BIG3_FILES, ...Object.keys(BIG3_PHOTOS)];
+      const urls = await uploadImages(site, db, keys, async () => ({ ...files, ...(await wideSources(BIG3_PHOTOS)) }));
+      return big3Quiz((key) => {
         const url = urls[key];
         if (!url) throw new Error(`Picture ${key} was not uploaded`);
         return url;
