@@ -19,6 +19,9 @@ const LIBRARY: Item = { label: 'menuLibrary', short: 'menuShortLibrary', icon: '
 const HISTORY: Item = { label: 'menuHistory', short: 'menuShortHistory', icon: '🕘', to: '/history', active: (path) => under('/history')(path) || path === '/me' };
 const PROFILE: Item = { label: 'menuProfile', short: 'menuShortProfile', icon: '👤', to: '/profile', active: (path) => ['/profile', '/prizes', '/achievements', '/friends', '/groups'].some((base) => under(base)(path)) };
 
+// Адмінка — лише для адміна з акаунтом; останній пункт, світиться на /admin і глибше.
+const ADMIN: Item = { label: 'menuAdmin', short: 'menuShortAdmin', icon: '🛠️', to: '/admin', active: under('/admin') };
+
 export function Menu() {
   const location = useLocation();
   const account = useAccount(location.key);
@@ -36,7 +39,7 @@ export function Menu() {
     active: (path) => path === '/login',
   };
   const items =
-    account.status === 'signed-in' ? [JOIN, FEED, QUIZZES, HISTORY, PROFILE] : account.status === 'anonymous' ? [JOIN, LIBRARY, signIn] : [JOIN];
+    account.status === 'signed-in' ? (account.account.admin ? [JOIN, FEED, QUIZZES, HISTORY, PROFILE, ADMIN] : [JOIN, FEED, QUIZZES, HISTORY, PROFILE]) : account.status === 'anonymous' ? [JOIN, LIBRARY, signIn] : [JOIN];
 
   const name = (item: Item) =>
     item === PROFILE && total > 0

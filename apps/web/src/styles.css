@@ -14049,6 +14049,19 @@ button.wall-tile:disabled {
   .menu a .menu-badge { inset-inline-start: auto; inset-inline-end: 0.1rem; top: 0.1rem; min-width: 1rem; height: 1rem; padding: 0 0.2rem; font-size: 0.625rem; }
 }
 
+/* Шостий пункт (Адмінка для адміна): на вузькому екрані пункти ділять ширину порівну, значок і підпис трохи менші, щоб нічого не виходило за межі. */
+@media (max-width: 400px) {
+  .menu:has(> a:nth-of-type(6)) a {
+    gap: 0;
+    font-size: clamp(0.625rem, 3vw, 0.75rem);
+    letter-spacing: -0.02em;
+  }
+
+  .menu:has(> a:nth-of-type(6)) a span {
+    font-size: 1.125rem;
+  }
+}
+
 /* На 401–700 px довгі повні підписи («Neuigkeiten», «Aktualności», «Мої вікторини») тісні для п'ятої частини ширини: усі мови й тут показують короткі. */
 @media (min-width: 401px) and (max-width: 700px) {
   .menu a .menu-full {
