@@ -1158,6 +1158,140 @@ button.choice {
   line-height: 1.2;
 }
 
+/* Останні 5 с (55): лише на телефоні й пульті, поки годинник іде. Сцена — без змін. */
+.app.player .timer.is-ending .flap,
+.app.host .timer.is-ending .flap {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+.app.player .timer.is-ending .timer-bar > span,
+.app.host .timer.is-ending .timer-bar > span {
+  background: var(--accent);
+}
+
+/* Смужка з часом угорі (55): поки табло запитання вище екрана. 40 px з рамкою, без вирізу; дотик проходить крізь неї.
+   Над банерами (55), під заставкою (65) і сповіщеннями (66). */
+.timer-sticky {
+  position: fixed;
+  top: 0;
+  left: 0; /* phys */
+  right: 0; /* phys */
+  z-index: 60;
+  padding-top: env(safe-area-inset-top);
+  background: var(--surface); /* суцільний: текст під смужкою не просвічує */
+  border-bottom: 1px solid var(--line);
+  box-shadow: 0 2px 8px rgb(0 0 0 / 0.5);
+  pointer-events: none;
+  animation: timer-sticky-in 160ms ease-out;
+}
+
+@keyframes timer-sticky-in {
+  from {
+    transform: translateY(-100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+.timer-sticky-row {
+  box-sizing: border-box;
+  height: calc(2.5rem - 4px);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  max-width: 34rem;
+  margin: 0 auto;
+  padding-inline: 1.25rem;
+}
+
+.timer-sticky.is-host .timer-sticky-row {
+  max-width: 46rem;
+}
+
+.timer-sticky-left {
+  flex: none;
+  font-family: var(--display);
+  font-weight: 800;
+  font-size: 1.25rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--amber);
+}
+
+.timer-sticky-status {
+  min-width: 0;
+  color: var(--pending);
+  font-size: 0.875rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.timer-sticky-bar {
+  display: block;
+  height: 3px;
+  background: var(--line);
+}
+
+.timer-sticky-bar > span {
+  display: block;
+  height: 100%;
+  background: var(--amber);
+  transition: width 0.2s linear;
+}
+
+.timer-sticky.is-ending {
+  border-bottom-color: var(--accent);
+}
+
+/* Останні секунди: залита плашка, як клапан основного табло (колір сам по собі майже не відрізняється від --amber). */
+.timer-sticky.is-ending .timer-sticky-left {
+  background: var(--accent);
+  color: var(--on-accent);
+  padding: 0 0.4rem;
+  border-radius: var(--radius-small);
+  font-weight: 900;
+}
+
+.timer-sticky.is-ending .timer-sticky-bar > span {
+  background: var(--accent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .timer-sticky {
+    animation: none;
+  }
+
+  .timer-sticky-bar > span {
+    transition: none;
+  }
+}
+
+:root.is-light .timer-sticky {
+  box-shadow: 0 2px 6px rgb(31 21 21 / 0.14);
+}
+
+/* Легкий режим навмисно більший за 40 px: шрифт 118,75 %, а рядок у rem; це задумано, ліміт 40 px — для звичайного режиму. */
+:where(:root.is-easy) .timer-sticky {
+  animation: none;
+}
+
+:where(:root.is-easy) .timer-sticky-bar > span {
+  transition: none;
+}
+
+/* Поле після фокусу стає нижче смужки: відступ завжди на ігрових екранах, бо смужка з'являється вже після прокрутки. */
+:root:has(.app.player.game-bg),
+:root:has(.app.host.game-bg) {
+  scroll-padding-top: calc(3rem + env(safe-area-inset-top));
+}
+
+/* Пульт: сповіщення стають під смужкою. */
+body:has(.timer-sticky) .host .live-notices {
+  top: calc(2.5rem + max(0.75rem, env(safe-area-inset-top)));
+}
+
 .round-facts {
   color: var(--amber);
   font-family: var(--display);
@@ -5062,6 +5196,11 @@ button.shelf-cup {
 /* Поки вгорі смуга «Немає зв'язку», сповіщення пульта стоїть під нею, а не під смугою. */
 body:has(.banner.is-offline) .host .live-notices {
   top: calc(max(0.75rem, env(safe-area-inset-top)) + 3rem);
+}
+
+/* Смужка таймера (55) вгорі та смуга «Немає зв'язку» разом: сповіщення пульта під обома. */
+body:has(.banner.is-offline):has(.timer-sticky) .host .live-notices {
+  top: calc(2.5rem + max(0.75rem, env(safe-area-inset-top)) + 3rem);
 }
 
 .stage .live-notices {

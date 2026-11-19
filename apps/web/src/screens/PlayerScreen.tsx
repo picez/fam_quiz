@@ -102,6 +102,7 @@ import { AppealCard } from './AppealCard';
 import { AppealSheet } from './AppealSheet';
 import { appealButtonText } from '../appeal-text';
 import { ReactionMain } from '../live/Reactions';
+import { StickyTimerProvider } from '../live/StickyTimer';
 import { ReactionButton } from './ReactionSheet';
 import { LikeButton, LikePanel } from './Likes';
 import { canReact } from '../reactions';
@@ -975,6 +976,7 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
     // aria-busy: під заставкою запитання чи клітинки поле вже стоїть, але запитання ще не почалося.
     // Реакції (13a): лише в REACTION_PHASES — телефон, що вже на запитанні, живої реакції не малює.
     <ReactionMain className={suspense ? 'app player game-bg is-suspense' : 'app player game-bg'} aria-busy={notStarted || undefined} phase={phase} reactions={reactions} size="phone">
+      <StickyTimerProvider size="phone">
       {/* Смуга й сповіщення — position: fixed, тож нічого не зсувають. */}
       <DuelBanner duel={view.duel} phase={view.phase} autopilot={view.autopilot} />
       <LiveNotices>
@@ -1972,6 +1974,7 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
       )}
       {/* Тривога (12e) — останній шар екрана, над заставками, аркушами й смугою «Немає зв'язку». */}
       <AwayAlarm code={code} person={team?.memberId ?? me.id} away={view.lastAway} />
+      </StickyTimerProvider>
     </ReactionMain>
   );
 }

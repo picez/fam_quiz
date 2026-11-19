@@ -3939,6 +3939,7 @@
   "timerListening": "🎵 استمعوا",
   "timerOf": "/ {seconds} ث",
   "timerPaused": "إيقاف مؤقت",
+  "timerLeft": "{seconds} ث",
   "toHistory": "سجل الألعاب",
   "toMenu": "إلى القائمة",
   "toQuizzes": "اختباراتي",

@@ -74,6 +74,7 @@ import { FactCards, RevealFactsLine } from './FactCards';
 import { useGuardedSend } from '../live/useGuardedSend';
 import { ScoreTable } from './ScoreTable';
 import { ReactionMain } from '../live/Reactions';
+import { StickyTimerProvider } from '../live/StickyTimer';
 import { ReactionButton } from './ReactionSheet';
 import { HostTeams, TeamPeople, teamsStartable } from './HostTeams';
 import { MenuLinks } from './MenuLinks';
@@ -637,6 +638,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
   return (
     // Реакції (13a): лише в REACTION_PHASES; смуга стоїть під липкою панеллю дій.
     <ReactionMain className="app host game-bg" phase={phase} reactions={reactions} size="host">
+      <StickyTimerProvider size="host">
       <LiveNotices>
         <BuffToast view={view} offsetMs={offsetMs} />
         <DebuffToast notice={view.debuffNotice} offsetMs={offsetMs} />
@@ -1728,6 +1730,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
           </button>
         )}
       </footer>
+      </StickyTimerProvider>
     </ReactionMain>
   );
 }
