@@ -20,9 +20,11 @@ export interface XpParts {
   correct: number;
   correctCount: number;
   place: number;
+  /** Місце в таблиці (команда — місце команди); 0 — правило дало нуль. */
+  rank: number;
 }
 
-const NO_PARTS: XpParts = { join: 0, correct: 0, correctCount: 0, place: 0 };
+const NO_PARTS: XpParts = { join: 0, correct: 0, correctCount: 0, place: 0, rank: 0 };
 
 /** Один запис на акаунт таблиці (rank !== null; соло — гравець, команда — люди), у порядку players; акаунт двічі — раз. seen(userId) — чи має вже зараховану гру з цією вікториною. */
 export function gameXp(game: AchievementGame, ownerId: string | null, seen: (userId: string) => boolean): XpAward[] {
@@ -68,7 +70,7 @@ export function gameXp(game: AchievementGame, ownerId: string | null, seen: (use
     if (e.userId === ownerId) return none('author');
     if (seen(e.userId)) return none('repeat_quiz');
     const place = e.rank >= 1 && e.rank <= LEVEL_XP.place.length ? LEVEL_XP.place[e.rank - 1]! : 0;
-    const parts: XpParts = { join: LEVEL_XP.join, correct: e.right * LEVEL_XP.correct, correctCount: e.right, place };
+    const parts: XpParts = { join: LEVEL_XP.join, correct: e.right * LEVEL_XP.correct, correctCount: e.right, place, rank: e.rank };
     return { userId: e.userId, base: parts.join + parts.correct + parts.place, counted: true, reason: null, parts };
   });
 }

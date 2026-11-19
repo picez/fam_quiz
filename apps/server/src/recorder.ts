@@ -771,6 +771,11 @@ export function attachRecorder(
           if (snapshot.prizes !== null && !prized.has(room.id)) {
             onError(new Error(`Призи гри ${room.id} не вручено: повтори запису вичерпано`, { cause: error }));
           }
+          // Картки досвіду (49) так і не буде: порожня мапа, щоб телефони не чекали «Рахуємо досвід…» вічно.
+          if (state.phase === 'finished' && !momented.has(room.id) && !manager.frozen && manager.get(room.code) === room) {
+            manager.setXpMoments(room, new Map());
+            momented.add(room.id);
+          }
           return;
         }
         const timer = setTimeout(guarded({ where: 'recorder', room: room.code, what: 'retry' }, () => record(room)), Math.min(retryMs * 2 ** (attempt - 1), MAX_RETRY_DELAY_MS));

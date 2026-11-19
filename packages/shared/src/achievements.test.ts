@@ -83,11 +83,13 @@ describe('achievement share (49)', () => {
     expect(achievementScarcity(0, 0)).toEqual({ percent: 0, tier: null });
     expect(achievementScarcity(0, 50)).toEqual({ percent: 0, tier: null });
     expect(achievementScarcity(1, 200)).toEqual({ percent: 1, tier: 'very_rare' });
-    expect(achievementScarcity(5, 200)).toEqual({ percent: 3, tier: 'very_rare' });
+    expect(achievementScarcity(5, 200)).toEqual({ percent: 2, tier: 'very_rare' });
     expect(achievementScarcity(6, 200)).toEqual({ percent: 3, tier: 'rare' });
-    expect(achievementScarcity(19, 200)).toEqual({ percent: 10, tier: 'rare' });
+    expect(achievementScarcity(19, 200)).toEqual({ percent: 9, tier: 'rare' });
     expect(achievementScarcity(20, 200)).toEqual({ percent: 10, tier: null });
-    expect(achievementScarcity(1, 40)).toEqual({ percent: 3, tier: 'very_rare' });
+    expect(achievementScarcity(1, 40)).toEqual({ percent: 2, tier: 'very_rare' });
+    // Межа: 2,6 % — число й позначка згодні.
+    expect(achievementScarcity(13, 500)).toEqual({ percent: 2, tier: 'very_rare' });
     expect(achievementScarcity(1, 9)).toEqual({ percent: 11, tier: null });
     expect(achievementScarcity(0, 9)).toEqual({ percent: 0, tier: null });
   });

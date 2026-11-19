@@ -14,12 +14,15 @@ import * as xp from './xp-store';
 
 vi.mock('./xp-store', async (importOriginal) => {
   const original = await importOriginal<typeof import('./xp-store')>();
-  return { ...original, gameXpMoments: vi.fn(original.gameXpMoments) };
+  return { ...original, gameXpMoments: vi.fn(original.gameXpMoments), creditGame: vi.fn(original.creditGame) };
 });
 
 afterEach(async () => {
+  const actual = await vi.importActual<typeof import('./xp-store')>('./xp-store');
   vi.mocked(xp.gameXpMoments).mockReset();
-  vi.mocked(xp.gameXpMoments).mockImplementation((await vi.importActual<typeof import('./xp-store')>('./xp-store')).gameXpMoments);
+  vi.mocked(xp.gameXpMoments).mockImplementation(actual.gameXpMoments);
+  vi.mocked(xp.creditGame).mockReset();
+  vi.mocked(xp.creditGame).mockImplementation(actual.creditGame);
 });
 
 const HOST = 'host-user';
@@ -237,6 +240,23 @@ describe('the xp moment in the recorder (49)', () => {
     expect((await db.select().from(game)).map((row) => row.status)).toEqual(['finished']);
     expect((await db.select().from(xpEntry)).length).toBeGreaterThan(0);
     // Телефон не чекає вічно: ключа немає; гість — як і було.
+    expect(has(playerView(w, room, ids['Анна']), 'xp')).toBe(false);
+    expect(playerView(w, room, ids['Гість']).xp).toEqual({ account: false });
+  });
+
+  it('an earlier step that runs out of retries leaves no card, not an endless «pending»', async () => {
+    const db = await base();
+    const w = world(db, 1, 2);
+    vi.mocked(xp.creditGame).mockRejectedValue(new Error('xp down'));
+    const { room, ids } = lobby(w, FOUR);
+    play(w, room, ids, RIGHTS);
+    await w.recorder.idle();
+    // Поки повтори ще є — «рахуємо».
+    expect(playerView(w, room, ids['Анна']).xp).toEqual({ account: true, moment: null });
+    await vi.waitFor(() => expect(room.xpMoments).toEqual(new Map()));
+    await w.recorder.idle();
+    expect(vi.mocked(xp.creditGame).mock.calls.length).toBeGreaterThanOrEqual(3);
+    expect(vi.mocked(xp.gameXpMoments)).not.toHaveBeenCalled();
     expect(has(playerView(w, room, ids['Анна']), 'xp')).toBe(false);
     expect(playerView(w, room, ids['Гість']).xp).toEqual({ account: false });
   });

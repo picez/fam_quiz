@@ -22,7 +22,7 @@ import {
   type StickerExtra,
   type XpLine,
 } from '@quiz/shared';
-import { and, asc, eq, gt, inArray, isNotNull, isNull, notExists, sql } from 'drizzle-orm';
+import { and, asc, eq, gt, inArray, isNotNull, isNull, lte, notExists, or, sql } from 'drizzle-orm';
 import { loadAchievementGames, type AchievementGame } from './achievement-games';
 import type { Db } from './db/client';
 import { game, participant, profile, quiz, userAchievement, xpEntry } from './db/schema';
@@ -284,15 +284,6 @@ export async function creditGame(db: Db, gameId: string, onError: (e: unknown) =
   }
 }
 
-/** Місце акаунта в таблиці гри (перший рядок, як у gameXp; команда — місце команди). */
-function rankOf(loaded: AchievementGame, userId: string): number {
-  for (const player of loaded.players) {
-    if (player.rank === null) continue;
-    if (loaded.teams ? player.members.some((m) => m.userId === userId) : player.userId === userId) return player.rank;
-  }
-  return 0;
-}
-
 /**
  * Після creditGame (49): userId → картка для кожного акаунта таблиці, що має рядок xp_entry цієї гри; читає лише записане
  * (повтор і перезапуск дають те саме). Розбивка — з правил (gameXp.parts), факт — рядок гри: причина-правило — рядків гри немає,
@@ -308,28 +299,37 @@ export async function gameXpMoments(db: Db, gameId: string): Promise<Map<string,
   if (awards.size === 0) return moments;
   const ids = [...awards.keys()];
   const games = await db
-    .select({ userId: xpEntry.userId, amount: xpEntry.amount, reason: xpEntry.reason })
+    .select({ userId: xpEntry.userId, amount: xpEntry.amount, reason: xpEntry.reason, createdAt: xpEntry.createdAt })
     .from(xpEntry)
     .where(and(eq(xpEntry.source, 'game'), eq(xpEntry.gameId, gameId), inArray(xpEntry.userId, ids)));
   if (games.length === 0) return moments;
   const earned = await db
-    .select({ userId: xpEntry.userId, id: xpEntry.achievementId, amount: xpEntry.amount })
+    .select({ userId: xpEntry.userId, id: xpEntry.achievementId, amount: xpEntry.amount, createdAt: xpEntry.createdAt })
     .from(xpEntry)
     .innerJoin(userAchievement, and(eq(userAchievement.userId, xpEntry.userId), eq(userAchievement.achievementId, xpEntry.achievementId)))
     .where(and(eq(xpEntry.source, 'achievement'), eq(userAchievement.gameId, gameId), inArray(xpEntry.userId, ids)));
-  const totals = await xpTotals(
-    db,
-    games.map((row) => row.userId),
-  );
+  // Межа кожного: найпізніший рядок цієї гри (гра й її досягнення) — пізніше зараховане (перезапуск і перерахунок) не зсуває «до/після».
+  const cuts = new Map<string, Date>(games.map((row) => [row.userId, row.createdAt]));
+  for (const e of earned) {
+    const cut = cuts.get(e.userId);
+    if (cut !== undefined && e.createdAt > cut) cuts.set(e.userId, e.createdAt);
+  }
+  const totals = await xpTotalsUpTo(db, cuts);
   for (const row of games) {
     const award = awards.get(row.userId)!;
     const lines: XpLine[] = [];
     if (row.reason === null || row.reason === 'cap') {
       const { parts } = award;
-      if (parts.join > 0) lines.push({ kind: 'join', xp: parts.join });
-      if (parts.correct > 0) lines.push({ kind: 'correct', xp: parts.correct, count: parts.correctCount });
-      if (parts.place > 0) lines.push({ kind: 'place', xp: parts.place, place: rankOf(loaded, row.userId) });
-      if (row.reason === 'cap') lines.push({ kind: 'cap', xp: row.amount - award.base });
+      // Стан змінився після запису (співгравець видалив акаунт, вікторину видалено): розбивка вже не складається в рядок — один рядок «за гру».
+      const drifted = award.reason !== null || (row.reason === null && award.base !== row.amount) || (row.reason === 'cap' && award.base < row.amount);
+      if (drifted) {
+        lines.push({ kind: 'game', xp: row.amount });
+      } else {
+        if (parts.join > 0) lines.push({ kind: 'join', xp: parts.join });
+        if (parts.correct > 0) lines.push({ kind: 'correct', xp: parts.correct, count: parts.correctCount });
+        if (parts.place > 0) lines.push({ kind: 'place', xp: parts.place, place: parts.rank });
+        if (row.reason === 'cap') lines.push({ kind: 'cap', xp: row.amount - award.base });
+      }
     }
     let gained = row.amount;
     const mine = new Map(earned.filter((e) => e.userId === row.userId && e.id !== null).map((e) => [e.id!, e.amount]));
@@ -345,6 +345,19 @@ export async function gameXpMoments(db: Db, gameId: string): Promise<Map<string,
     moments.set(row.userId, { gained, lines, reason: row.reason, before, after, unlocked: levelUpRewards(before.level, after.level) });
   }
   return moments;
+}
+
+/** Сума досвіду кожного акаунта з рядків, записаних не пізніше його межі; одним запитом. */
+async function xpTotalsUpTo(db: Db, cuts: Map<string, Date>): Promise<Map<string, number>> {
+  const totals = new Map<string, number>([...cuts.keys()].map((id) => [id, 0]));
+  if (cuts.size === 0) return totals;
+  const rows = await db
+    .select({ userId: xpEntry.userId, sum: sql<number>`coalesce(sum(${xpEntry.amount}), 0)::int` })
+    .from(xpEntry)
+    .where(or(...[...cuts].map(([userId, cut]) => and(eq(xpEntry.userId, userId), lte(xpEntry.createdAt, cut)))))
+    .groupBy(xpEntry.userId);
+  for (const row of rows) totals.set(row.userId, Number(row.sum));
+  return totals;
 }
 
 export async function xpTotals(db: Db, userIds: string[]): Promise<Map<string, number>> {

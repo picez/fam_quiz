@@ -143,10 +143,10 @@ describe('gameXp', () => {
 describe('the award keeps its parts', () => {
   it('join, correct with its count and place; a rule gives all zeros', () => {
     const xs = gameXp(solo([1, 2, 3]), 'owner', () => false);
-    expect(by(xs, 'u1')).toMatchObject({ base: 190, parts: { join: 50, correct: 40, correctCount: 4, place: 100 } });
-    expect(by(xs, 'u3')).toMatchObject({ base: 80, parts: { join: 50, correct: 0, correctCount: 0, place: 30 } });
+    expect(by(xs, 'u1')).toMatchObject({ base: 190, parts: { join: 50, correct: 40, correctCount: 4, place: 100, rank: 1 } });
+    expect(by(xs, 'u3')).toMatchObject({ base: 80, parts: { join: 50, correct: 0, correctCount: 0, place: 30, rank: 3 } });
     for (const x of xs) expect(x.parts.join + x.parts.correct + x.parts.place).toBe(x.base);
-    const zero = { join: 0, correct: 0, correctCount: 0, place: 0 };
+    const zero = { join: 0, correct: 0, correctCount: 0, place: 0, rank: 0 };
     const few = solo([1, 2, 3]);
     few.players[2]!.userId = null;
     expect(gameXp(few, 'owner', () => false).map((x) => x.parts)).toEqual([zero, zero]);

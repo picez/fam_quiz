@@ -246,6 +246,7 @@ export type XpReason = (typeof XP_REASONS)[number];
 /** Рядок розбивки досвіду за гру (49). */
 export type XpLine =
   | { kind: 'join'; xp: number }
+  | { kind: 'game'; xp: number } // уся гра одним рядком, коли розбивка вже не складається (стан змінився після запису)
   | { kind: 'correct'; xp: number; count: number }
   | { kind: 'place'; xp: number; place: number }
   | { kind: 'cap'; xp: number } // ≤ 0

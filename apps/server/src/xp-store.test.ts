@@ -2,8 +2,8 @@ import { makeQuiz, single } from '@quiz/engine/testing';
 import { and, eq, inArray } from 'drizzle-orm';
 import { beforeAll, describe, expect, it } from 'vitest';
 import type { Db } from './db/client';
-import { xpForLevel } from '@quiz/shared';
-import { profile, quiz, user, userAchievement, xpEntry } from './db/schema';
+import { xpForLevel, type GameXpMoment } from '@quiz/shared';
+import { participant, profile, quiz, user, userAchievement, xpEntry } from './db/schema';
 import { ensureProfile } from './profiles';
 import { seedGame, type SeedPlayer } from './testing/history-rows';
 import { createTestDb } from './testing/test-db';
@@ -651,6 +651,14 @@ describe('sticker inheritance (34, «м\'якше»)', () => {
 });
 
 describe('the xp moment of a game (49)', () => {
+  /** Рядки кожної картки складаються в gained. */
+  const sums = (m: GameXpMoment) => m.lines.reduce((s, l) => s + l.xp, 0) === m.gained;
+  async function checked(gameId: string) {
+    const moments = await gameXpMoments(db, gameId);
+    for (const m of moments.values()) expect(sums(m)).toBe(true);
+    return moments;
+  }
+
   /** Гра з 3 акаунтами: winner — 1-е місце з 4 правильними, ще один — 2-ге, гість — 3-тє, last — 4-те з 0. */
   async function threeAccounts(spec: { quizId?: string | null; finishedAt: Date; ids?: string[] }) {
     const [winner, second, last] = spec.ids ?? (await accounts(3));
@@ -678,7 +686,7 @@ describe('the xp moment of a game (49)', () => {
     const { gameId, winner, last } = await threeAccounts({ finishedAt, ids });
     await earn(winner, 'first_game', gameId, finishedAt);
     await creditGame(db, gameId);
-    const moments = await gameXpMoments(db, gameId);
+    const moments = await checked(gameId);
     expect([...moments.keys()].sort()).toEqual([...ids].sort());
     const mine = moments.get(winner)!;
     expect(mine.lines).toEqual([
@@ -703,7 +711,7 @@ describe('the xp moment of a game (49)', () => {
     await earn(winner, 'first_win', gameId, finishedAt);
     await earn(winner, 'first_game', gameId, finishedAt);
     await creditGame(db, gameId);
-    const mine = (await gameXpMoments(db, gameId)).get(winner)!;
+    const mine = (await checked(gameId)).get(winner)!;
     expect(mine.lines).toEqual([
       { kind: 'join', xp: 50 },
       { kind: 'correct', xp: 40, count: 4 },
@@ -725,7 +733,7 @@ describe('the xp moment of a game (49)', () => {
     const solo = await finishedGame({ questions: 5, finishedAt, players: [{ userId: me, rank: 1, correct: 5 }] });
     await earn(me, 'first_game', solo, finishedAt);
     await creditGame(db, solo);
-    expect((await gameXpMoments(db, solo)).get(me)).toMatchObject({ lines: [{ kind: 'achievement', xp: 25, id: 'first_game' }], gained: 25, reason: 'few_accounts' });
+    expect((await checked(solo)).get(me)).toMatchObject({ lines: [{ kind: 'achievement', xp: 25, id: 'first_game' }], gained: 25, reason: 'few_accounts' });
 
     // Автор у таблиці.
     const [author, a, b, c] = await accounts(4);
@@ -738,7 +746,7 @@ describe('the xp moment of a game (49)', () => {
       players: [author, a, b, c].map((userId, i) => ({ userId, rank: i + 1, correct: 2 })),
     });
     await creditGame(db, own);
-    expect((await gameXpMoments(db, own)).get(author)).toMatchObject({ lines: [], gained: 0, reason: 'author' });
+    expect((await checked(own)).get(author)).toMatchObject({ lines: [], gained: 0, reason: 'author' });
 
     // Друга гра з тією ж вікториною.
     const ids = await accounts(3);
@@ -748,7 +756,7 @@ describe('the xp moment of a game (49)', () => {
     await creditGame(db, first.gameId);
     const again = await threeAccounts({ quizId: same, finishedAt: new Date('2026-10-25T20:00:00Z'), ids });
     await creditGame(db, again.gameId);
-    const repeat = (await gameXpMoments(db, again.gameId)).get(again.winner)!;
+    const repeat = (await checked(again.gameId)).get(again.winner)!;
     expect(repeat).toMatchObject({ lines: [], gained: 0, reason: 'repeat_quiz' });
     expect(repeat.before).toEqual(repeat.after);
   });
@@ -762,7 +770,7 @@ describe('the xp moment of a game (49)', () => {
     const { gameId, winner } = await threeAccounts({ finishedAt, ids });
     await earn(winner, 'first_game', gameId, finishedAt);
     await creditGame(db, gameId);
-    const mine = (await gameXpMoments(db, gameId)).get(winner)!;
+    const mine = (await checked(gameId)).get(winner)!;
     expect(mine.before.level).toBe(1);
     expect(mine.after.level).toBe(2);
     expect(mine.unlocked).toContainEqual({ level: 2, reward: { kind: 'color', id: 'sky' } });
@@ -782,14 +790,14 @@ describe('the xp moment of a game (49)', () => {
     await creditGame(db, fresh.gameId);
     expect(await gameRow(fresh.winner, fresh.gameId)).toMatchObject({ retro: true });
 
-    const first = await gameXpMoments(db, fresh.gameId);
-    const liveMoments = await gameXpMoments(db, liveGame.gameId);
+    const first = await checked(fresh.gameId);
+    const liveMoments = await checked(liveGame.gameId);
     expect(first.get(fresh.winner)).toEqual(liveMoments.get(liveGame.winner));
     expect(first.get(fresh.last)).toEqual(liveMoments.get(liveGame.last));
     const count = async () => (await db.select().from(xpEntry).where(inArray(xpEntry.userId, [fresh.winner, fresh.second, fresh.last]))).length;
     const before = await count();
     await creditGame(db, fresh.gameId);
-    expect(await gameXpMoments(db, fresh.gameId)).toEqual(first);
+    expect(await checked(fresh.gameId)).toEqual(first);
     expect(await count()).toBe(before);
   });
 
@@ -802,6 +810,33 @@ describe('the xp moment of a game (49)', () => {
       questionsPlayed: 6,
       players: [a, b, c].map((userId, i) => ({ userId, nickname: `Н${i}`, score: 0, rank: i + 1 })),
     });
-    expect(await gameXpMoments(db, gameId)).toEqual(new Map());
+    expect(await checked(gameId)).toEqual(new Map());
+  });
+  it('a later credit does not move before and after', async () => {
+    const ids = await accounts(3);
+    for (const id of ids) await synced(id);
+    const finishedAt = new Date('2026-10-29T18:00:00Z');
+    const { gameId, winner } = await threeAccounts({ finishedAt, ids });
+    await creditGame(db, gameId);
+    const first = (await checked(gameId)).get(winner)!;
+    const later = new Date(Date.now() + 60_000);
+    await db.insert(xpEntry).values({ userId: winner, source: 'game', amount: 300, counted: true, day: kyivDay(later), at: later, createdAt: later });
+    const again = (await checked(gameId)).get(winner)!;
+    expect(again.after.xp).toBe(first.after.xp);
+    expect(again.before.xp).toBe(first.before.xp);
+    expect(await total(winner)).toBe(first.after.xp + 300);
+  });
+
+  it('a co-player who deleted the account leaves one game line', async () => {
+    const ids = await accounts(3);
+    for (const id of ids) await synced(id);
+    const finishedAt = new Date('2026-10-30T18:00:00Z');
+    const { gameId, winner, second } = await threeAccounts({ finishedAt, ids });
+    await creditGame(db, gameId);
+    await db.update(participant).set({ userId: null }).where(and(eq(participant.gameId, gameId), eq(participant.userId, second)));
+    const mine = (await checked(gameId)).get(winner)!;
+    expect(mine.lines).toEqual([{ kind: 'game', xp: 190 }]);
+    expect(mine.gained).toBe(190);
+    expect(mine.reason).toBeNull();
   });
 });
