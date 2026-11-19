@@ -1,4 +1,8 @@
 {
+  "pushBotOpenBody": "Codice: {code}. Tocca per unirti.",
+  "pushBotOpenTitle": "Il bot dei quiz ha aperto «{title}»",
+  "pushBotSoonBody": "Il codice arriverà in una notifica separata appena la stanza si apre.",
+  "pushBotSoonTitle": "Il bot dei quiz apre «{title}» alle {time} (Kyiv)",
   "pushCancelledBody": "Il conduttore ha annullato la partita prevista per {when}.",
   "pushCancelledTitle": "Partita «{title}» annullata",
   "pushFallbackBody": "Ci sono novità su una partita programmata.",

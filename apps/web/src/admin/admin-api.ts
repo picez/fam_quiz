@@ -1,4 +1,4 @@
-import type { AdminBot, BotAction } from '@quiz/shared';
+import type { AdminBot, AdminBotPerson, AdminBotPlan, BotAction, BotPlanInput } from '@quiz/shared';
 import type { Announcement, AnnouncementInput, AdminCharts, AdminHealth, AdminLiveList, AdminList, AdminReportItem, AdminLogEntry, AdminQuizRow, AdminQuizView, AdminStats, AdminUserDetail, AdminUserRow } from '@quiz/shared';
 import { fetchData, request, type ApiData, type ApiResult } from '../api';
 
@@ -44,3 +44,10 @@ export const copyToBot = (quizId: string): Promise<ApiResult<{ id: string }>> =>
 export const deleteBotQuiz = (quizId: string): Promise<ApiResult<object>> => request<object>(`/api/admin/bot/quizzes/${id(quizId)}`, { method: 'DELETE' });
 export const botRoomAct = (code: string, action: BotAction): Promise<ApiResult<object>> =>
   request<object>(`/api/admin/bot/rooms/${id(code)}/${action}`, { method: 'POST' });
+/** Розклад бота (56): план гри на київську дату й час; скасування зупиняє й щотижневий повтор. */
+export const createBotPlan = (input: BotPlanInput): Promise<ApiResult<AdminBotPlan>> => request<AdminBotPlan>('/api/admin/bot/plans', { method: 'POST', body: input });
+export const updateBotPlan = (planId: string, input: BotPlanInput): Promise<ApiResult<AdminBotPlan>> =>
+  request<AdminBotPlan>(`/api/admin/bot/plans/${id(planId)}`, { method: 'PUT', body: input });
+export const cancelBotPlan = (planId: string): Promise<ApiResult<object>> => request<object>(`/api/admin/bot/plans/${id(planId)}/cancel`, { method: 'POST' });
+/** Люди за ніком для «Вибраним людям»; відповідь — список, тому цілою (ApiData). */
+export const searchBotPeople = (q: string): Promise<ApiData<AdminBotPerson[]>> => fetchData<AdminBotPerson[]>(`/api/admin/bot/people?q=${id(q)}`);

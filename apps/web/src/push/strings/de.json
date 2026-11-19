@@ -1,4 +1,8 @@
 {
+  "pushBotOpenBody": "Code: {code}. Tippe, um beizutreten.",
+  "pushBotOpenTitle": "Der Quiz-Bot hat „{title}“ geöffnet",
+  "pushBotSoonBody": "Der Code kommt in einer eigenen Benachrichtigung, sobald der Raum offen ist.",
+  "pushBotSoonTitle": "Der Quiz-Bot öffnet „{title}“ um {time} (Kyjiw)",
   "pushCancelledBody": "Der Spielleiter hat das für {when} geplante Spiel abgesagt.",
   "pushCancelledTitle": "Das Spiel „{title}“ ist abgesagt",
   "pushFallbackBody": "Es gibt Neuigkeiten zu einem geplanten Spiel.",

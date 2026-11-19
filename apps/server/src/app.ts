@@ -21,6 +21,7 @@ import { registerProfileRoutes } from './profile-routes';
 import { registerPrizeRoutes } from './prize-routes';
 import { registerShowcaseRoutes } from './showcase-routes';
 import { registerAdminRoutes } from './admin-routes';
+import { createBotSchedule } from './bot-schedule';
 import { announcementCache } from './announcement-store';
 import { registerAnnouncementRoutes } from './announcement-routes';
 import { attachRecorder } from './recorder';
@@ -77,6 +78,8 @@ export interface AppOptions {
   backupList?: () => Promise<StoredObject[]>;
   /** Словник «Словесної драбини» (26c); типово lazyNouns() — закомічений файл читається при першому слові чи перевірці. */
   nouns?: NounDictionary;
+  /** Хвилинний тікер розкладу ігор бота (56); типово вимкнено — тести рухають час викликом botSchedule.tick(). main.ts вмикає. */
+  botScheduleTicker?: boolean;
 }
 
 const DEFAULT_MAX_ROOMS = 500;
@@ -165,6 +168,10 @@ export async function buildApp(options: AppOptions) {
         };
   await registerPushRoutes(app, { db: options.db, service: push, currentUser });
   await registerCalendarRoutes(app, { db: options.db, manager, maxRooms, currentUser, notify: calendarNotify });
+  // Розклад ігор бота (56): служба є завжди, тікер — лише з прапорцем.
+  const botSchedule = createBotSchedule({ db: options.db, manager, maxRooms, deliver: push === null ? undefined : (userIds, payload) => push.deliver(userIds, payload), scheduler: options.scheduler });
+  if (options.botScheduleTicker === true) botSchedule.start();
+  app.addHook('onClose', async () => botSchedule.stop());
   const stopReminders = push === null ? () => undefined : startPushReminders(push, undefined, (error) => reportError(error, { where: 'push-reminders' }));
   const stopPrune = startFeedPrune(options.db);
   await registerSavedGameRoutes(app, { db: options.db, manager, locate, currentUser, maxRooms, gate });
@@ -238,6 +245,7 @@ export async function buildApp(options: AppOptions) {
 
   /** Зупинка без втрати ігор: заморозити, сказати клієнтам restarting, записати й віддати кімнати, закрити застосунок, дочекатися записувача. */
   const shutdown = async (): Promise<void> => {
+    botSchedule.stop();
     manager.freeze();
     io.emit('restarting');
     await store?.flushAll({ release: true });
@@ -245,6 +253,7 @@ export async function buildApp(options: AppOptions) {
     stopPrune();
     stopReminders();
     await app.close();
+    await botSchedule.idle();
     await push?.idle();
     await recorder.idle();
     await titles.idle();
@@ -252,5 +261,5 @@ export async function buildApp(options: AppOptions) {
     await likes.idle();
   };
 
-  return { app, manager, io, recorder, invites, store, push, shutdown };
+  return { app, manager, io, recorder, invites, store, push, botSchedule, shutdown };
 }

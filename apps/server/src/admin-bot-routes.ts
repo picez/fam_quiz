@@ -1,10 +1,13 @@
-import { BOT_ACTIONS, BOT_ROOMS_MAX, BOT_USER_ID, adminBotCopySchema, autopilotCheck, type AdminBot, type AdminBotRoom, type AdminBotStatus, type BotAction } from '@quiz/shared';
+import { BOT_ACTIONS, BOT_PLANS_MAX, BOT_ROOMS_MAX, BOT_USER_ID, adminBotCopySchema, type AdminBot, type AdminBotRoom, type AdminBotStatus, type BotAction } from '@quiz/shared';
 import { eq } from 'drizzle-orm';
 import type { FastifyInstance, FastifyRequest, RouteShorthandOptions } from 'fastify';
 import type { CurrentUser } from './account-routes';
 import type { AdminDeps } from './admin-routes';
 import { botQuizzes } from './admin-store';
 import { ensureBotAccount } from './bot-account';
+import { registerAdminBotScheduleRoutes } from './admin-bot-schedule-routes';
+import { openBotGame } from './bot-games';
+import { botGroups, listPlans } from './bot-plan-store';
 import { logAction } from './bans';
 import { profile, user } from './db/schema';
 import { createQuiz, deleteQuiz, getQuiz } from './quizzes';
@@ -59,6 +62,7 @@ export async function registerAdminBotRoutes(app: FastifyInstance, deps: AdminDe
       quizzes: await botQuizzes(db),
       rooms: rooms.map((item) => item.view),
       roomsMax: BOT_ROOMS_MAX,
+      schedule: { plans: await listPlans(db), groups: await botGroups(db), max: BOT_PLANS_MAX },
     };
   });
 
@@ -69,11 +73,8 @@ export async function registerAdminBotRoutes(app: FastifyInstance, deps: AdminDe
     if (!UUID.test(id)) return reply.code(404).send(NOT_FOUND);
     const found = await getQuiz(db, BOT_USER_ID, id);
     if (found === null) return reply.code(404).send(NOT_FOUND);
-    if (manager.size >= maxRooms) return reply.code(503).send({ error: 'server_busy' });
-    if (manager.frozen) return reply.code(503).send(RESTARTING);
-    if (autopilotCheck(found).blocked.length > 0) return reply.code(409).send({ error: 'autopilot_blocked' });
-    const made = manager.createBotRoom(found, id);
-    if (!made.ok) return reply.code(made.error === 'restarting' ? 503 : 409).send({ error: made.error });
+    const made = openBotGame({ manager, maxRooms }, found, id);
+    if (!made.ok) return reply.code(made.error === 'server_busy' || made.error === 'restarting' ? 503 : 409).send({ error: made.error });
     const { room } = made;
     await logAction(db, { adminId: me.id, kind: 'bot_game_start', targetUserId: BOT_USER_ID, details: { title: found.title, code: room.code }, now: now() });
     return reply.code(201).send({ code: room.code, stageUrl: `/stage/${room.code}#${room.stageToken}` });
@@ -118,4 +119,6 @@ export async function registerAdminBotRoutes(app: FastifyInstance, deps: AdminDe
     if (done.ok) return reply.code(204).send();
     return done.error === 'game_not_found' ? reply.code(404).send(NOT_FOUND) : reply.code(409).send({ error: done.error });
   });
+
+  await registerAdminBotScheduleRoutes(app, deps, guards);
 }

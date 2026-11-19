@@ -1,5 +1,5 @@
 import type { PushPayload } from '@quiz/shared';
-import { dayHeading, timeText } from '../calendar/calendar-time';
+import { dayHeading, KYIV_ZONE, timeText } from '../calendar/calendar-time';
 import { pushLocale, pushStringsFor } from './push-strings';
 
 export interface PushNotice {
@@ -9,12 +9,19 @@ export interface PushNotice {
   tag: string;
 }
 
-/** Тексти з i18n; час — у поясі пристрою. */
+/** Тексти з i18n; час — у поясі пристрою, а для розкладу бота — київський з позначкою «(Київ)», як в адмінці (56). */
 export function pushNotice(payload: PushPayload, zone: string, now: Date = new Date()): PushNotice {
   const locale = pushLocale(payload.locale);
   const t = pushStringsFor(locale);
-  const tag = `event-${payload.eventId}`;
   const title = payload.title;
+  if (payload.kind === 'bot') {
+    const tag = `bot-${payload.planId}`;
+    if (payload.code === null) {
+      return { title: t('pushBotSoonTitle', { title, time: timeText(payload.startsAt, KYIV_ZONE) }), body: t('pushBotSoonBody'), url: '/', tag };
+    }
+    return { title: t('pushBotOpenTitle', { title }), body: t('pushBotOpenBody', { code: payload.code }), url: `/play/${payload.code}`, tag };
+  }
+  const tag = `event-${payload.eventId}`;
   switch (payload.kind) {
     case 'reminder':
       return {

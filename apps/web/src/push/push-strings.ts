@@ -14,6 +14,10 @@ export const pushStrings = {
   pushOpenedBody: 'Ведучий відкрив гру. Торкнися, щоб приєднатися.',
   pushCancelledTitle: 'Гру «{title}» скасовано',
   pushCancelledBody: 'Ведучий скасував гру {when}.',
+  pushBotSoonTitle: 'Квіз-бот відкриває гру «{title}» о {time} (Київ)',
+  pushBotSoonBody: 'Код прийде окремим сповіщенням, щойно кімната відкриється.',
+  pushBotOpenTitle: 'Квіз-бот відкрив гру «{title}»',
+  pushBotOpenBody: 'Код: {code}. Торкнися, щоб приєднатися.',
   pushFallbackTitle: 'Квіз',
   pushFallbackBody: 'Є оновлення щодо запланованої гри.',
   // Сторінка «Немає зв’язку» воркера (32): ні мережі, ні кешу.

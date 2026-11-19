@@ -75,6 +75,15 @@ describe('onPush', () => {
     });
   });
 
+  it('shows the bot notice under one tag per plan', async () => {
+    const scope = fakeScope();
+    await onPush(scope, { json: () => ({ kind: 'bot', planId: 'P', title: 'Озера', startsAt: '2026-11-20T17:00:00.000Z', code: '123456' }) }, 'Europe/Kyiv');
+    expect(scope.registration.showNotification).toHaveBeenCalledWith(
+      'Квіз-бот відкрив гру «Озера»',
+      expect.objectContaining({ tag: 'bot-P', data: { url: '/play/123456' } }),
+    );
+  });
+
   it('shows a generic notice for an invalid payload, keeping a string title', async () => {
     const scope = fakeScope();
     await onPush(scope, { json: () => ({ kind: 'liked', title: 'Привіт' }) }, 'Europe/Kyiv');
@@ -107,6 +116,11 @@ describe('isPushPayload', () => {
     expect(isPushPayload({ kind: 'opened', eventId: 'E', title: 'T' })).toBe(false);
     expect(isPushPayload({ kind: 'reminder', eventId: 'E', title: 'T', startsAt: 5 })).toBe(false);
     expect(isPushPayload({ kind: 'liked', eventId: 'E', title: 'T' })).toBe(false);
+    const bot = { kind: 'bot', planId: 'P', title: 'T', startsAt: 'x', code: null };
+    expect(isPushPayload(bot)).toBe(true);
+    expect(isPushPayload({ ...bot, code: '123456' })).toBe(true);
+    expect(isPushPayload({ ...bot, code: 5 })).toBe(false);
+    expect(isPushPayload({ ...bot, planId: undefined })).toBe(false);
     expect(isPushPayload(null)).toBe(false);
     expect(isPushPayload('x')).toBe(false);
   });

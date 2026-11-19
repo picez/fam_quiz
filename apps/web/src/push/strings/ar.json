@@ -1,4 +1,8 @@
 {
+  "pushBotOpenBody": "الرمز: {code}. المس للانضمام.",
+  "pushBotOpenTitle": "فتح بوت الاختبار «{title}»",
+  "pushBotSoonBody": "سيصلك الرمز في إشعار منفصل بمجرد فتح الغرفة.",
+  "pushBotSoonTitle": "بوت الاختبار يفتح «{title}» في {time} (كييف)",
   "pushCancelledBody": "ألغى المقدّم اللعبة المقرّرة في {when}.",
   "pushCancelledTitle": "أُلغيت اللعبة «{title}»",
   "pushFallbackBody": "هناك تحديث بشأن اللعبة المخطط لها.",

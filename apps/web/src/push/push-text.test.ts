@@ -33,4 +33,30 @@ describe('pushNotice', () => {
     expect(n.body).toBe('Ведучий скасував гру ' + dayHeading(startsAt, zone, now) + ', 18:30.');
     expect(n.url).toBe('/feed/calendar#event-E');
   });
+
+  it('the bot push: soon with the time, then open with the code', () => {
+    const soon = { kind: 'bot' as const, planId: 'P', title: 'Поліські озера', startsAt: '2026-11-20T17:00:00.000Z', code: null };
+    expect(pushNotice(soon, zone, now)).toEqual({
+      title: 'Квіз-бот відкриває гру «Поліські озера» о 19:00 (Київ)',
+      body: 'Код прийде окремим сповіщенням, щойно кімната відкриється.',
+      url: '/',
+      tag: 'bot-P',
+    });
+    expect(pushNotice({ ...soon, code: '123456' }, zone, now)).toEqual({
+      title: 'Квіз-бот відкрив гру «Поліські озера»',
+      body: 'Код: 123456. Торкнися, щоб приєднатися.',
+      url: '/play/123456',
+      tag: 'bot-P',
+    });
+    const en = pushNotice({ ...soon, locale: 'en' }, zone, now);
+    expect(en.title).toContain('Quiz bot');
+    expect(en.title).toContain('19:00');
+    expect(en.title).toContain('(Kyiv)');
+  });
+
+  it('the bot soon push shows Kyiv time with the label on a device in another zone', () => {
+    const soon = { kind: 'bot' as const, planId: 'P', title: 'Поліські озера', startsAt: '2026-11-20T17:00:00.000Z', code: null };
+    expect(pushNotice(soon, 'Europe/Warsaw', now).title).toBe('Квіз-бот відкриває гру «Поліські озера» о 19:00 (Київ)');
+    expect(pushNotice({ ...soon, locale: 'pl' }, 'America/New_York', now).title).toBe('Bot quizu otwiera „Поліські озера” o 19:00 (Kijów)');
+  });
 });

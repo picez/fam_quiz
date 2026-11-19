@@ -1,5 +1,7 @@
-import type { AdminLogEntry, Question, RemovalEffect } from '@quiz/shared';
+import { BOT_PLAN_REASONS, type AdminLogEntry, type Question, type RemovalEffect } from '@quiz/shared';
 import { t, type TextKey } from '../i18n';
+import { KYIV_ZONE, timeText } from '../calendar/calendar-time';
+import { formatDay } from '../format';
 import { decimalText } from '../locales/grammar';
 import { nickText } from '../nick';
 
@@ -17,9 +19,22 @@ export function questionConfirm(effect: RemovalEffect, roundTitle: string): stri
   }
 }
 
-/** Рядок журналу; для блокування з причиною — «. Причина: …». */
+/** Причина збою плану бота словами; невідомий код (новіший сервер) — загальний текст. */
+export function botPlanReasonText(reason: string | null): string {
+  return reason !== null && (BOT_PLAN_REASONS as readonly string[]).includes(reason) ? t(`adminBotPlanReason_${reason}` as TextKey) : t('err_unknown');
+}
+
+/** Мить у Києві для розкладу бота: «20 листопада 2026, 19:00 (Київ)»; погана дата — порожньо. */
+export function kyivWhenText(iso: string): string {
+  if (Number.isNaN(Date.parse(iso))) return '';
+  return t('adminBotPlanKyiv', { when: `${formatDay(iso)}, ${timeText(iso, KYIV_ZONE)}` });
+}
+
+/** Рядок журналу; для блокування з причиною — «. Причина: …»; для збою розкладу бота — причина словами. */
 export function logLine(entry: AdminLogEntry): string {
-  const line = t(`adminLog_${entry.kind}` as TextKey, { admin: nickText(entry.admin), target: nickText(entry.target), title: entry.details.title ?? '', text: entry.details.text ?? '', code: entry.details.code ?? '' });
+  const when = entry.details.when === undefined ? '' : kyivWhenText(entry.details.when);
+  const planReason = entry.kind === 'bot_plan_fail' ? botPlanReasonText(entry.details.reason ?? null) : '';
+  const line = t(`adminLog_${entry.kind}` as TextKey, { admin: nickText(entry.admin), target: nickText(entry.target), title: entry.details.title ?? '', text: entry.details.text ?? '', code: entry.details.code ?? '', when, reason: planReason });
   const reason = entry.kind === 'ban' ? entry.details.reason : null;
   if (entry.kind === 'nickname_reset' && entry.details.text) return t('adminLogWas', { line, text: entry.details.text });
   return reason ? `${line}. ${t('adminReasonShown', { reason })}` : line;
