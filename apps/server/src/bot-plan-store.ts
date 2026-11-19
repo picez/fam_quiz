@@ -130,8 +130,8 @@ export async function botGroups(db: Db): Promise<AdminBotGroup[]> {
   return rows.map((row) => ({ ...row, members: Number(row.members) }));
 }
 
-/** Один замок на всі плани: лічба scheduled і вставка не розійдуться між паралельними створеннями. */
-async function lockPlans(tx: Tx): Promise<void> {
+/** Один замок на всі плани: лічба scheduled і вставка не розійдуться між паралельними створеннями (і наступником серії, 56). */
+export async function lockPlans(tx: Tx): Promise<void> {
   await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext('bot_plans'))`);
 }
 
