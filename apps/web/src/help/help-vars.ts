@@ -123,6 +123,7 @@ const LIMIT_KEYS = [
   'surveyTotal',
   'survivalLuckSeconds',
   'teamName',
+  'spyHint',
   'thinkWord',
   'wallGroupName',
   'wallTile',
