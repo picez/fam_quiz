@@ -9,7 +9,7 @@ import type { PushOptions } from '../src/push';
 import { calendarEvent, feedEvent, game as gameRow, pushSubscription, quiz as quizRow, user, userLike } from '../src/db/schema';
 import { adminEmails } from '../src/config';
 import { kyivDay } from '../src/xp-rules';
-import { open, click, field, join, expectNoSideScroll, MENU, MENU_ITEMS_23A, menuLinks, expectPhoneFit, register, myId, noSideScroll, POLL, decide, expectFiveItems, label } from './helpers/common';
+import { open, click, field, join, expectNoSideScroll, MENU, MENU_ITEMS_23A, MENU_ITEMS_ADMIN, menuLinks, expectPhoneFit, register, myId, noSideScroll, POLL, decide, expectFiveItems, label } from './helpers/common';
 import { exact, ctx, base, db, problems, snapshot, afterSplash, shot, relisten, flags, useE2eServer } from './helpers/setup';
 
 /**
@@ -1329,14 +1329,21 @@ async function admin21a() {
     expect((await olya.request.put(`${base}/api/me/friends/${bohdanId}`)).ok()).toBe(true);
     expect((await olya.request.get(`${base}/api/profiles/${bohdanId}`)).status()).toBe(200);
 
-    // ── 4. Адмін входить: статистика, меню з семи пунктів. ──
+    // ── 4. Адмін входить: статистика, меню з шести пунктів, остання — «Адмінка». ──
     await admin.goto(`${base}/profile/settings`);
-    await admin.getByRole('link', { name: 'Адмінка', ...exact }).click();
+    await admin.locator('main').getByRole('link', { name: 'Адмінка', ...exact }).click();
     await admin.waitForURL(`${base}/admin`);
     await admin.getByText('Користувачів усього', exact).waitFor();
     await admin.getByText('Живих ігор зараз', exact).waitFor();
-    expect(await menuLinks(admin)).toEqual(MENU_ITEMS_23A);
-    for (const width of [360, 375]) await expectFiveItems(admin, width);
+    expect(await menuLinks(admin)).toEqual(MENU_ITEMS_ADMIN);
+    for (const width of [320, 360, 375]) await expectFiveItems(admin, width, 6);
+    // Знімки меню адміна на 360 px у обох темах (лише з E2E_SHOTS=1); перемикач вертає тему назад.
+    await admin.setViewportSize({ width: 360, height: 812 });
+    await shot(admin, 'p21a-admin-menu-360-a');
+    await admin.locator('.menu-theme').click();
+    await shot(admin, 'p21a-admin-menu-360-b');
+    await admin.locator('.menu-theme').click();
+    await admin.setViewportSize({ width: 375, height: 812 });
     expect(await noSideScroll(admin)).toBe(true);
     const tabs = admin.locator('.admin-tabs a');
     // Вісім вкладок: «Бот» додано в 54.

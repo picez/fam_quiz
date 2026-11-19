@@ -115,6 +115,8 @@ export async function expectNoSideScroll(page: Page, name: string) {
 
 export const MENU = 'nav.menu';
 export const MENU_ITEMS_23A = ['Меню', 'Стрічка', 'Мої вікторини', 'Історія', 'Профіль'];
+/** Меню адміна: шостий пункт «Адмінка». */
+export const MENU_ITEMS_ADMIN = [...MENU_ITEMS_23A, 'Адмінка'];
 export const menuLinks = async (page: Page) =>
   (await page.locator(MENU).getByRole('link').allTextContents()).map((text) => text.replace(/^[^\p{L}]+/u, ''));
 
@@ -788,10 +790,10 @@ export function prizeQuestions14a() {
 export const isTrophyRequest = (url: string) => /\.glb(\?|$)/.test(url) || /\/assets\/(trophy-engine|three)[^/]*\.js/.test(url);
 
 /** П'ять пунктів на ширині width: count 5; ≤ 700 px — висота ≤ 60 і один рядок; без прокрутки вбік; жоден підпис не ширший за пункт. Замінює expectEightItems18a. */
-export async function expectFiveItems(page: Page, width: number): Promise<void> {
+export async function expectFiveItems(page: Page, width: number, count = 5): Promise<void> {
   await page.setViewportSize({ width, height: 812 });
   const fit = (await page.evaluate(MENU_FITS_14A)) as { count: number; height: number; wide: boolean; shown: string[]; clipped: string[] };
-  expect(fit.count, `menu-${width}: items`).toBe(5);
+  expect(fit.count, `menu-${width}: items`).toBe(count);
   expect(fit.wide, `menu-${width}: horizontal scroll`).toBe(true);
   expect(fit.clipped, `menu-${width}: clipped labels`).toEqual([]);
   const rows = await page.locator(`${MENU} a`).evaluateAll((links) =>

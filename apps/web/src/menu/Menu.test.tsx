@@ -93,6 +93,28 @@ describe('Menu', () => {
     expect(items()).toHaveLength(5);
   });
 
+  it('an admin gets the admin panel last, marked under /admin; others and visitors do not', async () => {
+    vi.mocked(me).mockResolvedValue({ ...OK, admin: true });
+    show('/admin/users');
+    await screen.findByRole('link', { name: 'Адмінка' });
+    expect(items()).toEqual(['🎮Меню', '📰Стрічка', '📝Мої вікторини', '🕘Історія', '👤Профіль', '🛠️Адмінка']);
+    const link = screen.getByRole('link', { name: 'Адмінка' });
+    expect(link.getAttribute('href')).toBe('/admin');
+    expect(link.getAttribute('aria-current')).toBe('page');
+    expect(screen.getByRole('link', { name: 'Профіль' }).getAttribute('aria-current')).toBeNull();
+    cleanup();
+    forgetAccount();
+    vi.mocked(me).mockResolvedValue(OK);
+    show('/admin');
+    await screen.findByRole('link', { name: 'Профіль' });
+    expect(screen.queryByRole('link', { name: 'Адмінка' })).toBeNull();
+    cleanup();
+    forgetAccount();
+    vi.mocked(me).mockResolvedValue(OUT);
+    show('/admin');
+    await vi.waitFor(() => expect(items()).toEqual(['🎮Меню', '📚Бібліотека', '🔑Увійти']));
+  });
+
   it('a visitor gets the library in the menu with its address', async () => {
     vi.mocked(me).mockResolvedValue(OUT);
     show('/library');
