@@ -539,11 +539,24 @@ describe('charts and health (39-A3)', () => {
     }
     const off = (await call('GET', '/api/admin/health', a.cookie)).json() as AdminHealth;
     expect(off.backup).toEqual({ state: 'off' });
-    const broken = await buildApp({ db, auth: TEST_AUTH, adminEmails: emails, backupList: async () => { throw new Error('r2 down'); } });
+    let down = true;
+    const broken = await buildApp({
+      db,
+      auth: TEST_AUTH,
+      adminEmails: emails,
+      backupList: async () => {
+        if (down) throw new Error('r2 down');
+        return [{ key, size: 3_500_000, lastModified }];
+      },
+    });
     try {
       const response = await callOn(broken.app, 'GET', '/api/admin/health', a.cookie);
       expect(response.statusCode).toBe(200);
       expect((response.json() as AdminHealth).backup).toEqual({ state: 'error' });
+      // Збій не кешується на 10 хв: щойно сховище ожило, наступний запит бачить копію.
+      down = false;
+      const healed = (await callOn(broken.app, 'GET', '/api/admin/health', a.cookie)).json() as AdminHealth;
+      expect(healed.backup).toEqual({ state: 'ok', at: '2026-11-16T10:05:00.000Z', bytes: 3_500_000 });
     } finally {
       await broken.app.close();
     }

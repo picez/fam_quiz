@@ -90,24 +90,25 @@ export async function registerAdminRoutes(app: FastifyInstance, deps: AdminDeps)
   // Графіки й список копій — раз на 10 хвилин на всіх адмінів (53).
   const cacheClock = () => now().getTime();
   const charts = ttlCache(() => adminCharts(db, now()), ADMIN_CACHE_MS, cacheClock);
+  // Збій списку не кешується: ttlCache не зберігає відхилений проміс, і наступний запит питає сховище знову.
   const backups = ttlCache(async (): Promise<AdminBackupInfo> => {
     if (deps.backupList === undefined) return { state: 'off' };
-    try {
-      const newest = latestBackup(await deps.backupList());
-      if (newest === null) return { state: 'none' };
-      return { state: 'ok', at: parseBackupKey(newest.key)!.at.toISOString(), bytes: newest.size };
-    } catch (error) {
+    const newest = latestBackup(await deps.backupList());
+    if (newest === null) return { state: 'none' };
+    return { state: 'ok', at: parseBackupKey(newest.key)!.at.toISOString(), bytes: newest.size };
+  }, ADMIN_CACHE_MS, cacheClock);
+  const backupInfo = (): Promise<AdminBackupInfo> =>
+    backups.get().catch((error: unknown): AdminBackupInfo => {
       reportError(error, { where: 'admin-health' });
       return { state: 'error' };
-    }
-  }, ADMIN_CACHE_MS, cacheClock);
+    });
 
   app.get('/api/admin/charts', read, async () => charts.get());
 
   app.get('/api/admin/health', read, async (): Promise<AdminHealth> => {
     const usage = process.memoryUsage();
     return {
-      backup: await backups.get(),
+      backup: await backupInfo(),
       uptimeSec: Math.floor(process.uptime()),
       memory: { rss: usage.rss, heapUsed: usage.heapUsed },
       rooms: manager.rooms().filter((room) => room.state.phase !== 'finished').length,
