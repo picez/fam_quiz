@@ -126,10 +126,13 @@ async function expectStrip55(page: Page, name: string) {
 }
 
 async function strip55Run(page: Page, name: string, shot: string, light: boolean, field: boolean) {
+  // 45b: поле відповіді отримує фокус саме й прокручує сторінку до себе — повертаємося нагору, щоб перевірити початок.
+  await toTop55(page);
+  await expect.poll(() => page.evaluate('window.scrollY'), POLL).toBe(0);
   // На 360×740 запитання вміщається без прокрутки: екран зменшується до висоти телефона з клавіатурою.
   if (!(await page.evaluate('document.documentElement.scrollHeight > innerHeight + 100'))) await page.setViewportSize({ width: 360, height: 420 });
   expect(await page.evaluate('document.documentElement.scrollHeight > innerHeight + 100'), `${name}: the page scrolls`).toBe(true);
-  expect(await strip55(page).count(), `${name}: no strip at the top`).toBe(0);
+  await expect.poll(() => strip55(page).count(), { ...POLL, message: `${name}: no strip at the top` }).toBe(0);
   await toBottom55(page);
   await expectStrip55(page, name);
   await noSideScroll55(page, name);
@@ -173,10 +176,13 @@ async function phones55(_sockets: Socket[]) {
   await afterSplash(host, stage, olya, petro);
   await olya.getByRole('timer').first().waitFor();
   await olya.getByText('Притоки Дніпра').first().waitFor();
+  // 45b: поле відповіді отримує фокус саме й прокручує сторінку до себе — повертаємося нагору, щоб перевірити початок.
+  await toTop55(olya);
+  await expect.poll(() => olya.evaluate('window.scrollY'), POLL).toBe(0);
   // Шість пунктів вміщаються в 320×568: висота зменшується до телефона з клавіатурою.
   if (!(await olya.evaluate('document.documentElement.scrollHeight > innerHeight + 100'))) await olya.setViewportSize({ width: 320, height: 420 });
   expect(await olya.evaluate('document.documentElement.scrollHeight > innerHeight + 100'), 'the timedlist page scrolls').toBe(true);
-  expect(await strip55(olya).count(), 'no strip at the top of the list').toBe(0);
+  await expect.poll(() => strip55(olya).count(), { ...POLL, message: 'no strip at the top of the list' }).toBe(0);
   await toBottom55(olya);
   await expectStrip55(olya, 'Оля timedlist');
   await noSideScroll55(olya, 'Оля timedlist');
