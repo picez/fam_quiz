@@ -1,4 +1,4 @@
-import type { CSSProperties, JSX } from 'react';
+import { useEffect, useState, type CSSProperties, type JSX } from 'react';
 import { LEVEL_XP, type GameXpMoment, type LevelProgress, type PlayerXpView, type XpLine, type XpReason } from '@quiz/shared';
 import { num, signed } from '../format';
 import { countText, t, type TextKey } from '../i18n';
@@ -36,9 +36,33 @@ function pct(p: LevelProgress): number {
   return span > 0 ? Math.min(100, Math.max(0, ((p.xp - p.levelAt) / span) * 100)) : 100;
 }
 
-/** «Досвід за гру» (49): рядки, підсумок, шкала від «до» до «після», новий рівень, причина нуля; гість — одне запрошення. */
+/** Текст для читача з екрана: «Новий рівень N!» або підсумок гри; порожній, поки картки немає. */
+function announcement(xp: PlayerXpView): string {
+  if (!xp.account || xp.moment === null) return '';
+  const { before, after, gained } = xp.moment;
+  return after.level > before.level ? t('xpMomentLevelUp', { n: after.level }) : t('xpMomentGained', { xp: num(gained) });
+}
+
+/** «Досвід за гру» (49): рядки, підсумок, шкала від «до» до «після», новий рівень, причина нуля; гість — одне запрошення.
+ *  Область оголошень стоїть від початку порожньою й наповнюється після появи картки — інакше читач екрана її не озвучить. */
 export function XpMoment({ xp }: { xp: PlayerXpView | undefined }): JSX.Element | null {
+  const text = xp === undefined ? '' : announcement(xp);
+  const [said, setSaid] = useState('');
+  useEffect(() => {
+    setSaid(text);
+  }, [text]);
   if (xp === undefined) return null;
+  return (
+    <>
+      <div className="sr-only" role="status" aria-live="polite">
+        {said}
+      </div>
+      <XpBody xp={xp} />
+    </>
+  );
+}
+
+function XpBody({ xp }: { xp: PlayerXpView }): JSX.Element {
   if (!xp.account) {
     return (
       <p className="xp-moment-guest">
@@ -46,13 +70,7 @@ export function XpMoment({ xp }: { xp: PlayerXpView | undefined }): JSX.Element 
       </p>
     );
   }
-  if (xp.moment === null) {
-    return (
-      <p className="xp-moment-pending" role="status">
-        {t('xpMomentPending')}
-      </p>
-    );
-  }
+  if (xp.moment === null) return <p className="xp-moment-pending">{t('xpMomentPending')}</p>;
   return <XpCard moment={xp.moment} />;
 }
 
@@ -83,9 +101,10 @@ function XpCard({ moment }: { moment: GameXpMoment }): JSX.Element {
         value={after.xp - after.levelAt}
         max={after.nextAt - after.levelAt}
         aria-label={t('levelTitle', { n: after.level })}
+        aria-valuetext={t('xpMomentToNext', { xp: num(toNext), n: after.level + 1 })}
       />
       {leveled && (
-        <div className="xp-moment-levelup" role="status" aria-live="polite">
+        <div className="xp-moment-levelup">
           <h3>{t('xpMomentLevelUp', { n: after.level })}</h3>
           {moment.unlocked.length > 0 && <p>{t('xpMomentUnlocked', { list: moment.unlocked.map((u) => rewardText(u.reward)).join(', ') })}</p>}
           {/* Звичайне посилання, як MenuLinks: повне перезавантаження закриває сокет гри. */}

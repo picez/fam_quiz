@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, render, screen } from '@testing-library/react';
+import { act, cleanup, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { levelProgress, xpForLevel, type GameXpMoment, type XpLine } from '@quiz/shared';
 import { XpMoment, xpLineText } from './XpMoment';
@@ -37,7 +37,8 @@ describe('XpMoment', () => {
 
   it('an account still being counted says so in a status region', () => {
     render(<XpMoment xp={{ account: true, moment: null }} />);
-    expect(screen.getByRole('status').textContent).toContain('Рахуємо досвід…');
+    expect(screen.getByText('Рахуємо досвід…')).toBeTruthy();
+    expect(screen.getByRole('status').textContent).toBe('');
   });
 
   it('shows the lines and the sum', () => {
@@ -47,7 +48,7 @@ describe('XpMoment', () => {
     expect(screen.getByText('За 1-е місце').closest('li')?.textContent).toContain('+100');
     expect(screen.getByText('Денний ліміт').closest('li')?.textContent).toContain('−40');
     expect(screen.getByText('Досягнення «Перша гра»').closest('li')?.textContent).toContain('+25');
-    expect(screen.getByText('+165 досвіду')).toBeTruthy();
+    expect(document.querySelector('.xp-moment-sum')?.textContent).toBe('+165 досвіду');
     expect(screen.getByText(/Денний ліміт 600 досвіду вичерпано/)).toBeTruthy();
   });
 
@@ -59,7 +60,7 @@ describe('XpMoment', () => {
 
   it('a zero game explains', () => {
     render(<XpMoment xp={{ account: true, moment: moment({ gained: 0, reason: 'few_accounts', before: levelProgress(100), after: levelProgress(100) }) }} />);
-    expect(screen.getByText('+0 досвіду')).toBeTruthy();
+    expect(document.querySelector('.xp-moment-sum')?.textContent).toBe('+0 досвіду');
     expect(screen.getByText(/У грі менше 3 гравців з акаунтом/)).toBeTruthy();
   });
 
@@ -68,8 +69,8 @@ describe('XpMoment', () => {
     const after = levelProgress(xpForLevel(5) + 30);
     expect(before.level).toBe(4);
     render(<XpMoment xp={{ account: true, moment: moment({ gained: 40, before, after, unlocked: [{ level: 5, reward: { kind: 'perk', perk: 'time' } }] }) }} />);
-    const up = screen.getByText('Новий рівень 5!');
-    expect(up.closest('[aria-live]')).not.toBeNull();
+    expect(document.querySelector('.xp-moment-levelup h3')?.textContent).toBe('Новий рівень 5!');
+    expect(document.querySelector('[aria-live]')?.textContent).toBe('Новий рівень 5!');
     expect(screen.getByText(/Відкрито:/)).toBeTruthy();
     expect(screen.getByRole('link', { name: 'Усі нагороди' }).getAttribute('href')).toBe('/profile/levels');
     expect(screen.getByText(`Ще ${after.nextAt - after.xp} досвіду до рівня 6`)).toBeTruthy();
@@ -100,5 +101,40 @@ describe('XpMoment', () => {
     expect(card.classList.contains('is-animated')).toBe(true);
     expect(card.style.getPropertyValue('--xp-from')).not.toBe('');
     expect(card.style.getPropertyValue('--xp-to')).not.toBe('');
+  });
+
+  it('one live region is there from the start and gets the level-up text after the card arrives', () => {
+    const before = levelProgress(xpForLevel(5) - 10);
+    const after = levelProgress(xpForLevel(5) + 30);
+    const view = render(<XpMoment xp={{ account: true, moment: null }} />);
+    const region = document.querySelector('[aria-live]')!;
+    expect(document.querySelectorAll('[aria-live]')).toHaveLength(1);
+    expect(region.textContent).toBe('');
+    act(() => {
+      view.rerender(<XpMoment xp={{ account: true, moment: moment({ gained: 40, before, after }) }} />);
+    });
+    expect(document.querySelectorAll('[aria-live]')).toHaveLength(1);
+    expect(document.querySelector('[aria-live]')).toBe(region);
+    expect(region.textContent).toBe('Новий рівень 5!');
+  });
+
+  it('a jump over several levels lists every unlocked reward', () => {
+    const before = levelProgress(xpForLevel(4) + 5);
+    const after = levelProgress(xpForLevel(7) + 5);
+    const unlocked = [
+      { level: 5, reward: { kind: 'perk' as const, perk: 'time' as const } },
+      { level: 6, reward: { kind: 'perk' as const, perk: 'hint' as const } },
+      { level: 7, reward: { kind: 'perk' as const, perk: 'ward' as const } },
+    ];
+    render(<XpMoment xp={{ account: true, moment: moment({ gained: 900, before, after, unlocked }) }} />);
+    expect(document.querySelector('.xp-moment-levelup h3')?.textContent).toBe('Новий рівень 7!');
+    const text = document.querySelector('.xp-moment-levelup p')!.textContent!;
+    expect(text.split(', ')).toHaveLength(3);
+  });
+
+  it('the bar reads its value aloud', () => {
+    const m = moment();
+    render(<XpMoment xp={{ account: true, moment: m }} />);
+    expect(document.querySelector('progress')!.getAttribute('aria-valuetext')).toBe(`Ще ${m.after.nextAt - m.after.xp} досвіду до рівня 6`);
   });
 });

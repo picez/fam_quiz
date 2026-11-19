@@ -5378,7 +5378,7 @@ describe('PlayerScreen: «Нове досягнення!» (12j)', () => {
     const card = screen.getByText('Рахуємо досвід…');
     expect(card.compareDocumentPosition(document.querySelector('.new-achievements')!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     cleanup();
-    show(view({ phase: 'finished', questionIndex: 1, standings, xp: { account: false }, newAchievements: { account: false, ids: [] } }));
+    show(view({ phase: 'finished', questionIndex: 1, standings, xp: { account: false } }));
     expect(screen.getAllByText(/Увійдіть, щоб отримувати досвід/)).toHaveLength(1);
     expect(screen.queryByText('Увійди, щоб збирати досягнення')).toBeNull();
   });

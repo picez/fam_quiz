@@ -1902,7 +1902,7 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
           {view.own?.game != null && <GameCardView card={view.own.game} team={view.team !== null} />}
           {/* «Нове досягнення!» (12j): під «Твоя гра», лише після церемонії 14a. */}
           {ceremony === null && <XpMoment xp={view.xp} />}
-          {ceremony === null && !(view.xp?.account === false && view.newAchievements?.account === false) && <NewAchievements mine={view.newAchievements} />}
+          {ceremony === null && view.xp?.account !== false && <NewAchievements mine={view.newAchievements} />}
           {view.standings !== null && <Standings standings={view.standings} highlightId={me.id} titles={view.titles} levels={view.levels} />}
           {/* Лайки (17a): у потоці, лише після церемонії 14a. */}
           {ceremony === null && <LikePanel likes={view.likes} busy={likeGuard.busy} onLike={(payload) => void likeGuard.run('player:like', payload)} />}
