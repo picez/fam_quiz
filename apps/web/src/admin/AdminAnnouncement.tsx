@@ -1,6 +1,6 @@
 import { useState, type FormEvent, type JSX } from 'react';
 import { Navigate } from 'react-router-dom';
-import { ANNOUNCEMENT_TEXT_MAX, ANNOUNCEMENT_URL_MAX, isAnnouncementUrl, type Announcement } from '@quiz/shared';
+import { ANNOUNCEMENT_MAX_DAYS, ANNOUNCEMENT_TEXT_MAX, ANNOUNCEMENT_URL_MAX, isAnnouncementUrl, type Announcement } from '@quiz/shared';
 import { AnnouncementView } from '../announcement/AnnouncementView';
 import { dayHeading, isoToLocalInput, localInputToIso, timeText, viewerZone } from '../calendar/calendar-time';
 import { errorText, t } from '../i18n';
@@ -39,7 +39,11 @@ export function AdminAnnouncement(): JSX.Element {
   const link = url.trim();
   const linkBad = link !== '' && !isAnnouncementUrl(link);
   const expiresAt = forever ? null : localInputToIso(until, zone);
-  const ready = text.trim() !== '' && !linkBad && (forever || expiresAt !== null);
+  // Ті самі межі, що й на сервері: у майбутньому й не далі ANNOUNCEMENT_MAX_DAYS; сервер однаково перевіряє ще раз.
+  const nowMs = Date.now();
+  const latestMs = nowMs + ANNOUNCEMENT_MAX_DAYS * 86_400_000;
+  const expiryBad = expiresAt !== null && !(Date.parse(expiresAt) > nowMs && Date.parse(expiresAt) <= latestMs);
+  const ready = text.trim() !== '' && !linkBad && (forever || (expiresAt !== null && !expiryBad));
 
   const publish = async (event: FormEvent) => {
     event.preventDefault();
@@ -79,7 +83,7 @@ export function AdminAnnouncement(): JSX.Element {
           <p className="meta">{t('adminAnnounceNone')}</p>
         ) : (
           <>
-            <AnnouncementView announcement={current} />
+            <AnnouncementView announcement={current} preview />
             {current.expiresAt !== null && <p className="meta">{t('adminAnnounceExpires', { date: `${dayHeading(current.expiresAt, zone)}, ${timeText(current.expiresAt, zone)}` })}</p>}
             <div className="admin-actions">
               <button type="button" className="btn" disabled={busy} onClick={() => void remove()}>
@@ -118,18 +122,27 @@ export function AdminAnnouncement(): JSX.Element {
           </label>
           {!forever && (
             <input
+              id="announce-until-at"
+              name="announce-until-at"
               type="datetime-local"
               aria-label={t('adminAnnounceDate')}
+              aria-invalid={expiryBad}
               value={until}
-              min={isoToLocalInput(new Date().toISOString(), zone)}
+              min={isoToLocalInput(new Date(nowMs).toISOString(), zone)}
+              max={isoToLocalInput(new Date(latestMs).toISOString(), zone)}
               onChange={(e) => setUntil(e.target.value)}
             />
+          )}
+          {!forever && expiryBad && (
+            <p className="error" role="alert">
+              {errorText('announcement_expiry')}
+            </p>
           )}
         </fieldset>
         {text.trim() !== '' && (
           <div className="admin-announce-preview">
             <h3>{t('adminAnnouncePreview')}</h3>
-            <AnnouncementView announcement={{ text: text.trim(), url: link === '' || linkBad ? null : link }} />
+            <AnnouncementView announcement={{ text: text.trim(), url: link === '' || linkBad ? null : link }} preview />
           </div>
         )}
         {error !== null && (
@@ -143,7 +156,7 @@ export function AdminAnnouncement(): JSX.Element {
           </p>
         )}
         <div className="admin-actions">
-          <button type="submit" disabled={!ready || busy}>
+          <button type="submit" className="btn btn-primary" disabled={!ready || busy}>
             {current === null ? t('adminAnnouncePublish') : t('adminAnnounceReplace')}
           </button>
         </div>

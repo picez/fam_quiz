@@ -5,7 +5,7 @@ import { getAnnouncement } from '../api';
 import { loadAnnouncementSeen, saveAnnouncementSeen } from '../storage';
 import { AnnouncementView } from './AnnouncementView';
 
-/** Далі за добу таймер не ставимо: setTimeout обмежений, а сторінка так довго не живе. */
+/** Довше за добу один таймер не ставимо (setTimeout обмежений): за добу він спрацьовує, і строк перевіряється знову. */
 const TIMER_HORIZON_MS = 24 * 60 * 60 * 1000;
 
 /**
@@ -16,25 +16,32 @@ export function AnnouncementBanner(): JSX.Element | null {
   const [announcement, setAnnouncement] = useState<Announcement | null>(null);
   useEffect(() => {
     let alive = true;
-    void getAnnouncement().then((result) => {
-      if (!alive || !result.ok) return;
-      const found = result.data.announcement;
-      if (found === null || found.id === loadAnnouncementSeen()) return;
-      if (found.expiresAt !== null && Date.parse(found.expiresAt) <= Date.now()) return;
-      setAnnouncement(found);
-    });
+    void getAnnouncement()
+      .then((result) => {
+        if (!alive || !result.ok) return;
+        // Тіло без поля чи з null — оголошення немає (а не виняток у промісі).
+        const found = result.data?.announcement ?? null;
+        if (found === null || found.id === loadAnnouncementSeen()) return;
+        if (found.expiresAt !== null && Date.parse(found.expiresAt) <= Date.now()) return;
+        setAnnouncement(found);
+      })
+      .catch(() => {});
     return () => {
       alive = false;
     };
   }, []);
   const expiresAt = announcement?.expiresAt ?? null;
+  const [tick, setTick] = useState(0);
   useEffect(() => {
     if (expiresAt === null) return;
     const left = Date.parse(expiresAt) - Date.now();
-    if (left > TIMER_HORIZON_MS) return;
-    const timer = setTimeout(() => setAnnouncement(null), Math.max(left, 0));
+    if (left <= 0) {
+      setAnnouncement(null);
+      return;
+    }
+    const timer = setTimeout(() => setTick((n) => n + 1), Math.min(left, TIMER_HORIZON_MS));
     return () => clearTimeout(timer);
-  }, [expiresAt]);
+  }, [expiresAt, tick]);
   if (announcement === null) return null;
   const close = () => {
     saveAnnouncementSeen(announcement.id);

@@ -82,6 +82,45 @@ describe('AnnouncementBanner', () => {
     expect(screen.queryByText(base.text)).toBeNull();
   });
 
+  it('an announcement that ends more than a day later still hides at its time on a tab left open', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] });
+    const day = 24 * 60 * 60 * 1000;
+    serve({ ...base, expiresAt: new Date(Date.now() + day + 60 * 60 * 1000).toISOString() });
+    open();
+    await act(async () => {});
+    expect(screen.getByText(base.text)).toBeTruthy();
+    await act(async () => {
+      vi.advanceTimersByTime(day);
+    });
+    expect(screen.getByText(base.text)).toBeTruthy();
+    await act(async () => {
+      vi.advanceTimersByTime(60 * 60 * 1000 + 1);
+    });
+    expect(screen.queryByText(base.text)).toBeNull();
+  });
+
+  it('a malformed answer or a rejected request shows nothing and throws nothing', async () => {
+    vi.mocked(getAnnouncement).mockResolvedValue({ ok: true, data: {} } as unknown as Awaited<ReturnType<typeof getAnnouncement>>);
+    const first = open();
+    await vi.waitFor(() => expect(getAnnouncement).toHaveBeenCalledTimes(1));
+    await act(async () => {});
+    expect(first.container.textContent).toBe('');
+    cleanup();
+    vi.mocked(getAnnouncement).mockRejectedValue(new Error('boom'));
+    const second = open();
+    await vi.waitFor(() => expect(getAnnouncement).toHaveBeenCalledTimes(2));
+    await act(async () => {});
+    expect(second.container.textContent).toBe('');
+  });
+
+  it('a link that is not https or a site path is not rendered, the text still is', async () => {
+    serve({ ...base, url: 'javascript:alert(1)' });
+    open();
+    expect(await screen.findByText(base.text)).toBeTruthy();
+    expect(screen.queryByRole('link')).toBeNull();
+    expect(screen.queryByText('Детальніше')).toBeNull();
+  });
+
   it('a failed request shows nothing and no error', async () => {
     vi.mocked(getAnnouncement).mockResolvedValue({ ok: false, error: 'offline' });
     const { container } = open();

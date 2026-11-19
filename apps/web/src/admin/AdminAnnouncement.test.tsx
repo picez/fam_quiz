@@ -3,7 +3,7 @@ import type { Announcement } from '@quiz/shared';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { localInputToIso, viewerZone } from '../calendar/calendar-time';
+import { isoToLocalInput, localInputToIso, viewerZone } from '../calendar/calendar-time';
 import { errorText } from '../i18n';
 import { AdminAnnouncement } from './AdminAnnouncement';
 import { adminAnnouncement, clearAnnouncement, saveAnnouncement } from './admin-api';
@@ -78,11 +78,51 @@ describe('AdminAnnouncement', () => {
     fireEvent.click(screen.getByRole('radio', { name: 'До дати й часу' }));
     const publish = screen.getByRole('button', { name: 'Опублікувати' }) as HTMLButtonElement;
     expect(publish.disabled).toBe(true);
-    fireEvent.change(screen.getByLabelText('До дати й часу', { selector: 'input[type="datetime-local"]' }), { target: { value: '2026-11-20T19:00' } });
+    const at = isoToLocalInput(new Date(Date.now() + 2 * 86_400_000).toISOString(), viewerZone());
+    fireEvent.change(screen.getByLabelText('До дати й часу', { selector: 'input[type="datetime-local"]' }), { target: { value: at } });
     expect(publish.disabled).toBe(false);
     fireEvent.click(publish);
     await waitFor(() => expect(saveAnnouncement).toHaveBeenCalled());
-    expect(saveAnnouncement).toHaveBeenCalledWith({ text: 'Привіт', url: null, expiresAt: localInputToIso('2026-11-20T19:00', viewerZone()) });
+    expect(saveAnnouncement).toHaveBeenCalledWith({ text: 'Привіт', url: null, expiresAt: localInputToIso(at, viewerZone()) });
+  });
+
+  it('a past time or one more than a year ahead keeps «Опублікувати» off and says why; the field has an id and a max', async () => {
+    open();
+    await screen.findByText('Оголошення немає.');
+    fireEvent.change(field(), { target: { value: 'Привіт' } });
+    fireEvent.click(screen.getByRole('radio', { name: 'До дати й часу' }));
+    const input = screen.getByLabelText('До дати й часу', { selector: 'input[type="datetime-local"]' }) as HTMLInputElement;
+    expect(input.id).toBe('announce-until-at');
+    expect(input.max).not.toBe('');
+    const publish = screen.getByRole('button', { name: 'Опублікувати' }) as HTMLButtonElement;
+    const local = (ms: number) => isoToLocalInput(new Date(Date.now() + ms).toISOString(), viewerZone());
+    fireEvent.change(input, { target: { value: local(-2 * 86_400_000) } });
+    expect(publish.disabled).toBe(true);
+    expect(screen.getByRole('alert').textContent).toBe(errorText('announcement_expiry'));
+    fireEvent.change(input, { target: { value: local(400 * 86_400_000) } });
+    expect(publish.disabled).toBe(true);
+    expect(screen.getByRole('alert').textContent).toBe(errorText('announcement_expiry'));
+    fireEvent.change(input, { target: { value: local(30 * 86_400_000) } });
+    expect(publish.disabled).toBe(false);
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  it('the submit button has the app button look', async () => {
+    open();
+    await screen.findByText('Оголошення немає.');
+    const publish = screen.getByRole('button', { name: 'Опублікувати' });
+    expect(publish.className).toBe('btn btn-primary');
+  });
+
+  it('the current view and the preview have no live «Детальніше» link and add no extra «Оголошення» landmark', async () => {
+    vi.mocked(adminAnnouncement).mockResolvedValue({ ok: true, data: { announcement: current({ url: '/library' }) } });
+    open();
+    await screen.findByText('Зараз показується');
+    fireEvent.change(field(), { target: { value: 'Привіт' } });
+    fireEvent.change(screen.getByLabelText("Посилання (необов'язково)"), { target: { value: 'https://example.com' } });
+    expect(screen.getAllByText('Детальніше')).toHaveLength(2);
+    expect(screen.queryByRole('link', { name: 'Детальніше' })).toBeNull();
+    expect(screen.queryByRole('complementary')).toBeNull();
   });
 
   it('refuses a link that is not https or a site path', async () => {
