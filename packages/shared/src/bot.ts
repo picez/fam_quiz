@@ -13,3 +13,8 @@ export type BotAction = (typeof BOT_ACTIONS)[number];
 export function isBotUser(id: string | null | undefined): boolean {
   return id === BOT_USER_ID;
 }
+
+/** An address in the bot's domain (`@quiz.invalid`, any case): nobody may sign up with one. */
+export function isBotDomainEmail(email: string | null | undefined): boolean {
+  return (email ?? '').trim().toLowerCase().endsWith('@' + BOT_EMAIL.split('@')[1]!);
+}

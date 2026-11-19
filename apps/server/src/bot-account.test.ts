@@ -98,6 +98,25 @@ describe('the bot account (54)', () => {
     expect(await db.select().from(account).where(eq(account.userId, BOT_USER_ID))).toHaveLength(0);
   });
 
+  it('nobody signs up with any address in the bot domain, even before the bot exists', async () => {
+    // Окрема база без бота: відмову дає хук, а не унікальність пошти.
+    const own = await createTestDb();
+    const app = await buildApp({ db: own, auth: TEST_AUTH });
+    try {
+      for (const email of [BOT_EMAIL, 'someone@quiz.invalid', 'Quiz-Bot@QUIZ.INVALID', ' x@quiz.invalid ']) {
+        const signedUp = await app.app.inject({ method: 'POST', url: '/api/auth/sign-up/email', payload: { name: 'Не бот', email, password: PASSWORD } });
+        expect(signedUp.statusCode, email).not.toBe(200);
+        expect(sessionCookie(signedUp.headers), email).toBe(false);
+      }
+      expect(await own.select({ id: user.id }).from(user)).toEqual([]);
+      // Інший домен, що лише закінчується схоже, — звичайна реєстрація.
+      const fine = await app.app.inject({ method: 'POST', url: '/api/auth/sign-up/email', payload: { name: 'Звичайна', email: 'olya@notquiz.invalid.example.com', password: PASSWORD } });
+      expect(fine.statusCode).toBe(200);
+    } finally {
+      await app.shutdown();
+    }
+  });
+
   it('the session hook refuses the bot even with credentials', async () => {
     await ensureBotAccount(db);
     await db.insert(account).values({
