@@ -16,7 +16,7 @@ export function Avatar({ profile, size }: { profile: ProfileCard; size: 'large' 
     return <img className={`avatar avatar-${size}`} src={profile.avatar} alt={label} loading="lazy" decoding="async" />;
   }
   if (isBotUser(profile.id)) {
-    return <img className={`avatar avatar-${size}`} src="/quiz-bot.svg" alt={label} decoding="async" />;
+    return <img className={`avatar avatar-${size}`} src="/quiz-bot.svg" alt={label} loading="lazy" decoding="async" />;
   }
   const letter = (Array.from(nickText(profile.nickname))[0] ?? '').toUpperCase();
   return (
