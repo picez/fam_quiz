@@ -1,4 +1,4 @@
-import { answerKey, autopilotCheck, quizSchema, type Question } from '@quiz/shared';
+import { answerKey, autopilotCheck, quizSchema, wordIn, type Question } from '@quiz/shared';
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -47,24 +47,29 @@ describe('the «Шпигун» seed', () => {
   it('no word leaks into the text', () => {
     const everything = answerKey(JSON.stringify({ title: quiz.title, description: quiz.description, rounds: quiz.rounds.map((r) => ({ title: r.title, description: r.description, texts: ('questions' in r ? r.questions : []).map((q) => q.text) })) }));
     for (const q of spies) {
-      for (const word of [q.accepted[0]!, q.spyWord]) {
-        expect(answerKey(q.text).includes(answerKey(word)), `${q.text} / ${word}`).toBe(false);
-        // Слова пар не звучать ні в яких текстах вікторини (назва, опис раунду, запитання).
-        expect(everything.includes(answerKey(word)), word).toBe(false);
-      }
+      const word = q.accepted[0]!;
+      expect(answerKey(q.text).includes(answerKey(word)), `${q.text} / ${word}`).toBe(false);
+      // Загальне слово не звучить ні в яких текстах вікторини (назва, опис раунду, запитання).
+      expect(everything.includes(answerKey(word)), word).toBe(false);
     }
     const texts = questions.map((q) => answerKey(q.text));
     expect(new Set(texts).size).toBe(texts.length);
   });
 
-  it('pairs are different words', () => {
-    const keys = spies.flatMap((q) => [answerKey(q.accepted[0]!), answerKey(q.spyWord)]);
-    expect(keys).toHaveLength(12);
-    expect(new Set(keys).size).toBe(12);
-    for (const q of spies) expect(q.accepted.map(answerKey), q.text).not.toContain(answerKey(q.spyWord));
+  it('no question has a spy word, the hints never contain the common word', () => {
+    for (const q of spies) {
+      expect(q.spyWord, q.text).toBeUndefined();
+      if (q.spyHint === undefined) continue;
+      for (const w of q.accepted) expect(wordIn(q.spyHint, w), `${q.spyHint} / ${w}`).toBe(false);
+      expect(answerKey(q.spyHint).includes(answerKey(q.accepted[0]!).slice(0, 5)), `${q.spyHint} / ${q.accepted[0]}`).toBe(false);
+    }
   });
 
-  it('repeats no question or pair of the other seeds', () => {
+  it('at least one question has no hint', () => {
+    expect(spies.some((q) => q.spyHint === undefined)).toBe(true);
+  });
+
+  it('repeats no question or hint of the other seeds', () => {
     const files = (folder: string): string[] =>
       readdirSync(folder, { withFileTypes: true }).flatMap((entry) =>
         entry.isDirectory() ? files(join(folder, entry.name)) : entry.name.endsWith('.ts') && !entry.name.startsWith('spy-quiz') ? [join(folder, entry.name)] : [],
@@ -73,12 +78,10 @@ describe('the «Шпигун» seed', () => {
     expect(others.length).toBeGreaterThan(20);
     const repeatedTexts = questions.filter((q) => others.some((source) => source.includes(q.text.toLowerCase()))).map((q) => q.text);
     expect(repeatedTexts).toEqual([]);
-    // Пара — обидва слова (перші 5 літер) разом в одному рядку іншого сіда.
-    const stem = (word: string): string => word.toLowerCase().slice(0, 5);
-    const repeatedPairs = spies
-      .filter((q) => others.some((source) => source.split(/\r?\n/).some((line) => line.includes(stem(q.accepted[0]!)) && line.includes(stem(q.spyWord)))))
-      .map((q) => `${q.accepted[0]} / ${q.spyWord}`);
-    expect(repeatedPairs).toEqual([]);
+    const repeatedHints = spies
+      .flatMap((q) => (q.spyHint === undefined ? [] : [q.spyHint]))
+      .filter((hint) => others.some((source) => source.includes(hint.toLowerCase())));
+    expect(repeatedHints).toEqual([]);
   });
 
   it('nothing about russia', () => {
