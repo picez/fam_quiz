@@ -904,7 +904,7 @@
   "round.truth.how.1": "Widzisz wszystkie fakty i możesz ukryć niestosowny: ukryty fakt nie trafi do rundy.",
   "round.truth.how.2": "Na starcie rundy gra sama tworzy po jednym pytaniu z każdego faktu, w losowej kolejności.",
   "round.truth.how.3": "Gracze wybierają z listy imię osoby, która ich zdaniem to napisała. Autor faktu nie zgaduje, tylko czeka.",
-  "round.truth.how.4": "Możesz zmylić graczy: dodaj w lobby zmyślone fakty (albo przygotuj w edytorze do {truthPresetFakes}). Zmyślonych faktów zagra się nie więcej niż faktów graczy. W każdym pytaniu rundy jest wtedy opcja „Zmyślone” i nikt poza tobą nie wie, które pytanie jest zmyślone.",
+  "round.truth.how.4": "Możesz zmylić graczy: dodaj w lobby zmyślone fakty (albo przygotuj w edytorze do {truthPresetFakes}). Zmyślonych faktów zagra się nie więcej niż faktów graczy. W każdym pytaniu rundy jest wtedy opcja „Zmyślone” i nikt poza tobą nie wie, które pytanie jest zmyślone. Które pytanie było zmyślone, gracze dowiadują się w podsumowaniu rundy; w takiej rundzie nie ma licznika „Odpowiedzieli”.",
   "round.truth.limits.0": "W quizie może być tylko jedna taka runda.",
   "round.truth.limits.1": "Bez żadnego faktu runda jest pomijana.",
   "round.truth.limits.2": "W grze bez prowadzącego nikt nie sprawdza faktów, a grane są tylko zmyślone fakty przygotowane w edytorze.",

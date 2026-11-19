@@ -151,7 +151,7 @@ describe('uk golden (22a)', () => {
   /** «Правда про гравця»: автори й бали раунду — разом у підсумку наприкінці раунду. */
   const ADDED_TRUTH_RECAP = ['truthHeldNote', 'truthSealed', 'truthClosed', 'truthYourPick', 'truthYouSkipped', 'truthHeldScores', 'truthRecapTitle', 'truthRecapEarly', 'truthRecapMine', 'truthRecapRight', 'truthRecapRightCount', 'truthRecapNobody', 'truthRecapOwn', 'truthHostHeld'];
   /** 52: вигадки ведучого в раунді «Правда про гравця». */
-  const ADDED_TRUTH_52 = ['truthFakeOption', 'truthFakeIs', 'truthFakeLabel', 'truthFakeHostMark', 'truthFakeHostAnswer', 'truthFakesTitle', 'truthFakesHint', 'truthFakeAdd', 'truthFakePlaceholder', 'truthFakeEdit', 'truthFakeRemove', 'truthFakePreset', 'truthFakeSkip', 'truthFakesOver', 'err_truth_fakes_full', 'truthPresetLabel', 'truthPresetHint', 'truthPresetAdd'];
+  const ADDED_TRUTH_52 = ['truthFakeOption', 'truthFakeIs', 'truthFakeLabel', 'truthFakeHostMark', 'truthFakeHostAnswer', 'truthFakesTitle', 'truthFakesHint', 'truthFakeAdd', 'truthFakePlaceholder', 'truthFakeEdit', 'truthFakeRemove', 'truthFakePreset', 'truthFakeSkip', 'truthFakesOver', 'truthFakesNoFacts', 'err_truth_fakes_full', 'truthPresetLabel', 'truthPresetHint', 'truthPresetAdd'];
   /** «Правда про гравця» в командах: у підсумку вибір і вгадане — команди, а не «ваші». */
   const ADDED_TRUTH_TEAM = ['truthTeamPick', 'truthTeamSkipped', 'truthRecapTeamMine', 'truthRecapOwnTeam'];
   /** 35: «Думай інакше» — назва, пам'ятка, помилки, редактор, історія, автопілот, телефон, сцена й пульт. */

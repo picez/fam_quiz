@@ -904,7 +904,7 @@
   "round.truth.how.1": "Vedi tutti i fatti e puoi nascondere quello inopportuno: un fatto nascosto non entra nel round.",
   "round.truth.how.2": "All’inizio del round il gioco crea una domanda da ogni fatto, in ordine casuale.",
   "round.truth.how.3": "I giocatori scelgono dall’elenco il nome di chi pensano l’abbia scritto. L’autore del fatto non indovina, aspetta.",
-  "round.truth.how.4": "Puoi confondere i giocatori: aggiungi fatti inventati nella lobby (o preparane fino a {truthPresetFakes} nell’editor). Si giocano al massimo tanti fatti inventati quanti sono i fatti dei giocatori. Allora ogni domanda del round ha l’opzione «Inventato», e nessuno tranne te sa quale domanda è inventata.",
+  "round.truth.how.4": "Puoi confondere i giocatori: aggiungi fatti inventati nella lobby (o preparane fino a {truthPresetFakes} nell’editor). Si giocano al massimo tanti fatti inventati quanti sono i fatti dei giocatori. Allora ogni domanda del round ha l’opzione «Inventato», e nessuno tranne te sa quale domanda è inventata. Quale domanda era inventata, i giocatori lo scoprono nel riepilogo del round; in un round così non c’è il contatore «Hanno risposto».",
   "round.truth.limits.0": "In un quiz può esserci un solo round di questo tipo.",
   "round.truth.limits.1": "Senza alcun fatto il round viene saltato.",
   "round.truth.limits.2": "In una partita senza conduttore nessuno controlla i fatti, e si giocano solo i fatti inventati preparati nell’editor.",

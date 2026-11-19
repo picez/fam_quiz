@@ -904,7 +904,7 @@
   "round.truth.how.1": "Ves todos los datos y puedes ocultar el que no sea adecuado: un dato oculto no entra en la ronda.",
   "round.truth.how.2": "Al empezar la ronda, el juego crea una pregunta con cada dato, en orden aleatorio.",
   "round.truth.how.3": "Los jugadores eligen de la lista el nombre de quien creen que lo escribió. El autor del dato no adivina, solo espera.",
-  "round.truth.how.4": "Puedes despistar a los jugadores: añade datos inventados en la sala de espera (o prepara hasta {truthPresetFakes} en el editor). Se juegan como máximo tantos datos inventados como datos de los jugadores. Entonces cada pregunta de la ronda tiene la opción «Inventado», y nadie salvo tú sabe qué pregunta es inventada.",
+  "round.truth.how.4": "Puedes despistar a los jugadores: añade datos inventados en la sala de espera (o prepara hasta {truthPresetFakes} en el editor). Se juegan como máximo tantos datos inventados como datos de los jugadores. Entonces cada pregunta de la ronda tiene la opción «Inventado», y nadie salvo tú sabe qué pregunta es inventada. Qué pregunta era inventada, los jugadores lo descubren en el resumen de la ronda; en una ronda así no hay contador «Han respondido».",
   "round.truth.limits.0": "En un cuestionario solo puede haber una ronda así.",
   "round.truth.limits.1": "Sin ningún dato, la ronda se omite.",
   "round.truth.limits.2": "En una partida sin presentador nadie revisa los datos, y solo se juegan los datos inventados preparados en el editor.",

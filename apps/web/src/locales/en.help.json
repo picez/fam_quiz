@@ -904,7 +904,7 @@
   "round.truth.how.1": "You can see all the facts and hide any that is out of place: a hidden fact does not make it into the round.",
   "round.truth.how.2": "When the round starts, the game creates one question from each fact, in random order.",
   "round.truth.how.3": "Players pick from the list the name of whoever they think wrote it. The author of the fact does not guess and just waits.",
-  "round.truth.how.4": "You can mislead the players: add made-up facts in the lobby (or prepare up to {truthPresetFakes} in the editor). No more made-up facts are played than there are player facts. Every question of the round then has a “Made up” option, and nobody but you knows which question is made up.",
+  "round.truth.how.4": "You can mislead the players: add made-up facts in the lobby (or prepare up to {truthPresetFakes} in the editor). No more made-up facts are played than there are player facts. Every question of the round then has a “Made up” option, and nobody but you knows which question is made up. Players find out which question was made up in the round recap; such a round has no “Answered” counter.",
   "round.truth.limits.0": "A quiz can have only one such round.",
   "round.truth.limits.1": "With no facts at all, the round is skipped.",
   "round.truth.limits.2": "In a game without a host nobody reviews the facts, and only the made-up facts prepared in the editor are played.",
