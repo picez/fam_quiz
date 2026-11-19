@@ -206,7 +206,7 @@ async function autopilotVote51(sockets: Socket[]) {
   };
   /** Голос сокета: ключі за текстами в його бюлетені. */
   const vote = async (player: Pilot, ...texts: string[]) => {
-    const view = player.frames.findLast((f) => f.view.me.think?.vote != null)!.view;
+    const view = [...player.frames].reverse().find((f) => f.view.me.think?.vote != null)!.view;
     await emitOk(player, 'player:think-vote', { keys: texts.map((text) => voteKey51(view, text)) });
   };
   const afterReveal = async (text: string, starts: Map<Pilot, number>, answers: Record<string, string>) => {
@@ -234,6 +234,9 @@ async function autopilotVote51(sockets: Socket[]) {
   const doneBottom = (await done.boundingBox())!.y + (await done.boundingBox())!.height;
   expect(doneBottom, '«Done» in the 360 px viewport').toBeLessThanOrEqual(800);
   await noSideScroll51(petro, 'phone ballot 360');
+  // Таймер етапу — 25 с голосування, а не 30 с запитання (телефон і сцена).
+  await petro.locator('.timer-total', { hasText: '/ 25 с' }).waitFor();
+  await stage.locator('.timer-total', { hasText: '/ 25 с' }).waitFor();
   await vshot(petro, 'think51-ballot-phone-light-360');
   await toggle.click();
   expect(await toggle.getAttribute('aria-pressed')).toBe('false');
@@ -387,7 +390,7 @@ async function teamsVote51(sockets: Socket[]) {
   await olya.locator('.think-vote-toggle', { hasText: 'банан' }).click();
   await olya.getByRole('button', { name: ukMessages.thinkVoteDone, ...exact }).click();
   await olya.locator('.think-vote-sent').getByText(ukMessages.thinkVoteSent, exact).waitFor();
-  const viraView = vira.frames.findLast((f) => f.view.me.think?.vote != null)!.view;
+  const viraView = [...vira.frames].reverse().find((f) => f.view.me.think?.vote != null)!.view;
   await emitOk(vira, 'player:think-vote', { keys: [voteKey51(viraView, 'банан')] });
   await emitOk(marko, 'player:think-vote', { keys: [] });
   const shown = await frame(marko, (v) => v.phase === 'reveal' && v.question?.text === text, start);
