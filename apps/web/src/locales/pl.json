@@ -4706,7 +4706,7 @@
   "xpReason_author": "To twój własny quiz — za własne nie ma doświadczenia.",
   "xpReason_repeat_quiz": "Za ten quiz doświadczenie już zostało przyznane.",
   "xpReason_cap": "Dzienny limit {cap} doświadczenia wyczerpany — resztę pominięto.",
-  "achievementShare": "Ma go {percent}% graczy",
+  "achievementShare": "Ma je {percent}% graczy",
   "achievementShareNone": "Jeszcze nikt go nie ma",
   "achievementRare": "rzadkie",
   "achievementVeryRare": "bardzo rzadkie",
