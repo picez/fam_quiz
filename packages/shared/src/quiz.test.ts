@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { duelBetSchema, alikeJoinSchema, alikeSplitSchema, spyTextSchema, spyVoteSchema, wordleGuessSchema } from './events';
 import {
+  thinkOfftopicVoteOn,
+  thinkRoundSchema,
   DEFAULT_ANSWER_WINDOW,
   DEFAULT_RULES,
   DEFAULT_SETTINGS,
@@ -3831,6 +3833,19 @@ describe('think round (35)', () => {
     const parsed = quizSchema.parse(quizOf([thinkRound()]));
     expect(rulesOf(parsed.rounds[0]!)).toBe(DEFAULT_RULES);
     expect(roundQuestions(parsed.rounds[0]!)).toHaveLength(3);
+  });
+
+  it('a think round may switch the off-topic vote off', () => {
+    const plain = thinkRoundSchema.parse(thinkRound());
+    expect(plain.offtopicVote).toBeUndefined();
+    expect(thinkOfftopicVoteOn(plain)).toBe(true);
+    const off = thinkRoundSchema.parse(thinkRound({ offtopicVote: false }));
+    expect(off.offtopicVote).toBe(false);
+    expect(thinkOfftopicVoteOn(off)).toBe(false);
+    expect(thinkOfftopicVoteOn(thinkRoundSchema.parse(thinkRound({ offtopicVote: true })))).toBe(true);
+    expect(valid(roundSchema, thinkRound({ offtopicVote: 'так' }))).toBe(false);
+    expect(LIMITS.thinkVoteTime).toBe(25);
+    expect(LIMITS.minThinkVoters).toBe(3);
   });
 
   it('old quizzes still parse', () => {

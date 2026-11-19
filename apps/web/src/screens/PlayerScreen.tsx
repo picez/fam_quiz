@@ -55,7 +55,7 @@ import { MelodyPlay } from './MelodyView';
 import { VideoclipPlay, VideoclipReveal } from './VideoclipView';
 import { DrawingClosed, DrawingPhone, DrawingReveal, drawingTitle, strokesOf } from './DrawingView';
 import type { DrawingModel } from '../live/drawing';
-import { ThinkHearts, ThinkInput, ThinkPhoneVerdict, ThinkPlaces, ThinkReveal } from './ThinkView';
+import { ThinkHearts, ThinkInput, ThinkPhoneVerdict, ThinkPlaces, ThinkReveal, ThinkVoteBallot } from './ThinkView';
 import { AlikeGroups } from './AlikeView';
 import { OvershootRows } from './OvershootRows';
 import { TruthFactForm, TruthHeldPick, TruthOwn, TruthPick, TruthRecapFold, TruthRecapView, TruthReveal, TruthSkipped, type TruthRecapMine } from './TruthView';
@@ -1341,6 +1341,15 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
                   answer={me.answer?.type === 'videoclip' ? me.answer.value : null}
                 />
               )
+            ) : thinkQ && me.think !== undefined && me.think.vote != null ? (
+              // Етап голосування автопілота (51): бюлетень «Чи всі на тему?» замість поля — і всім у команді (голосує капітан).
+              <ThinkVoteBallot
+                key={`${view.round?.index ?? 0}:${view.questionIndex}`}
+                vote={me.think.vote}
+                send={send}
+                onError={setError}
+                teamMember={team !== null && me.think.status === 'alive'}
+              />
             ) : thinkQ && me.think !== undefined && (me.think.status !== 'alive' || !teamWatching) ? (
               <ThinkInput
                 key={`${view.round?.index ?? 0}:${view.questionIndex}`}

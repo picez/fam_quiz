@@ -1,4 +1,4 @@
-import { answeredByOf, appealTally, cluesAnswered, debuffOn, isSilentRisk, memberOf, packedStrokes, rankPlayers, recordOf, teamMembers, teamsOn, thinkPlaces, thinkVerdicts, voteTally, type DrawingPlay, type GameState, type LadderPlay, type SurvivalPlay, type ThinkPlay, type TruthPlay } from '@quiz/engine';
+import { answeredByOf, appealTally, cluesAnswered, debuffOn, isSilentRisk, memberOf, packedStrokes, rankPlayers, recordOf, teamMembers, teamsOn, thinkOffOf, thinkPlaces, thinkVerdicts, voteTally, type DrawingPlay, type GameState, type LadderPlay, type SurvivalPlay, type ThinkPlay, type TruthPlay } from '@quiz/engine';
 import { AWAY_MS, isUnscored, type Answer, type BuffKind, type DebuffKind, type GameXpMoment, type LeagueEntry, type Question } from '@quiz/shared';
 import { and, eq, gt, gte, inArray, max, notInArray, sql } from 'drizzle-orm';
 import { antiHidden, awardedIn, awardGame } from './achievement-store';
@@ -238,6 +238,7 @@ function drawingRef(state: GameState, drawing: DrawingPlay): NonNullable<PlayRef
 function thinkRef(state: GameState, index: number, think: ThinkPlay): NonNullable<PlayRef['think']> {
   const verdicts = thinkVerdicts(state, index);
   const manual = Object.keys(think.lives).filter((id) => recordOf(state, index, id)?.overridden === true);
+  const off = thinkOffOf(state, index);
   // Місця раунду (огляд M-1) — на останньому зіграному запитанні раунду, щойно раунд скінчився: історія показує таблицю й місця з 0 балів.
   const { roundIndex } = state.plays[index];
   const lastOfRound = !state.plays.some((play, other) => other > index && play.roundIndex === roundIndex);
@@ -251,6 +252,7 @@ function thinkRef(state: GameState, index: number, think: ThinkPlay): NonNullabl
     hit: Object.keys(verdicts).filter((id) => verdicts[id] === 'hit'),
     ...(think.watch === undefined || think.watch.length === 0 ? {} : { watch: think.watch }),
     ...(manual.length === 0 ? {} : { manual }),
+    ...(Object.keys(off).length === 0 ? {} : { off }),
     ...(places.length === 0 ? {} : { places }),
   };
 }

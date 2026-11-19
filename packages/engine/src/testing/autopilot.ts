@@ -3,7 +3,7 @@ import { planAutopilot, pilotStep } from '../autopilot';
 import { attemptsUsed, blitzRulesOf, buzz, isInstant, nextDeadline } from '../blitz';
 import { bluffPlayOf, pickBluff, writeLie } from '../bluff';
 import { guessSpy, playerSpy, spyCast, spyPlayOf, voteSpy, writeSpyWord } from '../spy';
-import { thinkClose } from '../think';
+import { thinkClose, voteThinkOff } from '../think';
 import { pickCell } from '../board';
 import { rollDie } from '../board-dice';
 import { cellPlayed, chooserOf } from '../board-turns';
@@ -190,6 +190,12 @@ const looseAct: Act = (state, result) => (result.ok ? result.state : state);
 function answerQuestion(state: GameState, playerId: string, wrong: boolean, now: number, act: Act): GameState {
   const play = state.plays[state.questionIndex];
   if (state.phase !== 'question' || play === undefined || notStarted(state, now)) return state;
+  // «Думай інакше» (51): на етапі голосування «не на тему» кожен голосувальник натискає «Готово» без позначок.
+  const thinkVote = play.think?.vote;
+  if (thinkVote !== undefined) {
+    const pending = thinkVote.voters.includes(playerId) && !Object.hasOwn(thinkVote.marks, playerId);
+    return pending ? act(state, voteThinkOff(state, playerId, [], now), `${playerId} votes on ${play.question.id}`) : state;
+  }
   if (recordOf(state, state.questionIndex, playerId) !== undefined) return state;
   const round = currentRound(state);
   if (round?.type === 'survival' && isGhost(state, playerId)) return state;

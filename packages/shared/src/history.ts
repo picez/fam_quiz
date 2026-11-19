@@ -9,7 +9,7 @@ import type { CellKind, LifelineKind, Question, Round, ThinkWord, TrialKind, Wag
 import type { AchievementId } from './achievements';
 import type { PrizePlace, TrophyLook } from './prizes';
 import type { UndoTarget } from './undo';
-import type { ThinkVerdict } from './views';
+import type { ThinkOff, ThinkVerdict } from './views';
 import type { WipeoutStatus } from './wipeout';
 
 /** saved (13b) — гру збережено, щоб догра́ти пізніше. */
@@ -171,8 +171,8 @@ export interface GameQuestionResult {
   think?: {
     words: ThinkWord[];
     lives: Record<string, number>;
-    /** manual — вердикт поставив ведучий вручну. */
-    rows: { nickname: string; answer: string; verdict: ThinkVerdict; lost: boolean; manual?: true }[];
+    /** manual — вердикт поставив ведучий вручну; off (51) — відповідь не на тему (ведучий чи голосування). */
+    rows: { nickname: string; answer: string; verdict: ThinkVerdict; lost: boolean; manual?: true; off?: ThinkOff }[];
     /** Лише на останньому зіграному запитанні раунду: місця раунду (і з 0 балів) — місце, життя, номер запитання вибування, бали. */
     places?: { nickname: string; place: number; lives: number; outAt: number | null; points: number }[];
   };

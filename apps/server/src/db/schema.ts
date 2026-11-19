@@ -37,6 +37,7 @@ import type {
   Round,
   RoundType,
   SurveyRow,
+  ThinkOff,
   ThinkWord,
   TrialKind,
 } from '@quiz/shared';
@@ -176,6 +177,8 @@ export interface PlayRef {
     watch?: string[];
     /** Чий вердикт поставив ведучий вручну (id учасників); немає — нічий. */
     manual?: string[];
+    /** Хто відповів не на тему (51): id учасника → хто визнав, ведучий чи голосування; немає — нікого. */
+    off?: Record<string, ThinkOff>;
     /** Лише на останньому зіграному запитанні раунду, коли раунд скінчився: місця раунду (усі, і з 0 балів), за нікнеймами. */
     places?: { nickname: string; place: number; lives: number; outAt: number | null; points: number }[];
   };

@@ -3360,10 +3360,10 @@ describe('StageScreen: sounds (40)', () => {
 describe('StageScreen: think round (35)', () => {
   const thinkQuestion = { ...question, type: 'think' as const, text: 'Напишіть фрукт', points: 0, choices: [] };
   const rows = [
-    { id: 'p1', nickname: 'Олена', lives: 3, out: false, answered: true, answer: null, verdict: null, lost: false, overridden: false, matched: null },
-    { id: 'p2', nickname: 'Хосе', lives: 1, out: false, answered: false, answer: null, verdict: null, lost: false, overridden: false, matched: null },
+    { id: 'p1', nickname: 'Олена', lives: 3, out: false, answered: true, answer: null, verdict: null, lost: false, overridden: false, matched: null, off: null },
+    { id: 'p2', nickname: 'Хосе', lives: 1, out: false, answered: false, answer: null, verdict: null, lost: false, overridden: false, matched: null, off: null },
   ];
-  const think = { lives: 3, points: 10000, index: 1, total: 5, rows, words: null, places: null };
+  const think = { lives: 3, points: 10000, index: 1, total: 5, rows, words: null, places: null, vote: null };
 
   it('the think round — hearts row, reveal and places', () => {
     const { unmount } = show(view({ phase: 'question', questionIndex: 1, question: thinkQuestion as never, think, endsAt: Date.now() + 20_000, limitMs: 30_000 }));
@@ -3404,6 +3404,19 @@ describe('StageScreen: think round (35)', () => {
     const revealed = { ...think, words: [{ word: 'яблуко', synonyms: [] }], rows: [{ ...rows[0]!, answered: false, answer: 'Яблука', verdict: 'safe' as const, overridden: true }] };
     show(view({ phase: 'reveal', questionIndex: 1, question: thinkQuestion as never, think: revealed }));
     expect(screen.getByText('Яблука').closest('li')!.textContent).toContain(t('thinkHostOverridden'));
+  });
+
+  it('51: the vote stage shows the anonymous ballot and the reveal tags off-topic answers', () => {
+    const vote = { entries: [{ key: 'стіл', text: 'Стіл' }], voted: ['p2'], voters: 2 };
+    const first = show(view({ phase: 'question', questionIndex: 1, question: thinkQuestion as never, think: { ...think, vote }, endsAt: Date.now() + 20_000, limitMs: 25_000, autopilot: true }));
+    expect(screen.getByRole('heading', { name: t('thinkVoteTitle') })).toBeTruthy();
+    expect(screen.getByText(t('thinkVoteVoted', { names: 'Хосе' }))).toBeTruthy();
+    expect(screen.getByText('Стіл').closest('li')!.textContent).toBe('Стіл');
+    first.unmount();
+    const revealed = { ...think, words: [{ word: 'яблуко', synonyms: [] }], rows: [{ ...rows[0]!, answered: false, answer: 'Стіл', verdict: 'safe' as const, lives: 2, lost: true, off: 'vote' as const }] };
+    show(view({ phase: 'reveal', questionIndex: 1, question: thinkQuestion as never, think: revealed }));
+    expect(screen.getByText('Стіл').closest('li')!.className).toContain('is-off');
+    expect(screen.getByText(t('thinkOffVoteTag'))).toBeTruthy();
   });
 });
 

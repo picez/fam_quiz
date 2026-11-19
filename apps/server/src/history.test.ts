@@ -2751,7 +2751,7 @@ describe('history: think (35)', () => {
   const blue = { word: 'синій', synonyms: [] };
 
   /** «Думай інакше» (1 життя, 1000 за 1-ше) і класика: Олена (з акаунтом) в безпеці, Тарас збігається й вибуває; ведучий дописує слова в грі. */
-  async function thinkGame() {
+  async function thinkGame(markOff = false) {
     const host = await signUp(ctx.app, 'Ведуча');
     const olena = await signUp(ctx.app, 'Олена');
     const quiz = makeRoundsQuiz([thinkRound('r1', [think('t1'), think('t2', [red]), think('t3', [red])], { lives: 1, points: 1000 }), classicRound('r2', [single])]);
@@ -2772,6 +2772,8 @@ describe('history: think (35)', () => {
     expect(ctx.manager.answer(room, tarasId, { type: 'think', value: 'Синя' })).toEqual({ ok: true });
     step('lock');
     step('next');
+    // 51: ведучий визнає відповідь Олени не на тему на розкритті.
+    if (markOff) expect(ctx.manager.host(room, { type: 'think-off', playerId: olenaId, off: true })).toEqual({ ok: true });
     for (let i = 0; i < 10 && !(room.state.phase === 'question' && room.state.roundIndex === 1); i++) step('next');
     ctx.manager.answer(room, olenaId, { type: 'single', optionId: 'b' });
     step('lock');
@@ -2803,6 +2805,16 @@ describe('history: think (35)', () => {
       ['Олена', 2000, 1],
       ['Тарас', 0, 0],
     ]);
+  });
+
+  it('an off-topic mark is shown in the history and costs a life (51)', async () => {
+    const { host, gameId } = await thinkGame(true);
+    const detail = (await get(`/api/games/${gameId}`, host.cookie)).json() as GameDetail;
+    expect(detail.questions[0].think?.rows).toEqual([
+      { nickname: 'Олена', answer: 'ксилофон', verdict: 'safe', lost: true, off: 'host' },
+      { nickname: 'Тарас', answer: 'Синя', verdict: 'hit', lost: true },
+    ]);
+    expect(detail.questions[0].think?.lives).toEqual({ Олена: 0, Тарас: 0 });
   });
 
   it('think answers do not count as correct answers or as answers in the stats', async () => {

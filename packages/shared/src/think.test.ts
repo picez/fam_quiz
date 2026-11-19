@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { THINK_ENDINGS, thinkKey, thinkStem, thinkWordsIssue } from './think';
-import { thinkWordsEventSchema } from './events';
+import { thinkOffSchema, thinkVoteSchema, thinkWordsEventSchema } from './events';
 import { answerSchema } from './answer';
 import { LIMITS, quizSchema } from './quiz';
 import { factLimitMs } from './facts';
@@ -83,6 +83,24 @@ describe('think payloads (35)', () => {
     expect(thinkWordsEventSchema.safeParse({ words: [{ word: '', synonyms: [] }] }).success).toBe(false);
     expect(thinkWordsEventSchema.safeParse({ words: [{ word: 'а'.repeat(41), synonyms: [] }] }).success).toBe(false);
     expect(thinkWordsEventSchema.safeParse({}).success).toBe(false);
+  });
+});
+
+describe('think off-topic payloads (51)', () => {
+  it('a vote carries up to maxPlayers answer keys', () => {
+    expect(thinkVoteSchema.safeParse({ keys: [] }).success).toBe(true);
+    expect(thinkVoteSchema.safeParse({ keys: ['банан'] }).success).toBe(true);
+    expect(thinkVoteSchema.safeParse({ keys: ['а'.repeat(LIMITS.thinkWord + 1)] }).success).toBe(false);
+    expect(thinkVoteSchema.safeParse({ keys: [''] }).success).toBe(false);
+    expect(thinkVoteSchema.safeParse({ keys: Array.from({ length: LIMITS.maxPlayers + 1 }, (_, i) => `к${i}`) }).success).toBe(false);
+    expect(thinkVoteSchema.safeParse({}).success).toBe(false);
+  });
+
+  it('the host off-topic mark names a participant and a flag', () => {
+    expect(thinkOffSchema.safeParse({ playerId: 'p1', off: true }).success).toBe(true);
+    expect(thinkOffSchema.safeParse({ playerId: 'p1', off: false }).success).toBe(true);
+    expect(thinkOffSchema.safeParse({ playerId: 'p1' }).success).toBe(false);
+    expect(thinkOffSchema.safeParse({ playerId: '', off: true }).success).toBe(false);
   });
 });
 

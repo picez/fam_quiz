@@ -310,6 +310,25 @@ describe('recorder', () => {
     expect(ctx.errors).toEqual([]);
   });
 
+  it('a think question records the host off-topic marks (51)', async () => {
+    const red = { word: 'червоний', synonyms: [] };
+    const quiz = makeRoundsQuiz([thinkRound('r1', [think('t1', [red]), think('t2', [red]), think('t3', [red])]), classicRound('r2', [single])]);
+    const ctx = await setup(undefined, 5000, 30, quiz);
+    ctx.host('start');
+    ctx.host('next');
+    expect(ctx.manager.answer(ctx.room, ctx.olena, { type: 'think', value: 'ксилофон' })).toEqual({ ok: true });
+    expect(ctx.manager.answer(ctx.room, ctx.taras, { type: 'think', value: 'банан' })).toEqual({ ok: true });
+    ctx.host('lock');
+    ctx.host('next');
+    expect(ctx.manager.host(ctx.room, { type: 'think-off', playerId: ctx.taras, off: true })).toEqual({ ok: true });
+    ctx.host('next');
+    const { games } = await ctx.saved();
+    expect(games[0].plays[0].think).toEqual({ words: [red], lives: { [ctx.olena]: 3, [ctx.taras]: 3 }, revealed: true, hit: [], off: { [ctx.taras]: 'host' } });
+    // Без позначок ключа off немає (стара гра й гра без «не на тему» однакові).
+    expect(games[0].plays[0].think).not.toHaveProperty('manual');
+    expect(ctx.errors).toEqual([]);
+  });
+
   it('a letter words question keeps the dealt letters and the longest possible words in the play journal', async () => {
     const ctx = await setup(undefined, 5000, 30, makeQuiz([letterwordsRandom], { speedBonus: false }));
     ctx.host('start');
@@ -2168,6 +2187,43 @@ describe('recorder: games without a host (11h)', () => {
     expect(games).toHaveLength(1);
     expect(games[0]).toMatchObject({ hostId: 'author-user', autopilot: true });
     expect(ctx.errors).toEqual([]);
+  });
+
+  it('a think question records the autopilot off-topic vote (51)', async () => {
+    const db = await createTestDb();
+    await db.insert(user).values({ id: 'author-user', name: 'Марта', email: 'marta@example.com' });
+    const scheduler = new FakeScheduler();
+    const manager = new RoomManager(scheduler, () => 0.5, { pacing: false });
+    const errors: unknown[] = [];
+    const recorder = attachRecorder(manager, db, (error) => errors.push(error));
+    const red = { word: 'червоний', synonyms: [] };
+    const quiz = makeRoundsQuiz([thinkRound('r1', [think('t1', [red]), think('t2', [red]), think('t3', [red])]), classicRound('r2', [single])]);
+    const created = manager.createAutopilot(quiz, 'author-user', null, 'Марта');
+    if (!created.ok) throw new Error(created.error);
+    const { room } = created;
+    manager.connect(room, { role: 'player', playerId: created.playerId });
+    const [olena, taras, vira] = ['Олена', 'Тарас', 'Віра'].map((nickname) => {
+      const joined = manager.join(room.code, nickname);
+      if (!joined.ok) throw new Error(joined.error);
+      manager.connect(room, { role: 'player', playerId: joined.playerId });
+      return joined.playerId;
+    });
+    expect(manager.author(room, created.playerId, { type: 'start' })).toEqual({ ok: true });
+    for (let i = 0; i < 100 && room.state.phase !== 'question'; i++) scheduler.advance(500);
+    expect(manager.answer(room, olena, { type: 'think', value: 'синій' })).toEqual({ ok: true });
+    expect(manager.answer(room, taras, { type: 'think', value: 'банан' })).toEqual({ ok: true });
+    expect(manager.answer(room, vira, { type: 'think', value: 'зелений' })).toEqual({ ok: true });
+    // Усі відповіли — голосування: Олена й Віра позначають «банан» Тараса.
+    expect(room.state.plays[0].think?.vote).toBeDefined();
+    expect(manager.thinkVote(room, olena, ['банан'])).toEqual({ ok: true });
+    expect(manager.thinkVote(room, vira, ['банан'])).toEqual({ ok: true });
+    expect(manager.thinkVote(room, taras, [])).toEqual({ ok: true });
+    for (let i = 0; i < 100 && room.state.questionIndex === 0; i++) scheduler.advance(500);
+    expect(room.state.questionIndex).toBe(1);
+    await recorder.idle();
+    const games = await db.select().from(game);
+    expect(games[0].plays[0].think).toMatchObject({ revealed: true, off: { [taras]: 'vote' } });
+    expect(errors).toEqual([]);
   });
 
   it('a game with a host is not marked', async () => {

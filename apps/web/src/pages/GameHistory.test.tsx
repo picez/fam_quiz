@@ -2,6 +2,7 @@
 import { cleanup, render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { answerText } from '../format';
+import { t } from '../i18n';
 import { ThinkHistory, auctionLine, duelBetLines, duelLines, truthLine, carryLine, debuffLines, ladderLines, lettersLines, ladderPrizeLines, survivalBonusLines, survivalLines, wagerLine, wipeoutLines } from './GameHistory';
 
 describe('history: memory (29f)', () => {
@@ -265,6 +266,23 @@ describe('history: think (35)', () => {
     expect(rows[2]).toContain('без відповіді');
     expect(rows[2]).toContain('—');
     expect(container.querySelector('.think-history-places')).toBeNull();
+  });
+
+  it('51: an off-topic row is tagged with who decided', () => {
+    const think = {
+      words: [{ word: 'червоний', synonyms: [] }],
+      lives: { Олена: 2, Хосе: 2, Іра: 3 },
+      rows: [
+        { nickname: 'Олена', answer: 'Банан', verdict: 'safe' as const, lost: true, off: 'vote' as const },
+        { nickname: 'Хосе', answer: 'Стіл', verdict: 'safe' as const, lost: true, off: 'host' as const },
+        { nickname: 'Іра', answer: 'Зелений', verdict: 'safe' as const, lost: false },
+      ],
+    };
+    const { container } = render(<ThinkHistory think={think} />);
+    const rows = [...container.querySelectorAll('li')];
+    expect(rows[0]!.querySelector('.think-off')?.textContent).toBe(t('thinkHistoryOffVote'));
+    expect(rows[1]!.querySelector('.think-off')?.textContent).toBe(t('thinkHistoryOff'));
+    expect(rows[2]!.querySelector('.think-off')).toBeNull();
   });
 
   it('the last question of the round shows the places, zero points too (review M-1)', () => {

@@ -45,6 +45,7 @@ const toMultiplier = (value: string): RoundRules['multiplier'] => (value === '3'
 export function RoundSettings({ round, index, total = 0, onChange, open, onToggle, buffs = [], lastRound = false }: Props) {
   const countId = useId();
   const fieldId = useId();
+  const offtopicHintId = useId();
   const descriptionLength = (round.description ?? '').length;
   // У «Головоломках» час довший: типовий — як у судоку, межа — головоломкова.
   const puzzles = round.type === 'puzzles';
@@ -176,6 +177,22 @@ export function RoundSettings({ round, index, total = 0, onChange, open, onToggl
             />
           </label>
           <p className="meta">{t('thinkSettingsNote')}</p>
+          <label className="check">
+            <input
+              type="checkbox"
+              checked={round.offtopicVote !== false}
+              aria-describedby={offtopicHintId}
+              onChange={(event) => {
+                // Увімкнено — типове: поле прибираємо, а не пишемо true.
+                const { offtopicVote: _old, ...rest } = round;
+                onChange(event.target.checked ? rest : { ...rest, offtopicVote: false });
+              }}
+            />
+            <span>{t('thinkOffVoteSetting')}</span>
+          </label>
+          <p className="meta" id={offtopicHintId}>
+            {t('thinkOffVoteSettingHint', { count: LIMITS.minThinkVoters })}
+          </p>
         </fieldset>
       )}
       {round.type === 'truth' && (

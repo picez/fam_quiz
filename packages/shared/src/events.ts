@@ -249,6 +249,10 @@ export const truthFactSchema = z.object({ text: z.string().max(LIMITS.truthText 
 export const questCodeSchema = z.object({ code: z.string().max(LIMITS.maxQuestInput) }).strict();
 /** «Думай інакше» (35): ведучий замінює весь список слів запитання (0–3); зводить і перевіряє рушій. */
 export const thinkWordsEventSchema = z.object({ words: z.array(thinkWordSchema).max(LIMITS.maxThinkWords) });
+/** «Думай інакше» (51): позначки «не на тему» голосувальника автопілота — ключі відповідей з бюлетеня (повторне надсилання замінює). */
+export const thinkVoteSchema = z.object({ keys: z.array(z.string().min(1).max(LIMITS.thinkWord)).max(LIMITS.maxPlayers) });
+/** «Думай інакше» (51): ведучий позначає чи знімає «не на тему» з відповіді учасника на розкритті. */
+export const thinkOffSchema = z.object({ playerId, off: z.boolean() });
 /** «Думай як усі» (37e): ведучий об'єднує групу from з групою to; ключі груп — зі зрізу. */
 export const alikeJoinSchema = z.object({ from: z.string().min(1).max(100), to: z.string().min(1).max(100) });
 /** «Думай як усі» (37e): ведучий виносить відповідь гравця в окрему групу. */
@@ -344,6 +348,8 @@ export interface ClientToServerEvents {
   'player:spy-vote': (payload: z.infer<typeof spyVoteSchema>, ack: Ack) => void;
   /** Останній шанс викритого шпигуна: слово гравців (етап guess); ack ok чи think_word / not_allowed / already_answered / wrong_phase. */
   'player:spy-guess': (payload: z.infer<typeof spyTextSchema>, ack: Ack) => void;
+  /** «Думай інакше» (51): позначки «не на тему» на етапі голосування автопілота; ack ok чи wrong_phase / think_spectator / not_found. */
+  'player:think-vote': (payload: z.infer<typeof thinkVoteSchema>, ack: Ack) => void;
   /** «Ва-банк»: рішення після розкриття (10g). */
   'player:wipeout': (payload: z.infer<typeof wipeoutSchema>, ack: Ack) => void;
   /** «Мільйонер»: підказка драбини (10i). */
@@ -463,6 +469,8 @@ export interface ClientToServerEvents {
   'host:truth-hide': (payload: z.infer<typeof truthHideSchema>, ack: Ack) => void;
   /** «Думай інакше» (35): замінити слова ведучого поточного запитання; ack ok — прийнято, інакше помилка (think_word, think_words_closed, wrong_phase). Слова йдуть лише в зріз ведучого. */
   'host:think-words': (payload: z.infer<typeof thinkWordsEventSchema>, ack: Ack) => void;
+  /** «Думай інакше» (51): позначити чи зняти «не на тему» з відповіді учасника (reveal); ack ok чи wrong_phase / not_found / not_allowed. */
+  'host:think-off': (payload: z.infer<typeof thinkOffSchema>, ack: Ack) => void;
   /** «Думай як усі» (37e): об'єднати групу from з групою to; ack ok чи alike_group / wrong_phase / not_allowed. */
   'host:alike-join': (payload: z.infer<typeof alikeJoinSchema>, ack: Ack) => void;
   /** Винести відповідь гравця (команди) в окрему групу. */

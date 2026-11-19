@@ -95,7 +95,7 @@ import { packMemories, scoreMemory } from './memory';
 import { isSnippetQuestion, snippetHeard, snippetPaid } from './snippets';
 import { packPuzzles, scorePuzzle } from './puzzles';
 import { dealTruth, dropTruthFacts, nextTruthQuestion, truthGuessers, truthPlayFor, truthPlayOf, withTruthPoints } from './truth';
-import { awardThinkPlaces, openThink, submitThinkAnswer, thinkOver, thinkPlayOf, thinkPresent, withThinkGrades } from './think';
+import { awardThinkPlaces, freezeThinkVote, openThink, submitThinkAnswer, thinkAuto, thinkOver, thinkPlayOf, thinkPresent, withThinkGrades } from './think';
 import { scoreWordLadder } from './wordladder';
 import { scoreWordle } from './wordle';
 import { scoreSort, shiftSortLocks } from './sort';
@@ -299,6 +299,23 @@ export interface ThinkPlay {
    * не втрачають, але лишаються в раунді (живі й місця узгоджені). Немає — нікого.
    */
   watch?: string[];
+  /** «Думай інакше» (51): учасники, яких ведучий на розкритті позначив «не на тему» (у порядку state.players). Немає — нікого. */
+  off?: string[];
+  /** Етап голосування «не на тему» автопілота (51): є — етап почався (після закриття лишається для підрахунку). Немає — етапу не було. */
+  vote?: ThinkVote;
+}
+
+/** «Думай інакше» (51): голосування «не на тему» в автопілоті. */
+export interface ThinkVote {
+  /** Хто голосує: живі присутні учасники запитання на мить старту (thinkPresent), у порядку state.players. */
+  voters: string[];
+  /** Позначки «не на тему» — ключі thinkKey відповідей; є ключ учасника — він натиснув «Готово» (повторне надсилання замінює). */
+  marks: Record<string, string[]>;
+  /**
+   * Результат, заморожений на мить закриття етапу (lockNow): ключі, що вийшли не на тему. Немає — етап ще йде (рахується наживо)
+   * або знімок до заморожування (теж наживо). Етап також переносить startedAt запитання на свій початок (як у «Шпигуна»).
+   */
+  off?: string[];
 }
 
 /** Вихід людини з гри на одному запитанні (12e): закритий час, скільки інтервалів закрито (≥ 1 мс), відколи поза грою зараз (час сервера) чи null. */
@@ -1217,12 +1234,15 @@ export function removePlayer(state: GameState, playerId: string, now?: number): 
 function removeAnyone(state: GameState, playerId: string, now?: number): Result {
   if (teamsOn(state)) {
     if (memberOf(state, playerId) !== undefined) return dropMember(state, playerId, now);
-    if (state.players.some((p) => p.id === playerId)) return removeFromGame(withoutTeam(state, playerId), playerId);
+    if (state.players.some((p) => p.id === playerId)) return removeFromGame(withoutTeam(state, playerId), playerId, now);
   }
   return removeFromGame(state, playerId, now);
 }
 
-/** now (сервер) — лише для «Шпигуна» (38): якщо після вилучення всі вже написали чи проголосували, наступний етап стартує від now. */
+/**
+ * now (сервер) — для «Шпигуна» (38): якщо після вилучення всі вже написали чи проголосували, наступний етап стартує від now;
+ * для «Думай інакше» (51) в автопілоті — так само голосування «не на тему» (без now стан чекає наступного tick).
+ */
 function removeFromGame(state: GameState, playerId: string, now?: number): Result {
   if (!state.players.some((p) => p.id === playerId)) return fail('not_found');
   // «Мільйонер»: учасник, вилучений посеред драбини, зупиняє її без виграшу; запитання, що йде, зал дограє.
@@ -1416,7 +1436,8 @@ function removeFromGame(state: GameState, playerId: string, now?: number): Resul
   // «Мільйонер»: якщо вилучений був останнім глядачем, що не відповів, голосування залу закривається.
   // «Квест із кодом» (29g): спроби й видані бафи вилученого зникають; якщо він був останнім, хто ще міг ввести код, вікно закривається.
   // «Шпигун» (38): вилучений шпигун на етапі guess закриває запитання; «усі вже зробили» перемикає етап від now.
-  const lockAt = spyPlayOf(kicked) === null ? null : (now ?? null);
+  // «Думай інакше» (51): так само в автопілоті — «усі вже відповіли» відкриває голосування від now.
+  const lockAt = spyPlayOf(kicked) === null && (kicked.autopilot === undefined || thinkPlayOf(kicked) === null) ? null : (now ?? null);
   return ok(settleQuestWindow(settleTrial(settleDecision(autoLock(settleAudience(kicked.paused ? kicked : settleQueue(kicked, null)), lockAt)))));
 }
 
@@ -2029,8 +2050,9 @@ export function lockNow(state: GameState): GameState {
   // «Більше чи менше»: неповні ряди отримують записи тут, а лічильники правильних заморожуються (28a).
   // «Малюнок»: художник отримує частку, решта — записи з 0, лічильники заморожуються (28c).
   // «Головоломки»: дошки без «Готово» отримують записи за сіткою на цю мить (28d).
+  // «Думай інакше» (51): результат голосування «не на тему» заморожується (ThinkVote.off) — пізніші вилучення його не переписують.
   const closed = spendDebuffs(
-    withCellPenalty(withRiskMisses(dropQueue(scoreSpy(scoreBluff(scoreWall(scoreSort(scoreMemory(scoreSpotdiff(scoreJigsaw(scorePuzzle(scoreDrawing(scoreMoreLess(scoreAlike(scoreOvershoot(scoreLetterWords(scoreTimedList(scoreWordle(scoreWordLadder(scoreChain(closeAudience(settleRetries(state)))))))))))))))))))))),
+    withCellPenalty(withRiskMisses(dropQueue(scoreSpy(scoreBluff(scoreWall(scoreSort(scoreMemory(scoreSpotdiff(scoreJigsaw(scorePuzzle(scoreDrawing(scoreMoreLess(scoreAlike(scoreOvershoot(scoreLetterWords(scoreTimedList(scoreWordle(scoreWordLadder(scoreChain(closeAudience(settleRetries(freezeThinkVote(state))))))))))))))))))))))),
   );
   return withTotals({ ...closed, phase: 'locked', startedAt: null, endsAt: null, remainingMs: null, heldAt: null, board: clearAway(closed.board) });
 }
@@ -2055,6 +2077,8 @@ export function autoLock(state: GameState, now: number | null = null): GameState
   if (state.plays[state.questionIndex]?.question.type === 'bluff') return bluffAuto(state, now);
   // «Шпигун» (38): words → vote → guess за часом чи «усі зробили»; останній етап закриває.
   if (state.plays[state.questionIndex]?.question.type === 'spy') return spyAuto(state, now);
+  // «Думай інакше» (51): в автопілоті таймер чи «усі відповіли» відкривають голосування «не на тему» (чи закривають), а його кінець закриває.
+  if (state.autopilot !== undefined && thinkPlayOf(state) !== null) return thinkAuto(state, now);
   // Час сплив для всіх, хто ще не відповів (зокрема щойно відповів останній з додатковим часом).
   // Строго «>», як у timeOver: рівно на кінці відповісти ще можна.
   const closes = closesAt(state);
@@ -2064,12 +2088,8 @@ export function autoLock(state: GameState, now: number | null = null): GameState
   if (state.plays[state.questionIndex]?.question.type === 'drawing') return drawingDone(state) ? lockNow(state) : state;
   // На полі запитання закриває сама відповідь або оцінка ведучого.
   if (currentRound(state)?.type === 'board') return state;
-  // «Думай інакше» (35): з ведучим таймер іде до кінця (ведучий дописує слова); в автопілоті — чекають живих присутніх.
-  const thinkers = thinkPresent(state);
-  if (thinkers !== null) {
-    if (state.autopilot === undefined || thinkers.length === 0) return state;
-    return thinkers.every((id) => recordOf(state, state.questionIndex, id) !== undefined) ? lockNow(state) : state;
-  }
+  // «Думай інакше» (35): з ведучим таймер іде до кінця (ведучий дописує слова); автопілот — у thinkAuto вище.
+  if (thinkPresent(state) !== null) return state;
   // «Мільйонер»: чекають учасника й присутній зал; без учасника на зв'язку закриє ведучий чи таймер.
   if (inLadderRound(state)) return ladderAnswered(state) ? lockNow(state) : state;
   // «Ва-банк»: чекають лише тих, хто в грі; без присутніх у грі запитання закриє таймер чи ведучий.
@@ -2490,6 +2510,8 @@ export function tick(state: GameState, now: number, rng: Rng = Math.random): Gam
   }
   // «Шпигун» (38): кожен етап, що сплив (строго «>»), перемикається чи закривається в spyAuto.
   if (spyPlayOf(opened) !== null) return spyAuto(opened, now);
+  // «Думай інакше» (51): в автопілоті таймер запитання відкриває голосування «не на тему», а таймер голосування закриває (строго «>»).
+  if (opened.autopilot !== undefined && thinkPlayOf(opened) !== null) return thinkAuto(opened, now);
   // Ланцюжок закривається, коли кожен пройшов або вичерпав свій час зі штрафом.
   if (opened.plays[opened.questionIndex]?.question.type === 'chain' && chainDone(opened, now)) return lockNow(opened);
   // Звичайна клітинка без таймера закривається, коли гравець, чий хід, відсутній 30 секунд.

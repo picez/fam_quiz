@@ -2,7 +2,7 @@ import type { AddressInfo } from 'node:net';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { io as connect, type Socket } from 'socket.io-client';
 import { auctionRound, betsRound, bluff, blitzRound, boardRound, bool, chain, classicRound, clues, cloud, duels, finalRound, makeQuiz, multi, makeRoundsQuiz, single, sortQ, survey, survivalQuestions, survivalRound, survivalTrials, text, wall, withAudio, withId, wipeoutLadder, wipeoutRound, ladderRound, letterwords, moreless, drawing, timedlist, truthRound, think, thinkRound, wordladder, puzzlesQuiz, sudoku, jigsaw, jigsawQuiz, spotdiff, spotdiffQuiz, memoryQuiz, melodyQuiz, videoclipQuiz, alikeQuiz, spyQuiz, questQuiz, wordleQuiz } from '@quiz/engine/testing';
-import { DEFAULT_RULES, defaultTeams, memoryLayout, STICKERS, SPLASH_MS, type AckResult, type ClientToServerEvents, type DrawingEvent, type GameView, type HostDrafts, type Reaction, type ServerToClientEvents, type SocketAuth, type SortTilt } from '@quiz/shared';
+import { DEFAULT_RULES, defaultTeams, LIMITS, memoryLayout, STICKERS, SPLASH_MS, type AckResult, type ClientToServerEvents, type DrawingEvent, type GameView, type HostDrafts, type Reaction, type ServerToClientEvents, type SocketAuth, type SortTilt } from '@quiz/shared';
 import { eq, inArray } from 'drizzle-orm';
 import { buildApp } from './app';
 import { answer, appeal, scoreAdjustment } from './db/schema';
@@ -1154,6 +1154,22 @@ describe('host presence', () => {
       expect(JSON.stringify(view)).not.toContain('багряний');
     }
     if (mine.role === 'player') expect(mine.me.result).toBeNull();
+  });
+
+  it('player:think-vote and host:think-off validate their payloads and roles (51)', async () => {
+    const red = { word: 'червоний', synonyms: [] };
+    const quiz = makeRoundsQuiz([thinkRound('r1', [think('t1', [red]), think('t2', [red]), think('t3', [red])]), classicRound('r2', [single])]);
+    const { host, olena, olenaJoin } = await lobby((await startGame(ctx.app, quiz)).game);
+    expect(await send(host, 'host:start')).toEqual({ ok: true });
+    expect(await send(host, 'host:next')).toEqual({ ok: true });
+    await until(olena, (view) => view.phase === 'question');
+    for (const payload of [undefined, {}, { keys: 'банан' }, { keys: [''] }, { keys: ['x'.repeat(LIMITS.thinkWord + 1)] }, { keys: Array.from({ length: LIMITS.maxPlayers + 1 }, (_, i) => `k${i}`) }]) expect(await send(olena, 'player:think-vote', payload)).toEqual({ ok: false, error: 'invalid_payload' });
+    expect(await send(host, 'player:think-vote', { keys: [] })).toEqual({ ok: false, error: 'forbidden' });
+    // Без етапу голосування (гра з ведучим) — wrong_phase.
+    expect(await send(olena, 'player:think-vote', { keys: [] })).toEqual({ ok: false, error: 'wrong_phase' });
+    expect(await send(olena, 'host:think-off', { playerId: olenaJoin.playerId, off: true })).toEqual({ ok: false, error: 'forbidden' });
+    for (const payload of [undefined, { playerId: olenaJoin.playerId }, { off: true }, { playerId: '', off: true }]) expect(await send(host, 'host:think-off', payload)).toEqual({ ok: false, error: 'invalid_payload' });
+    expect(await send(host, 'host:think-off', { playerId: olenaJoin.playerId, off: true })).toEqual({ ok: false, error: 'wrong_phase' });
   });
 
   it('host:alike-split and host:alike-join edit the groups on reveal; players cannot', async () => {
