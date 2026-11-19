@@ -226,6 +226,17 @@ describe('quizChecker', () => {
     expect(result.errors).toBe(result.issues.length);
   });
 
+  it('a round that needs a host is an error only in a bot quiz', async () => {
+    const think = (id: string) => ({ id, type: 'think', text: 'Напишіть колір веселки', imageUrl: null, video: null, timeLimit: 30, points: 0, words: [] });
+    const raw = quizWith([question()]);
+    raw.rounds.push({ id: 'r2', type: 'think', title: '', lives: 3, points: 3000, questions: [think('k1'), think('k2'), think('k3')] } as never);
+    const checker = quizChecker({ storage: memoryStorage(), fetch: fakeFetch({}), now: () => at, timeoutMs: 50 });
+    expect((await checker.check('hosted', at, raw)).issues).toEqual([]);
+    const bot = await checker.check('bot', at, raw, { bot: true });
+    expect(bot.issues.map((i) => [i.code, i.round, i.detail])).toEqual([['autopilot_blocked', 1, 'think_words']]);
+    expect(bot.errors).toBe(1);
+  });
+
   it('offlineFetch makes every network check a warning', async () => {
     await expect(offlineFetch('https://example.com', { method: 'GET', signal: AbortSignal.timeout(10), headers: {}, redirect: 'manual' })).rejects.toThrow('offline');
     const raw = quizWith([question({ imageUrl: 'https://example.com/a.jpg' }), question({ video: { id: 'offlinevid1', start: 0 } }), question({ imageUrl: `/uploads/${IMG}` })]);
@@ -248,7 +259,7 @@ describe('quizChecker guards and budget', () => {
     const checker = quizChecker({ storage: memoryStorage(), fetch, now: () => at, timeoutMs: 50, resolve });
     const result = await checker.check('quiz-1', at, quizWith(questions));
     expect(fetch.mock.calls.map(([url]) => url)).toEqual(['https://public.example/x.jpg']);
-    expect(network(result)).toEqual(urls.slice(0, 4).map((url, i) => ['media_unchecked', questions[i]!.id, `${url} blocked`]));
+    expect(network(result)).toEqual(urls.slice(0, 4).map((url, i) => ['media_blocked', questions[i]!.id, url]));
   });
 
   it('redirects are followed by hand, at most 3 hops, each hop guarded', async () => {
@@ -265,7 +276,7 @@ describe('quizChecker guards and budget', () => {
     const checker = quizChecker({ storage: memoryStorage(), fetch, now: () => at, timeoutMs: 50, resolve });
     const result = await checker.check('quiz-1', at, quizWith([inside, moved, loop]));
     expect(network(result)).toEqual([
-      ['media_unchecked', inside.id, 'https://public.example/inside.jpg blocked'],
+      ['media_blocked', inside.id, 'https://public.example/inside.jpg'],
       ['media_unchecked', loop.id, 'https://public.example/loop.jpg'],
     ]);
     const calls = fetch.mock.calls.map(([url]) => url);

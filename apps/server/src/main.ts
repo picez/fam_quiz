@@ -137,6 +137,7 @@ const { app, shutdown } = await buildApp({
   socketDeflate: process.env.SOCKET_DEFLATE !== 'off',
   storage,
   // Єдине місце, де перевірка вікторин (57) ходить у справжню мережу.
+  // Без закріплення адреси: другий DNS-запит fetch — прийнятий ризик, див. guardTarget у url-guard.ts.
   checkFetch: (url, init) => fetch(url, init),
   checkResolve: systemResolve,
   stickerFixtures,

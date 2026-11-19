@@ -81,6 +81,10 @@ export async function guardTarget(url: string, resolve: CheckResolve): Promise<'
   const host = parsed.hostname.replace(/^\[|\]$/g, '').replace(/\.$/, '').toLowerCase();
   if (host === '' || INTERNAL_NAME.test(host)) return 'blocked';
   if (isIP(host) !== 0) return isPublicAddress(host) ? 'ok' : 'blocked';
+  // Прийнятий залишковий ризик (DNS rebinding, огляд 57 п. 6): fetch у main.ts питає DNS удруге сам, тож ім'я з TTL 0
+  // може відповісти тут публічною адресою, а там — внутрішньою. Закріпити з'єднання за перевіреною адресою можна лише
+  // через undici Agent з connect.lookup, а undici не є прямою залежністю сервера (нову не додаємо). Ризик низький:
+  // зовнішні адреси є лише в старих рядках, перевірку запускає тільки адмін, а назад повертається лише статус.
   const addresses = await resolve(host);
   return addresses.length > 0 && addresses.every(isPublicAddress) ? 'ok' : 'blocked';
 }

@@ -1,4 +1,4 @@
-import { ADMIN_CACHE_MS, ANNOUNCEMENT_MAX_DAYS, adminListQuerySchema, announcementInputSchema, adminProfileActionSchema, adminQuizActionSchema, banSchema, type AdminBackupInfo, type AdminHealth } from '@quiz/shared';
+import { ADMIN_CACHE_MS, ANNOUNCEMENT_MAX_DAYS, BOT_USER_ID, adminListQuerySchema, announcementInputSchema, adminProfileActionSchema, adminQuizActionSchema, banSchema, type AdminBackupInfo, type AdminHealth } from '@quiz/shared';
 import { eq } from 'drizzle-orm';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { CurrentUser } from './account-routes';
@@ -255,7 +255,7 @@ export async function registerAdminRoutes(app: FastifyInstance, deps: AdminDeps)
     if (me === null) return reply.code(404).send(NOT_FOUND);
     const found = await adminQuizRaw(db, request.params.id);
     if (found === null) return reply.code(404).send(NOT_FOUND);
-    return checker.check(request.params.id, found.updatedAt, found.raw);
+    return checker.check(request.params.id, found.updatedAt, found.raw, { bot: found.ownerId === BOT_USER_ID });
   });
 
   app.delete<IdParams>('/api/admin/quizzes/:id', write, async (request, reply) => {

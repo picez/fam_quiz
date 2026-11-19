@@ -27,7 +27,8 @@ export interface QuizCheckerDeps {
 }
 
 export interface QuizChecker {
-  check(quizId: string, updatedAt: Date, raw: unknown): Promise<AdminQuizCheck>;
+  /** bot — вікторина бота (її грає автопілот): лише тоді раунд, що потребує ведучого, — помилка. */
+  check(quizId: string, updatedAt: Date, raw: unknown, options?: { bot?: boolean }): Promise<AdminQuizCheck>;
   /** Останній результат для значка; null — не перевіряли, вікторину змінено після перевірки чи минула доба. Не старіє з ttl. */
   last(quizId: string, updatedAt: Date): AdminQuizCheck | null;
 }
@@ -250,7 +251,7 @@ export function quizChecker(deps: QuizCheckerDeps): QuizChecker {
         const result = outcome as UrlState;
         if (result.state === 'unreachable') add(ref, 'media_unreachable', `${ref.url} ${result.status}`);
         if (result.state === 'unchecked') add(ref, 'media_unchecked', ref.url);
-        if (result.state === 'blocked') add(ref, 'media_unchecked', `${ref.url} blocked`);
+        if (result.state === 'blocked') add(ref, 'media_blocked', ref.url);
       } else {
         const result = outcome as VideoState;
         if (result.state === 'not_embeddable') add(ref, 'video_not_embeddable', ref.id);
@@ -262,8 +263,8 @@ export function quizChecker(deps: QuizCheckerDeps): QuizChecker {
     return issues;
   };
 
-  const runCheck = async (quizId: string, raw: unknown): Promise<AdminQuizCheck> => {
-    const own = staticIssues(raw);
+  const runCheck = async (quizId: string, raw: unknown, bot: boolean): Promise<AdminQuizCheck> => {
+    const own = staticIssues(raw, { bot });
     const budget = new AbortController();
     const timer = setTimeout(() => budget.abort(), budgetMs);
     let network: QuizCheckIssue[];
@@ -289,14 +290,14 @@ export function quizChecker(deps: QuizCheckerDeps): QuizChecker {
   };
 
   return {
-    check(quizId, updatedAt, raw) {
+    check(quizId, updatedAt, raw, options = {}) {
       const version = updatedAt.getTime();
       const hit = cache.get(quizId);
       if (hit !== undefined && hit.version === version && deps.now().getTime() - hit.at < ttlMs) return Promise.resolve(hit.result);
       const key = `${quizId}:${version}`;
       const inFlight = running.get(key);
       if (inFlight !== undefined) return inFlight;
-      const work = runCheck(quizId, raw)
+      const work = runCheck(quizId, raw, options.bot === true)
         .then((result) => {
           remember(quizId, { version, at: deps.now().getTime(), result });
           return result;

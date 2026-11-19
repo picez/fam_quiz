@@ -1,12 +1,15 @@
 import { randomUUID } from 'node:crypto';
 import { blitzRound, bool, classicRound, makeQuiz, makeRoundsQuiz, multi, numeric, order, single, text, withId } from '@quiz/engine/testing';
+import { BOT_USER_ID } from '@quiz/shared';
 import type { AdminQuizCheck, Announcement, AdminCharts, AdminHealth, AdminList, AdminLiveList, AdminLogEntry, AdminReportItem, LibraryPage, AdminQuizView, AdminStats, AdminUserDetail, CalendarEvent, PrizeContent, PrizeItem, PrizePlacesInfo, Question, Quiz } from '@quiz/shared';
 import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import * as adminModule from './admin';
 import { buildApp } from './app';
+import { ensureBotAccount } from './bot-account';
 import { calendarEvent, prizeAward, profile, user, userBan, userTitle } from './db/schema';
 import { TEST_AUTH, signUp, startGame } from './testing/accounts';
+import { createQuiz } from './quizzes';
 import { createTestDb } from './testing/test-db';
 
 vi.mock('./admin', async (importOriginal) => {
@@ -696,5 +699,17 @@ describe('preview and check (44b)', () => {
     expect(again.checkedAt).toBe(result.checkedAt);
     expect((await call('POST', `/api/admin/quizzes/${UUID}/check`, a.cookie)).statusCode).toBe(404);
     expect((await call('POST', '/api/admin/quizzes/not-a-uuid/check', a.cookie)).statusCode).toBe(404);
+  });
+
+  it('a round that needs a host is an error only in a bot quiz', async () => {
+    const think = (id: string) => ({ id, type: 'think', text: 'Напишіть колір веселки', imageUrl: null, video: null, timeLimit: 30, points: 0, words: [] });
+    const thinkRound = { id: 'r1', type: 'think', title: '', lives: 3, points: 3000, questions: [think('k1'), think('k2'), think('k3')] };
+    const quiz = { ...makeRoundsQuiz([classicRound('r0', [{ ...single, timeLimit: 30 }]), thinkRound as never]), title: 'Думай інакше' } as Quiz;
+    await ensureBotAccount(db);
+    const hosted = await createQuiz(db, author.id, quiz);
+    const bot = await createQuiz(db, BOT_USER_ID, quiz);
+    const codesOf = async (id: string) => ((await call('POST', `/api/admin/quizzes/${id}/check`, a.cookie)).json() as AdminQuizCheck).issues.map((i) => i.code);
+    expect(await codesOf(hosted)).not.toContain('autopilot_blocked');
+    expect(await codesOf(bot)).toContain('autopilot_blocked');
   });
 });
