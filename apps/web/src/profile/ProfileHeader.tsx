@@ -1,4 +1,4 @@
-import type { NickLooks, OwnLevel, ProfileCard, ProfileStats } from '@quiz/shared';
+import type { NickLooks, OwnLevel, ProfileCard, ProfileStats, PublicRecentForm, RecentForm as Form } from '@quiz/shared';
 import type { JSX, ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { countText, t } from '../i18n';
@@ -9,6 +9,7 @@ import { nickNameClass, NickFx } from '../screens/Nick';
 import { Avatar } from './Avatar';
 import { AvatarFrame } from './AvatarFrame';
 import { LevelBar, ProfileLevelMark } from './LevelCard';
+import { RecentForm } from './RecentForm';
 
 /** Чотири числа: ігор, перемог, влучність, проведено. dl.headline-stats. */
 export function HeadlineStats({ stats }: { stats: ProfileStats }): JSX.Element {
@@ -41,10 +42,11 @@ export function ProfileHeader(props: {
   title: string | null;
   stats: ProfileStats;
   progress?: OwnLevel['progress'];
+  form?: Form | PublicRecentForm;
   editTo?: string;
   children?: ReactNode;
 }): JSX.Element {
-  const { profile, level, looks, title, stats, progress, editTo, children } = props;
+  const { profile, level, looks, title, stats, progress, form, editTo, children } = props;
   useNickFont(looks.font);
   return (
     <MotifHero className="profile-hero">
@@ -74,8 +76,9 @@ export function ProfileHeader(props: {
             )}
           </div>
         </div>
-        {progress !== undefined && <LevelBar progress={progress} />}
+        {progress !== undefined && <LevelBar progress={progress} mapTo="/profile/levels" />}
         <HeadlineStats stats={stats} />
+        <RecentForm form={form} />
         {children}
       </header>
     </MotifHero>

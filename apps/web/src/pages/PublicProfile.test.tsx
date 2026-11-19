@@ -8,7 +8,7 @@ import { follow, getProfile, getVersus, me, unfollow } from '../api';
 import { sendReport } from '../library/library-api';
 import { PublicProfile } from './PublicProfile';
 
-vi.mock('../api', () => ({ me: vi.fn(), getProfile: vi.fn(), follow: vi.fn(), unfollow: vi.fn(), getVersus: vi.fn() }));
+vi.mock('../api', () => ({ getAchievementShares: vi.fn(async () => ({ ok: false, error: 'network' })), me: vi.fn(), getProfile: vi.fn(), follow: vi.fn(), unfollow: vi.fn(), getVersus: vi.fn() }));
 vi.mock('../library/library-api', () => ({ sendReport: vi.fn() }));
 
 const profile = (over: Partial<PublicProfileData> = {}): PublicProfileData => ({
@@ -105,6 +105,15 @@ describe('PublicProfile', () => {
     expect(values).toEqual(['12', '4', '70%', '3']);
     expect(container.querySelector('.profile-tiles')).toBeNull();
     expect(screen.queryByText('email приховано')).toBeNull();
+  });
+
+  it('49: shows the recent form in the header with dates only and no link to the level map', async () => {
+    vi.mocked(getProfile).mockResolvedValue({ ok: true, data: profile({ form: { games: [{ startedAt: '2026-11-12T12:00:00.000Z', place: 2, medal: 2 }], streak: null } }) });
+    const { container } = open();
+    expect(await screen.findByText('Остання форма')).toBeTruthy();
+    const head = container.querySelector('header.profile-head') as HTMLElement;
+    expect(within(head).getByRole('button', { name: '2-е місце, 12.11.2026' })).toBeTruthy();
+    expect(within(head).queryByRole('link', { name: /Усі нагороди/ })).toBeNull();
   });
 
   it('the shelf shows the prizes the owner pinned, in shelf order', async () => {

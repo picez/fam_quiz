@@ -5,13 +5,14 @@ import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 // @ts-expect-error node:fs без @types/node
 import { existsSync, readFileSync } from 'node:fs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { ACHIEVEMENTS, ACHIEVEMENT_INFO, type AchievementCard, type AchievementsPage } from '@quiz/shared';
-import { getAchievements, getMyAchievements, getShowcasePins, me, pinToShowcase, setHideAnti } from '../api';
-import { errorText } from '../i18n';
+import { ACHIEVEMENTS, ACHIEVEMENT_INFO, achievementRarity, type AchievementCard, type AchievementsPage } from '@quiz/shared';
+import { getAchievements, getAchievementShares, getMyAchievements, getShowcasePins, me, pinToShowcase, setHideAnti } from '../api';
+import { forgetAchievementShares } from '../achievement-shares';
+import { errorText, t, type TextKey } from '../i18n';
 import { formatDay } from '../format';
 import { Achievements } from './Achievements';
 
-vi.mock('../api', () => ({ me: vi.fn(), getMyAchievements: vi.fn(), getAchievements: vi.fn(), getShowcasePins: vi.fn(), pinToShowcase: vi.fn(), unpinFromShowcase: vi.fn(), setHideAnti: vi.fn() }));
+vi.mock('../api', () => ({ me: vi.fn(), getMyAchievements: vi.fn(), getAchievements: vi.fn(), getShowcasePins: vi.fn(), pinToShowcase: vi.fn(), unpinFromShowcase: vi.fn(), setHideAnti: vi.fn(), getAchievementShares: vi.fn() }));
 
 const EARNED: Record<string, string | null> = { fast_answer: '2026-10-29T10:00:00.000Z', first_game: null };
 
@@ -43,7 +44,9 @@ const theirs: AchievementsPage = {
 };
 
 beforeEach(() => {
+  forgetAchievementShares();
   vi.clearAllMocks();
+  vi.mocked(getAchievementShares).mockResolvedValue({ ok: false, error: 'network' });
   vi.mocked(me).mockResolvedValue({ ok: true, id: 'u1', name: 'Олена', email: 'o@example.com', admin: false });
   vi.mocked(getMyAchievements).mockResolvedValue({ ok: true, data: mine });
   vi.mocked(getAchievements).mockResolvedValue({ ok: true, data: theirs });
@@ -69,6 +72,46 @@ const open = (path: string) =>
 
 /** Картка за назвою; заголовок закритої ще й каже читачеві екрана «ще не отримано». */
 const cardOf = (name: string) => screen.getByRole('heading', { level: 3, name: new RegExp(`^${name}(, ще не отримано)?$`) }).closest('li') as HTMLElement;
+
+describe('Achievements, shares and xp (49)', () => {
+  it('shows the share, the rarity mark and the xp', async () => {
+    vi.mocked(getAchievementShares).mockResolvedValue({ ok: true, data: { players: 200, holders: { first_win: 5, games_100: 30 } } });
+    open('/achievements');
+    await screen.findByText('Отримано 2 з 102');
+    const win = await waitFor(() => {
+      const card = cardOf('Перша перемога');
+      expect(within(card).getByText('Є в 2 % гравців')).toBeTruthy();
+      return card;
+    });
+    expect(within(win).getByText('дуже рідкісне')).toBeTruthy();
+    const hundred = cardOf('100 ігор');
+    expect(within(hundred).getByText('Є в 15 % гравців')).toBeTruthy();
+    expect(within(hundred).queryByText(/рідкісне/)).toBeNull();
+    expect(within(cardOf('Снайперська точність')).getByText('Ще ні в кого')).toBeTruthy();
+    expect(within(cardOf('Перша гра')).getByText('+25 досвіду')).toBeTruthy();
+    expect(within(cardOf('Швидкі пальці')).getByText(/^\+\d+ досвіду$/)).toBeTruthy();
+    expect(within(win).queryByText(/^\+\d+ досвіду$/)).toBeNull();
+  });
+
+  it('the epic achievement shows +100', async () => {
+    const epic = ACHIEVEMENTS.find((id) => achievementRarity(id) === 'epic')!;
+    vi.mocked(getMyAchievements).mockResolvedValue({
+      ok: true,
+      data: { ...mine, items: mine.items.map((item) => (item.id === epic ? { ...item, earned: true, earnedAt: null, progress: null } : item)) },
+    });
+    open('/achievements');
+    await screen.findByText('Отримано 2 з 102');
+    expect(within(cardOf(t(`achievement_${epic}` as TextKey))).getByText('+100 досвіду')).toBeTruthy();
+  });
+
+  it('while the shares have not come the page is the same without those lines', async () => {
+    open('/achievements');
+    await screen.findByText('Отримано 2 з 102');
+    expect(screen.queryByText(/Є в \d+ % гравців/)).toBeNull();
+    expect(screen.queryByText('Ще ні в кого')).toBeNull();
+    expect(within(cardOf('Перша гра')).getByText('+25 досвіду')).toBeTruthy();
+  });
+});
 
 describe('Achievements, own page', () => {
   it('shows the count and the groups in order, the anti group last (12j)', async () => {

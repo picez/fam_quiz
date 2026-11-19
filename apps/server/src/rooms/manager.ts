@@ -170,7 +170,7 @@ import {
   type Result,
   type TeamAct,
 } from '@quiz/engine';
-import { ANSWERER_PICKS_PER_SECOND, REACTION_GAP_MS, reactionAllowed, type Reaction, type ReactionItem, APPEAL_VOTES_PER_SECOND, AWAY_EVENTS_PER_SECOND, awayGapMs, draftQuestionType, DRAFTS_PER_SECOND, isAnswerDraft, isUnscored, SORT_TILT_GAP_MS, LIST_WORDS_PER_SECOND, MORELESS_PICKS_PER_SECOND, PUZZLE_BATCHES_PER_SECOND, JIGSAW_MOVES_PER_SECOND, SPOTDIFF_TAPS_PER_SECOND, MEMORY_FLIPS_PER_SECOND, DRAW_GUESSES_PER_SECOND, DRAW_OPS_PER_SECOND, type DrawingEvent, type DrawOp, type AckResult, type Answer, type MoreLessSide, type AnswererScope, type AppealReason, type BuffKind, type DebuffKind, type DraftValue, type DuelSide, type ErrorCode, type GameView, type Grade, type HostDrafts, type HostUndoTarget, type LifelineKind, type Phase, type PlayerView, type Question, type Quiz, type ResumeSetup, RESUME_POINTS_MAX, clamp, isObjectLike, type ContinuedView, type PlacedPrize, placedPrizeSchema, type SlotsResponse, type Role, type SortTilt, type SubmittedAnswer, type TeamForm, type ThinkWord, type ActivePerk, type NickLevel, type StickerExtra, stickerOpen, LIKE_RATE, type LikePayload, LOBBY_VISIBILITIES, lobbyPasswordSchema, type LobbySettings, type LobbyVisibility, type AchievementId, type HostLeagueView, type PlayerLeagueView } from '@quiz/shared';
+import { ANSWERER_PICKS_PER_SECOND, REACTION_GAP_MS, reactionAllowed, type Reaction, type ReactionItem, APPEAL_VOTES_PER_SECOND, AWAY_EVENTS_PER_SECOND, awayGapMs, draftQuestionType, DRAFTS_PER_SECOND, isAnswerDraft, isUnscored, SORT_TILT_GAP_MS, LIST_WORDS_PER_SECOND, MORELESS_PICKS_PER_SECOND, PUZZLE_BATCHES_PER_SECOND, JIGSAW_MOVES_PER_SECOND, SPOTDIFF_TAPS_PER_SECOND, MEMORY_FLIPS_PER_SECOND, DRAW_GUESSES_PER_SECOND, DRAW_OPS_PER_SECOND, type DrawingEvent, type DrawOp, type AckResult, type Answer, type MoreLessSide, type AnswererScope, type AppealReason, type BuffKind, type DebuffKind, type DraftValue, type DuelSide, type ErrorCode, type GameView, type Grade, type HostDrafts, type HostUndoTarget, type LifelineKind, type Phase, type PlayerView, type Question, type Quiz, type ResumeSetup, RESUME_POINTS_MAX, clamp, isObjectLike, type ContinuedView, type PlacedPrize, placedPrizeSchema, type SlotsResponse, type Role, type SortTilt, type SubmittedAnswer, type TeamForm, type ThinkWord, type ActivePerk, type NickLevel, type StickerExtra, stickerOpen, LIKE_RATE, type LikePayload, LOBBY_VISIBILITIES, lobbyPasswordSchema, type LobbySettings, type LobbyVisibility, type AchievementId, type HostLeagueView, type PlayerLeagueView, type GameXpMoment } from '@quiz/shared';
 import type { LeagueGameResult } from '../league-store';
 import type { LikeChange, LikeKey } from '../like-store';
 import { SAVED_GAME_VERSION, type ContinueResult, type RestartInput, type SavedGameData } from './continuation';
@@ -178,6 +178,7 @@ import { newAchievementsMine, newAchievementsStage } from './achievements';
 import { levelsView, perkGrants } from './levels';
 import { likedQuestionId, likesView, personOf, type RoomLikes } from './likes';
 import { prizesView, titlesView } from './prizes';
+import { xpMine } from './xp';
 import type { Scheduler } from './scheduler';
 import { log, reportError } from '../log';
 import { lazyNouns, type NounDictionary } from '../wordladder/nouns';
@@ -297,6 +298,8 @@ export interface Room {
   likes: RoomLikes;
   /** «Нове досягнення!» (12j): userId → щойно отримані цією грою; hideAnti — хто ховає анти від сцени. null — ще не нагороджено. Лише в пам'яті; заповнює рекордер. */
   newAchievements: { byUser: Map<string, AchievementId[]>; hideAnti: Set<string> } | null;
+  /** Досвід гри (49): userId → картка. null — рекордер ще не дорахував. Лише в пам'яті (не в знімку й не в стані рушія); заповнює рекордер. */
+  xpMoments: Map<string, GameXpMoment> | null;
 }
 
 /** Позначка гри для сімейної ліги (45): id групи й назва на мить вибору (для рядків у грі). */
@@ -867,6 +870,7 @@ export class RoomManager {
       stickerAccess: new Map(),
       likes: { mine: new Map() },
       newAchievements: null,
+      xpMoments: null,
     };
     this.live.set(room.code, room);
     this.reschedule(room);
@@ -945,6 +949,7 @@ export class RoomManager {
       stickerAccess: new Map(),
       likes: { mine: new Map() },
       newAchievements: null,
+      xpMoments: null,
     };
     this.live.set(room.code, room);
     this.reserved.delete(room.code);
@@ -1029,6 +1034,13 @@ export class RoomManager {
   setLeagueResult(room: Room, result: LeagueGameResult): void {
     if (JSON.stringify(room.leagueResult) === JSON.stringify(result)) return;
     room.leagueResult = { counted: result.counted, rows: result.rows.map((row) => ({ ...row })) };
+    this.emit(room, { type: 'changed' });
+  }
+
+  /** Досвід гри (49) від рекордера; emit changed, лише якщо змінилось (порівняння JSON). */
+  setXpMoments(room: Room, moments: Map<string, GameXpMoment>): void {
+    if (room.xpMoments !== null && JSON.stringify([...room.xpMoments]) === JSON.stringify([...moments])) return;
+    room.xpMoments = new Map(moments);
     this.emit(room, { type: 'changed' });
   }
 
@@ -1566,7 +1578,9 @@ export class RoomManager {
       const league = identity.playerId === null ? undefined : playerLeagueView(room, identity.playerId, base.author !== null);
       const mine = identity.playerId === null ? undefined : newAchievementsMine(room, identity.playerId);
       const answerMark = identity.playerId === null ? undefined : { epoch: this.answerEpoch, count: this.answerCounts.get(room)?.get(identity.playerId) ?? 0 };
-      return { ...base, ...extra, ...(league === undefined ? {} : { league }), ...(mine === undefined ? {} : { newAchievements: mine }), ...(answerMark === undefined ? {} : { answerMark }) };
+      // Досвід гри (49): лише своя картка.
+      const xp = identity.playerId === null ? undefined : xpMine(room, identity.playerId);
+      return { ...base, ...extra, ...(league === undefined ? {} : { league }), ...(mine === undefined ? {} : { newAchievements: mine }), ...(answerMark === undefined ? {} : { answerMark }), ...(xp === undefined ? {} : { xp }) };
     }
     const slide = newAchievementsStage(room);
     if (base.role === 'stage') return { ...base, ...extra, ...(slide === undefined ? {} : { newAchievements: slide }) };

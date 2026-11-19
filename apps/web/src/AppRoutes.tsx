@@ -35,6 +35,7 @@ const GroupPage = lazy(() => import('./pages/GroupPage').then((m) => ({ default:
 const Groups = lazy(() => import('./pages/Groups').then((m) => ({ default: m.Groups })));
 const HostHelp = lazy(() => import('./pages/HostHelp').then((m) => ({ default: m.HostHelp })));
 const PrizeStudioPage = lazy(() => import('./pages/PrizeStudioPage').then((m) => ({ default: m.PrizeStudioPage })));
+const ProfileLevels = lazy(() => import('./pages/profile/ProfileLevels').then((m) => ({ default: m.ProfileLevels })));
 const ProfileLooks = lazy(() => import('./pages/profile/ProfileLooks').then((m) => ({ default: m.ProfileLooks })));
 const ProfileStats = lazy(() => import('./pages/profile/ProfileStats').then((m) => ({ default: m.ProfileStats })));
 
@@ -66,6 +67,7 @@ export function AppRoutes() {
         <Route path="/profile/friends" element={<Friends />} />
         <Route path="/profile/stats" element={<ProfileStats />} />
         <Route path="/profile/likes" element={<ProfileLikes />} />
+        <Route path="/profile/levels" element={<ProfileLevels />} />
         <Route path="/profile/looks" element={<ProfileLooks />} />
         <Route path="/profile/settings" element={<ProfileSettings />} />
         {/* Групи (12k): список, група, форма запису; вступ за коротким посиланням. */}

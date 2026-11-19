@@ -3,7 +3,7 @@ import { ACHIEVEMENTS, ANTI_ACHIEVEMENTS } from './achievements';
 import {
   COMMON_ACHIEVEMENTS, EPIC_ACHIEVEMENTS, FREE_LOOKS, LEVEL_REWARDS, LEVEL_REWARDS_TOP, LOOK_IDS, NICK_COLORS, NICK_EFFECTS, NICK_FONTS, NICK_FRAMES,
   PHOTO_FRAMES, PROFILE_BADGES, achievementRarity, levelOf, levelProgress, lookLevel, looksAllowed, looksSchema, looksShown, nextRewards,
-  packLevel, perkSchema, perksFor, stickerOpen, stickerPacksOpen, trophyUnlockLevel, xpForLevel,
+  XP_REASONS, levelUpRewards, packLevel, perkSchema, perksFor, stickerOpen, stickerPacksOpen, trophyUnlockLevel, xpForLevel,
 } from './levels';
 import { STICKER_PACKS, STICKERS_BY_PACK } from './sticker-packs';
 import { TROPHY_KINDS, TROPHY_MATERIALS } from './prizes';
@@ -216,5 +216,16 @@ describe('perkSchema', () => {
   it('accepts active perks only', () => {
     expect(perkSchema.safeParse({ kind: 'time' }).success).toBe(true);
     expect(perkSchema.safeParse({ kind: 'ward' }).success).toBe(false);
+  });
+});
+
+describe('level-up rewards (49)', () => {
+  it('level-up rewards are the table rows between two levels', () => {
+    const up = levelUpRewards(1, 2);
+    expect(up).toContainEqual({ level: 2, reward: { kind: 'color', id: 'sky' } });
+    expect(up.some((r) => r.level === 1)).toBe(false);
+    expect(levelUpRewards(5, 5)).toEqual([]);
+    expect(levelUpRewards(0, 40)).toEqual(LEVEL_REWARDS);
+    expect(XP_REASONS).toHaveLength(5);
   });
 });

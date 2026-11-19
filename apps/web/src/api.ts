@@ -1,6 +1,6 @@
 import { AUDIO_LIMITS, isObjectLike } from '@quiz/shared';
 import type { LeaguePickInfo, LeagueTable, NickLooks, PrizeContent, PrizeItem, PrizePlacesInfo, AchievementsPage, AutopilotCheck, CalendarEvent, CalendarInput, CalendarPage, CalendarRequestStatus, ContinueResponse, FeedBadge, FeedPage, FriendCard, GameDetail, GameInvite, GameSummary, OwnProfile, Phase, PlayedGame, ProfileCard, ProfileUpdate, PublicProfile, PushSubscriptionInput, Quiz, QuizLikes, ResumeOption, SlotsResponse, Versus } from '@quiz/shared';
-import type { ShowcasePin, ShowcasePins } from '@quiz/shared';
+import type { AchievementShares, ShowcasePin, ShowcasePins } from '@quiz/shared';
 import type { CodeInfo, LobbyRow, LobbySettings } from '@quiz/shared';
 import type { GivenLike, LikesPage, ReceivedLike } from '@quiz/shared';
 import { forgetMyProfile } from './profile/my-profile-cache';
@@ -316,3 +316,5 @@ export const getGroupInvites = () => fetchData<GroupInviteCard[]>('/api/me/group
 export const acceptGroupInvite = (id: string) =>
   request<{ id: string }>(`/api/me/group-invites/${encodeURIComponent(id)}/accept`, { method: 'POST' });
 export const declineGroupInvite = (id: string) => request<object>(`/api/me/group-invites/${encodeURIComponent(id)}`, { method: 'DELETE' });
+/** Частки гравців, які мають кожне досягнення (49): окремий запит, профіль його не чекає. */
+export const getAchievementShares = () => fetchData<AchievementShares>('/api/achievements/shares');

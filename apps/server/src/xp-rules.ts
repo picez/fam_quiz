@@ -1,8 +1,8 @@
-import { LEVEL_XP } from '@quiz/shared';
+import { LEVEL_XP, type XpReason } from '@quiz/shared';
 import type { AchievementGame } from './achievement-games';
 import { PENALTY_ATTEMPT } from './db/schema';
 
-export type XpReason = 'few_questions' | 'few_accounts' | 'author' | 'repeat_quiz' | 'cap';
+export type { XpReason } from '@quiz/shared';
 
 export interface XpAward {
   userId: string;
@@ -11,7 +11,20 @@ export interface XpAward {
   /** Гра пройшла правила 1–4 (вікторина «з'їдена» для repeat_quiz). */
   counted: boolean;
   reason: Exclude<XpReason, 'cap'> | null;
+  /** Складники base (49): нулі, коли правило дало 0; join + correct + place = base. */
+  parts: XpParts;
 }
+
+export interface XpParts {
+  join: number;
+  correct: number;
+  correctCount: number;
+  place: number;
+  /** Місце в таблиці (команда — місце команди); 0 — правило дало нуль. */
+  rank: number;
+}
+
+const NO_PARTS: XpParts = { join: 0, correct: 0, correctCount: 0, place: 0, rank: 0 };
 
 /** Один запис на акаунт таблиці (rank !== null; соло — гравець, команда — люди), у порядку players; акаунт двічі — раз. seen(userId) — чи має вже зараховану гру з цією вікториною. */
 export function gameXp(game: AchievementGame, ownerId: string | null, seen: (userId: string) => boolean): XpAward[] {
@@ -51,13 +64,14 @@ export function gameXp(game: AchievementGame, ownerId: string | null, seen: (use
 
   const accounts = entries.filter((e) => e.userId !== ownerId).length;
   return entries.map((e): XpAward => {
-    const none = (reason: Exclude<XpReason, 'cap'>): XpAward => ({ userId: e.userId, base: 0, counted: false, reason });
+    const none = (reason: Exclude<XpReason, 'cap'>): XpAward => ({ userId: e.userId, base: 0, counted: false, reason, parts: { ...NO_PARTS } });
     if (game.questionsPlayed < LEVEL_XP.minQuestions) return none('few_questions');
     if (accounts < LEVEL_XP.minAccounts) return none('few_accounts');
     if (e.userId === ownerId) return none('author');
     if (seen(e.userId)) return none('repeat_quiz');
     const place = e.rank >= 1 && e.rank <= LEVEL_XP.place.length ? LEVEL_XP.place[e.rank - 1]! : 0;
-    return { userId: e.userId, base: LEVEL_XP.join + e.right * LEVEL_XP.correct + place, counted: true, reason: null };
+    const parts: XpParts = { join: LEVEL_XP.join, correct: e.right * LEVEL_XP.correct, correctCount: e.right, place, rank: e.rank };
+    return { userId: e.userId, base: parts.join + parts.correct + parts.place, counted: true, reason: null, parts };
   });
 }
 

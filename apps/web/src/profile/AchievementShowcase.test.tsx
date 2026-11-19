@@ -1,7 +1,11 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { getAchievementShares } from '../api';
+import { forgetAchievementShares } from '../achievement-shares';
+
+vi.mock('../api', () => ({ getAchievementShares: vi.fn() }));
 import { ACHIEVEMENTS, type Achievement, type AchievementId } from '@quiz/shared';
 import { AchievementShowcase } from './AchievementShowcase';
 
@@ -16,9 +20,25 @@ const open = (achievements: Achievement[], pinned: AchievementId[] = []) =>
     </MemoryRouter>,
   );
 
+beforeEach(() => {
+  forgetAchievementShares();
+  vi.mocked(getAchievementShares).mockResolvedValue({ ok: true, data: { players: 200, holders: { first_win: 5, first_game: 100 } } });
+});
 afterEach(cleanup);
 
 describe('AchievementShowcase', () => {
+  it('the caption tells the share', async () => {
+    open(all(EARNED), ['first_win', 'first_game']);
+    const squares = await screen.findAllByRole('button');
+    await waitFor(() => expect(squares[0]!.classList.contains('is-very-rare')).toBe(true));
+    expect(squares[1]!.classList.contains('is-rare')).toBe(false);
+    expect(squares[1]!.classList.contains('is-very-rare')).toBe(false);
+    fireEvent.click(squares[0]!);
+    expect(document.querySelector('[aria-live="polite"]')!.textContent).toBe('Перша перемога · є в 2 % гравців · дуже рідкісне');
+    fireEvent.click(squares[1]!);
+    expect(document.querySelector('[aria-live="polite"]')!.textContent).toBe('Перша гра · є в 50 % гравців');
+  });
+
   it('heads with the earned count and links to all', () => {
     open(all(EARNED));
     expect(screen.getByRole('heading', { level: 2 }).textContent).toContain('Ачівки · 7 з 102');

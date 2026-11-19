@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ACHIEVEMENTS, ACHIEVEMENT_GROUPS, ACHIEVEMENT_INFO, ANTI_ACHIEVEMENTS, PROFILE_STRIP_BADGES, isAnti } from './achievements';
+import { ACHIEVEMENTS, ACHIEVEMENT_GROUPS, ACHIEVEMENT_INFO, ANTI_ACHIEVEMENTS, PROFILE_STRIP_BADGES, achievementScarcity, isAnti } from './achievements';
 import { QUESTION_TYPES, ROUND_TYPES } from './quiz';
 
 /** 31 нових (план 33) у порядку таблиці плану: 5 раундів, 17 типів, 6 додаткових, 3 анти. */
@@ -75,5 +75,29 @@ describe('the achievements catalog', () => {
 
   it('shows 8 badges in a profile', () => {
     expect(PROFILE_STRIP_BADGES).toBe(8);
+  });
+});
+
+describe('achievement share (49)', () => {
+  it('the share of players and the rarity marks', () => {
+    expect(achievementScarcity(0, 0)).toEqual({ percent: 0, tier: null });
+    expect(achievementScarcity(0, 50)).toEqual({ percent: 0, tier: null });
+    expect(achievementScarcity(1, 200)).toEqual({ percent: 1, tier: 'very_rare' });
+    expect(achievementScarcity(5, 200)).toEqual({ percent: 2, tier: 'very_rare' });
+    expect(achievementScarcity(6, 200)).toEqual({ percent: 3, tier: 'rare' });
+    expect(achievementScarcity(19, 200)).toEqual({ percent: 9, tier: 'rare' });
+    expect(achievementScarcity(20, 200)).toEqual({ percent: 10, tier: null });
+    expect(achievementScarcity(1, 40)).toEqual({ percent: 2, tier: 'very_rare' });
+    // Межа: 2,6 % — число й позначка згодні.
+    expect(achievementScarcity(13, 500)).toEqual({ percent: 2, tier: 'very_rare' });
+    expect(achievementScarcity(1, 9)).toEqual({ percent: 11, tier: null });
+    expect(achievementScarcity(0, 9)).toEqual({ percent: 0, tier: null });
+  });
+});
+
+describe('achievementScarcity clamp (49)', () => {
+  it('never exceeds 100 percent', () => {
+    expect(achievementScarcity(15, 12)).toEqual({ percent: 100, tier: null });
+    expect(achievementScarcity(5, 3).percent).toBe(100);
   });
 });

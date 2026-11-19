@@ -4,7 +4,8 @@ import { existsSync, readFileSync } from 'node:fs';
 import { cleanup, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { me } from './api';
+import { levelProgress } from '@quiz/shared';
+import { getMyProfile, me } from './api';
 import { AppRoutes } from './AppRoutes';
 import { FeedTabs } from './feed/FeedTabs';
 
@@ -74,6 +75,17 @@ describe('AppRoutes', () => {
     vi.mocked(me).mockResolvedValue({ ok: false, error: 'unauthorized' });
     open(path);
     expect(await screen.findByRole('navigation', { name: 'Меню' })).toBeTruthy();
+  });
+
+  it('/profile/levels draws the level rewards map with the menu', async () => {
+    vi.mocked(me).mockResolvedValue({ ok: true, id: 'u1', name: 'Олена', email: 'o@example.com', admin: false });
+    vi.mocked(getMyProfile).mockResolvedValue({
+      ok: true,
+      data: { id: 'u1', nickname: 'Олена', avatar: null, level: { progress: levelProgress(0), unlocked: [], next: [], looks: {} } } as never,
+    });
+    open('/profile/levels');
+    expect(await screen.findByRole('heading', { name: 'Нагороди за рівні' })).toBeTruthy();
+    expect(screen.getByRole('navigation', { name: 'Меню' })).toBeTruthy();
   });
 
   it.each(['/achievements', '/profile/u2/achievements'])('%s draws the achievements page with the menu', async (path) => {

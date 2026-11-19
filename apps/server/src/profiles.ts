@@ -5,6 +5,8 @@ import {
   isWin,
   nicknameSchema,
   normalizeFavorites,
+  publicForm,
+  recentForm,
   type Achievement,
   type FriendCard,
   type LeagueTitle,
@@ -13,6 +15,7 @@ import {
   type ProfileCard,
   type ProfileStats,
   type PublicProfile,
+  type RecentForm,
   type ProfileUpdate,
   type ProfileWin,
 } from '@quiz/shared';
@@ -114,23 +117,24 @@ export async function saveProfile(
 export const WINS_SHOWN = 20;
 
 /**
- * Статистика, ачівки (усі з позначками й датами) й останні перемоги (не більше WINS_SHOWN, найновіші першими).
+ * Статистика, ачівки (усі з позначками й датами), останні перемоги (не більше WINS_SHOWN, найновіші першими) й остання форма (49).
  * own — профіль власника; чужий профіль не читає типів запитань (поступу там немає).
  */
 export async function profileFacts(
   db: Db,
   userId: string,
   own = true,
-): Promise<{ stats: ProfileStats; achievements: Achievement[]; wins: ProfileWin[] }> {
+): Promise<{ stats: ProfileStats; achievements: Achievement[]; wins: ProfileWin[]; form: RecentForm }> {
   // Кар'єру читає сама синхронізація ачівок (раз) і віддає її в inputs.
   const { earned, inputs } = await syncAchievements(db, userId, null, { types: own });
-  const wins = inputs.games
-    .map((g) => g.played)
+  const played = inputs.games.map((g) => g.played);
+  const wins = played
     .filter(isWin)
     .slice(0, WINS_SHOWN)
     // isWin гарантує rank === 1.
     .map((g) => ({ gameId: g.gameId, title: g.title, startedAt: g.startedAt, rank: g.rank ?? 1 }));
-  return { stats: inputs.stats, achievements: achievementList(earned), wins };
+  // Форма — з тих самих уже прочитаних ігор: жодного нового запиту.
+  return { stats: inputs.stats, achievements: achievementList(earned), wins, form: recentForm(played) };
 }
 
 /** Друзі (на кого підписаний), за нікнеймом. */
@@ -249,6 +253,7 @@ export async function ownProfile(db: Db, current: CurrentUser): Promise<OwnProfi
     achievements: facts.achievements,
     quizzes,
     wins: facts.wins,
+    form: facts.form,
     friends,
     showcase,
     // Ретро й наздоганяння досвіду (15a) — усередині ownLevel, раз і перед читанням рівня; збій профіль не ламає.
@@ -263,7 +268,7 @@ export async function publicProfile(db: Db, id: string, viewerId: string | null)
   if (await isBanned(db, id)) return null;
   const base = await ensureProfile(db, id);
   if (!base) return null;
-  const { stats, achievements } = await profileFacts(db, id, false);
+  const { stats, achievements, form } = await profileFacts(db, id, false);
   // Решта — поруч, але після ачівок (рівень рахує XP за щойно записані).
   const [following, showcase, hidden, level, likes, leagueTitles] = await Promise.all([
     viewerId === null || viewerId === id ? null : isFollowing(db, viewerId, id),
@@ -286,6 +291,8 @@ export async function publicProfile(db: Db, id: string, viewerId: string | null)
     level,
     likes,
     leagueTitles,
+    // Чужому — лише місця й дати, без назв ігор.
+    form: publicForm(form),
   };
 }
 

@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { levelProgress, nextRewards, rewardsUpTo, xpForLevel, type OwnLevel } from '@quiz/shared';
 import { saveLooks } from '../api';
@@ -29,18 +30,34 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe('LevelCard', () => {
+  it('49: the card and the bar (with mapTo) link to the level map', () => {
+    render(
+      <MemoryRouter>
+        <LevelBar progress={level.progress} mapTo="/profile/levels" />
+      </MemoryRouter>,
+    );
+    expect(screen.getByRole('link', { name: /Усі нагороди/ }).getAttribute('href')).toBe('/profile/levels');
+    cleanup();
+    render(
+      <MemoryRouter>
+        <LevelCard level={level} nickname="Олена" onSaved={() => {}} />
+      </MemoryRouter>,
+    );
+    expect(screen.getByRole('link', { name: /Усі нагороди/ }).getAttribute('href')).toBe('/profile/levels');
+  });
+
   it('shows the level and the bar to the next one; the rewards card below has its own heading and no bar', () => {
-    const { container } = render(<LevelCard level={level} nickname="Олена" onSaved={() => {}} />);
+    const { container } = render(<MemoryRouter><LevelCard level={level} nickname="Олена" onSaved={() => {}} /></MemoryRouter>);
     expect(screen.getByRole('heading', { level: 2, name: 'Нагороди рівнів' })).toBeTruthy();
     expect(container.querySelector('progress')).toBeNull();
     cleanup();
-    render(<LevelBar progress={level.progress} />);
+    render(<MemoryRouter><LevelBar progress={level.progress} /></MemoryRouter>);
     expect(screen.getByRole('heading', { name: 'Рівень 3' })).toBeTruthy();
     expect(screen.getByText('600 / 800 досвіду')).toBeTruthy();
   });
 
   it('keeps the XP rules in a tooltip of the bar: described by it, opened by a tap, closed by Escape or a tap elsewhere', () => {
-    const { container } = render(<LevelBar progress={level.progress} />);
+    const { container } = render(<MemoryRouter><LevelBar progress={level.progress} /></MemoryRouter>);
     // Правил немає текстом під шкалою (p.meta) — лише підказка.
     expect([...container.querySelectorAll('p.meta')].map((p) => p.textContent)).toEqual(['600 / 800 досвіду']);
     const info = screen.getByRole('button', { name: 'Як нараховують досвід' });
@@ -61,7 +78,7 @@ describe('LevelCard', () => {
   });
 
   it('keyboard: focus on ⓘ opens the tooltip, Escape hides it while ⓘ keeps focus, blur closes it', () => {
-    const { container } = render(<LevelBar progress={level.progress} />);
+    const { container } = render(<MemoryRouter><LevelBar progress={level.progress} /></MemoryRouter>);
     const meter = container.querySelector('.level-meter')!;
     const info = screen.getByRole('button', { name: 'Як нараховують досвід' });
     act(() => info.focus());
@@ -77,7 +94,7 @@ describe('LevelCard', () => {
   });
 
   it('a second click on ⓘ hides it even though ⓘ is focused; a tap that focuses ⓘ opens it once, not open-then-closed', () => {
-    const { container } = render(<LevelBar progress={level.progress} />);
+    const { container } = render(<MemoryRouter><LevelBar progress={level.progress} /></MemoryRouter>);
     const meter = container.querySelector('.level-meter')!;
     const info = screen.getByRole('button', { name: 'Як нараховують досвід' });
     // Дотик: pointerdown → фокус → click.
@@ -92,7 +109,7 @@ describe('LevelCard', () => {
   });
 
   it('a mouse opens it on hover and closes it on leave; a touch pointer does not', () => {
-    const { container } = render(<LevelBar progress={level.progress} />);
+    const { container } = render(<MemoryRouter><LevelBar progress={level.progress} /></MemoryRouter>);
     const meter = container.querySelector('.level-meter')!;
     fireEvent.pointerEnter(meter, { pointerType: 'touch' });
     expect(meter.classList.contains('is-open')).toBe(false);
@@ -103,7 +120,7 @@ describe('LevelCard', () => {
   });
 
   it('lists what is unlocked one line per level, newest first, folded under «Відкрито · N», and the next three', () => {
-    render(<LevelCard level={level} nickname="Олена" onSaved={() => {}} />);
+    render(<MemoryRouter><LevelCard level={level} nickname="Олена" onSaved={() => {}} /></MemoryRouter>);
     const levels = new Set(rewardsUpTo(3).map((r) => r.level));
     const rows = screen.getAllByTestId('level-unlocked');
     expect(rows).toHaveLength(levels.size);
@@ -131,13 +148,13 @@ describe('LevelCard', () => {
   });
 
   it('puts the preview and the pickers first, then «Далі», then «Відкрито»', () => {
-    const { container } = render(<LevelCard level={level} nickname="Олена" onSaved={() => {}} />);
+    const { container } = render(<MemoryRouter><LevelCard level={level} nickname="Олена" onSaved={() => {}} /></MemoryRouter>);
     const order = [...container.querySelectorAll('h3, [data-testid="look-preview"], [role="radiogroup"], .toolbar')].map((el) => (el.tagName === 'H3' ? el.textContent : el.getAttribute('data-slot') ?? el.className));
     expect(order).toEqual(['Вигляд', 'look-preview-box', 'photo', 'font', 'color', 'frame', 'effect', 'badge', 'toolbar', 'Далі', `Відкрито · ${new Set(rewardsUpTo(3).map((r) => r.level)).size}`]);
   });
 
   it('offers only unlocked looks', () => {
-    render(<LevelCard level={level} nickname="Олена" onSaved={() => {}} />);
+    render(<MemoryRouter><LevelCard level={level} nickname="Олена" onSaved={() => {}} /></MemoryRouter>);
     const colors = screen.getByRole('radiogroup', { name: 'Колір ніку' });
     expect(within(colors).getByRole('radio', { name: /Небо/ })).toBeTruthy();
     expect((within(colors).getByRole('radio', { name: /М'ята/ }) as HTMLInputElement).disabled).toBe(true);
@@ -145,7 +162,7 @@ describe('LevelCard', () => {
   });
 
   it('shows six radio groups in order, each named by its visible heading', () => {
-    render(<LevelCard level={level} nickname="Олена" onSaved={() => {}} />);
+    render(<MemoryRouter><LevelCard level={level} nickname="Олена" onSaved={() => {}} /></MemoryRouter>);
     const groups = screen.getAllByRole('radiogroup');
     const names = ['Рамка фото', 'Шрифт ніку', 'Колір ніку', 'Рамка ніку', 'Ефект ніку', 'Значок'];
     expect(groups.map((g) => document.getElementById(g.getAttribute('aria-labelledby')!)!.textContent)).toEqual(names);
@@ -155,7 +172,7 @@ describe('LevelCard', () => {
 
   it('photo tiles show her own avatar in each frame, font tiles show her nick in each font', () => {
     const own = { id: 'u1', nickname: 'Олена', avatar: '/a.png' };
-    render(<LevelCard level={at16} nickname="Олена" profile={own} onSaved={() => {}} />);
+    render(<MemoryRouter><LevelCard level={at16} nickname="Олена" profile={own} onSaved={() => {}} /></MemoryRouter>);
     const photos = screen.getByRole('radiogroup', { name: 'Рамка фото' });
     const fire = within(photos).getByRole('radio', { name: /^Вогонь/ }).closest('label')!;
     expect(fire.querySelector('.photo-frame-fire img.avatar-medium')!.getAttribute('src')).toBe('/a.png');
@@ -165,7 +182,7 @@ describe('LevelCard', () => {
   });
 
   it('every tile has the same structure: a hidden radio, the face or name, the lock line last; the choice is marked on the tile', () => {
-    const { container } = render(<LevelCard level={level} nickname="Олена" onSaved={() => {}} />);
+    const { container } = render(<MemoryRouter><LevelCard level={level} nickname="Олена" onSaved={() => {}} /></MemoryRouter>);
     for (const tile of container.querySelectorAll('label.look-option')) {
       expect(tile.firstElementChild!.tagName).toBe('INPUT');
       const lock = tile.querySelector('.look-lock');
@@ -177,7 +194,7 @@ describe('LevelCard', () => {
   });
 
   it('locked looks are disabled with their level', () => {
-    render(<LevelCard level={at16} nickname="Олена" onSaved={() => {}} />);
+    render(<MemoryRouter><LevelCard level={at16} nickname="Олена" onSaved={() => {}} /></MemoryRouter>);
     const aura = screen.getByRole('radio', { name: /Сяйво/ }) as HTMLInputElement;
     expect(aura.disabled).toBe(true);
     expect(aura.closest('label')!.textContent).toContain('🔒 з рівня 30');
@@ -185,7 +202,7 @@ describe('LevelCard', () => {
   });
 
   it('a locked badge shows a compact lock and keeps the full level text for screen readers', () => {
-    render(<LevelCard level={level} nickname="Олена" onSaved={() => {}} />);
+    render(<MemoryRouter><LevelCard level={level} nickname="Олена" onSaved={() => {}} /></MemoryRouter>);
     const label = screen.getByRole('radio', { name: /💀/ }).closest('label')!;
     expect(label.querySelector('[aria-hidden="true"]')!.textContent).toBe('🔒 10');
     expect(label.querySelector('.sr-only')!.textContent).toBe('🔒 з рівня 10');
@@ -193,14 +210,14 @@ describe('LevelCard', () => {
 
   it('free looks are open at level 1', () => {
     const one: OwnLevel = { ...level, progress: levelProgress(0) };
-    render(<LevelCard level={one} nickname="Олена" onSaved={() => {}} />);
+    render(<MemoryRouter><LevelCard level={one} nickname="Олена" onSaved={() => {}} /></MemoryRouter>);
     for (const name of [/Багряна/, /Рукописний/, /^Кривавий$/, /🌻/]) expect((screen.getByRole('radio', { name }) as HTMLInputElement).disabled).toBe(false);
     const frames = screen.getByRole('radiogroup', { name: 'Рамка ніку' });
     expect((within(frames).getByRole('radio', { name: /Срібло/ }) as HTMLInputElement).disabled).toBe(true);
   });
 
   it('preview follows the choice', () => {
-    render(<LevelCard level={at16} nickname="Олена" onSaved={() => {}} />);
+    render(<MemoryRouter><LevelCard level={at16} nickname="Олена" onSaved={() => {}} /></MemoryRouter>);
     fireEvent.click(within(screen.getByRole('radiogroup', { name: 'Рамка фото' })).getByRole('radio', { name: /Вогонь/ }));
     fireEvent.click(screen.getByRole('radio', { name: /Піксельний/ }));
     const preview = screen.getByTestId('look-preview');
@@ -210,7 +227,7 @@ describe('LevelCard', () => {
 
   it('save sends all six slots', async () => {
     vi.mocked(saveLooks).mockResolvedValue({ ok: true, data: { looks: { color: null, frame: null, badge: null, photo: 'fire', font: 'pixel', effect: null } } });
-    render(<LevelCard level={at16} nickname="Олена" onSaved={() => {}} />);
+    render(<MemoryRouter><LevelCard level={at16} nickname="Олена" onSaved={() => {}} /></MemoryRouter>);
     fireEvent.click(within(screen.getByRole('radiogroup', { name: 'Рамка фото' })).getByRole('radio', { name: /Вогонь/ }));
     fireEvent.click(screen.getByRole('radio', { name: /Піксельний/ }));
     fireEvent.click(screen.getByRole('button', { name: 'Зберегти вигляд' }));
@@ -218,7 +235,7 @@ describe('LevelCard', () => {
   });
 
   it('opening the page loads every open font for the tiles', () => {
-    render(<LevelCard level={at16} nickname="Олена" onSaved={() => {}} />);
+    render(<MemoryRouter><LevelCard level={at16} nickname="Олена" onSaved={() => {}} /></MemoryRouter>);
     expect(NICK_FONT_LOADERS.hand).toHaveBeenCalled();
     expect(NICK_FONT_LOADERS.pixel).toHaveBeenCalled();
     expect(NICK_FONT_LOADERS.heavy).not.toHaveBeenCalled();
@@ -226,7 +243,7 @@ describe('LevelCard', () => {
 
   it('two rewards on one level render without key warnings', () => {
     const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
-    render(<LevelCard level={at16} nickname="Олена" onSaved={() => {}} />);
+    render(<MemoryRouter><LevelCard level={at16} nickname="Олена" onSaved={() => {}} /></MemoryRouter>);
     expect(screen.getAllByTestId('level-unlocked').length).toBeGreaterThan(3);
     expect(spy).not.toHaveBeenCalled();
     spy.mockRestore();
@@ -235,7 +252,7 @@ describe('LevelCard', () => {
   it('saves the chosen look and reports it', async () => {
     vi.mocked(saveLooks).mockResolvedValue({ ok: true, data: { looks: { color: 'sky', frame: null, badge: null, photo: null, font: null, effect: null } } });
     const onSaved = vi.fn();
-    render(<LevelCard level={level} nickname="Олена" onSaved={onSaved} />);
+    render(<MemoryRouter><LevelCard level={level} nickname="Олена" onSaved={onSaved} /></MemoryRouter>);
     fireEvent.click(screen.getByRole('radio', { name: /Небо/ }));
     fireEvent.click(screen.getByRole('button', { name: 'Зберегти вигляд' }));
     await waitFor(() => expect(onSaved).toHaveBeenCalledWith({ color: 'sky', frame: null, badge: null, photo: null, font: null, effect: null }));
@@ -245,7 +262,7 @@ describe('LevelCard', () => {
   it('34: the effect group at level 31 — eight tiles, flame open, frost locked, the preview and save carry the flame', async () => {
     const at31: OwnLevel = { ...at16, progress: { ...levelProgress(xpForLevel(31)) }, next: nextRewards(31) };
     vi.mocked(saveLooks).mockResolvedValue({ ok: true, data: { looks: { ...at16.looks, effect: 'flame' } } });
-    const { container } = render(<LevelCard level={at31} nickname="Олена" onSaved={() => {}} />);
+    const { container } = render(<MemoryRouter><LevelCard level={at31} nickname="Олена" onSaved={() => {}} /></MemoryRouter>);
     const group = screen.getByRole('radiogroup', { name: 'Ефект ніку' });
     expect(within(group).getAllByRole('radio')).toHaveLength(8);
     const flame = within(group).getByRole('radio', { name: /Полум'я/ }) as HTMLInputElement;
@@ -264,7 +281,7 @@ describe('LevelCard', () => {
 
   it('34: level 40 has no «Далі» and says every level reward is open', () => {
     const at40: OwnLevel = { ...at16, progress: levelProgress(xpForLevel(40)), next: nextRewards(40) };
-    render(<LevelCard level={at40} nickname="Олена" onSaved={() => {}} />);
+    render(<MemoryRouter><LevelCard level={at40} nickname="Олена" onSaved={() => {}} /></MemoryRouter>);
     expect(screen.queryByRole('heading', { name: 'Далі' })).toBeNull();
     expect(screen.getByText('Усі нагороди рівнів відкрито — далі рахуємо лише досвід.')).toBeTruthy();
   });
@@ -278,7 +295,7 @@ describe('LevelCard', () => {
   it('shows the error text on 409', async () => {
     vi.mocked(saveLooks).mockResolvedValue({ ok: false, error: 'look_locked' });
     const onSaved = vi.fn();
-    render(<LevelCard level={level} nickname="Олена" onSaved={onSaved} />);
+    render(<MemoryRouter><LevelCard level={level} nickname="Олена" onSaved={onSaved} /></MemoryRouter>);
     fireEvent.click(screen.getByRole('radio', { name: /Небо/ }));
     fireEvent.click(screen.getByRole('button', { name: 'Зберегти вигляд' }));
     expect((await screen.findByRole('alert')).textContent).toBe('Цей вигляд ще закритий: він відкриється з вищим рівнем.');

@@ -1,5 +1,5 @@
 import { answeredByOf, appealTally, cluesAnswered, debuffOn, isSilentRisk, memberOf, packedStrokes, rankPlayers, recordOf, teamMembers, teamsOn, thinkPlaces, thinkVerdicts, voteTally, type DrawingPlay, type GameState, type LadderPlay, type SurvivalPlay, type ThinkPlay, type TruthPlay } from '@quiz/engine';
-import { AWAY_MS, isUnscored, type Answer, type BuffKind, type DebuffKind, type LeagueEntry, type Question } from '@quiz/shared';
+import { AWAY_MS, isUnscored, type Answer, type BuffKind, type DebuffKind, type GameXpMoment, type LeagueEntry, type Question } from '@quiz/shared';
 import { and, eq, gt, gte, inArray, max, notInArray, sql } from 'drizzle-orm';
 import { antiHidden, awardedIn, awardGame } from './achievement-store';
 import type { Db } from './db/client';
@@ -10,7 +10,7 @@ import { awardPrizes, releaseUnsaved, type PrizeOutcome } from './prizes';
 import type { SavedGameData } from './rooms/continuation';
 import type { Room, RoomManager } from './rooms/manager';
 import { leagueEntries, leagueNicknames, prizeOutcome } from './rooms/prizes';
-import { creditGame } from './xp-store';
+import { creditGame, gameXpMoments } from './xp-store';
 import { guarded, reportError } from './log';
 
 /** Транзакція бази. */
@@ -602,6 +602,8 @@ export function attachRecorder(
   const prized = new Set<string>();
   /** Кімнати, чия завершена гра вже дала досвід (15a). */
   const credited = new Set<string>();
+  /** Кімнати, чию картку досвіду гри (49) вже покладено в кімнату. */
+  const momented = new Set<string>();
   /** Кімнати, чия завершена гра вже потрапила в стрічку (18a). */
   const published = new Set<string>();
   /** Кімнати, чий підсумок ліги (45) вже записано й покладено в кімнату. */
@@ -621,6 +623,7 @@ export function attachRecorder(
     awarded.delete(roomId);
     prized.delete(roomId);
     credited.delete(roomId);
+    momented.delete(roomId);
     published.delete(roomId);
     leagued.delete(roomId);
     untrimmed.delete(roomId);
@@ -643,6 +646,7 @@ export function attachRecorder(
     awarded.delete(room.id);
     prized.delete(room.id);
     credited.delete(room.id);
+    momented.delete(room.id);
     published.delete(room.id);
     leagued.delete(room.id);
     if (room.continued !== null && room.continued.replaces === null) untrimmed.add(room.id);
@@ -731,6 +735,20 @@ export function attachRecorder(
         await creditGame(db, room.id, onError);
         credited.add(room.id);
       }
+      // Картка досвіду (49) — одразу після зарахування: читає лише записані рядки, тож повтор і перезапуск дають ту саму.
+      // Збій — у той самий повтор; на останній спробі картки не буде (порожньо: телефон не чекає вічно), а стрічка все одно піде.
+      if (state.phase === 'finished' && !momented.has(room.id)) {
+        let moments: Map<string, GameXpMoment>;
+        try {
+          moments = await gameXpMoments(db, room.id);
+        } catch (error) {
+          if (!lastTry) throw error;
+          onError(new Error(`Досвід гри ${room.id} для телефонів не пораховано: повтори запису вичерпано`, { cause: error }));
+          moments = new Map();
+        }
+        if (!manager.frozen && manager.get(room.code) === room) manager.setXpMoments(room, moments);
+        momented.add(room.id);
+      }
       // Стрічка (18a) — після досвіду: події читають уже записані рядки, а рівень — суму досвіду. Повтор нічого не дублює (ключі).
       if (state.phase === 'finished' && !published.has(room.id)) {
         await publishGameFeed(db, room.id);
@@ -752,6 +770,14 @@ export function attachRecorder(
           // Призи так і лишились у резерві: це має бути видно в журналі, з id гри, щоб вручити їх вручну.
           if (snapshot.prizes !== null && !prized.has(room.id)) {
             onError(new Error(`Призи гри ${room.id} не вручено: повтори запису вичерпано`, { cause: error }));
+          }
+          // Картки досвіду (49) так і не буде: порожня мапа, щоб телефони не чекали «Рахуємо досвід…» вічно.
+          if (state.phase === 'finished' && !momented.has(room.id) && !manager.frozen && manager.get(room.code) === room) {
+            momented.add(room.id);
+            // Зміна кімнати від цього виклику не має знову запускати вичерпані повтори того самого стану.
+            lastSignature.set(room.id, current);
+            manager.setXpMoments(room, new Map());
+            lastSignature.delete(room.id);
           }
           return;
         }
