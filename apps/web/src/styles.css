@@ -10724,6 +10724,20 @@ button.wall-tile:disabled {
   margin: 0;
 }
 
+/* 45c: «Змінити» під рядком про надіслану вигадку; на вузькому екрані переноситься, бічного скролу немає. */
+.bluff-edit {
+  align-self: flex-start;
+  max-width: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+/* 45a: рядок під карткою апеляції — як .meta (колір --dim, 0.9375rem), з переносом. */
+.appeal-kept {
+  margin: 0.5rem 0 0;
+  overflow-wrap: anywhere;
+}
+
 .bluff-stage {
   font-weight: 700;
   color: var(--amber);

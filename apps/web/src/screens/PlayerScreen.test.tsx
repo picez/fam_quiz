@@ -3289,6 +3289,29 @@ describe('PlayerScreen: «Who am I?» and pin (10c)', () => {
       expect(screen.queryByLabelText('Твоя вигадка')).toBeNull();
     });
 
+    it('a sent lie can be changed: «Змінити» reopens the field with the old text and the cursor in it', async () => {
+      const send: Send = vi.fn(async () => ({ ok: true as const }));
+      const node = (v: PlayerView) => <PlayerScreen view={v} hostOnline offsetMs={0} send={send} />;
+      const { rerender } = render(node(onQuestion({ question: bluffPublic, bluff: info({ written: 1 }), me: mine({ lie: 'Рим' }) })));
+      expect(screen.getByText('Твоя вигадка: «Рим». Чекаємо на інших.')).toBeTruthy();
+      await act(async () => void fireEvent.click(screen.getByRole('button', { name: 'Змінити' })));
+      expect(send).toHaveBeenCalledWith('player:lie-edit', undefined);
+      rerender(node(onQuestion({ question: bluffPublic, bluff: info({ written: 0 }), me: mine({ lie: null }) })));
+      const field = screen.getByLabelText('Твоя вигадка') as HTMLInputElement;
+      expect(field.value).toBe('Рим');
+      expect(document.activeElement).toBe(field);
+    });
+
+    it('«Змінити» is disabled on a pause, and a refusal is read under it', async () => {
+      show(onQuestion({ question: bluffPublic, bluff: info(), me: mine({ lie: 'Рим' }), paused: true, endsAt: null, remainingMs: 9000 }));
+      expect((screen.getByRole('button', { name: 'Змінити' }) as HTMLButtonElement).disabled).toBe(true);
+      cleanup();
+      const send: Send = vi.fn(async () => ({ ok: false as const, error: 'time_over' as const }));
+      show(onQuestion({ question: bluffPublic, bluff: info(), me: mine({ lie: 'Рим' }) }), { send });
+      await act(async () => void fireEvent.click(screen.getByRole('button', { name: 'Змінити' })));
+      expect(screen.getByRole('alert').textContent).toBe(errorText('time_over'));
+    });
+
     it('the choice phase: the list with the own lie disabled; after picking, the pick', () => {
       show(onQuestion({ question: bluffPublic, bluff: info({ stage: 'choice', options }), me: mine({ lie: 'Мілан', own: ['b2'] }) }));
       expect(screen.getByText('Що з цього правда?')).toBeTruthy();
@@ -4572,6 +4595,28 @@ describe('PlayerScreen appeal (12f)', () => {
     show(revealOf({}, mine({ left: 1, reasons: ['grade', 'away'] })));
     expect(screen.getByRole('button', { name: '⚖️ Оскаржити (лишилось 1)' })).toBeTruthy();
     expect(screen.getByRole('button', { name: '⚖️ Оскаржити штраф (лишилось 1)' })).toBeTruthy();
+  });
+
+  it('45a: the appellant whose appeal passed reads that it is kept; others do not', () => {
+    const kept = 'Оскарження прийнято — воно лишається у вас';
+    show(revealOf({ appeal: { ...open, outcome: 'yes', waiting: 0 } }, mine()));
+    expect(screen.getByText(kept).classList.contains('appeal-kept')).toBe(true);
+    cleanup();
+    show(revealOf({ appeal: { ...open, by: { playerId: 'p2', nickname: 'Тарас' }, outcome: 'yes', waiting: 0 } }, mine()));
+    expect(screen.queryByText(kept)).toBeNull();
+    cleanup();
+    show(revealOf({ appeal: { ...open, outcome: 'no', waiting: 0 } }, mine()));
+    expect(screen.queryByText(kept)).toBeNull();
+  });
+
+  it('45a: in a team game the whole team reads it', () => {
+    const kept = 'Оскарження прийнято — воно лишається у вас';
+    const current = teamPlayerView({ phase: 'reveal', questionIndex: 0, question: publicQuestion, reveal: fullQuestion, appeal: { ...open, by: { playerId: 'team-b', nickname: 'Сині' }, outcome: 'yes', waiting: 0 } });
+    show(current);
+    expect(screen.getByText(kept)).toBeTruthy();
+    cleanup();
+    show({ ...current, appeal: { ...open, by: { playerId: 'team-a', nickname: 'Червоні' }, outcome: 'yes', waiting: 0 } });
+    expect(screen.queryByText(kept)).toBeNull();
   });
 
   it('says the hall votes on another appeal, without a button', () => {

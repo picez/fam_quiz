@@ -10,13 +10,16 @@ export function BluffLieInput({
   send,
   autoFocus = true,
   onDraft,
+  initial = '',
 }: {
   send: Send;
   autoFocus?: boolean;
   /** Живий вибір (12b): надрукована вигадка до «Надіслати»; порожньо — null. */
   onDraft?: DraftInput;
+  /** Змінити вигадку: поле відкривається зі старим текстом. */
+  initial?: string;
 }) {
-  const [text, setText] = useState('');
+  const [text, setText] = useState(initial);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const field = useRef<HTMLInputElement>(null);

@@ -100,7 +100,7 @@ import { PeekSheet } from './PeekSheet';
 import { QuestButton, QuestPanel } from './QuestView';
 import { AppealCard } from './AppealCard';
 import { AppealSheet } from './AppealSheet';
-import { appealButtonText } from '../appeal-text';
+import { appealButtonText, appealKeptText } from '../appeal-text';
 import { ReactionMain } from '../live/Reactions';
 import { StickyTimerProvider } from '../live/StickyTimer';
 import { ReactionButton } from './ReactionSheet';
@@ -259,6 +259,11 @@ function BluffPlay({ view, paused, send, onDraft }: { view: PlayerView; paused: 
   const stageNow = bluff?.stage ?? null;
   const lastPick = useRef<string | null>(null);
   const [lost, setLost] = useState(false);
+  // Остання надіслана вигадка: «Змінити» відкриває поле з нею.
+  const lastLie = useRef('');
+  if (mine?.lie != null) lastLie.current = mine.lie;
+  const [editError, setEditError] = useState<string | null>(null);
+  const editGuard = useGuardedSend(send, setEditError);
   useEffect(() => {
     if (pickNow !== null) setLost(false);
     else if (lastPick.current !== null && stageNow === 'choice') setLost(true);
@@ -271,10 +276,20 @@ function BluffPlay({ view, paused, send, onDraft }: { view: PlayerView; paused: 
         <p className="bluff-stage">{t('bluffStageLies')}</p>
         {mine.lie === null ? (
           <fieldset className="inputs" disabled={paused}>
-            <BluffLieInput send={send} onDraft={onDraft} />
+            <BluffLieInput send={send} onDraft={onDraft} initial={lastLie.current} />
           </fieldset>
         ) : (
-          <p className="lead">{t('bluffLieSent', { lie: mine.lie })}</p>
+          <>
+            <p className="lead">{t('bluffLieSent', { lie: mine.lie })}</p>
+            <button type="button" className="btn btn-small bluff-edit" disabled={paused || editGuard.busy} onClick={() => void editGuard.run('player:lie-edit', undefined)}>
+              {t('bluffLieEdit')}
+            </button>
+            {editError !== null && (
+              <p className="error" role="alert">
+                {editError}
+              </p>
+            )}
+          </>
         )}
         <p className="meta">{t('bluffWritten', { n: bluff.written, total: view.playerCount })}</p>
       </section>
@@ -766,6 +781,7 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
   const likeGuard = useGuardedSend(send, setError);
   const appealGuard = useGuardedSend(send, setError);
   // Аркуш голосу за відкриту апеляцію (12f) перед цим виборцем; у ньому ж — своя кнопка в чергу й «розглянуть наступною» (29k).
+  const appealKept = view.appeal === null ? null : appealKeptText(view.appeal, view.team?.teamId ?? me.id);
   const appealSheetUp = phase === 'reveal' && view.appeal !== null && view.appeal.outcome === null && me.appeal?.voter === true;
   // Командна гра: керує той, хто має право діяти за команду; капітан один — його телефон бере крамницю й дуель.
   const team = view.team;
@@ -1770,7 +1786,10 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
           {me.appeal?.block != null && !(me.appeal.block === 'appeal_open' && me.appeal.voter) && <p className="meta appeal-block">{t(APPEAL_BLOCK_KEY[me.appeal.block])}</p>}
           {/* Виборець відкритої апеляції бачить аркуш, решта — картку; скасована апеляція картки не має. */}
           {view.appeal !== null && view.appeal.outcome !== 'cancelled' && !(view.appeal.outcome === null && me.appeal?.voter === true) && (
-            <AppealCard view={view.appeal} screenQuestion={view.question} size="phone" teams={view.teams !== null} offsetMs={offsetMs} />
+            <>
+              <AppealCard view={view.appeal} screenQuestion={view.question} size="phone" teams={view.teams !== null} offsetMs={offsetMs} />
+              {appealKept !== null && <p className="meta appeal-kept">{appealKept}</p>}
+            </>
           )}
         </>
       )}

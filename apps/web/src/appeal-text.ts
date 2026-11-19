@@ -45,6 +45,11 @@ export function appealCountText(view: Pick<AppealView, 'yes' | 'no' | 'waiting'>
   return countText('appealCountWaiting', view.waiting, { yes: view.yes, no: view.no, count: view.waiting });
 }
 
+/** 45a: «Оскарження прийнято — воно лишається у вас» тому, хто оскаржував (на телефоні — і всій команді): зал сказав «так», і апеляція не витрачена. Ведучий («host»), скасоване «так», відхилене й відкрите — null. */
+export function appealKeptText(view: AppealView, participantId: string): string | null {
+  return view.outcome === 'yes' && !view.undone && view.by.playerId === participantId ? t('appealKeptMine') : null;
+}
+
 /** «⚖️ Зараховано! +200» (без балів — «⚖️ Зараховано!»), «⚖️ Штраф знято», «⚖️ Лишається як було · так 1 · ні 1», «⚖️ Зараховано ведучим», скасоване «так» — «⚖️ Рішення залу скасовано»; відкрита чи cancelled — null. */
 export function appealResultText(view: AppealView): string | null {
   // Бали рішення «так» скасовано в «↶ Бали»: картка не каже «Зараховано!».

@@ -91,6 +91,14 @@ describe('BluffLieInput', () => {
   });
 });
 
+describe('BluffLieInput: the old text (45c)', () => {
+  it('starts with the initial text', () => {
+    render(<BluffLieInput send={vi.fn(async () => ({ ok: true as const }))} initial="Рим" autoFocus={false} />);
+    expect(field().value).toBe('Рим');
+    expect(sendButton().disabled).toBe(false);
+  });
+});
+
 describe('BluffLieInput: the cursor (45b)', () => {
   it('focuses the lie field', () => {
     render(<BluffLieInput send={vi.fn(async () => ({ ok: true as const }))} />);

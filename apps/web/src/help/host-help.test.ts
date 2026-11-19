@@ -232,7 +232,7 @@ describe('host help', () => {
     expect(ids.at(-7)).toBe('setting.autopilot');
     filled('setting.appeal');
     const body = text('setting.appeal').replace(/ /g, ' ');
-    for (const part of ['30 с', '2 апеляції', 'Голосує зал', 'не бачить ніхто', 'Зараховано ведучим', '(апеляція)', 'Нема кому голосувати', 'Оскаржити штраф', 'капітан', 'Нічия', 'Пауза', '↶ Бали', 'Після кінця гри']) expect(body, part).toContain(part);
+    for (const part of ['30 с', '2 відхилені апеляції', 'не витрачається', 'Голосує зал', 'не бачить ніхто', 'Зараховано ведучим', '(апеляція)', 'Нема кому голосувати', 'Оскаржити штраф', 'капітан', 'Нічия', 'Пауза', '↶ Бали', 'Після кінця гри']) expect(body, part).toContain(part);
     expect(body.toLowerCase()).not.toMatch(/росі|срср/);
     expect(body).not.toMatch(/(^|[^а-яіїєґ])(голосував|голосувала|оскаржив|оскаржила)/);
     expect(body).toContain('кожна людина окремо');
