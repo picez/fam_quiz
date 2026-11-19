@@ -1179,8 +1179,9 @@ button.choice {
   right: 0; /* phys */
   z-index: 60;
   padding-top: env(safe-area-inset-top);
-  background: var(--notice-bg);
+  background: var(--surface); /* суцільний: текст під смужкою не просвічує */
   border-bottom: 1px solid var(--line);
+  box-shadow: 0 2px 8px rgb(0 0 0 / 0.5);
   pointer-events: none;
   animation: timer-sticky-in 160ms ease-out;
 }
@@ -1244,8 +1245,13 @@ button.choice {
   border-bottom-color: var(--accent);
 }
 
+/* Останні секунди: залита плашка, як клапан основного табло (колір сам по собі майже не відрізняється від --amber). */
 .timer-sticky.is-ending .timer-sticky-left {
-  color: var(--accent);
+  background: var(--accent);
+  color: var(--on-accent);
+  padding: 0 0.4rem;
+  border-radius: var(--radius-small);
+  font-weight: 900;
 }
 
 .timer-sticky.is-ending .timer-sticky-bar > span {
@@ -1262,6 +1268,11 @@ button.choice {
   }
 }
 
+:root.is-light .timer-sticky {
+  box-shadow: 0 2px 6px rgb(31 21 21 / 0.14);
+}
+
+/* Легкий режим навмисно більший за 40 px: шрифт 118,75 %, а рядок у rem; це задумано, ліміт 40 px — для звичайного режиму. */
 :where(:root.is-easy) .timer-sticky {
   animation: none;
 }

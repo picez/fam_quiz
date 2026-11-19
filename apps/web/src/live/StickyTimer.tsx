@@ -53,9 +53,13 @@ export function useStickyTimer(element: HTMLElement | null, input: TimerInput): 
         const entry = entries[entries.length - 1];
         if (entry === undefined) return;
         // Лише табло вище екрана: нижче екрана воно ще попереду, смужка не потрібна.
-        setAbove(!entry.isIntersecting && entry.boundingClientRect.bottom <= (entry.rootBounds?.top ?? 0));
+        // Нульовий прямокутник — табло сховано (display: none) або відчеплено: смужку не піднімаємо.
+        const r = entry.boundingClientRect;
+        const laidOut = r.width > 0 || r.height > 0;
+        setAbove(laidOut && !entry.isIntersecting && r.bottom <= (entry.rootBounds?.top ?? 0));
       },
-      { threshold: 0 },
+      // Верхній відступ 40 px: смужка лишається, поки табло не вийде з-під її лінії.
+      { threshold: 0, rootMargin: '-40px 0px 0px 0px' },
     );
     observer.observe(element);
     return () => {

@@ -1,4 +1,6 @@
 // @vitest-environment jsdom
+// Стилі читаються з диска (Vitest підміняє CSS порожнім рядком); типів node у вебі немає.
+// @ts-expect-error node:fs без @types/node
 import { existsSync, readFileSync } from 'node:fs';
 import { act, cleanup, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -40,7 +42,7 @@ function scrollAway(isIntersecting: boolean, bottom: number, which?: number): vo
       callback(
         observed.map(
           (target) =>
-            ({ target, isIntersecting, boundingClientRect: { top: bottom - 60, bottom }, rootBounds: { top: 0, bottom: 568 } }) as unknown as IntersectionObserverEntry,
+            ({ target, isIntersecting, boundingClientRect: { top: bottom - 60, bottom, width: 300, height: 60 }, rootBounds: { top: 0, bottom: 568 } }) as unknown as IntersectionObserverEntry,
         ),
         {} as IntersectionObserver,
       );
@@ -185,6 +187,74 @@ describe('StickyTimer', () => {
     );
     expect(screen.getByRole('timer')).toBeTruthy();
     expect(strip()).toBeNull();
+  });
+});
+
+describe('strip robustness', () => {
+  it('a timer with a zero rect (hidden or detached) does not raise the strip', () => {
+    render(
+      <StickyTimerProvider size="phone">
+        <Timer view={{ endsAt: null, remainingMs: 12_000 }} offsetMs={0} total={30_000} />
+      </StickyTimerProvider>,
+    );
+    act(() => {
+      for (const { callback, observed } of observers) {
+        callback(
+          observed.map(
+            (target) =>
+              ({ target, isIntersecting: false, boundingClientRect: { top: 0, bottom: 0, width: 0, height: 0 }, rootBounds: { top: 0, bottom: 568 } }) as unknown as IntersectionObserverEntry,
+          ),
+          {} as IntersectionObserver,
+        );
+      }
+    });
+    expect(strip()).toBeNull();
+  });
+
+  it('unmounting the timer stops observing and removes the strip', () => {
+    const { unmount } = render(
+      <StickyTimerProvider size="phone">
+        <Timer view={{ endsAt: null, remainingMs: 12_000 }} offsetMs={0} total={30_000} />
+      </StickyTimerProvider>,
+    );
+    scrollAway(false, -10);
+    expect(strip()).not.toBeNull();
+    unmount();
+    expect(observers.every((observer) => observer.observed.length === 0)).toBe(true);
+    expect(strip()).toBeNull();
+  });
+
+  it('the strip leaves when the hidden timer loses its time', () => {
+    const tree = (view: { endsAt: number | null; remainingMs: number | null }) => (
+      <StickyTimerProvider size="phone">
+        <Timer view={view} offsetMs={0} total={30_000} />
+      </StickyTimerProvider>
+    );
+    const { rerender } = render(tree({ endsAt: null, remainingMs: 12_000 }));
+    scrollAway(false, -10);
+    expect(strip()).not.toBeNull();
+    rerender(tree({ endsAt: null, remainingMs: null }));
+    expect(strip()).toBeNull();
+  });
+
+  it('the observer keeps the strip until the timer clears the strip line', () => {
+    render(
+      <StickyTimerProvider size="phone">
+        <Timer view={{ endsAt: null, remainingMs: 12_000 }} offsetMs={0} total={30_000} />
+      </StickyTimerProvider>,
+    );
+    expect(construct.mock.calls[0]![1]).toMatchObject({ rootMargin: '-40px 0px 0px 0px' });
+  });
+});
+
+describe('strip look', () => {
+  it('is an opaque surface with a shadow, and the last seconds fill a pill', () => {
+    const path = ['apps/web/src/styles.css', 'src/styles.css'].find((p) => existsSync(p) as boolean)!;
+    const css = readFileSync(path, 'utf8') as string;
+    const block = css.match(/\.timer-sticky \{[^}]*\}/)![0];
+    expect(block).toContain('background: var(--surface)');
+    expect(block).toContain('box-shadow:');
+    expect(css.match(/\.timer-sticky\.is-ending \.timer-sticky-left \{[^}]*\}/)![0]).toContain('background: var(--accent)');
   });
 });
 

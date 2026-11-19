@@ -5686,7 +5686,7 @@ describe('sticky timer (55)', () => {
         callback(
           observed.map(
             (target) =>
-              ({ target, isIntersecting, boundingClientRect: { top: bottom - 60, bottom }, rootBounds: { top: 0, bottom: 568 } }) as unknown as IntersectionObserverEntry,
+              ({ target, isIntersecting, boundingClientRect: { top: bottom - 60, bottom, width: 300, height: 60 }, rootBounds: { top: 0, bottom: 568 } }) as unknown as IntersectionObserverEntry,
           ),
           {} as IntersectionObserver,
         );

@@ -4290,7 +4290,7 @@ describe('HostScreen sticky timer (55)', () => {
         callback(
           observed.map(
             (target) =>
-              ({ target, isIntersecting: false, boundingClientRect: { top: -70, bottom: -10 }, rootBounds: { top: 0, bottom: 568 } }) as unknown as IntersectionObserverEntry,
+              ({ target, isIntersecting: false, boundingClientRect: { top: -70, bottom: -10, width: 300, height: 60 }, rootBounds: { top: 0, bottom: 568 } }) as unknown as IntersectionObserverEntry,
           ),
           {} as IntersectionObserver,
         );

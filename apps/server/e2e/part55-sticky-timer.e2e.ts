@@ -139,6 +139,7 @@ async function strip55Run(page: Page, name: string, shot: string, light: boolean
     const el = document.elementFromPoint(innerWidth / 2, 4)!;
     strip.style.pointerEvents = ''; return `${el.tagName}.${el.className} in strip: ${el.closest('.timer-sticky') !== null}; rect ${JSON.stringify(document.querySelector('.timer-sticky')!.getBoundingClientRect())}`; });
   expect(top, `${name}: the strip is the top layer`).toContain('in strip: true');
+  expect(await page.evaluate(() => getComputedStyle(document.querySelector('.timer-sticky')!).backgroundColor), `${name}: the strip is opaque`).toMatch(/^rgb\(\d+, \d+, \d+\)$/);
   await vshot55(page, shot, light);
   if (field) {
     const input = page.getByLabel('Ваша відповідь', exact);
