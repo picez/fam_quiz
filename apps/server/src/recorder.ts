@@ -773,8 +773,11 @@ export function attachRecorder(
           }
           // Картки досвіду (49) так і не буде: порожня мапа, щоб телефони не чекали «Рахуємо досвід…» вічно.
           if (state.phase === 'finished' && !momented.has(room.id) && !manager.frozen && manager.get(room.code) === room) {
-            manager.setXpMoments(room, new Map());
             momented.add(room.id);
+            // Зміна кімнати від цього виклику не має знову запускати вичерпані повтори того самого стану.
+            lastSignature.set(room.id, current);
+            manager.setXpMoments(room, new Map());
+            lastSignature.delete(room.id);
           }
           return;
         }

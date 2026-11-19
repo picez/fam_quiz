@@ -255,7 +255,8 @@ describe('the xp moment in the recorder (49)', () => {
     expect(playerView(w, room, ids['Анна']).xp).toEqual({ account: true, moment: null });
     await vi.waitFor(() => expect(room.xpMoments).toEqual(new Map()));
     await w.recorder.idle();
-    expect(vi.mocked(xp.creditGame).mock.calls.length).toBeGreaterThanOrEqual(3);
+    // Перша спроба й два повтори — і все: порожня картка не запускає повторів знову.
+    expect(vi.mocked(xp.creditGame)).toHaveBeenCalledTimes(3);
     expect(vi.mocked(xp.gameXpMoments)).not.toHaveBeenCalled();
     expect(has(playerView(w, room, ids['Анна']), 'xp')).toBe(false);
     expect(playerView(w, room, ids['Гість']).xp).toEqual({ account: false });
