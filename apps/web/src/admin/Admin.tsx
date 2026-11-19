@@ -2,6 +2,7 @@ import type { JSX } from 'react';
 import { Navigate, NavLink, Route, Routes } from 'react-router-dom';
 import { t } from '../i18n';
 import { useAccount } from '../useAccount';
+import { AdminAnnouncement } from './AdminAnnouncement';
 import { AdminLive } from './AdminLive';
 import { AdminLog } from './AdminLog';
 import { AdminQuiz, AdminReportedQuiz } from './AdminQuiz';
@@ -17,6 +18,7 @@ const TABS = [
   { to: '/admin/users', key: 'adminTabUsers', end: false },
   { to: '/admin/quizzes', key: 'adminTabQuizzes', end: false },
   { to: '/admin/reports', key: 'adminTabReports', end: false },
+  { to: '/admin/announcement', key: 'adminTabAnnouncement', end: false },
   { to: '/admin/log', key: 'adminTabLog', end: false },
 ] as const;
 
@@ -44,6 +46,7 @@ export function Admin(): JSX.Element | null {
         <Route path="quizzes/:id" element={<AdminQuiz />} />
         <Route path="reports" element={<AdminReports />} />
         <Route path="reports/quiz/:entryId" element={<AdminReportedQuiz />} />
+        <Route path="announcement" element={<AdminAnnouncement />} />
         <Route path="log" element={<AdminLog />} />
         <Route path="*" element={<Navigate to="/admin" replace />} />
       </Routes>

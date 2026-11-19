@@ -27164,3 +27164,69 @@ a.library-card:focus-visible {
   min-height: 0;
   font-size: 0.875rem;
 }
+
+/* 53: оголошення адміна — банер (вид і попередній перегляд) та вкладка «Оголошення». */
+.announce-banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 1rem;
+  box-sizing: border-box;
+  max-width: 100%;
+  padding: 0.6rem 0.9rem;
+  border: 2px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--paper);
+}
+
+.announce-banner .announce-text {
+  flex: 1 1 12rem;
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.announce-banner .announce-more {
+  color: inherit;
+  font-weight: 700;
+  text-decoration: underline;
+}
+
+.announce-banner .announce-close {
+  flex: none;
+  min-width: 2.75rem;
+  min-height: 2.75rem;
+  padding: 0;
+  font-size: 1.5rem;
+  line-height: 1;
+}
+
+.admin-announce {
+  display: grid;
+  gap: 1rem;
+  max-width: 40rem;
+}
+
+.admin-announce textarea,
+.admin-announce input[type='text'],
+.admin-announce input[type='datetime-local'] {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+}
+
+.admin-announce-until {
+  min-width: 0;
+  margin: 1rem 0 0;
+  padding: 0;
+  border: 0;
+}
+
+.admin-announce-preview {
+  margin-top: 1rem;
+}
+
+.admin-announce-preview h3 {
+  margin: 0 0 0.5rem;
+}

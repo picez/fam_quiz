@@ -1,4 +1,4 @@
-import type { AdminCharts, AdminHealth, AdminLiveList, AdminList, AdminReportItem, AdminLogEntry, AdminQuizRow, AdminQuizView, AdminStats, AdminUserDetail, AdminUserRow } from '@quiz/shared';
+import type { Announcement, AnnouncementInput, AdminCharts, AdminHealth, AdminLiveList, AdminList, AdminReportItem, AdminLogEntry, AdminQuizRow, AdminQuizView, AdminStats, AdminUserDetail, AdminUserRow } from '@quiz/shared';
 import { fetchData, request, type ApiData, type ApiResult } from '../api';
 
 const id = encodeURIComponent;
@@ -30,3 +30,7 @@ export const adminLive = (): Promise<ApiData<AdminLiveList>> => fetchData<AdminL
 export const closeLiveGame = (code: string): Promise<ApiResult<object>> => request<object>(`/api/admin/live/${id(code)}/close`, { method: 'POST' });
 export const adminCharts = (): Promise<ApiData<AdminCharts>> => fetchData<AdminCharts>('/api/admin/charts');
 export const adminHealth = (): Promise<ApiData<AdminHealth>> => fetchData<AdminHealth>('/api/admin/health');
+export const adminAnnouncement = (): Promise<ApiData<{ announcement: Announcement | null }>> => fetchData<{ announcement: Announcement | null }>('/api/admin/announcement');
+export const saveAnnouncement = (input: AnnouncementInput): Promise<ApiData<Announcement>> =>
+  fetchData<Announcement>('/api/admin/announcement', { method: 'PUT', body: input });
+export const clearAnnouncement = (): Promise<ApiResult<object>> => request<object>('/api/admin/announcement', { method: 'DELETE' });
