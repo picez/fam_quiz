@@ -49,6 +49,8 @@ const ROLE50 = 'Ви — шпигун';
 const HINT50 = "Її п'ють зранку";
 const WORD_FIELD50 = 'Напишіть одне слово-асоціацію';
 const CAUGHT50 = 'Вас викрили! Впишіть загальне слово';
+/** Як писати шпигунові (замість тексту запитання про загальне слово). */
+const HOW50 = 'Напишіть асоціацію так, щоб вас не викрили';
 const NAMES50 = ['Оля', 'Тарас', 'Петро', 'Ганна'];
 
 /** Слово цілим (кирилиця): «кава» не в «цікава». */
@@ -247,6 +249,8 @@ async function hinted50() {
   // ── Телефони: шпигун — «Ви — шпигун» і підказка, без слова; решта — «Ваше слово» «кава», без підказки. ──
   for (const [at, page] of phones.entries()) await expect.poll(() => ownOf50(page), POLL).toBe(at === spyAt ? ROLE50 : 'кава');
   await spyPage.locator('.spy-hint', { hasText: `Підказка: ${HINT50}` }).waitFor();
+  expect(await spyPage.locator('.spy-you-how').textContent(), 'how the spy writes').toBe(HOW50);
+  for (const entry of others) expect(await entry.page.locator('.spy-you-how').count(), `${entry.name} sees the spy instruction`).toBe(0);
   for (const page of phones) await field(page, WORD_FIELD50).waitFor();
   const spyText = await spyPage.locator('body').innerText();
   expect(hasWord50(spyText, 'кава'), '«кава» on the spy phone').toBe(false);
@@ -269,6 +273,7 @@ async function hinted50() {
   const words = ['ранок', 'зерна', 'філіжанка'];
   for (const [at, entry] of others.entries()) await writeWord50(entry.page, words[at]!);
   await writeWord50(spyPage, 'лимон');
+  await expect.poll(() => spyPage.locator('.spy-you-how').count(), POLL).toBe(0);
   await stage.locator('.stage-question .spy-view h2.spy-title', { hasText: 'Хто шпигун?' }).waitFor();
   // Голосування: спільні телефони без підказки, на телефоні шпигуна роль і підказка лишаються.
   await spyPage.locator('.spy-vote').waitFor();
@@ -281,6 +286,8 @@ async function hinted50() {
   await vote50(spyPage, others[0]!.name);
   await stage.locator('.stage-question .spy-guess-stage', { hasText: 'Останній шанс шпигуна…' }).waitFor();
   await spyPage.getByText(CAUGHT50, exact).waitFor();
+  // Останній шанс: підказка лишається на телефоні викритого шпигуна, над полем.
+  expect(await spyPage.locator('.spy-phone .spy-hint').textContent(), 'the hint at the guess').toBe(`Підказка: ${HINT50}`);
   for (const entry of others) await entry.page.locator('.spy-phone .spy-guess-stage', { hasText: 'Останній шанс шпигуна…' }).waitFor();
   expect(await noSideScroll(spyPage), 'the caught spy phone scrolls sideways').toBe(true);
   await vshot50(spyPage, 'spy50-caught-phone-light-360');
@@ -346,6 +353,8 @@ async function unhinted50() {
   const spyText = await spyPage.locator('body').innerText();
   expect(spyText.includes('Підказка') || hasWord50(spyText, 'гітара'), 'a hint or the word on the spy phone').toBe(false);
   expect(spyText).toContain(ROLE50);
+  expect(await spyPage.locator('.spy-you-how').textContent(), 'how the spy writes without a hint').toBe(HOW50);
+  for (const entry of others) expect(await entry.page.locator('.spy-you-how').count(), `${entry.name} sees the spy instruction`).toBe(0);
   expect(await noSideScroll(spyPage), 'the spy phone scrolls sideways').toBe(true);
   await vshot50(spyPage, 'spy50-nohint-phone-360');
 

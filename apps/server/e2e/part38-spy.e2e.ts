@@ -54,7 +54,10 @@ it('part 38: 24 players — associations and the vote reveal stay inside 1280×7
 
 // ——— Помічники ———
 
-const SPY_TEXT38 = 'Напишіть одне слово-асоціацію до свого слова';
+/** Текст фікстур spy і spy2 (з 50 — про загальне слово). */
+const SPY_TEXT38 = 'Напишіть одне слово-асоціацію до загального слова';
+/** Текст старого запитання spyLegacy (до 50). */
+const SPY_LEGACY_TEXT38 = 'Напишіть одне слово-асоціацію до свого слова';
 /** Типовий текст нового запитання «Шпигун» у редакторі (з 50). */
 const SPY_DEFAULT38 = 'Напишіть одне слово-асоціацію до загального слова';
 const WORD_FIELD38 = 'Напишіть одне слово-асоціацію';
@@ -503,7 +506,7 @@ async function restart38() {
   await afterSplash(host, stage, ...phones);
   await step27a(host, 'Почати раунд');
   await afterSplash(host, stage, ...phones);
-  await stage.getByText(SPY_TEXT38, exact).first().waitFor();
+  await stage.getByText(SPY_LEGACY_TEXT38, exact).first().waitFor();
   const spyName = await hostSpyName38(host);
   const spyAt = names.indexOf(spyName);
   const others = phones.map((page, at) => ({ page, name: names[at]!, at })).filter((entry) => entry.at !== spyAt);
