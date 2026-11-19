@@ -7,6 +7,7 @@ import {
   hasTruthRound,
   pageOffset,
   questionsOf,
+  type AdminBotQuiz,
   type AdminList,
   type AdminLogEntry,
   type AdminQuizRow,
@@ -147,6 +148,19 @@ export async function adminUser(db: Db, emails: ReadonlySet<string>, id: string,
     awards: awards.map((a) => ({ id: a.id, place: a.place, content: a.content, quizTitle: a.quizTitle, awardedAt: iso(a.awardedAt) })),
     title: title ? { text: title.text, until: iso(title.expiresAt) } : null,
   };
+}
+
+/** Вікторини бота для вкладки «Бот» (54): нові першими. */
+export async function botQuizzes(db: Db): Promise<AdminBotQuiz[]> {
+  const rows = await db.select().from(quiz).where(eq(quiz.ownerId, BOT_USER_ID)).orderBy(desc(quiz.updatedAt), quiz.id);
+  return rows.map((row) => ({
+    id: row.id,
+    title: row.title,
+    rounds: row.rounds.length,
+    questions: questionsOf(row).length,
+    truth: hasTruthRound(row),
+    updatedAt: iso(row.updatedAt),
+  }));
 }
 
 export async function adminQuizzes(db: Db, query: { q?: string; page: number }): Promise<AdminList<AdminQuizRow>> {
