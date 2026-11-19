@@ -3,11 +3,13 @@ import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { forgetAccount } from '../useAccount';
-import { checkCode, getFeedBadge, getMyInvites, listLobbies, me } from '../api';
-import { savePlayer } from '../storage';
+import { checkCode, continueGame, getCalendar, getFeedBadge, getMyInvites, listGames, listLobbies, me } from '../api';
+import { saveHost, saveLastGame, savePlayer } from '../storage';
+import { dayHeading, timeText, viewerZone } from '../calendar/calendar-time';
+import type { CalendarEvent, GameSummary } from '@quiz/shared';
 import { ACCOUNT_WAIT_MS, Home } from './Home';
 
-vi.mock('../api', () => ({ checkCode: vi.fn(), me: vi.fn(), getMyInvites: vi.fn(), getGroupInvites: vi.fn(async () => ({ ok: true, data: [] })), getFeedBadge: vi.fn(), createGame: vi.fn(), createQuiz: vi.fn(), listLobbies: vi.fn() }));
+vi.mock('../api', () => ({ checkCode: vi.fn(), me: vi.fn(), getMyInvites: vi.fn(), getGroupInvites: vi.fn(async () => ({ ok: true, data: [] })), getFeedBadge: vi.fn(), createGame: vi.fn(), createQuiz: vi.fn(), listLobbies: vi.fn(), listGames: vi.fn(), getCalendar: vi.fn(), continueGame: vi.fn() }));
 
 beforeEach(() => {
   // Відома людина (stale-while-revalidate) не переходить з тесту в тест.
@@ -17,6 +19,10 @@ beforeEach(() => {
   vi.mocked(getMyInvites).mockResolvedValue({ ok: true, data: [] });
   vi.mocked(listLobbies).mockResolvedValue({ ok: true, data: [] });
   vi.mocked(getFeedBadge).mockResolvedValue({ ok: true, events: 0, requests: 0, decisions: 0 });
+  vi.mocked(listGames).mockReset().mockResolvedValue({ ok: true, data: [] });
+  vi.mocked(getCalendar).mockReset().mockResolvedValue({ ok: true, events: [], asOf: new Date().toISOString() });
+  vi.mocked(continueGame).mockReset();
+  vi.mocked(checkCode).mockReset();
 });
 afterEach(cleanup);
 
@@ -113,14 +119,12 @@ describe('Home for a signed-in person', () => {
       </MemoryRouter>,
     );
 
-  it('shows eight start tiles in order and no code form until «Доєднатись до гри» is pressed', async () => {
+  it('a signed-in person sees «Створити гру» and «Приєднатися» on top and six tiles below', async () => {
     vi.mocked(me).mockResolvedValue(OLENA);
     at('/');
     const nav = await screen.findByRole('navigation', { name: 'Стартове меню' });
     const tiles = [...nav.children].map((tile) => [tile.tagName, tile.textContent, tile.getAttribute('href')]);
     expect(tiles).toEqual([
-      ['A', '🎬Створити гру', '/create'],
-      ['BUTTON', '🎮Доєднатись до гри', null],
       ['A', '👥Друзі', '/profile/friends'],
       ['A', '📰Стрічка', '/feed'],
       ['A', '📝Мої вікторини', '/quizzes'],
@@ -128,15 +132,29 @@ describe('Home for a signed-in person', () => {
       ['A', '🕘Історія', '/history'],
       ['A', '👤Профіль', '/profile'],
     ]);
+    const create = screen.getByRole('link', { name: 'Створити гру' });
+    expect(create.getAttribute('href')).toBe('/create');
+    const join = screen.getByRole('button', { name: 'Приєднатися' });
+    const actions = create.closest('.home-actions')!;
+    expect(actions).not.toBeNull();
+    expect(actions.contains(join)).toBe(true);
+    expect(actions.compareDocumentPosition(nav) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(screen.queryByLabelText('Код гри')).toBeNull();
     expect(screen.queryByRole('link', { name: 'Я ведучий' })).toBeNull();
+  });
 
-    const join = screen.getByRole('button', { name: 'Доєднатись до гри' });
+  it('«Приєднатися» opens the code form under the buttons', async () => {
+    vi.mocked(me).mockResolvedValue(OLENA);
+    at('/');
+    const join = await screen.findByRole('button', { name: 'Приєднатися' });
     expect(join.getAttribute('aria-expanded')).toBe('false');
     fireEvent.click(join);
     expect(join.getAttribute('aria-expanded')).toBe('true');
+    expect(join.getAttribute('aria-controls')).toBe('join-form');
     const input = screen.getByLabelText('Код гри');
     expect(document.activeElement).toBe(input);
+    expect(join.compareDocumentPosition(input) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(input.compareDocumentPosition(screen.getByRole('navigation', { name: 'Стартове меню' })) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
 
     vi.mocked(checkCode).mockResolvedValue({ ok: true, phase: 'lobby', title: 'Гра', locked: false, late: false });
     fireEvent.change(input, { target: { value: '123 456' } });
@@ -160,7 +178,7 @@ describe('Home for a signed-in person', () => {
     vi.mocked(me).mockResolvedValue(OLENA);
     at('/?code=123456');
     expect(((await screen.findByLabelText('Код гри')) as HTMLInputElement).value).toBe('123456');
-    expect(screen.getByRole('button', { name: 'Доєднатись до гри' }).getAttribute('aria-expanded')).toBe('true');
+    expect(screen.getByRole('button', { name: 'Приєднатися' }).getAttribute('aria-expanded')).toBe('true');
   });
 
   it('keeps the plain entry for a visitor', async () => {
@@ -193,5 +211,146 @@ describe('Home for a signed-in person', () => {
     expect(hero.contains(screen.getByRole('heading', { level: 1 }))).toBe(true);
     expect(hero.contains(await screen.findByLabelText('Код гри'))).toBe(true);
     expect(screen.getByRole('button', { name: 'Увійти' })).toBeTruthy();
+  });
+
+  const routes = (path: string) =>
+    render(
+      <MemoryRouter initialEntries={[path]}>
+        <Routes>
+          <Route path="/" element={<Home />} />
+          <Route path="/host/:code" element={<p>пульт ведучого</p>} />
+          <Route path="/play/:code" element={<p>сторінка гри</p>} />
+        </Routes>
+      </MemoryRouter>,
+    );
+  const SAVED: GameSummary = {
+    id: 'g7',
+    title: 'Осінній квіз',
+    code: '111111',
+    status: 'saved',
+    startedAt: '2026-11-01T18:00:00.000Z',
+    finishedAt: null,
+    playerCount: 4,
+    questionsPlayed: 5,
+    questionCount: 20,
+    teams: false,
+    autopilot: false,
+    saved: { mode: 'exact', open: false, openCode: null, savedAt: '2026-11-10T10:00:00.000Z' },
+  };
+  const EVENT: CalendarEvent = {
+    id: 'e1',
+    title: 'Вечір загадок',
+    startsAt: new Date(Date.now() + 26 * 3_600_000).toISOString(),
+    host: { id: 'h1', nickname: 'Оксана', avatar: null },
+    mine: false,
+    quiz: { id: null, title: 'Загадки' },
+    state: 'open',
+    editedAt: null,
+    cancelledAt: null,
+    approved: 3,
+    myRequest: 'approved',
+    requests: null,
+    joinCode: '222222',
+  };
+
+  it('a guest gets both buttons with the form already open', async () => {
+    at('/');
+    const input = await screen.findByLabelText('Код гри');
+    const join = screen.getByRole('button', { name: 'Приєднатися' });
+    expect(join.getAttribute('aria-expanded')).toBe('true');
+    expect(join.getAttribute('aria-controls')).toBe('join-form');
+    expect(screen.getByRole('link', { name: 'Створити гру' }).getAttribute('href')).toBe('/create');
+    expect(join.compareDocumentPosition(input) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.queryByRole('navigation', { name: 'Стартове меню' })).toBeNull();
+  });
+
+  it('«Продовжити гру» for a running game links back to the host panel and replaces the old banner', async () => {
+    vi.mocked(me).mockResolvedValue(OLENA);
+    saveHost('654321', { hostToken: 'h', stageToken: 's' });
+    saveLastGame('654321');
+    vi.mocked(checkCode).mockResolvedValue({ ok: true, phase: 'question', title: 'Географія', locked: false, late: false });
+    vi.mocked(listGames).mockResolvedValue({ ok: true, data: [SAVED] });
+    vi.mocked(getCalendar).mockResolvedValue({ ok: true, events: [EVENT], asOf: new Date().toISOString() });
+    routes('/');
+    const card = (await screen.findByRole('heading', { name: 'Продовжити гру' })).closest('.next-up') as HTMLElement;
+    expect(card).not.toBeNull();
+    expect(card.className).toContain('panel');
+    expect(card.textContent).toContain('Географія');
+    expect(card.textContent).toContain('Гра 654 321 ще триває');
+    expect(screen.getByRole('link', { name: 'Повернутися' }).getAttribute('href')).toBe('/host/654321');
+    expect(screen.queryByRole('link', { name: /Повернутися до гри/ })).toBeNull();
+    expect(screen.queryByText('Осінній квіз')).toBeNull();
+    expect(screen.queryByRole('heading', { name: 'Найближча подія' })).toBeNull();
+  });
+
+  it('«Продовжити гру» for a saved game continues it', async () => {
+    vi.mocked(me).mockResolvedValue(OLENA);
+    vi.mocked(listGames).mockResolvedValue({ ok: true, data: [SAVED] });
+    vi.mocked(getCalendar).mockResolvedValue({ ok: true, events: [EVENT], asOf: new Date().toISOString() });
+    vi.mocked(continueGame).mockResolvedValue({ ok: true, gameId: 'g8', code: '333444', hostToken: 'h', stageToken: 's' });
+    routes('/');
+    const card = (await screen.findByRole('heading', { name: 'Продовжити гру' })).closest('.next-up') as HTMLElement;
+    expect(card.textContent).toContain('Осінній квіз');
+    expect(card.textContent).toContain('Збережено ');
+    fireEvent.click(screen.getByRole('button', { name: 'Продовжити' }));
+    expect(await screen.findByText('пульт ведучого')).toBeTruthy();
+    expect(continueGame).toHaveBeenCalledWith('g7');
+  });
+
+  it('shows why a saved game could not be continued', async () => {
+    vi.mocked(me).mockResolvedValue(OLENA);
+    vi.mocked(listGames).mockResolvedValue({ ok: true, data: [SAVED] });
+    vi.mocked(continueGame).mockResolvedValue({ ok: false, error: 'offline' });
+    routes('/');
+    fireEvent.click(await screen.findByRole('button', { name: 'Продовжити' }));
+    expect((await screen.findByRole('alert')).textContent).not.toBe('');
+  });
+
+  it('«Найближча подія» shows the title, day and time and links to the calendar', async () => {
+    vi.mocked(me).mockResolvedValue(OLENA);
+    vi.mocked(getCalendar).mockResolvedValue({ ok: true, events: [EVENT], asOf: new Date().toISOString() });
+    routes('/');
+    const card = (await screen.findByRole('heading', { name: 'Найближча подія' })).closest('.next-up') as HTMLElement;
+    const zone = viewerZone();
+    expect(card.textContent).toContain('Вечір загадок');
+    expect(card.textContent).toContain(`${dayHeading(EVENT.startsAt, zone)}, ${timeText(EVENT.startsAt, zone)}`);
+    expect(card.textContent).toContain('Веде Оксана');
+    expect(card.textContent).toContain('Гра вже відкрита');
+    expect(screen.getByRole('link', { name: 'До календаря' }).getAttribute('href')).toBe('/feed/calendar');
+  });
+
+  it('no card while the answers are pending and none when there is nothing', async () => {
+    vi.mocked(me).mockResolvedValue(OLENA);
+    vi.mocked(getCalendar).mockResolvedValue({ ok: true, events: [EVENT], asOf: new Date().toISOString() });
+    let answer: (value: Awaited<ReturnType<typeof listGames>>) => void = () => {};
+    vi.mocked(listGames).mockReturnValue(new Promise((resolve) => (answer = resolve)));
+    routes('/');
+    await screen.findByRole('navigation', { name: 'Стартове меню' });
+    await act(async () => {});
+    expect(getCalendar).toHaveBeenCalled();
+    expect(document.querySelector('.next-up')).toBeNull();
+    await act(async () => answer({ ok: false, error: 'offline' }));
+    expect(await screen.findByRole('heading', { name: 'Найближча подія' })).toBeTruthy();
+    cleanup();
+
+    vi.mocked(listGames).mockResolvedValue({ ok: true, data: [] });
+    vi.mocked(getCalendar).mockResolvedValue({ ok: false, error: 'offline' });
+    routes('/');
+    await screen.findByRole('navigation', { name: 'Стартове меню' });
+    await act(async () => {});
+    expect(listGames).toHaveBeenCalled();
+    expect(document.querySelector('.next-up')).toBeNull();
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  it('a guest never asks for saved games or the calendar', async () => {
+    saveHost('654321', { hostToken: 'h', stageToken: 's' });
+    saveLastGame('654321');
+    vi.mocked(checkCode).mockResolvedValue({ ok: true, phase: 'question', title: 'Географія', locked: false, late: false });
+    routes('/');
+    expect(await screen.findByRole('heading', { name: 'Продовжити гру' })).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'Повернутися' }).getAttribute('href')).toBe('/host/654321');
+    expect(listGames).not.toHaveBeenCalled();
+    expect(getCalendar).not.toHaveBeenCalled();
   });
 });

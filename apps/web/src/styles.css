@@ -3771,7 +3771,66 @@ button.match-item {
   font-variant-numeric: tabular-nums;
 }
 
-/* Стартове меню (24a): плитки як у профілі, але більші. Телефон — 2 колонки (вісім плиток — чотири рівні рядки); від 701 px — 4 колонки.
+/* Головна (53): дві великі кнопки під заголовком — завжди поруч (і на 360 px), підпис переноситься, а не обрізається. */
+.home-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.625rem;
+}
+
+.home-action {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  min-height: 3.5rem;
+  padding: 0.75rem 0.625rem;
+  font-size: 1.0625rem;
+  line-height: 1.2;
+  text-align: center;
+  text-decoration: none;
+  overflow-wrap: anywhere;
+  hyphens: auto;
+}
+
+.home-action[aria-expanded='true'] {
+  border-color: var(--accent);
+}
+
+/* Картка «Продовжити гру» / «Найближча подія» між кнопками й плитками. */
+.next-up {
+  gap: 0.5rem;
+}
+
+.next-up h2 {
+  margin: 0;
+  color: var(--dim);
+  font-size: 0.95rem;
+}
+
+.next-up p {
+  margin: 0;
+}
+
+.next-up-name {
+  font-size: 1.25rem;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.next-up-open {
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.next-up .btn {
+  align-self: flex-start;
+  margin-top: 0.5rem;
+  text-align: center;
+  text-decoration: none;
+}
+
+/* Стартове меню (24a; 53 — шість плиток): плитки як у профілі, але більші. Телефон — 2 колонки (три рівні рядки); від 701 px — 3.
    Підписи переносяться лише між словами: найдовше слово всіх 7 мов уміщається в плитку й на 320 px. */
 .start-menu {
   display: grid;
@@ -3781,7 +3840,7 @@ button.match-item {
 
 @media (min-width: 701px) {
   .start-menu {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 0.75rem;
   }
 }
