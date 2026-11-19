@@ -93,6 +93,7 @@ export const GAME_STATE_VERSION = 22;
  * 39 без нової версії: необов'язкове DuelState.bets (ставки на дуелянтів), значення AdjustmentSource 'duelbet' (target — дуелянт, на якого ставили), необов'язкове duels.betStake вікторини (немає поля — 100).
  * 40 без нової версії: необов'язкове GameState.soundsOff (ведучий вимкнув звуки сцени); старий знімок поля не має — звуки ввімкнено.
  * 48 без нової версії: тип wordle і необов'язкове Play.wordle (спроби гравців ключами); WordleAnswer — нове значення запису.
+ * 50 без нової версії: spy — необов'язкові spyHint і spyWord (застаріле, рушій його не читає); Play.spy без змін.
  */
 export const READABLE_STATE_VERSIONS: readonly number[] = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, GAME_STATE_VERSION];
 

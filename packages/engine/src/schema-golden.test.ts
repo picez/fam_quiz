@@ -87,7 +87,7 @@ const BY_TYPE = {
   videoclip,
   bluff,
   thinkalike: { id: 'x', type: 'thinkalike', text: 'Назвіть фрукт, який першим спадає на думку', imageUrl: null, video: null, timeLimit: 30, points: 1000 },
-  spy: { id: 'x', type: 'spy', text: 'Напишіть одне слово-асоціацію до свого слова', imageUrl: null, video: null, timeLimit: 40, points: 1000, accepted: ['кава'], spyWord: 'чай', voteTime: 30 },
+  spy: { id: 'x', type: 'spy', text: 'Напишіть одне слово-асоціацію до свого слова', imageUrl: null, video: null, timeLimit: 40, points: 1000, accepted: ['кава'], spyHint: "Що п'ють зранку", voteTime: 30 },
   think: think('x', [{ word: 'червоний', synonyms: ['багряний'] }]),
 } satisfies Record<QuestionType, Question>;
 

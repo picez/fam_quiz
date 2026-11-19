@@ -43,14 +43,16 @@ function opened() {
 }
 
 const WORDS = ['запах', 'ранок', 'гарячий', 'ложка'];
+/** Підказка шпигунові з фікстури spy (50). */
+const HINT = "Її п'ють зранку";
 
 describe('spy (38) in the room manager', () => {
   it('words, votes and a last chance through the room', () => {
     const { manager, room, ids, hostSpy, me, sceneStage } = opened();
     const [olena, taras, petro, marta] = ids;
     expect(hostSpy()?.spyId).toBe(petro);
-    expect(me(petro)?.word).toBe('чай');
-    expect(me(olena)?.word).toBe('кава');
+    expect(me(petro)).toMatchObject({ word: null, hint: HINT, spy: true });
+    expect(me(olena)).toMatchObject({ word: 'кава', hint: null, spy: false });
     ids.forEach((id, i) => expect(manager.spyWord(room, id, WORDS[i]!)).toEqual({ ok: true }));
     expect(sceneStage()).toBe('vote');
     expect(manager.spyWord(room, olena, 'ще')).toEqual({ ok: false, error: 'wrong_phase' });
@@ -68,15 +70,31 @@ describe('spy (38) in the room manager', () => {
 
   it('a spy taken at open is hidden from the scene and the other phones until reveal', () => {
     const { manager, room, ids } = opened();
-    const [olena, , petro] = ids;
-    const stage = JSON.stringify(manager.view(room, STAGE));
-    const phone = JSON.stringify(manager.view(room, { role: 'player', playerId: olena }));
-    for (const json of [stage, phone]) {
-      expect(json).not.toContain('чай');
-      expect(json).not.toContain('spyId');
-    }
-    expect(stage).not.toContain('кава');
-    expect(JSON.stringify(manager.view(room, { role: 'player', playerId: petro }))).not.toContain('кава');
+    const [olena, taras, petro, marta] = ids;
+    const frame = (identity: Identity) => JSON.stringify(manager.view(room, identity));
+    const others = [olena, taras, marta].map((id): Identity => ({ role: 'player', playerId: id }));
+    // Сцена й інші телефони — без підказки й без шпигуна; шпигун — без загального слова; пульт — з підказкою.
+    const check = () => {
+      for (const json of [frame(STAGE), ...others.map(frame)]) {
+        expect(json).not.toContain(HINT);
+        expect(json).not.toContain('spyId');
+      }
+      expect(frame(STAGE)).not.toContain('кава');
+      expect(frame({ role: 'player', playerId: petro })).not.toContain('кава');
+      expect(frame(HOST)).toContain(HINT);
+    };
+    check();
+    ids.forEach((id, i) => expect(manager.spyWord(room, id, WORDS[i]!)).toEqual({ ok: true }));
+    check();
+    for (const id of [olena, taras, marta]) expect(manager.spyVote(room, id, petro)).toEqual({ ok: true });
+    expect(manager.spyVote(room, petro, taras)).toEqual({ ok: true });
+    check();
+    expect(manager.spyGuess(room, petro, 'чай')).toEqual({ ok: true });
+    expect(room.state.phase).toBe('locked');
+    check();
+    expect(manager.host(room, { type: 'next' })).toEqual({ ok: true });
+    expect(room.state.phase).toBe('reveal');
+    expect(frame(STAGE)).toContain(HINT);
   });
 
   it('bad bodies are refused and a stranger cannot act', () => {

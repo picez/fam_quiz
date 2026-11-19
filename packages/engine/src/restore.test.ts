@@ -118,6 +118,7 @@ import {
   makeRoundsQuiz,
   overshoot,
   alikeQuiz,
+  spyLegacy,
   spyQuiz,
   wordleQuiz,
   pin,
@@ -166,7 +167,7 @@ import { spotdiffTap, type SpotTap } from './spotdiff';
 import { memoryFlip, type MemoryFlip } from './memory';
 import { melodyOpen } from './melody';
 import { alikeGroups, alikeSplit } from './alike';
-import { guessSpy, voteSpy, writeSpyWord } from './spy';
+import { guessSpy, playerSpy, voteSpy, writeSpyWord } from './spy';
 import { acceptAll, lobbyWith, lobbyWithSplash, must, openAt, sendBlitz } from './testing/helpers';
 import { head, right, toSort, wrong } from './testing/sort';
 import { hostView, playerView, stageView } from './views';
@@ -2665,6 +2666,33 @@ describe('38 snapshots', () => {
     const done = must(guessSpy(back, 'p3', 'кава', T0 + 10_000 + HOUR));
     expect(done.phase).toBe('locked');
     expect(done.players.map((p) => p.score)).toEqual([1000, 1000, 500, 1000]);
+  });
+});
+
+describe('50 snapshots', () => {
+  it('an old snapshot mid spy keeps the spy and the votes', () => {
+    expect(GAME_STATE_VERSION).toBe(22);
+    // Знімок до 50: запитання зі словом шпигуна «парус» у state.quiz і в Play.question, етап vote; rng 0.6 → шпигун Петро (p3).
+    let s = openAt(lobbyWith(makeRoundsQuiz([classicRound('r1', [spyLegacy])]), 'Оля', 'Тарас', 'Петро', 'Ганна'), T0, () => 0.6);
+    ['аромат', 'море', 'зелений', 'вітер'].forEach((text, i) => (s = must(writeSpyWord(s, `p${i + 1}`, text, T0 + 1000))));
+    s = must(voteSpy(s, 'p1', 'p3', T0 + 2000));
+    s = must(voteSpy(s, 'p2', 'p3', T0 + 2000));
+    expect(s.plays[0].spy?.stage).toBe('vote');
+    expect(s.plays[0].question).toMatchObject({ spyWord: 'парус' });
+    const back = roundTrip(suspend(roundTrip(s), T0 + 3000));
+    expect(back.quiz.rounds[0]).toMatchObject({ questions: [{ spyWord: 'парус' }] });
+    expect(back.plays[0].spy?.spyId).toBe('p3');
+    expect(back.plays[0].spy?.words).toEqual(s.plays[0].spy?.words);
+    expect(back.plays[0].spy?.votes).toEqual(s.plays[0].spy?.votes);
+    expect(playerSpy(back, 'p3')).toMatchObject({ word: null, hint: null, spy: true });
+    expect(playerSpy(back, 'p1')).toMatchObject({ word: 'вітрило', hint: null, spy: false });
+    // Дограється: решта голосує за Петра, він вгадує — бали як раніше (500 кожному, хто викрив, шпигунові половина).
+    let done = must(resume(back, T0 + 3000 + HOUR));
+    done = must(voteSpy(done, 'p3', 'p1', T0 + 4000 + HOUR));
+    done = must(voteSpy(done, 'p4', 'p3', T0 + 4000 + HOUR));
+    done = must(guessSpy(done, 'p3', 'вітрило', T0 + 5000 + HOUR));
+    expect(done.phase).toBe('locked');
+    expect(done.players.map((p) => p.score)).toEqual([500, 500, 250, 500]);
   });
 });
 
