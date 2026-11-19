@@ -11,7 +11,7 @@ describe('announcementInputSchema', () => {
     expect(announcementInputSchema.parse({ text, url: '' }).url).toBeNull();
     expect(announcementInputSchema.parse({ text, url: 'https://example.com/a?b=1' }).url).toBe('https://example.com/a?b=1');
     expect(announcementInputSchema.parse({ text, url: '/library' }).url).toBe('/library');
-    for (const url of ['//evil.example', 'javascript:alert(1)', 'ftp://x', 'https://a b']) {
+    for (const url of ['//evil.example', '/\\evil.example', 'http://example.com', 'javascript:alert(1)', 'ftp://x', 'https://a b', 'https://a\u0000b', '/a\u0000b']) {
       expect(announcementInputSchema.safeParse({ text, url }).success).toBe(false);
       expect(isAnnouncementUrl(url)).toBe(false);
     }

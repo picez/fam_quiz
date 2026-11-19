@@ -14,11 +14,11 @@ export interface Announcement {
   createdAt: string;
 }
 
-/** Повна веб-адреса (http/https, без пробілів) або шлях сайту з `/` (не `//`). */
+/** Повна адреса https:// (без пробілів) або шлях сайту з одним `/` (не `//` і не `/\`). */
 export function isAnnouncementUrl(url: string): boolean {
-  if (/\s/.test(url)) return false;
-  if (/^https?:\/\/\S+$/i.test(url)) return true;
-  return url.startsWith('/') && !url.startsWith('//');
+  if (/\s/.test(url) || !isStorable(url)) return false;
+  if (/^https:\/\/[^\s\\]+$/i.test(url)) return true;
+  return /^\/(?![/\\])/.test(url);
 }
 
 /** Межі строку (у майбутньому, не далі ANNOUNCEMENT_MAX_DAYS) перевіряє сервер (потрібне now). */
