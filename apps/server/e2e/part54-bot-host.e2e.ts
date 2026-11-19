@@ -338,5 +338,7 @@ async function bot54(sockets: Socket[]) {
   const direct = await olya.request.get(`${base}/api/profiles/quiz-bot`);
   expect(direct.status(), 'the bot profile').toBe(404);
   // Очікувані відповіді: 409 четвертого запуску і 404 для не-адміна на /api/admin/bot.
-  expect(problems.filter((line) => !/ (409|404) .*\/api\/admin\/bot/.test(line)), 'page errors').toEqual([]);
+  // Раз ця перевірка впала з 16 рядками й більше не повторилась: повний список — у самому повідомленні, щоб причину було видно.
+  const unexpected = problems.filter((line) => !/ (409|404) .*\/api\/admin\/bot/.test(line));
+  expect(unexpected, `page errors (${unexpected.length}):\n${unexpected.join('\n')}`).toEqual([]);
 }

@@ -1339,8 +1339,10 @@ async function admin21a() {
     for (const width of [360, 375]) await expectFiveItems(admin, width);
     expect(await noSideScroll(admin)).toBe(true);
     const tabs = admin.locator('.admin-tabs a');
-    expect(await tabs.count()).toBe(7);
-    for (let i = 0; i < 7; i++) expect((await tabs.nth(i).boundingBox())!.height, `tab ${i}`).toBeGreaterThanOrEqual(44);
+    // Вісім вкладок: «Бот» додано в 54.
+    const tabCount = await tabs.count();
+    expect(tabCount).toBe(8);
+    for (let i = 0; i < tabCount; i++) expect((await tabs.nth(i).boundingBox())!.height, `tab ${i}`).toBeGreaterThanOrEqual(44);
     await shot(admin, 'p21a-stats');
 
     // ── 5. Пошук і бан. ──
