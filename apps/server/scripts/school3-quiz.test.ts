@@ -1,7 +1,7 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { LIMITS, allSpares, answerKey, crosswordIssue, generateSudoku, questionPrice, questionsOf, quizSchema, roundTrials, sudokuIssue, type Question, type Quiz } from '@quiz/shared';
+import { LIMITS, allSpares, answerKey, crosswordIssue, generateSudoku, questionPrice, questionsOf, quizSchema, roundTrials, sudokuIssue, wordIn, type Question, type Quiz } from '@quiz/shared';
 import { MIN_TIMER } from './mix-quiz';
 import { school3Quiz } from './school3-quiz';
 
@@ -157,7 +157,16 @@ describe('the big «Великий шкільний марафон ІІІ» quiz
         duels: duels.map((d) => d.text),
       }),
     );
-    for (const q of ofType('spy')) for (const word of [q.accepted[0]!, q.spyWord]) expect(texts.includes(answerKey(word)), word).toBe(false);
+    for (const q of ofType('spy')) {
+      const word = q.accepted[0]!;
+      expect(texts.includes(answerKey(word)), word).toBe(false);
+      expect(q.spyWord, word).toBeUndefined();
+      if (q.spyHint !== undefined) {
+        for (const w of q.accepted) expect(wordIn(q.spyHint, w), `${q.spyHint} / ${w}`).toBe(false);
+        expect(answerKey(q.spyHint).includes(answerKey(word).slice(0, 5)), `${q.spyHint} / ${word}`).toBe(false);
+      }
+    }
+    expect(ofType('spy').some((q) => q.spyHint === undefined)).toBe(true);
   });
 
   it('has no duplicate question texts or spy pairs, here or in other seed quizzes', () => {
@@ -166,11 +175,9 @@ describe('the big «Великий шкільний марафон ІІІ» quiz
     const sources = otherSources();
     const others = sources.join('\n').toLocaleLowerCase('uk');
     expect(texts.filter((text) => others.includes(text))).toEqual([]);
-    // Пара «Шпигуна» — обидва слова (перші 5 літер) разом в одному рядку іншого сіда.
-    const stem = (word: string) => word.toLocaleLowerCase('uk').slice(0, 5);
-    const lines = sources.flatMap((s) => s.toLocaleLowerCase('uk').split(/\r?\n/));
-    const pairs = ofType('spy').filter((q) => lines.some((line) => line.includes(stem(q.accepted[0]!)) && line.includes(stem(q.spyWord))));
-    expect(pairs.map((q) => `${q.accepted[0]} / ${q.spyWord}`)).toEqual([]);
+    // Підказки «Шпигуна» не повторюють жодного іншого сіда.
+    const hints = ofType('spy').flatMap((q) => (q.spyHint === undefined ? [] : [q.spyHint.toLocaleLowerCase('uk')]));
+    expect(hints.filter((hint) => others.includes(hint))).toEqual([]);
   });
 
   it('contains nothing related to russia or the Soviet period', () => {

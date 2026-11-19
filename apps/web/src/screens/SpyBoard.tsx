@@ -34,14 +34,19 @@ export function SpyRows({ rows }: { rows: SpyRow[] }) {
   );
 }
 
-/** Підсумок: хто шпигун (чи що він вийшов), обидва слова, викрито чи ні, і останній шанс. Для reveal і пульта. */
+/** Підсумок: хто шпигун (чи що він вийшов), загальне слово й підказка, викрито чи ні, і останній шанс. Для reveal і пульта. */
 export function SpyVerdict({ info }: { info: SpyInfo }) {
   return (
     <>
       {info.spyName === null ? <p className="lead spy-gone">{t('spyGone')}</p> : <h2 className="spy-title" dir="auto">{t('spyRevealSpy', { name: info.spyName })}</h2>}
-      {info.playersWord !== null && info.spyWord !== null && (
+      {info.playersWord !== null && (
         <p className="spy-words" dir="auto">
-          {t('spyRevealWords', { players: info.playersWord, spy: info.spyWord })}
+          {t('spyRevealWord', { word: info.playersWord })}
+        </p>
+      )}
+      {info.spyHint !== null && (
+        <p className="spy-hint" dir="auto">
+          {t('spyRevealHint', { hint: info.spyHint })}
         </p>
       )}
       <SpyOutcome info={info} />

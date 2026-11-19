@@ -1205,7 +1205,7 @@ describe('host presence', () => {
     expect(await send(olena, 'player:spy-vote', { playerId: 'nobody' })).toEqual({ ok: false, error: 'not_found' });
     const stageFrame = JSON.stringify(stage.last);
     expect(stageFrame).not.toContain('кава');
-    expect(stageFrame).not.toContain('чай');
+    expect(stageFrame).not.toContain("Її п'ють зранку");
     const quiz = spyQuiz({ teams: { count: 2, names: ['Ліс', 'Море'] } });
     const { cookie } = await signUp(ctx.app, 'Ведуча команд');
     const saved = await ctx.app.inject({ method: 'POST', url: '/api/quizzes', payload: quiz, headers: { cookie } });

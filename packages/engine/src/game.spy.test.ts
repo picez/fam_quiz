@@ -19,8 +19,8 @@ import {
   type GameState,
   type Rng,
 } from './game';
-import { guessSpy, spyCast, spyCaught, spyPlayOf, voteSpy, writeSpyWord } from './spy';
-import { classicRound, makeRoundsQuiz, single, spy, spy2, spyQuiz, thinkalike } from './testing/fixtures';
+import { guessSpy, hostSpy, playerSpy, spyCast, spyCaught, spyInfo, spyPlayOf, voteSpy, writeSpyWord } from './spy';
+import { classicRound, makeRoundsQuiz, single, spy, spy2, spyLegacy, spyQuiz, thinkalike } from './testing/fixtures';
 import { lobbyWith, must, startRound } from './testing/helpers';
 import { teamGame, teamQuiz } from './testing/teams';
 import { hostView, playerView, stageView } from './views';
@@ -163,8 +163,7 @@ describe('spy (38): the stages', () => {
     expect(writeSpyWord(s, 'p4', 'а'.repeat(LIMITS.thinkWord + 1), T + 2000)).toEqual({ ok: false, error: 'think_word' });
     expect(writeSpyWord(s, 'p1', 'Кава', T + 2000)).toEqual({ ok: false, error: 'spy_word' });
     expect(writeSpyWord(s, 'p1', 'кави', T + 2000)).toEqual({ ok: false, error: 'spy_word' });
-    // Шпигун Петро бачить «чай»: «кава» йому можна, «чай» — ні.
-    expect(writeSpyWord(s, 'p3', 'чай', T + 2000)).toEqual({ ok: false, error: 'spy_word' });
+    // Шпигун Петро слова не бачить (50): близькість його асоціації не перевіряється.
     expect(writeSpyWord(s, 'p3', 'кава', T + 2000).ok).toBe(true);
     expect(writeSpyWord(s, 'p9', 'ранок', T + 2000)).toEqual({ ok: false, error: 'not_found' });
     expect(voteSpy(s, 'p1', 'p2', T + 2000)).toEqual({ ok: false, error: 'wrong_phase' });
@@ -355,8 +354,15 @@ describe('spy (38): the host and the end', () => {
 const stageSpy = (s: GameState) => stageView(s).spy;
 const phone = (s: GameState, id: string) => playerView(s, id)!;
 const hostSpyOf = (s: GameState) => hostView(s).spy;
-const PAIR = ['кава', 'чай', 'гітара', 'скрипка'];
-/** JSON без слів пари (крім дозволених own), без шпигуна, голосів і підсумку. */
+const HINT = "Її п'ють зранку";
+const PAIR = ['кава', 'гітара', HINT];
+/** Телефон без власної позначки me.spy.spy (з 50 вона є з відкриття: шпигунові true, іншим false) — для secret. */
+function phoneJson(s: GameState, id: string): string {
+  const view = phone(s, id);
+  const { spy: _own, ...mine } = view.me.spy!;
+  return JSON.stringify({ ...view, me: { ...view.me, spy: mine } });
+}
+/** JSON без загальних слів і підказки (крім дозволених own), без шпигуна, голосів і підсумку. */
 function secret(json: string, ...own: string[]): void {
   for (const word of PAIR) if (!own.includes(word)) expect([word, json.includes(word)]).toEqual([word, false]);
   expect(json).not.toContain('"spyId"');
@@ -372,20 +378,20 @@ describe('spy (38): views', () => {
     // words: лише лічильники; кожен телефон — своє слово.
     let s = word(open(), 'p1', 'аромат');
     secret(JSON.stringify(stageView(s)));
-    secret(JSON.stringify(phone(s, 'p1')), 'кава');
-    secret(JSON.stringify(phone(s, 'p2')), 'кава');
-    secret(JSON.stringify(phone(s, 'p3')), 'чай');
-    expect(stageSpy(s)).toMatchObject({ stage: 'words', written: 1, voted: 0, total: 4, rows: null, playersWord: null, spyWord: null, spyName: null });
-    expect(phone(s, 'p1').me.spy).toEqual({ word: 'кава', wrote: 'аромат', vote: null, spectator: false, guessing: false, guess: null, spy: null });
-    expect(phone(s, 'p3').me.spy).toMatchObject({ word: 'чай', wrote: null, spy: null });
-    expect(hostSpyOf(s)).toMatchObject({ stage: 'words', spyId: 'p3', playersWord: 'кава', spyWord: 'чай', spyName: 'Петро' });
+    secret(phoneJson(s, 'p1'), 'кава');
+    secret(phoneJson(s, 'p2'), 'кава');
+    secret(phoneJson(s, 'p3'), HINT);
+    expect(stageSpy(s)).toMatchObject({ stage: 'words', written: 1, voted: 0, total: 4, rows: null, playersWord: null, spyHint: null, spyName: null });
+    expect(phone(s, 'p1').me.spy).toEqual({ word: 'кава', hint: null, wrote: 'аромат', vote: null, spectator: false, guessing: false, guess: null, spy: false });
+    expect(phone(s, 'p3').me.spy).toMatchObject({ word: null, hint: HINT, wrote: null, spy: true });
+    expect(hostSpyOf(s)).toMatchObject({ stage: 'words', spyId: 'p3', playersWord: 'кава', spyHint: HINT, spyName: 'Петро' });
     expect(hostSpyOf(s)?.rows.map((r) => [r.nickname, r.word, r.spy])).toEqual([['Оля', 'аромат', false], ['Тарас', null, false], ['Петро', null, true], ['Ганна', null, false]]);
 
     // vote: рядки «ім'я — асоціація», без голосів, позначок і балів.
     s = vote(toVote(open()), 'p1', 'p3');
     secret(JSON.stringify(stageView(s)));
-    secret(JSON.stringify(phone(s, 'p2')), 'кава');
-    secret(JSON.stringify(phone(s, 'p3')), 'чай');
+    secret(phoneJson(s, 'p2'), 'кава');
+    secret(phoneJson(s, 'p3'), HINT);
     expect(stageSpy(s)?.rows).toEqual([
       { id: 'p1', nickname: 'Оля', word: 'аромат', voters: null, spy: null, points: null },
       { id: 'p2', nickname: 'Тарас', word: 'ранок', voters: null, spy: null, points: null },
@@ -400,8 +406,8 @@ describe('spy (38): views', () => {
     s = vote(vote(vote(s, 'p2', 'p3'), 'p4', 'p3'), 'p3', 'p1');
     expect(stage(s)).toBe('guess');
     secret(JSON.stringify(stageView(s)));
-    for (const id of ['p1', 'p2', 'p4']) secret(JSON.stringify(phone(s, id)), 'кава');
-    secret(JSON.stringify(phone(s, 'p3')), 'чай');
+    for (const id of ['p1', 'p2', 'p4']) secret(phoneJson(s, id), 'кава');
+    secret(phoneJson(s, 'p3'), HINT);
     expect(stageSpy(s)?.stage).toBe('guess');
     expect(['p1', 'p2', 'p3', 'p4'].map((id) => phone(s, id).me.spy?.guessing)).toEqual([false, false, true, false]);
     expect(hostSpyOf(s)).toMatchObject({ stage: 'guess', caught: true });
@@ -410,17 +416,17 @@ describe('spy (38): views', () => {
     s = guess(s, 'p3', 'кава', T + 7000);
     expect(s.phase).toBe('locked');
     secret(JSON.stringify(stageView(s)));
-    for (const id of ['p1', 'p2', 'p4']) secret(JSON.stringify(phone(s, id)), 'кава');
-    // Петро бачить своє слово й власну здогадку.
-    secret(JSON.stringify(phone(s, 'p3')), 'чай', 'кава');
+    for (const id of ['p1', 'p2', 'p4']) secret(phoneJson(s, id), 'кава');
+    // Петро бачить підказку й власну здогадку.
+    secret(phoneJson(s, 'p3'), HINT, 'кава');
     expect(phone(s, 'p3').me.answer).toBeNull();
-    expect(phone(s, 'p3').me.spy).toMatchObject({ guess: 'кава', guessing: false, spy: null });
+    expect(phone(s, 'p3').me.spy).toMatchObject({ word: null, guess: 'кава', guessing: false, spy: true });
     s = must(next(s, T + 8000));
     expect(s.phase).toBe('reveal');
-    expect(stageSpy(s)).toMatchObject({ stage: 'reveal', playersWord: 'кава', spyWord: 'чай', spyName: 'Петро', caught: true, guess: 'кава', guessed: true });
+    expect(stageSpy(s)).toMatchObject({ stage: 'reveal', playersWord: 'кава', spyHint: HINT, spyName: 'Петро', caught: true, guess: 'кава', guessed: true });
     expect(stageSpy(s)?.rows?.find((r) => r.id === 'p3')).toEqual({ id: 'p3', nickname: 'Петро', word: 'зелений', voters: ['Оля', 'Тарас', 'Ганна'], spy: true, points: 500 });
     expect(stageSpy(s)?.rows?.find((r) => r.id === 'p1')).toMatchObject({ voters: ['Петро'], spy: false, points: 1000 });
-    expect(phone(s, 'p3').me.spy).toMatchObject({ spy: true, word: 'чай', guess: 'кава', guessing: false });
+    expect(phone(s, 'p3').me.spy).toMatchObject({ spy: true, word: null, hint: HINT, guess: 'кава', guessing: false });
     expect(phone(s, 'p1').me.spy?.spy).toBe(false);
     expect(hostSpyOf(s)).toMatchObject({ stage: 'reveal', spyId: 'p3' });
   });
@@ -431,8 +437,9 @@ describe('spy (38): views', () => {
       expect(view.question).not.toBeNull();
       expect(Object.keys(view.question!)).not.toContain('accepted');
       expect(Object.keys(view.question!)).not.toContain('spyWord');
+      expect(Object.keys(view.question!)).not.toContain('spyHint');
       expect(JSON.stringify(view.question)).not.toContain('кава');
-      expect(JSON.stringify(view.question)).not.toContain('чай');
+      expect(JSON.stringify(view.question)).not.toContain(HINT);
     }
   });
 
@@ -478,7 +485,7 @@ describe('spy (38): removals and late joiners', () => {
     expect(s.phase).toBe('locked');
     expect(scores(s)).toEqual({ Оля: 0, Тарас: 0, Ганна: 0 });
     s = must(next(s, T + 9000));
-    expect(stageSpy(s)).toMatchObject({ stage: 'reveal', spyName: null, caught: false, playersWord: 'кава', spyWord: 'чай' });
+    expect(stageSpy(s)).toMatchObject({ stage: 'reveal', spyName: null, caught: false, playersWord: 'кава', spyHint: HINT });
     expect(stageSpy(s)?.rows?.map((r) => r.spy)).toEqual([false, false, false]);
 
     // vote: голоси за Петра знято, голосують знову; балів немає.
@@ -545,7 +552,7 @@ describe('spy (38): removals and late joiners', () => {
     expect(spyPlayOf(s)?.spy.spyId).toBe('p3');
     expect(stageSpy(s)?.total).toBe(4);
     s = must(setConnected(s, 'p5', true, T + 500));
-    expect(phone(s, 'p5').me.spy).toMatchObject({ word: 'кава', spectator: false, spy: null });
+    expect(phone(s, 'p5').me.spy).toMatchObject({ word: 'кава', hint: null, spectator: false, spy: false });
     expect(stageSpy(s)?.total).toBe(5);
     s = toVote(word(s, 'p5', 'ранок', T + 500));
     expect(stage(s)).toBe('vote');
@@ -559,7 +566,7 @@ describe('spy (38): removals and late joiners', () => {
     for (const i of [0, 1, 2, 3]) expect(spyPlayOf(authored(rngPicking(i)))?.spy.spyId).not.toBe('p1');
     const s = authored(rngPicking(0));
     expect(writeSpyWord(s, 'p1', 'ранок', T + 1000)).toEqual({ ok: false, error: 'spy_spectator' });
-    expect(phone(s, 'p1').me.spy).toMatchObject({ spectator: true, word: 'кава' });
+    expect(phone(s, 'p1').me.spy).toMatchObject({ spectator: true, word: 'кава', hint: null, spy: false });
     expect(stageSpy(s)?.total).toBe(3);
     const v = word(word(word(s, 'p2', 'ранок'), 'p3', 'зелений'), 'p4', 'чашка');
     expect(stage(v)).toBe('vote');
@@ -570,5 +577,93 @@ describe('spy (38): removals and late joiners', () => {
     const few = must(next(must(start({ ...lobbyWith(spyQuiz(), 'Оля', 'Тарас', 'Петро'), autopilot: { authorId: 'p1', at: null } })), T, rngPicking(0)));
     expect(few.plays).toEqual([]);
     expect(few.phase).not.toBe('question');
+  });
+});
+
+describe('spy (50): the spy gets no word', () => {
+  it('the spy sees no word, only the hint', () => {
+    let s = open();
+    expect(playerSpy(s, 'p3')).toMatchObject({ word: null, hint: HINT, spy: true });
+    for (const id of ['p1', 'p2', 'p4']) expect(playerSpy(s, id)).toMatchObject({ word: 'кава', hint: null, spy: false });
+    // words, vote, guess (викрили), locked (не викрили й без здогадки) — у зрізі шпигуна загального слова немає.
+    expect(JSON.stringify(playerView(word(s, 'p1', 'аромат'), 'p3'))).not.toContain('кава');
+    s = toVote(s);
+    expect(stage(s)).toBe('vote');
+    expect(JSON.stringify(playerView(s, 'p3'))).not.toContain('кава');
+    const caught = voteAll(s, ['p3', 'p3', 'p1', 'p3']);
+    expect(stage(caught)).toBe('guess');
+    expect(JSON.stringify(playerView(caught, 'p3'))).not.toContain('кава');
+    const saved = voteAll(s, ['p3', 'p3', 'p1', 'p1']);
+    expect(saved.phase).toBe('locked');
+    expect(JSON.stringify(playerView(saved, 'p3'))).not.toContain('кава');
+    expect(JSON.stringify(playerView(tick(caught, T + 35_001), 'p3'))).not.toContain('кава');
+  });
+
+  it('without a hint the spy gets only the role', () => {
+    const s = open(makeRoundsQuiz([classicRound('c1', [spy2])]));
+    expect(playerSpy(s, 'p3')).toMatchObject({ word: null, hint: null, spy: true });
+    expect(playerSpy(s, 'p1')).toMatchObject({ word: 'гітара', hint: null, spy: false });
+    expect(JSON.stringify(playerView(s, 'p3'))).not.toContain('гітара');
+    expect(hostSpy(s)).toMatchObject({ playersWord: 'гітара', spyHint: null });
+  });
+
+  it('the stage and other phones get the hint only at reveal', () => {
+    let s = word(open(), 'p1', 'аромат');
+    expect(hostSpy(s)).toMatchObject({ spyHint: HINT, playersWord: 'кава' });
+    expect(hostSpy(s)).not.toHaveProperty('spyWord');
+    const hidden = (state: GameState) => {
+      expect(spyInfo(state)).toMatchObject({ spyHint: null, playersWord: null });
+      expect(JSON.stringify(stageView(state))).not.toContain(HINT);
+      for (const id of ['p1', 'p2', 'p4']) expect(JSON.stringify(playerView(state, id))).not.toContain(HINT);
+    };
+    hidden(s);
+    s = voteAll(toVote(), ['p3', 'p3', 'p1', 'p1']);
+    expect(s.phase).toBe('locked');
+    hidden(s);
+    s = must(next(s, T + 8000));
+    expect(s.phase).toBe('reveal');
+    expect(spyInfo(s)).toMatchObject({ spyHint: HINT, playersWord: 'кава' });
+    expect(spyInfo(s)).not.toHaveProperty('spyWord');
+    expect(spyInfo(s)).not.toHaveProperty('spyId');
+    expect(playerSpy(s, 'p1')).toMatchObject({ hint: null, spy: false });
+  });
+
+  it('the spy may write a word close to the common one', () => {
+    const s = open();
+    expect(writeSpyWord(s, 'p3', 'кави', T + 1000).ok).toBe(true);
+    expect(writeSpyWord(s, 'p3', 'Кава', T + 1000).ok).toBe(true);
+    expect(writeSpyWord(s, 'p1', 'кави', T + 1000)).toEqual({ ok: false, error: 'spy_word' });
+    expect(writeSpyWord(s, 'p3', '!!!', T + 1000)).toEqual({ ok: false, error: 'think_word' });
+  });
+
+  it('an old spy question with a spy word plays by the new rules', () => {
+    let s = open(makeRoundsQuiz([classicRound('c1', [spyLegacy])]));
+    expect(playerSpy(s, 'p3')).toMatchObject({ word: null, hint: null, spy: true });
+    expect(playerSpy(s, 'p1')).toMatchObject({ word: 'вітрило', hint: null, spy: false });
+    expect(JSON.stringify(playerView(s, 'p3'))).not.toContain('парус');
+    expect(JSON.stringify(playerView(s, 'p3'))).not.toContain('вітрило');
+    for (const json of [JSON.stringify(stageView(s)), JSON.stringify(playerView(s, 'p1'))]) expect(json).not.toContain('парус');
+    // Слово шпигуна не перевіряється: «парус» можна написати й не-шпигуну.
+    expect(writeSpyWord(s, 'p1', 'парус', T + 1000).ok).toBe(true);
+    s = voteAll(toVote(s), ['p3', 'p3', 'p1', 'p3']);
+    s = guess(s, 'p3', 'Вітрило');
+    expect(scores(s)).toEqual({ Оля: 500, Тарас: 500, Петро: 250, Ганна: 500 });
+    s = must(next(s, T + 8000));
+    // Розкриття «Шпигуна» слова шпигуна не називає (повне запитання в reveal — як у всіх типів).
+    expect(JSON.stringify(stageView(s).spy)).not.toContain('парус');
+    expect(stageView(s).spy).toMatchObject({ playersWord: 'вітрило', spyHint: null });
+  });
+
+  it('the old spy word never reaches any view, the reveal and the host key included', () => {
+    let s = open(makeRoundsQuiz([classicRound('c1', [spyLegacy])]));
+    expect(JSON.stringify(hostView(s))).not.toContain('"spyWord"');
+    s = must(next(voteAll(toVote(s), ['p3', 'p3', 'p1', 'p1']), T + 8000));
+    expect(s.phase).toBe('reveal');
+    expect(stageView(s).reveal).toMatchObject({ type: 'spy', accepted: ['вітрило'] });
+    for (const view of [stageView(s), playerView(s, 'p1'), playerView(s, 'p3'), hostView(s)]) {
+      const json = JSON.stringify(view);
+      expect(json).not.toContain('"spyWord"');
+      expect(json).not.toContain('парус');
+    }
   });
 });

@@ -219,7 +219,7 @@ function reviveThink(base: Extract<Question, { type: 'think' }>): Question {
  * без відео, звуку, «перевертання» й підказки.
  */
 function reviveSpy(base: Extract<Question, { type: 'spy' }>): Question {
-  const { hint: _hint, audio: _audio, reveal: _reveal, ...rest } = base;
+  const { hint: _hint, audio: _audio, reveal: _reveal, spyHint: _spyHint, spyWord: _spyWord, ...rest } = base;
   const accepted = Array.isArray(base.accepted) ? (base.accepted as unknown[]).map((item) => (typeof item === 'string' ? item : '')) : [];
   const vote: unknown = base.voteTime;
   const voteOk = typeof vote === 'number' && Number.isInteger(vote) && vote >= LIMITS.minTime && vote <= LIMITS.maxTime;
@@ -227,7 +227,8 @@ function reviveSpy(base: Extract<Question, { type: 'spy' }>): Question {
     ...rest,
     video: null,
     accepted: accepted.length === 0 ? [''] : accepted.slice(0, LIMITS.maxAccepted),
-    spyWord: typeof base.spyWord === 'string' ? base.spyWord : '',
+    ...(typeof base.spyHint === 'string' ? { spyHint: base.spyHint } : {}),
+    ...(typeof base.spyWord === 'string' && base.spyWord !== '' ? { spyWord: base.spyWord } : {}),
     voteTime: voteOk ? vote : 30,
   };
 }

@@ -42,7 +42,7 @@ describe('survey texts (10e)', () => {
     const spyAnswer = { type: 'spy', word: 'аромат', vote: 'Оля', spy: false, caught: false, guess: null, guessed: false } as const;
     expect(answerText(spyAnswer, null)).toBe('аромат');
     expect(answerText({ ...spyAnswer, word: null }, null)).toBe('—');
-    expect(correctText({ ...base, type: 'spy' } as never)).toBe('Шпигун і слово гравців');
+    expect(correctText({ ...base, type: 'spy' } as never)).toBe('Шпигун і загальне слово');
     const wordle = (tries: number, solved: boolean): Answer => ({ type: 'wordle', guesses: ['сосна', 'колос'].slice(0, tries), tries, solved });
     expect(answerText(wordle(2, true), null)).toBe('вгадав за 2 спроби');
     expect(answerText(wordle(1, true), null)).toBe('вгадав за 1 спробу');

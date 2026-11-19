@@ -352,13 +352,15 @@ function answerQuestion(state: GameState, playerId: string, wrong: boolean, now:
       const truth = bluff.bluff.options.find((o) => o.kind === 'truth' && !o.removed);
       return truth === undefined ? state : act(state, pickBluff(state, playerId, truth.id, now), what);
     }
-    // «Шпигун» (38): автор автопілота лише дивиться; асоціація зі списку, голос — за першого іншого учасника, шпигун на guess пише слово гравців.
+    // «Шпигун» (38, 50): автор автопілота лише дивиться; асоціація зі списку (шпигун слова не бачить — перше слово без перевірки близькості),
+    // голос — за першого іншого учасника, шпигун на guess пише слово гравців.
     case 'spy': {
       const spy = spyPlayOf(state);
       const mine = playerSpy(state, playerId);
       if (spy === null || mine === undefined || mine.spectator) return state;
       if (spy.spy.stage === 'words') {
-        const word = SPY_WORDS.find((w) => !thinkClose(thinkStem(w), thinkStem(mine.word)));
+        const own = mine.word;
+        const word = own === null ? SPY_WORDS[0] : SPY_WORDS.find((w) => !thinkClose(thinkStem(w), thinkStem(own)));
         return mine.wrote !== null || word === undefined ? state : act(state, writeSpyWord(state, playerId, word, now), what);
       }
       if (spy.spy.stage === 'vote') {

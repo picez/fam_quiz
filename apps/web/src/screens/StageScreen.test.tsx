@@ -3450,8 +3450,8 @@ describe('StageScreen: thinkalike and no overshoot (37)', () => {
 
 describe('StageScreen: spy (38)', () => {
   const spyQuestion = { ...question, type: 'spy' as const, text: 'Напишіть одне слово-асоціацію до свого слова', choices: [] };
-  const spyFull = { id: 'q1', type: 'spy' as const, text: spyQuestion.text, imageUrl: null, video: null, timeLimit: 40, points: 1000, accepted: ['кава'], spyWord: 'чай', voteTime: 30 } as Question;
-  const base = { written: 2, voted: 0, total: 3, playersWord: null, spyWord: null, spyName: null, caught: null, guess: null, guessed: null };
+  const spyFull = { id: 'q1', type: 'spy' as const, text: spyQuestion.text, imageUrl: null, video: null, timeLimit: 40, points: 1000, accepted: ['кава'], voteTime: 30 } as Question;
+  const base = { written: 2, voted: 0, total: 3, playersWord: null, spyHint: null, spyName: null, caught: null, guess: null, guessed: null };
   const rows = (full: boolean) => [
     { id: 'p1', nickname: 'Оля', word: 'аромат', voters: full ? [] : null, spy: full ? false : null, points: full ? 1000 : null },
     { id: 'p2', nickname: 'Петро', word: 'листя', voters: full ? ['Оля', 'Тарас', 'Ганна'] : null, spy: full ? true : null, points: full ? 0 : null },
@@ -3489,7 +3489,7 @@ describe('StageScreen: spy (38)', () => {
   });
 
   it('the reveal shows SpyBoard instead of the correct answer line', () => {
-    show(view({ phase: 'reveal', questionIndex: 0, question: spyQuestion as never, reveal: spyFull, spy: { ...base, stage: 'reveal', written: 3, voted: 3, rows: rows(true), playersWord: 'кава', spyWord: 'чай', spyName: 'Петро', caught: true, guess: null, guessed: false } }));
+    show(view({ phase: 'reveal', questionIndex: 0, question: spyQuestion as never, reveal: spyFull, spy: { ...base, stage: 'reveal', written: 3, voted: 3, rows: rows(true), playersWord: 'кава', spyHint: null, spyName: 'Петро', caught: true, guess: null, guessed: false } }));
     expect(document.querySelector('.stage-spy .spy-board')).toBeTruthy();
     expect(screen.getByText(t('spyRevealSpy', { name: 'Петро' }))).toBeTruthy();
     expect(screen.getByText(t('spyCaught'))).toBeTruthy();

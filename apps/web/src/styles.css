@@ -24960,6 +24960,13 @@ input.sudoku-editor-cell:focus-visible {
   text-align: center;
 }
 
+.spy-hint {
+  min-width: 0;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+.spy-you-role,
 .spy-me-word {
   min-width: 0;
   font-family: var(--display);
@@ -25162,6 +25169,27 @@ input.sudoku-editor-cell:focus-visible {
 
 .stage-spy .spy-view:has(.spy-board.is-many) > .lead {
   font-size: 1.25rem;
+}
+
+/* Редактор (50): попередження про підказку зникає, коли воно порожнє; старе слово шпигуна — примітка й кнопки в рядку, що переноситься. */
+.spy-hint-warning:empty {
+  display: none;
+}
+
+.spy-legacy {
+  display: grid;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.spy-legacy > .meta {
+  margin: 0;
+}
+
+.spy-legacy-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
 }
 /* «Шпигун»: кінець */
 

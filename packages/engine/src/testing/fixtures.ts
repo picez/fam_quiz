@@ -669,29 +669,41 @@ export function alikeQuiz(settings: Partial<QuizSettings> = {}): Quiz {
   return makeRoundsQuiz([classicRound('c1', [thinkalike, thinkalike2])], settings);
 }
 
-/** «Шпигун» (38): слово гравців «кава», слово шпигуна «чай», 40 с асоціацій, 30 с голосування, 1000. */
+/** «Шпигун» (38, 50): загальне слово «кава», підказка шпигунові «Її п'ють зранку», 40 с асоціацій, 30 с голосування, 1000. */
 export const spy = {
   ...base,
   id: 'sp1',
   type: 'spy',
-  text: 'Напишіть одне слово-асоціацію до свого слова',
+  text: 'Напишіть одне слово-асоціацію до загального слова',
   timeLimit: 40,
   points: 1000,
   accepted: ['кава'],
-  spyWord: 'чай',
+  spyHint: "Її п'ють зранку",
   voteTime: 30,
 } satisfies Question;
 
-/** «Шпигун» (38): «гітара» і «скрипка», 30 с асоціацій, 25 с голосування, 500. */
+/** «Шпигун» (38, 50): «гітара» без підказки, 30 с асоціацій, 25 с голосування, 500. */
 export const spy2 = {
   ...base,
   id: 'sp2',
   type: 'spy',
-  text: 'Напишіть одне слово-асоціацію до свого слова',
+  text: 'Напишіть одне слово-асоціацію до загального слова',
   timeLimit: 30,
   points: 500,
   accepted: ['гітара'],
-  spyWord: 'скрипка',
+  voteTime: 25,
+} satisfies Question;
+
+/** «Шпигун» (38): старе запитання до 50 — «вітрило» зі словом шпигуна «парус» (з 50 не читається), 30 с асоціацій, 25 с голосування, 500. */
+export const spyLegacy = {
+  ...base,
+  id: 'sp3',
+  type: 'spy',
+  text: 'Напишіть одне слово-асоціацію до свого слова',
+  timeLimit: 30,
+  points: 500,
+  accepted: ['вітрило'],
+  spyWord: 'парус',
   voteTime: 25,
 } satisfies Question;
 

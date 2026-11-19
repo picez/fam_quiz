@@ -86,8 +86,8 @@ function SpyVote({ info, meId, send }: { info: SpyInfo; meId: string; send: Send
 }
 
 /**
- * «Шпигун» (38) на телефоні у фазі question. words — своє слово великим і поле асоціації (шпигун бачить слово шпигуна, нічого не знаючи);
- * vote — «Хто шпигун?» і кнопки інших учасників; guess — поле лише викритому шпигунові, решта чекає «Останній шанс шпигуна…».
+ * «Шпигун» (38) на телефоні у фазі question. words — своє слово великим і поле асоціації (шпигун бачить лише «Ви — шпигун», підказку ведучого й як писати);
+ * vote — «Хто шпигун?» і кнопки інших учасників; guess — поле й підказка лише викритому шпигунові, решта чекає «Останній шанс шпигуна…».
  * Глядач (автор автопілота) — лише «Ви автор…», без поля й кнопок.
  */
 export function SpyPhone({ info, mine, meId, send }: { info: SpyInfo; mine: PlayerSpy; meId: string; send: Send }) {
@@ -99,11 +99,21 @@ export function SpyPhone({ info, mine, meId, send }: { info: SpyInfo; mine: Play
       </section>
     );
   }
-  const own = (
+  const hintLine = mine.hint !== null && (
+    <p className="spy-hint" dir="auto">
+      {t('spyHintLine', { hint: mine.hint })}
+    </p>
+  );
+  const own = mine.spy ? (
+    <div className="spy-me">
+      <strong className="spy-you-role">{t('spyYouAreSpy')}</strong>
+      {hintLine}
+    </div>
+  ) : (
     <p className="spy-me">
       <span className="meta">{t('spyYourWord')}</span>
       <strong className="spy-me-word" dir="auto">
-        {mine.word}
+        {mine.word ?? ''}
       </strong>
     </p>
   );
@@ -111,6 +121,7 @@ export function SpyPhone({ info, mine, meId, send }: { info: SpyInfo; mine: Play
     return (
       <section className="spy-phone">
         {own}
+        {mine.spy && mine.wrote === null && <p className="meta spy-you-how">{t('spyYouHow')}</p>}
         {mine.wrote === null ? (
           <SpyTextForm key="word" event="player:spy-word" label="spyWordPrompt" send={send} />
         ) : (
@@ -147,6 +158,7 @@ export function SpyPhone({ info, mine, meId, send }: { info: SpyInfo; mine: Play
       <section className="spy-phone">
         {mine.guessing ? (
           <>
+            {hintLine}
             <p className="lead spy-caught-you">{t('spyCaughtYou')}</p>
             {mine.guess === null && <SpyTextForm key="guess" event="player:spy-guess" label="spyPlayersWord" send={send} />}
           </>

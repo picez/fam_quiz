@@ -6,7 +6,7 @@ import { QUEST_TYPES, type QuestRound } from '@quiz/shared';
 import { newId } from './new-id';
 import { DEFAULT_RULES, LADDER_PRESETS, LIFELINES, LIMITS, ladderPresetSafe, type LadderRound, duelShortfall, duelThreshold, WIPEOUT_TYPES, SURVIVAL_TYPES, rulesOf, boardCells, quizSchema, roundSchema, questionSchema, isPuzzle, ROUND_TYPES, EMPTY_SUDOKU, generateSudoku, layoutCrossword, pickKeyCells, questionsOf, roundQuestions, type BoardRound, type ClassicRound, type Question, type Quiz, type Round, type Duels } from '@quiz/shared';
 import { t } from '../i18n';
-import { QUESTION_TYPES, boardReadiness, cellState, cloudSources, questionTypesFor, applyRoundTime, steppedPoints, changeType, cleaned, fitCell, duplicateQuestion, firstProblem, moveItem, newBlitzRound, newBoardCategory, newBoardQuestion, newBoardRound, withDefaultMode, newClassicRound, newFinalRound, newBetsRound, newAuctionRound, newTruthRound, newPuzzlesRound, cleanedQuestion, newWipeoutRound, newSurvivalRound, newLadderRound, resizeLadder, newWipeoutQuestion, newQuestion, newQuiz, roundCapacity, bankCopy, problemsOf, newDuels, newSpare, swapGaps, minTimeOf, maxTimeOf } from './draft';
+import { QUESTION_TYPES, boardReadiness, cellState, cloudSources, questionTypesFor, applyRoundTime, steppedPoints, changeType, cleaned, fitCell, duplicateQuestion, firstProblem, moveItem, newBlitzRound, newBoardCategory, newBoardQuestion, newBoardRound, withDefaultMode, newClassicRound, newFinalRound, newBetsRound, newAuctionRound, newTruthRound, newPuzzlesRound, cleanedQuestion, newWipeoutRound, newSurvivalRound, newLadderRound, resizeLadder, newWipeoutQuestion, newQuestion, newQuiz, roundCapacity, bankCopy, problemsOf, newDuels, newSpare, swapGaps, minTimeOf, maxTimeOf, spyHintLeaks } from './draft';
 
 /** Заповнює порожні поля нового запитання так, як це зробив би користувач. */
 function filled(question: Question): Question {
@@ -49,7 +49,7 @@ function filled(question: Question): Question {
     case 'bluff':
       return { ...question, text, accepted: ['Правда'], lies: ['Вигадка 1', 'Вигадка 2'] };
     case 'spy':
-      return { ...question, text, accepted: ['Кава'], spyWord: 'Чай' };
+      return { ...question, text, accepted: ['Кава'] };
     case 'wordle':
       return { ...question, text, word: 'сосна' };
     case 'survey':
@@ -3610,12 +3610,12 @@ describe('plan 37 editors: steps, no overshoot, thinkalike', () => {
 });
 
 describe('plan 38 editors: spy', () => {
-  const spy = (patch: Partial<Extract<Question, { type: 'spy' }>> = {}) => ({ ...(newQuestion('spy') as Extract<Question, { type: 'spy' }>), accepted: ['потяг'], spyWord: 'автобус', ...patch });
+  const spy = (patch: Partial<Extract<Question, { type: 'spy' }>> = {}) => ({ ...(newQuestion('spy') as Extract<Question, { type: 'spy' }>), accepted: ['потяг'], ...patch });
   const blitz = (question: Question): Quiz => ({ ...quizWith(question), rounds: [{ ...newBlitzRound(), questions: [question] }] });
   const withTeams = (quiz: Quiz): Quiz => ({ ...quiz, settings: { ...quiz.settings, teams: { count: 2, names: ['Лиси', 'Вовки'] } } });
 
   it('a new spy is a 40 second question with a 30 second vote in classic only, right after thinkalike', () => {
-    expect(newQuestion('spy')).toMatchObject({ type: 'spy', text: t('spyDefaultText'), timeLimit: 40, voteTime: 30, points: LIMITS.defaultPoints, accepted: [''], spyWord: '' });
+    expect(newQuestion('spy')).toMatchObject({ type: 'spy', text: t('spyDefaultText'), timeLimit: 40, voteTime: 30, points: LIMITS.defaultPoints, accepted: [''] });
     const classic = questionTypesFor('classic');
     expect(classic.indexOf('spy')).toBe(classic.indexOf('thinkalike') + 1);
     for (const type of ['blitz', 'final', 'board', 'bets', 'puzzles'] as const) expect(questionTypesFor(type), type).not.toContain('spy');
@@ -3639,13 +3639,10 @@ describe('plan 38 editors: spy', () => {
     expect(problemsOf(withTeams(quizWith(filled(newQuestion('single')))))).toEqual([]);
   });
 
-  it('the same words, a leaking text, empty words and a bad vote time are problems', () => {
-    expect(problemsOf(quizWith(spy({ spyWord: 'Потяг' })))).toEqual([t('problemSpySame', { index: 1 })]);
-    expect(problemsOf(quizWith(spy({ accepted: ['потяг', 'поїзд'], spyWord: 'Поїзд' })))).toEqual([t('problemSpySame', { index: 1 })]);
+  it('a leaking text, empty words and a bad vote time are problems', () => {
     expect(problemsOf(quizWith(spy({ text: 'Тема: потяг' })))).toEqual([t('problemSpyLeak', { index: 1 })]);
     expect(problemsOf(quizWith(spy({ text: 'Тема: автобуси' })))).toEqual([]);
     expect(problemsOf(quizWith(spy({ accepted: [''] })))).toEqual([t('problemSpyWordEmpty', { index: 1 })]);
-    expect(problemsOf(quizWith(spy({ spyWord: ' ' })))).toEqual([t('problemSpyWordEmpty', { index: 1 })]);
     expect(problemsOf(quizWith(spy({ accepted: ['а'.repeat(LIMITS.thinkWord + 1)] })))).toEqual([t('problemSpyWordLong', { index: 1 })]);
     expect(problemsOf(quizWith(spy({ voteTime: 1 })))).toEqual([t('problemSpyVoteTime', { index: 1, min: LIMITS.minTime, max: LIMITS.maxTime })]);
     expect(problemsOf(quizWith(spy({ voteTime: Number.NaN })))).toEqual([t('problemSpyVoteTime', { index: 1, min: LIMITS.minTime, max: LIMITS.maxTime })]);
@@ -3660,7 +3657,7 @@ describe('plan 38 editors: spy', () => {
 
   it('changing text to spy keeps the text; duplicating copies the spellings', () => {
     const text = { ...newQuestion('text'), text: 'Назвіть слово' } as Question;
-    expect(changeType(text, 'spy')).toMatchObject({ type: 'spy', text: 'Назвіть слово', accepted: [''], spyWord: '', voteTime: 30 });
+    expect(changeType(text, 'spy')).toMatchObject({ type: 'spy', text: 'Назвіть слово', accepted: [''], voteTime: 30 });
     const original = spy({ accepted: ['потяг', 'поїзд'] });
     const copy = duplicateQuestion(original) as typeof original;
     expect(copy.id).not.toBe(original.id);
@@ -3680,7 +3677,9 @@ describe('plan 38 editors: spy', () => {
     const dropped = stored('spy-media', { ...spy(), hint: 'підказка', video: { url: 'https://youtu.be/dQw4w9WgXcQ', start: 0 } });
     expect('hint' in dropped).toBe(false);
     expect(dropped.video).toBeNull();
-    expect(stored('spy-words', { ...spy(), accepted: 5, spyWord: 7 })).toMatchObject({ accepted: [''], spyWord: '' });
+    const words = stored('spy-words', { ...spy(), accepted: 5, spyWord: 7 });
+    expect(words).toMatchObject({ accepted: [''] });
+    expect(words).not.toHaveProperty('spyWord');
   });
 });
 
@@ -3843,5 +3842,50 @@ describe('plan 48 editors: wordle', () => {
     const copy = duplicateQuestion(original) as typeof original;
     expect(copy.id).not.toBe(original.id);
     expect(copy.word).toBe('колос');
+  });
+});
+
+describe('spy: common word and hint (50)', () => {
+  const spyQuestion = (patch: Record<string, unknown> = {}) => ({ ...filled(newQuestion('spy')), ...patch }) as Extract<Question, { type: 'spy' }>;
+  const keyOf = (question: Question) => problemsOf(quizWith(question));
+
+  it('cleaning drops a blank hint and always drops the old spy word', () => {
+    const out = cleanedQuestion(spyQuestion({ spyHint: '  ', spyWord: 'Чай' }));
+    expect(out).not.toHaveProperty('spyHint');
+    expect(out).not.toHaveProperty('spyWord');
+    expect(cleanedQuestion(spyQuestion({ spyHint: '  напій  ' }))).toMatchObject({ spyHint: 'напій' });
+  });
+
+  it('a cleaned spy question passes the quiz schema', () => {
+    const quiz = quizWith(cleanedQuestion(spyQuestion({ spyHint: 'напій', spyWord: 'Чай' })));
+    expect(quizSchema.safeParse(quiz).success).toBe(true);
+  });
+
+  it('an empty common word blocks, a hint with the common word does not, a text with it does', () => {
+    expect(keyOf(spyQuestion({ accepted: [''] }))).toEqual([t('problemSpyWordEmpty', { index: 1 })]);
+    expect(keyOf(spyQuestion({ accepted: ['Кава'], spyHint: 'кава з молоком' }))).toEqual([]);
+    expect(keyOf(spyQuestion({ accepted: ['Кава'], text: 'Що ви п’єте: кава' }))).toEqual([t('problemSpyLeak', { index: 1 })]);
+    expect(keyOf(spyQuestion({ accepted: ['Кава'], text: 'Що ви п’єте: чай', spyWord: 'чай' }))).toEqual([]);
+    // Будь-яке прийняте написання в тексті — теж витік (схема перевіряє лише перше, щоб збережені вікторини лишалися придатними).
+    expect(keyOf(spyQuestion({ accepted: ['лінійка', 'лінійку'], text: 'Що ви берете: лінійку' }))).toEqual([t('problemSpyLeak', { index: 1 })]);
+  });
+
+  it('spyHintLeaks finds the whole common word only', () => {
+    expect(spyHintLeaks(spyQuestion({ accepted: ['Кава'], spyHint: 'кава з молоком' }))).toBe(true);
+    expect(spyHintLeaks(spyQuestion({ accepted: ['Кава'], spyHint: 'Кавалерія' }))).toBe(false);
+    expect(spyHintLeaks(spyQuestion({ accepted: ['Кава', 'Coffee'], spyHint: 'a coffee' }))).toBe(true);
+    expect(spyHintLeaks(spyQuestion({ accepted: ['Кава'] }))).toBe(false);
+  });
+
+  it('draft storage keeps spyHint and a non-empty spyWord, otherwise no keys', () => {
+    const save = (id: string, extra: Record<string, unknown>) => {
+      const question = { ...newQuestion('spy'), id: 'q1', accepted: ['Кава'], ...extra };
+      sessionStorage.setItem(`quiz:draft:${id}`, JSON.stringify({ title: 'Т', description: '', settings: { leaderboard: 'end' }, rounds: [{ id: 'r1', type: 'classic', title: '', rules: DEFAULT_RULES, questions: [question] }] }));
+      return (loadDraft(id)!.rounds[0] as ClassicRound).questions[0]!;
+    };
+    expect(save('sp1', { spyHint: 'напій', spyWord: 'Чай' })).toMatchObject({ spyHint: 'напій', spyWord: 'Чай' });
+    const bare = save('sp2', { spyHint: 5, spyWord: '' });
+    expect(bare).not.toHaveProperty('spyHint');
+    expect(bare).not.toHaveProperty('spyWord');
   });
 });

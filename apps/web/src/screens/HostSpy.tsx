@@ -3,7 +3,7 @@ import { t } from '../i18n';
 import { SpyOutcome, SpyRows } from './SpyBoard';
 
 /**
- * Пульт «Шпигуна» (38): з відкриття — шпигун і обидва слова, лічильник етапу, асоціації й голоси наживо (хто за кого), позначка шпигуна;
+ * Пульт «Шпигуна» (38): з відкриття — шпигун, загальне слово й підказка, лічильник етапу, асоціації й голоси наживо (хто за кого), позначка шпигуна;
  * після закриття — викрито чи ні, останній шанс і бали. Етапи перемикає наявна «Закрити» (host:lock).
  */
 export function HostSpy({ spy }: { spy: HostSpyInfo }) {
@@ -12,7 +12,10 @@ export function HostSpy({ spy }: { spy: HostSpyInfo }) {
     <div className="spy-host">
       {spy.spyName === null ? <p className="lead spy-gone">{t('spyGone')}</p> : <p className="lead spy-title" dir="auto">{t('spyRevealSpy', { name: spy.spyName })}</p>}
       <p className="spy-words" dir="auto">
-        {t('spyRevealWords', { players: spy.playersWord, spy: spy.spyWord })}
+        {t('spyRevealWord', { word: spy.playersWord })}
+      </p>
+      <p className="spy-hint" dir="auto">
+        {spy.spyHint !== null ? t('spyRevealHint', { hint: spy.spyHint }) : t('spyNoHint')}
       </p>
       <p className="meta">{spy.stage === 'words' ? t('answeredOf', { answered: spy.written, total: spy.total }) : t('votedOf', { voted: spy.voted, total: spy.total })}</p>
       {spy.stage === 'guess' && !closed && <p className="lead spy-guess-stage">{t('spyGuessStage')}</p>}

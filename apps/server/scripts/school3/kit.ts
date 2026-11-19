@@ -36,12 +36,12 @@ export const noOver = (text: string, correct: number, points: number, time = 35)
 /** «Думай як усі» (37e): тема, бали — найбільшій групі схожих відповідей. */
 export const alike = (text: string, points: number, time = 30): Question => ({ ...blank(text, points, time), type: 'thinkalike' });
 
-/** «Шпигун» (38): players — слово гравців (перше написання), spyWord — близьке слово шпигуна. */
-export const spy = (text: string, players: string[], spyWord: string, points: number, time = 40, voteTime = 30): Question => ({
+/** «Шпигун» (38, 50): players — слово гравців (перше написання), hint — підказка шпигуну (`null` — без підказки, ключа немає). */
+export const spy = (text: string, players: string[], hint: string | null, points: number, time = 40, voteTime = 30): Question => ({
   ...blank(text, points, time),
   type: 'spy',
   accepted: players,
-  spyWord,
+  ...(hint === null ? {} : { spyHint: hint }),
   voteTime,
 });
 

@@ -5493,15 +5493,15 @@ describe('PlayerScreen: thinkalike and no overshoot (37)', () => {
 
 describe('PlayerScreen: spy (38)', () => {
   const spyQuestion = { ...publicQuestion, type: 'spy' as const, text: 'Напишіть одне слово-асоціацію до свого слова', choices: [] };
-  const spyFull = { id: 'q1', type: 'spy' as const, text: spyQuestion.text, imageUrl: null, video: null, timeLimit: 40, points: 1000, accepted: ['кава'], spyWord: 'чай', voteTime: 30 } as Question;
-  const base = { written: 0, voted: 0, total: 3, playersWord: null, spyWord: null, spyName: null, caught: null, guess: null, guessed: null };
-  const mine = { word: 'чай', wrote: null, vote: null, spectator: false, guessing: false, guess: null, spy: null };
+  const spyFull = { id: 'q1', type: 'spy' as const, text: spyQuestion.text, imageUrl: null, video: null, timeLimit: 40, points: 1000, accepted: ['кава'], voteTime: 30 } as Question;
+  const base = { written: 0, voted: 0, total: 3, playersWord: null, spyHint: null, spyName: null, caught: null, guess: null, guessed: null };
+  const mine = { word: 'чай', hint: null, wrote: null, vote: null, spectator: false, guessing: false, guess: null, spy: false };
   const revealRows = [
     { id: 'p1', nickname: 'Олена', word: 'листя', voters: ['Оля', 'Тарас'], spy: true, points: 0 },
     { id: 'p2', nickname: 'Оля', word: 'аромат', voters: [], spy: false, points: 1000 },
     { id: 'p3', nickname: 'Тарас', word: 'ранок', voters: [], spy: false, points: 1000 },
   ];
-  const revealSpy = { ...base, stage: 'reveal' as const, written: 3, voted: 3, rows: revealRows, playersWord: 'кава', spyWord: 'чай', spyName: 'Олена', caught: true, guess: null, guessed: false };
+  const revealSpy = { ...base, stage: 'reveal' as const, written: 3, voted: 3, rows: revealRows, playersWord: 'кава', spyHint: null, spyName: 'Олена', caught: true, guess: null, guessed: false };
 
   it('spy phone', async () => {
     const send = show(onQuestion({ question: spyQuestion as never, spy: { ...base, stage: 'words', rows: null }, me: { ...me, spy: mine } as never }));
@@ -5511,6 +5511,14 @@ describe('PlayerScreen: spy (38)', () => {
     fireEvent.change(screen.getByRole('textbox', { name: t('spyWordPrompt') }), { target: { value: 'листя' } });
     fireEvent.click(screen.getByRole('button', { name: t('submit') }));
     await waitFor(() => expect(send).toHaveBeenCalledWith('player:spy-word', { text: 'листя' }));
+  });
+
+  it('spy phone of the spy: role and hint, no word, and no «you were the spy» before the reveal', () => {
+    show(onQuestion({ question: spyQuestion as never, spy: { ...base, stage: 'words', rows: null }, me: { ...me, spy: { ...mine, word: null, hint: 'Її п’ють зранку', spy: true } } as never }));
+    expect(screen.getByText(t('spyYouAreSpy'))).toBeTruthy();
+    expect(screen.getByText(t('spyHintLine', { hint: 'Її п’ють зранку' }))).toBeTruthy();
+    expect(screen.queryByText(t('spyYourWord'))).toBeNull();
+    expect(screen.queryByText(t('spyYouWere'))).toBeNull();
   });
 
   it('reveal: «Ви були шпигуном» only for the spy', () => {

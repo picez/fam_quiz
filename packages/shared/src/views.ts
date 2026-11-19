@@ -1728,7 +1728,7 @@ export interface SpyRow {
   points: number | null;
 }
 
-/** «Шпигун» (38): зріз сцени й телефонів. Слів гравців і шпигуна, позначки шпигуна й голосів до reveal немає. */
+/** «Шпигун» (38, 50): зріз сцени й телефонів. Загального слова, підказки шпигунові, позначки шпигуна й голосів до reveal немає. */
 export interface SpyInfo {
   stage: SpyStage;
   written: number;
@@ -1739,24 +1739,27 @@ export interface SpyInfo {
   rows: SpyRow[] | null;
   /** Лише reveal. */
   playersWord: string | null;
-  spyWord: string | null;
+  /** Підказка ведучого шпигунові (50): лише reveal; null і тоді, коли підказки немає. */
+  spyHint: string | null;
   spyName: string | null;
   caught: boolean | null;
   guess: string | null;
   guessed: boolean | null;
 }
 
-/** Зріз ведучого: усе з відкриття запитання. */
+/** Зріз ведучого: усе з відкриття запитання (spyHint — теж). */
 export interface HostSpy extends SpyInfo {
   spyId: string;
   playersWord: string;
-  spyWord: string;
   rows: SpyRow[];
 }
 
-/** «Шпигун» (38): власний бік гравця. word — слово, яке він бачить (шпигун — слово шпигуна, не знаючи цього). */
+/** «Шпигун» (38, 50): власний бік гравця. Шпигун знає, що він шпигун, але загального слова не бачить. */
 export interface PlayerSpy {
-  word: string;
+  /** Загальне слово; null — гравець шпигун (слова не бачить). */
+  word: string | null;
+  /** Лише шпигунові: підказка ведучого (null — без підказки); іншим — завжди null. */
+  hint: string | null;
   wrote: string | null;
   /** id того, за кого гравець голосував (як SpyRow.id); null — ще не голосував. */
   vote: string | null;
@@ -1764,8 +1767,8 @@ export interface PlayerSpy {
   /** Лише шпигунові на етапі guess. */
   guessing: boolean;
   guess: string | null;
-  /** Лише reveal. */
-  spy: boolean | null;
+  /** З відкриття (50): шпигунові — true, іншим — false. */
+  spy: boolean;
 }
 
 /** «Думай інакше» (35): вердикт відповіді учасника на розкритті — не збігся, збігся зі словом ведучого, нічого не написав. */

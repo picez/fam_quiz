@@ -59,7 +59,7 @@ export function questionLines(question: Question): string[] {
       case 'bluff':
         return [...question.accepted, ...question.lies];
       case 'spy':
-        return [...question.accepted, question.spyWord];
+        return [...question.accepted, ...(question.spyHint ? [question.spyHint] : []), ...(question.spyWord ? [question.spyWord] : [])];
       case 'timedlist':
         return question.items.flatMap((item) => [item.text, ...item.accepted]);
       case 'moreless':

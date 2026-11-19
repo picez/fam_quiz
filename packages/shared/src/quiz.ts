@@ -290,6 +290,8 @@ export const LIMITS = {
   /** «Шпигун» (38): час останнього шансу викритого шпигуна (с); найменше гравців, щоб запитання відкрилося. */
   spyGuessTime: 30,
   minSpyPlayers: 3,
+  /** «Шпигун» (50): найдовша підказка ведучого шпигунові. */
+  spyHint: 120,
 } as const;
 
 /** Вбудовані мапи для точки (10c); SVG у apps/web/public/maps. */
@@ -804,10 +806,13 @@ export const questionSchema = z
     }),
     z.object({
       ...base,
-      /** «Шпигун» (38): accepted[0] — слово гравців (решта — інші написання для останнього шансу шпигуна), spyWord — близьке слово шпигуна; text — спільне завдання на сцені. timeLimit — час асоціацій, voteTime — голосування. */
+      /** «Шпигун» (38, 50): accepted[0] — загальне слово гравців (решта — інші написання для останнього шансу шпигуна); шпигун слова не бачить, лише необов'язкову підказку spyHint; text — спільне завдання на сцені. timeLimit — час асоціацій, voteTime — голосування. */
       type: z.literal('spy'),
       accepted: spellings,
-      spyWord: z.string().trim().min(1).max(LIMITS.thinkWord).refine(isStorable, UNSTORABLE),
+      /** «Шпигун» (50): необов'язкова підказка ведучого; бачать шпигун і пульт, сцена й інші телефони — лише на розкритті. */
+      spyHint: z.string().trim().min(1).max(LIMITS.spyHint).refine(isStorable, UNSTORABLE).optional(),
+      /** Застаріле (38): слово шпигуна; з 50 не показується й не читається. */
+      spyWord: z.string().trim().min(1).max(LIMITS.thinkWord).refine(isStorable, UNSTORABLE).optional(),
       voteTime: z.number().int().min(LIMITS.minTime).max(LIMITS.maxTime),
     }),
     z.object({
@@ -1004,15 +1009,8 @@ export const questionSchema = z
     if (q.type === 'spy') {
       const playersWord = q.accepted[0] ?? '';
       if (playersWord.length > LIMITS.thinkWord) ctx.addIssue({ code: 'custom', message: 'spy_word_long' });
-      if (q.accepted.map(answerKey).includes(answerKey(q.spyWord))) ctx.addIssue({ code: 'custom', message: 'spy_same' });
-      // Текст видно всім: жодного з двох слів цілим словом.
-      const wordsOf = (value: string) => answerKey(value).split(/[^\p{L}\p{N}']+/u).filter(Boolean).join(' ');
-      const textKey = ' ' + wordsOf(q.text) + ' ';
-      const leaks = (word: string) => {
-        const key = wordsOf(word);
-        return key !== '' && textKey.includes(' ' + key + ' ');
-      };
-      if (leaks(playersWord) || leaks(q.spyWord)) ctx.addIssue({ code: 'custom', message: 'spy_leak' });
+      // Текст видно всім, зокрема шпигунові: загального слова в ньому цілим словом немає. Підказку перевіряє лише редактор (попередження).
+      if (wordIn(q.text, playersWord)) ctx.addIssue({ code: 'custom', message: 'spy_leak' });
       // Підсказка й картинка, що проявляється, платили б за час, а бафи вимкнено (off_spy); звук і відео ускладнили б таймер етапів.
       if (q.reveal !== undefined) ctx.addIssue({ code: 'custom', message: 'spy_reveal' });
       if (q.hint !== undefined) ctx.addIssue({ code: 'custom', message: 'spy_hint' });
@@ -1165,6 +1163,16 @@ export function answerKey(value: string): string {
     .replace(/\s+/g, ' ')
     .trim()
     .toLowerCase();
+}
+
+/**
+ * «Шпигун» (50): ціле слово (чи кілька слів поспіль) word трапляється в text — за answerKey, межі слів /[^\p{L}\p{N}']+/u.
+ * Порожній ключ — false. Схема (spy_leak) і редактор (витоки в тексті й підказці).
+ */
+export function wordIn(text: string, word: string): boolean {
+  const wordsOf = (value: string) => answerKey(value).split(/[^\p{L}\p{N}']+/u).filter(Boolean).join(' ');
+  const key = wordsOf(word);
+  return key !== '' && (' ' + wordsOf(text) + ' ').includes(' ' + key + ' ');
 }
 
 /** Ключ слова «хмари»: NFC, обрізано, пробіли зведено, апострофи ’ʼ‘` → ', toLocaleLowerCase('uk'). */

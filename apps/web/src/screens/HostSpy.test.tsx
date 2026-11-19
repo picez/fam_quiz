@@ -17,7 +17,7 @@ const spy = (over: Partial<HostSpyInfo> = {}): HostSpyInfo => ({
   rows: [row('p1', 'Оля', 'аромат'), row('p2', 'Петро', 'листя'), row('p3', 'Тарас', null)],
   spyId: 'p2',
   playersWord: 'кава',
-  spyWord: 'чай',
+  spyHint: 'Її п’ють зранку',
   spyName: 'Петро',
   caught: false,
   guess: null,
@@ -31,12 +31,20 @@ describe('HostSpy', () => {
   it('the spy, both words and live associations from the words stage', () => {
     render(<HostSpy spy={spy()} />);
     expect(screen.getByText(t('spyRevealSpy', { name: 'Петро' }))).toBeTruthy();
-    expect(screen.getByText(t('spyRevealWords', { players: 'кава', spy: 'чай' }))).toBeTruthy();
+    expect(screen.getByText(t('spyRevealWord', { word: 'кава' }))).toBeTruthy();
+    expect(screen.getByText(t('spyRevealHint', { hint: 'Її п’ють зранку' }))).toBeTruthy();
+    expect(screen.queryByText(t('spyNoHint'))).toBeNull();
     expect(screen.getByText(t('answeredOf', { answered: 2, total: 3 }))).toBeTruthy();
     expect(lineOf('Оля').querySelector('.spy-line')!.textContent).toBe('Оля — аромат');
     expect(lineOf('Петро').className).toContain('is-spy');
     // Поки нічого не закрито — ні «викрито», ні «непомічений».
     expect(screen.queryByText(t('spyHidden'))).toBeNull();
+  });
+
+  it('no hint shows the no-hint line', () => {
+    render(<HostSpy spy={spy({ spyHint: null })} />);
+    expect(screen.getByText(t('spyNoHint'))).toBeTruthy();
+    expect(screen.queryByText(/Підказка шпигуну:/)).toBeNull();
   });
 
   it('live votes on the vote stage', () => {
