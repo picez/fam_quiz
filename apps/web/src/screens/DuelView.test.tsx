@@ -503,3 +503,14 @@ describe('duel bets', () => {
     expect(off.container.querySelector('.duel-host-bets')).toBeNull();
   });
 });
+
+describe('DuelPlay: the cursor (45b)', () => {
+  it('the duelist field gets the cursor once it can answer, not while it cannot', () => {
+    const { rerender, send, onError } = play(view(duelInfo(), { canAnswer: false }));
+    const input = screen.getByLabelText<HTMLInputElement>('Ваша відповідь');
+    expect(input.disabled).toBe(true);
+    expect(document.activeElement).not.toBe(input);
+    rerender(<DuelPlay view={view(duelInfo(), { canAnswer: true })} offsetMs={0} send={send} onError={onError} />);
+    expect(document.activeElement).toBe(input);
+  });
+});

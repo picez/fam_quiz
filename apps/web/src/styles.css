@@ -10725,8 +10725,22 @@ button.wall-tile:disabled {
 }
 
 /* 45c: «Змінити» під рядком про надіслану вигадку; на вузькому екрані переноситься, бічного скролу немає. */
+/* 45c: надіслана вигадка, «Змінити» й відмова — стовпчиком з тим самим проміжком, що й у .bluff-input. */
+.bluff-sent {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.bluff-sent .lead,
+.bluff-sent .error {
+  margin: 0;
+}
+
 .bluff-edit {
-  align-self: flex-start;
+  min-height: 2.75rem;
   max-width: 100%;
   white-space: normal;
   overflow-wrap: anywhere;
@@ -10734,8 +10748,10 @@ button.wall-tile:disabled {
 
 /* 45a: рядок під карткою апеляції — як .meta (колір --dim, 0.9375rem), з переносом. */
 .appeal-kept {
-  margin: 0.5rem 0 0;
+  /* Підпис картки: .app.player має gap 1.25rem — рядок підтягується ближче (лишається 0.5rem). */
+  margin: -0.75rem 0 0;
   overflow-wrap: anywhere;
+  text-wrap: pretty;
 }
 
 .bluff-stage {

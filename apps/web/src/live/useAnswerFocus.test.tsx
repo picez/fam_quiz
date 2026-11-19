@@ -61,16 +61,70 @@ describe('useAnswerFocus', () => {
     expect(document.activeElement).toBe(document.body);
   });
 
-  it('uses no smooth scroll with reduced motion, smooth without', () => {
+  it('focuses with preventScroll and never scrolls the page', () => {
     const scroll = vi.fn();
+    const original = HTMLElement.prototype.scrollIntoView;
     HTMLElement.prototype.scrollIntoView = scroll;
-    vi.stubGlobal('matchMedia', (query: string) => ({ matches: true, media: query }));
-    const first = render(<Probe />);
-    expect(scroll).toHaveBeenCalledWith({ block: 'nearest', behavior: 'auto' });
-    first.unmount();
-    scroll.mockClear();
-    vi.stubGlobal('matchMedia', (query: string) => ({ matches: false, media: query }));
-    render(<Probe />);
-    expect(scroll).toHaveBeenCalledWith({ block: 'nearest', behavior: 'smooth' });
+    const focus = vi.spyOn(HTMLInputElement.prototype, 'focus');
+    try {
+      render(<Probe />);
+      expect(focus).toHaveBeenCalledWith({ preventScroll: true });
+      expect(scroll).not.toHaveBeenCalled();
+    } finally {
+      HTMLElement.prototype.scrollIntoView = original;
+    }
+  });
+
+  it('does not take focus out of an open modal sheet and tries again after it closes', () => {
+    function WithSheet({ open, fieldsetDisabled = false }: { open: boolean; fieldsetDisabled?: boolean }) {
+      return (
+        <>
+          <Probe fieldsetDisabled={fieldsetDisabled} />
+          {open && (
+            <div role="dialog" aria-modal="true" aria-label="аркуш" tabIndex={-1}>
+              <button type="button">закрити</button>
+            </div>
+          )}
+        </>
+      );
+    }
+    const { rerender } = render(<WithSheet open fieldsetDisabled />);
+    const sheet = screen.getByRole('dialog');
+    sheet.focus();
+    rerender(<WithSheet open />);
+    expect(document.activeElement).toBe(sheet);
+    rerender(<WithSheet open={false} />);
+    expect(document.activeElement).toBe(screen.getByLabelText('поле'));
+  });
+
+  it('does not take focus from a button inside a non-modal dialog', () => {
+    const { rerender } = render(
+      <>
+        <Probe fieldsetDisabled />
+        <div role="dialog" aria-modal="false">
+          <button type="button">довідка</button>
+        </div>
+      </>,
+    );
+    const button = screen.getByRole('button', { name: 'довідка' });
+    button.focus();
+    rerender(
+      <>
+        <Probe />
+        <div role="dialog" aria-modal="false">
+          <button type="button">довідка</button>
+        </div>
+      </>,
+    );
+    expect(document.activeElement).toBe(button);
+  });
+
+  it('focuses a field that is itself inside the open modal', () => {
+    render(
+      <div role="dialog" aria-modal="true">
+        <Probe />
+      </div>,
+    );
+    expect(document.activeElement).toBe(screen.getByLabelText('поле'));
   });
 });

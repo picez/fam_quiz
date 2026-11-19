@@ -22,6 +22,14 @@ async function viewportShot(page: Page, name: string) {
   await page.screenshot({ path: resolve(ARTIFACTS, 'shots', `${name}.png`) });
 }
 
+/** Той самий кадр у темній темі (клас is-light знято на мить): нові рядки 45a/45c читаються й там. */
+async function darkShot(page: Page, name: string) {
+  if (process.env.E2E_SHOTS !== '1') return;
+  await page.evaluate("document.documentElement.classList.remove('is-light')");
+  await viewportShot(page, `${name}-dark`);
+  await page.evaluate("document.documentElement.classList.add('is-light')");
+}
+
 async function smallFixes60(sockets: Socket[]) {
   const author = await open('author60', 1280, 900);
   await register(author, 'host', 'Марта Правки', 'author60@example.com');
@@ -97,6 +105,7 @@ async function smallFixes60(sockets: Socket[]) {
   await expect.poll(() => textOf(olya.locator('p.appeal-kept')), POLL).toBe('Оскарження прийнято — воно лишається у вас');
   await expectFitsWidth13a(olya, 'p60-appeal-kept-360');
   await viewportShot(olya, 'p60-appeal-kept-360');
+  await darkShot(olya, 'p60-appeal-kept-360');
   expect(await olya.locator('p.appeal-kept').count()).toBe(1);
 
   // 3. q2 (число): курсор у полі; відхилена апеляція (ні) — рядка «лишається у вас» немає.
@@ -138,6 +147,7 @@ async function smallFixes60(sockets: Socket[]) {
   await edit.waitFor();
   await expectFitsWidth13a(olya, 'p60-bluff-sent-360');
   await viewportShot(olya, 'p60-bluff-sent-360');
+  await darkShot(olya, 'p60-bluff-sent-360');
   await edit.click();
   const lieField = field(olya, 'Твоя вигадка');
   await lieField.waitFor();

@@ -279,7 +279,7 @@ function BluffPlay({ view, paused, send, onDraft }: { view: PlayerView; paused: 
             <BluffLieInput send={send} onDraft={onDraft} initial={lastLie.current} />
           </fieldset>
         ) : (
-          <>
+          <div className="bluff-sent">
             <p className="lead">{t('bluffLieSent', { lie: mine.lie })}</p>
             <button type="button" className="btn btn-small bluff-edit" disabled={paused || editGuard.busy} onClick={() => void editGuard.run('player:lie-edit', undefined)}>
               {t('bluffLieEdit')}
@@ -289,7 +289,7 @@ function BluffPlay({ view, paused, send, onDraft }: { view: PlayerView; paused: 
                 {editError}
               </p>
             )}
-          </>
+          </div>
         )}
         <p className="meta">{t('bluffWritten', { n: bluff.written, total: view.playerCount })}</p>
       </section>
@@ -1393,7 +1393,7 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
             ) : wipeoutWatching ? (
               <p className="lead wipeout-state">{t('wipeoutOut')}</p>
             ) : isBluff ? (
-              <BluffPlay view={view} paused={locked} send={send} onDraft={onDraft} />
+              <BluffPlay key={view.questionIndex} view={view} paused={locked} send={send} onDraft={onDraft} />
             ) : isSort && me.sort !== null ? (
               <SortPlay question={shown ?? question} sort={me.sort} paused={locked} offsetMs={offsetMs} send={send} />
             ) : isSort ? (

@@ -3302,6 +3302,34 @@ describe('PlayerScreen: «Who am I?» and pin (10c)', () => {
       expect(document.activeElement).toBe(field);
     });
 
+    it('the next bluff question starts with an empty field, not the lie of the last one', () => {
+      const send: Send = vi.fn(async () => ({ ok: true as const }));
+      const node = (v: PlayerView) => <PlayerScreen view={v} hostOnline offsetMs={0} send={send} />;
+      const { rerender } = render(node(onQuestion({ questionIndex: 0, question: bluffPublic, bluff: info({ written: 1 }), me: mine({ lie: 'Рим' }) })));
+      rerender(node(onQuestion({ questionIndex: 1, question: bluffPublic, bluff: info({ written: 0 }), me: mine({ lie: null }) })));
+      expect((screen.getByLabelText('Твоя вигадка') as HTMLInputElement).value).toBe('');
+    });
+
+    it('a team answerer changes the lie: the reopened old text goes to the team pult as a draft', () => {
+      vi.useFakeTimers();
+      try {
+        const send: Send = vi.fn(async () => ({ ok: true as const }));
+        const petro = { captain: false, memberId: 'u3', nickname: 'Петро', answererId: 'u3', answerer: true, answererMode: 'chosen' as const, canAct: true };
+        const teamBluff = (lie: string | null, written: number) =>
+          teamPlayerView({ phase: 'question', questionIndex: 0, question: bluffPublic, endsAt: Date.now() + 20_000, bluff: info({ written }), me: { ...baseMe, bluff: { lie, own: [], pick: null, truth: null, fooled: null } } } as Partial<PlayerView>, petro);
+        const node = (v: PlayerView) => <PlayerScreen view={v} hostOnline offsetMs={0} send={send} />;
+        const { rerender } = render(node(teamBluff('Рим', 1)));
+        fireEvent.click(screen.getByRole('button', { name: 'Змінити' }));
+        expect(send).toHaveBeenCalledWith('player:lie-edit', undefined);
+        rerender(node(teamBluff(null, 0)));
+        expect((screen.getByLabelText('Твоя вигадка') as HTMLInputElement).value).toBe('Рим');
+        act(() => void vi.advanceTimersByTime(500));
+        expect(send).toHaveBeenCalledWith('player:draft', { draft: { type: 'lie', text: 'Рим' } });
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
     it('«Змінити» is disabled on a pause, and a refusal is read under it', async () => {
       show(onQuestion({ question: bluffPublic, bluff: info(), me: mine({ lie: 'Рим' }), paused: true, endsAt: null, remainingMs: 9000 }));
       expect((screen.getByRole('button', { name: 'Змінити' }) as HTMLButtonElement).disabled).toBe(true);

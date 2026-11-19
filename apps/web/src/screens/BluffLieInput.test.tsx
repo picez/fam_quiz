@@ -97,6 +97,20 @@ describe('BluffLieInput: the old text (45c)', () => {
     expect(field().value).toBe('Рим');
     expect(sendButton().disabled).toBe(false);
   });
+
+  it('sends the reopened old text to the team pult as a draft once', () => {
+    const onDraft = vi.fn();
+    const { rerender } = render(<BluffLieInput send={vi.fn(async () => ({ ok: true as const }))} initial=" Рим " autoFocus={false} onDraft={onDraft} />);
+    rerender(<BluffLieInput send={vi.fn(async () => ({ ok: true as const }))} initial=" Рим " autoFocus={false} onDraft={onDraft} />);
+    expect(onDraft).toHaveBeenCalledTimes(1);
+    expect(onDraft).toHaveBeenCalledWith({ type: 'lie', text: 'Рим' });
+  });
+
+  it('an empty field sends no draft on mount', () => {
+    const onDraft = vi.fn();
+    render(<BluffLieInput send={vi.fn(async () => ({ ok: true as const }))} autoFocus={false} onDraft={onDraft} />);
+    expect(onDraft).not.toHaveBeenCalled();
+  });
 });
 
 describe('BluffLieInput: the cursor (45b)', () => {

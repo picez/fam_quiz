@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { LIMITS, ladderKey, shuffle, wordLetters, type LetterWordsInfo, type PlayerLetterWords, type PublicQuestion } from '@quiz/shared';
 import { signed } from '../format';
 import { errorText, t } from '../i18n';
+import { keyboardOpened, viewportHeight } from '../live/keyboard';
 import { useAnswerFocus } from '../live/useAnswerFocus';
 import type { Send } from '../live/types';
 
@@ -258,7 +259,12 @@ export function LetterWordsPlay({ info, question, paused, send }: { info: Player
             enterKeyHint="send"
             value={word}
             disabled={off}
-            onFocus={() => later('keyboard', KEYBOARD_MS, () => input.current?.scrollIntoView?.({ block: 'nearest' }))}
+            onFocus={() => {
+              const before = viewportHeight();
+              later('keyboard', KEYBOARD_MS, () => {
+                if (keyboardOpened(before)) input.current?.scrollIntoView?.({ block: 'nearest' });
+              });
+            }}
             onChange={(event) => change(event.target.value)}
           />
         </label>
