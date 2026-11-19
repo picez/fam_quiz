@@ -22,7 +22,7 @@ import {
 import { and, asc, count, eq, inArray, isNull, like, lt, ne, or } from 'drizzle-orm';
 import type { CurrentUser } from './account-routes';
 import { achievementList, antiHidden, syncAchievements } from './achievement-store';
-import { isBanned } from './bans';
+import { isHidden } from './bans';
 import type { Db } from './db/client';
 import { follow, game, profile, user } from './db/schema';
 import { isUniqueViolation } from './db/unique';
@@ -265,7 +265,7 @@ export async function ownProfile(db: Db, current: CurrentUser): Promise<OwnProfi
 
 /** Публічна частина профілю; поля перелічено явно, щоб приватне не потрапило сюди випадково. null — такого користувача немає або його заблоковано. */
 export async function publicProfile(db: Db, id: string, viewerId: string | null): Promise<PublicProfile | null> {
-  if (await isBanned(db, id)) return null;
+  if (await isHidden(db, id)) return null;
   const base = await ensureProfile(db, id);
   if (!base) return null;
   const { stats, achievements, form } = await profileFacts(db, id, false);

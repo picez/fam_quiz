@@ -1,11 +1,13 @@
 import { makeQuiz, single } from '@quiz/engine/testing';
-import type { PushPayload } from '@quiz/shared';
-import { eq } from 'drizzle-orm';
+import { BOT_USER_ID, type PushPayload } from '@quiz/shared';
+import { and, eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { buildApp } from './app';
 import { banUser, unbanUser } from './bans';
+import { ensureBotAccount } from './bot-account';
 import { createEvent, decideRequest, noRooms, requestToJoin } from './calendar-store';
-import { calendarEvent, calendarRequest, feedEvent, follow } from './db/schema';
+import { calendarEvent, calendarRequest, familyGroup, feedEvent, follow, groupInvite } from './db/schema';
+import { notHidden } from './feed-store';
 import { createPushService, type PushSend } from './push';
 import { saveSubscription } from './push-store';
 import { createQuiz } from './quizzes';
@@ -174,5 +176,32 @@ describe('a banned person is hidden from others (21a)', () => {
     expect((await request('GET', `/api/profiles/${bId}`, a.cookie)).statusCode).toBe(200);
     expect(await friendsOfA()).toContain(bId);
     expect((await feedOfA()).map((e) => e.id)).toContain(feedId);
+  });
+});
+
+describe('the bot is hidden like a banned account (54)', () => {
+  beforeAll(async () => {
+    await ensureBotAccount(db);
+  });
+
+  it('search, nickname lookup, profile, achievements, versus and adding a friend skip the bot', async () => {
+    const found = (await request('GET', `/api/profiles/search?q=${encodeURIComponent('Квіз')}`, a.cookie)).json() as { id: string }[];
+    expect(found.map((p) => p.id)).not.toContain(BOT_USER_ID);
+    expect((await request('GET', `/api/profiles?nickname=${encodeURIComponent('Квіз-бот')}`, a.cookie)).statusCode).toBe(404);
+    expect((await request('GET', `/api/profiles/${BOT_USER_ID}`, a.cookie)).statusCode).toBe(404);
+    expect((await request('GET', `/api/profiles/${BOT_USER_ID}/achievements`)).statusCode).toBe(404);
+    expect((await request('GET', `/api/me/versus/${BOT_USER_ID}`, a.cookie)).statusCode).toBe(404);
+    const add = await request('PUT', `/api/me/friends/${BOT_USER_ID}`, a.cookie);
+    expect(add.statusCode).toBe(404);
+    expect(await db.select().from(follow).where(eq(follow.followeeId, BOT_USER_ID))).toHaveLength(0);
+  });
+
+  it('notHidden keeps rows whose column is null', async () => {
+    const [group] = await db.insert(familyGroup).values({ name: 'Родина 54', emoji: '🌻', inviteCode: 'bot54null' }).returning({ id: familyGroup.id });
+    await db.insert(groupInvite).values({ groupId: group!.id, userId: aId, invitedBy: null, createdAt: new Date() });
+    const kept = await db.select({ id: groupInvite.groupId }).from(groupInvite).where(and(eq(groupInvite.groupId, group!.id), notHidden(groupInvite.invitedBy)));
+    expect(kept).toHaveLength(1);
+    const invites = (await request('GET', '/api/me/group-invites', a.cookie)).json() as { group: { id: string } }[];
+    expect(invites.map((i) => i.group.id)).toContain(group!.id);
   });
 });

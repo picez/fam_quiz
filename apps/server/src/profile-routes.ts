@@ -4,7 +4,7 @@ import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { CurrentUser } from './account-routes';
 import { achievementShares } from './achievement-shares';
 import { achievementsPage, setHideAnti } from './achievement-store';
-import { isBanned } from './bans';
+import { isHidden } from './bans';
 import type { Db } from './db/client';
 import { givenLikes, receivedLikes } from './like-store';
 import { versusOf } from './versus';
@@ -27,8 +27,8 @@ const easySchema = z.object({ on: z.boolean() }).strict();
 
 export async function registerProfileRoutes(app: FastifyInstance, deps: ProfileDeps): Promise<void> {
   const { db, currentUser } = deps;
-  /** Немає такої людини або її заблоковано (бан #23): для інших — однаково 404. */
-  const hidden = async (id: string) => (await isBanned(db, id)) || (await ensureProfile(db, id)) === null;
+  /** Немає такої людини, її заблоковано (бан #23) чи це «Квіз-бот» (54): для інших — однаково 404. */
+  const hidden = async (id: string) => (await isHidden(db, id)) || (await ensureProfile(db, id)) === null;
 
   app.get('/api/me/profile', async (request, reply) => {
     const user = await currentUser(request);
@@ -150,7 +150,7 @@ export async function registerProfileRoutes(app: FastifyInstance, deps: ProfileD
     { config: { rateLimit: { max: 120, timeWindow: '1 minute' } } },
     async (request, reply) => {
       const { id } = request.params;
-      if (id.length > MAX_ID_LENGTH || (await isBanned(db, id))) return reply.code(404).send(NOT_FOUND);
+      if (id.length > MAX_ID_LENGTH || (await isHidden(db, id))) return reply.code(404).send(NOT_FOUND);
       const found = await achievementsPage(db, id, false);
       return found ?? reply.code(404).send(NOT_FOUND);
     },

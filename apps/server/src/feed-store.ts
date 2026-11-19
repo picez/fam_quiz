@@ -1,4 +1,4 @@
-import { FEED_BADGE_CAP, FEED_PAGE_SIZE, FEED_RETENTION_DAYS, feedCursor, type FeedBadge, type FeedEvent, type FeedPage } from '@quiz/shared';
+import { BOT_USER_ID, FEED_BADGE_CAP, FEED_PAGE_SIZE, FEED_RETENTION_DAYS, feedCursor, type FeedBadge, type FeedEvent, type FeedPage } from '@quiz/shared';
 import { and, eq, inArray, isNotNull, lt, ne, sql, type SQL } from 'drizzle-orm';
 import { alias, type AnyPgColumn } from 'drizzle-orm/pg-core';
 import type { Db } from './db/client';
@@ -32,9 +32,9 @@ export function mutualFriendIds(db: Db, viewerId: string): SQL {
   return sql`${query}`;
 }
 
-/** Єдина точка приховування людей (бан #23). */
+/** Єдина точка приховування людей: бан (#23) і «Квіз-бот» (54). is distinct from — бо колонка буває null (group_invite.invited_by), а null <> … сховало б рядок. */
 export function notHidden(column: AnyPgColumn): SQL {
-  return sql`not exists (select 1 from ${userBan} where ${userBan.userId} = ${column})`;
+  return sql`(${column} is distinct from ${BOT_USER_ID} and not exists (select 1 from ${userBan} where ${userBan.userId} = ${column}))`;
 }
 
 /** feed_event, які бачить viewer: свої чи взаємних друзів (planned — ще й ті, кого user_id додав у друзі), notHidden(user_id), at >= cutoff. */

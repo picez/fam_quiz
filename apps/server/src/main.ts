@@ -7,6 +7,7 @@ import { adminEmails, baseUrl, localOrigins, proxyTrust, pushKeys, secretProblem
 import { connectDb } from './db/client';
 import { backfillFeed, settleFeedLevels } from './feed-publish';
 import { settleStickerLegacy } from './xp-store';
+import { ensureBotAccount } from './bot-account';
 import { diskStorage, type ImageStorage } from './storage/images';
 import { r2Storage, type R2Settings } from './storage/r2';
 import { backupsEnabled, dbBackups, r2BackupStore } from './db-backup';
@@ -118,6 +119,8 @@ const { db, close: closeDb } = await connectDb(databaseUrl);
 await settleFeedLevels(db).catch((error: unknown) => reportError(error, { where: 'feed-levels' }));
 // Стікери (34, «м'якше»): наявні акаунти один раз запам'ятовують свій рівень — усе, що давало старе правило серій, лишається відкритим.
 await settleStickerLegacy(db).catch((error: unknown) => reportError(error, { where: 'sticker-legacy' }));
+// Акаунт «Квіз-бота» (54): створюється раз, далі нічого не змінює.
+await ensureBotAccount(db).catch((error: unknown) => reportError(error, { where: 'bot-account' }));
 const { app, shutdown } = await buildApp({
   db,
   auth: {

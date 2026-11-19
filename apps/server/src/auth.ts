@@ -1,4 +1,5 @@
 import { drizzleAdapter } from '@better-auth/drizzle-adapter';
+import { isBotUser } from '@quiz/shared';
 import { betterAuth } from 'better-auth';
 import { APIError } from 'better-auth/api';
 import { banNotice, isBanned } from './bans';
@@ -38,6 +39,8 @@ export function createAuth(db: Db, options: AuthOptions) {
       session: {
         create: {
           before: async (session) => {
+            // «Квіз-бот» (54) не входить жодним шляхом, навіть якби в нього з'явився рядок account.
+            if (isBotUser(session.userId)) throw new APIError('FORBIDDEN', { code: 'BOT_ACCOUNT', message: 'BOT_ACCOUNT' });
             if (await isBanned(db, session.userId)) {
               const notice = banNotice.getStore();
               if (notice) notice.banned = true;

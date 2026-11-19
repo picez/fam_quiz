@@ -1,4 +1,4 @@
-import type { AdminActionKind, AdminLogDetails } from '@quiz/shared';
+import { isBotUser, type AdminActionKind, type AdminLogDetails } from '@quiz/shared';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { eq } from 'drizzle-orm';
 import type { Db } from './db/client';
@@ -10,9 +10,15 @@ type Tx = Parameters<Parameters<Db['transaction']>[0]>[0];
 /** Прапорець «вхід відхилено баном» для поточного запиту до Better Auth (задача 3). */
 export const banNotice = new AsyncLocalStorage<{ banned: boolean }>();
 
+/** Саме «є бан» (адмінка, banUser). Для приховування від інших — isHidden. */
 export async function isBanned(db: Db | Tx, userId: string): Promise<boolean> {
   const [row] = await db.select({ id: userBan.userId }).from(userBan).where(eq(userBan.userId, userId));
   return row !== undefined;
+}
+
+/** Людину не видно іншим і вона не входить: забанена або «Квіз-бот» (54). */
+export async function isHidden(db: Db | Tx, userId: string): Promise<boolean> {
+  return isBotUser(userId) || isBanned(db, userId);
 }
 
 /** Рядок журналу; adminLabel — нікнейм адміна (ensureProfile), targetLabel — нікнейм цілі чи ''. */

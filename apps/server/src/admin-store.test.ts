@@ -1,9 +1,11 @@
 import { randomUUID } from 'node:crypto';
-import { questionsOf } from '@quiz/shared';
+import { BOT_USER_ID, questionsOf } from '@quiz/shared';
 import { bool, makeQuiz, single, text } from '@quiz/engine/testing';
+import { eq } from 'drizzle-orm';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { adminLog, adminQuiz, adminQuizzes, adminStats, adminUser, adminUsers, kyivMidnight } from './admin-store';
 import { banUser, logAction } from './bans';
+import { ensureBotAccount } from './bot-account';
 import type { Db } from './db/client';
 import { game, participant, prize, prizeAward, profile, quiz, user, userTitle } from './db/schema';
 import { ensureProfile } from './profiles';
@@ -198,3 +200,20 @@ describe('admin store', () => {
   });
 });
 
+
+describe('the bot in the admin panel (54)', () => {
+  it('the admin user list and counts leave the bot out', async () => {
+    db = await createTestDb();
+    await person('Квізолюб', { lastSeen: NOW });
+    const before = await adminStats(db, 0, NOW);
+    await ensureBotAccount(db);
+    // Бот «щойно створений» і «на зв'язку» — однаково не рахується.
+    await db.update(profile).set({ lastSeenAt: NOW }).where(eq(profile.userId, BOT_USER_ID));
+    const after = await adminStats(db, 0, NOW);
+    expect(after.users).toEqual(before.users);
+    const list = await adminUsers(db, none, { q: 'Квіз', page: 1 });
+    expect(list.rows.map((r) => r.id)).not.toContain(BOT_USER_ID);
+    expect(list.total).toBe(1);
+    expect((await adminUsers(db, none, { page: 1 })).total).toBe(1);
+  });
+});
