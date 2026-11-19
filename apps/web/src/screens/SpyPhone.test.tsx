@@ -65,6 +65,29 @@ describe('SpyPhone', () => {
     expect(screen.getAllByRole('button')).toHaveLength(3);
   });
 
+  it('only the spy sees how to write, and only until the association is sent', () => {
+    const { rerender } = render(<SpyPhone info={info()} mine={mine({ word: null, spy: true })} meId="p1" send={ok()} />);
+    expect(screen.getByText(t('spyYouHow'))).toBeTruthy();
+    rerender(<SpyPhone info={info()} mine={mine({ word: null, spy: true, wrote: 'ранок' })} meId="p1" send={ok()} />);
+    expect(screen.queryByText(t('spyYouHow'))).toBeNull();
+    rerender(<SpyPhone info={info()} mine={mine()} meId="p1" send={ok()} />);
+    expect(screen.queryByText(t('spyYouHow'))).toBeNull();
+    rerender(<SpyPhone info={info({ stage: 'vote', rows: voteRows })} mine={mine({ word: null, spy: true })} meId="p1" send={ok()} />);
+    expect(screen.queryByText(t('spyYouHow'))).toBeNull();
+  });
+
+  it('the role card follows the spy flag', () => {
+    render(<SpyPhone info={info()} mine={mine({ word: 'кава', spy: true })} meId="p1" send={ok()} />);
+    expect(screen.getByText(t('spyYouAreSpy'))).toBeTruthy();
+    expect(screen.queryByText('кава')).toBeNull();
+  });
+
+  it('the caught spy still sees the hint while guessing', () => {
+    render(<SpyPhone info={info({ stage: 'guess', rows: voteRows })} mine={mine({ word: null, spy: true, guessing: true, hint: "Її п’ють зранку" })} meId="p3" send={ok()} />);
+    expect(screen.getByText(t('spyHintLine', { hint: "Її п’ють зранку" }))).toBeTruthy();
+    expect(screen.getByText(t('spyCaughtYou'))).toBeTruthy();
+  });
+
   it('the spy without a hint sees only the role', () => {
     render(<SpyPhone info={info()} mine={mine({ word: null, hint: null, spy: true })} meId="p1" send={ok()} />);
     expect(screen.getByText(t('spyYouAreSpy'))).toBeTruthy();

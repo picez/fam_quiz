@@ -322,7 +322,7 @@ function BluffResult({ view }: { view: PlayerView }) {
   );
 }
 
-/** Розкриття «Шпигуна» (38): шпигун, обидва слова, голоси й бали; шпигунові — «Ви були шпигуном», кожному — свої бали. */
+/** Розкриття «Шпигуна» (38, 50): шпигун, загальне слово й підказка, голоси й бали; шпигунові — «Ви були шпигуном», кожному — свої бали. */
 function SpyResult({ view }: { view: PlayerView }) {
   const { spy } = view;
   if (spy === undefined) return null;
@@ -1244,7 +1244,7 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
               // Глядач проданого запитання: варіанти лише для читання, як на locked, — стежить за відповіддю й без сцени.
               <SpotlightChoices removed={view.removed} question={question} spotlight={null} reveal={null} placeholder={false} />
             ) : question.type === 'spy' ? (
-              // «Шпигун» (38): своє слово й асоціація, потім голос за іменами, останній шанс — лише викритому шпигунові.
+              // «Шпигун» (38, 50): загальне слово (шпигунові — роль і підказка) й асоціація, потім голос за іменами, останній шанс — лише викритому шпигунові.
               view.spy !== undefined &&
               me.spy !== undefined && (
                 <fieldset className="inputs" disabled={locked}>
@@ -1538,7 +1538,7 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
               <p className="lead">{t('sortWaitResults')}</p>
             </section>
           ) : question?.type === 'spy' && me.spy !== undefined ? (
-            // «Шпигун» (38): своя асоціація; слова пари й шпигун — лише на розкритті.
+            // «Шпигун» (38, 50): своя асоціація; загальне слово, підказка й шпигун — лише на розкритті.
             <section className="sent">
               {me.spy.wrote !== null && (
                 <h2 className="spy-wrote" dir="auto">
