@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { secondsLeft } from '../clock';
 import { t } from '../i18n';
+import { useStickyTimer } from './StickyTimer';
 
 export type TimerStatus = 'paused' | 'held' | 'heldAuto' | 'listening' | null;
 
@@ -75,11 +76,15 @@ export function Timer({ view, offsetMs, total = null, status: given = null, lead
     return () => clearInterval(id);
   }, [running, view.endsAt]);
 
-  const face = timerFace({ view, offsetMs, total, status: given, leadMs }, Date.now());
+  const [element, setElement] = useState<HTMLDivElement | null>(null);
+  const input: TimerInput = { view, offsetMs, total, status: given, leadMs };
+  useStickyTimer(element, input);
+
+  const face = timerFace(input, Date.now());
   if (face === null) return null;
   const { seconds, pct, status, totalText } = face;
   return (
-    <div className={face.ending ? 'timer is-ending' : 'timer'} dir="ltr" role="timer" aria-label={String(seconds)}>
+    <div ref={setElement} className={face.ending ? 'timer is-ending' : 'timer'} dir="ltr" role="timer" aria-label={String(seconds)}>
       <span className="timer-flaps">
         {String(seconds)
           .padStart(2, '0')

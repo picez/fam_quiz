@@ -47,6 +47,7 @@ const uk = {
   noTimer: 'без таймера',
   timerOf: '/ {seconds} с',
   timerPaused: 'Пауза',
+  timerLeft: '{seconds} с',
   timerHeld: 'Чекає рішення ведучого',
   timerHeldAuto: 'Перевіряємо за ключем',
   timerListening: '🎵 Слухайте',

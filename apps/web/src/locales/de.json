@@ -3747,6 +3747,7 @@
   "timerListening": "🎵 Hört zu",
   "timerOf": "/ {seconds} s",
   "timerPaused": "Pause",
+  "timerLeft": "{seconds} s",
   "toHistory": "Spielverlauf",
   "toMenu": "Zum Menü",
   "toQuizzes": "Meine Quizze",

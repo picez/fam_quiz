@@ -3747,6 +3747,7 @@
   "timerListening": "🎵 Listen",
   "timerOf": "/ {seconds} s",
   "timerPaused": "Paused",
+  "timerLeft": "{seconds} s",
   "toHistory": "Game history",
   "toMenu": "To the menu",
   "toQuizzes": "My quizzes",
