@@ -853,3 +853,36 @@ describe('library (38g)', () => {
     expect(reports.map((row) => [row.reporterId, row.targetUserId])).toEqual([['b', 'c']]);
   });
 });
+
+describe('announcement (53)', () => {
+  const T = new Date('2026-11-19T10:00:00.000Z');
+
+  it('migration 0041 adds the announcement table over an older database, old data stays', async () => {
+    const { adminAction, announcement } = await import('./schema');
+    const { db, migrateRest } = await createTestDbUpTo('0040_library');
+    await db.insert(user).values({ id: 'a', name: 'Адмін', email: 'a@example.com' });
+    const source = makeQuiz([single]);
+    await db.insert(quiz).values({ ownerId: 'a', title: 'Q', description: '', settings: source.settings, rounds: source.rounds });
+    await db.insert(adminAction).values({ at: T, adminId: 'a', adminLabel: 'Адмін', kind: 'ban', targetUserId: null, targetLabel: '', details: {} });
+
+    await migrateRest();
+
+    expect(await db.select().from(quiz)).toHaveLength(1);
+    expect(await db.select().from(adminAction)).toHaveLength(1);
+    expect(await db.select().from(announcement)).toEqual([]);
+  });
+
+  it('deleting the author keeps the announcement with no author', async () => {
+    const { announcement } = await import('./schema');
+    const db = await createTestDb();
+    await db.insert(user).values({ id: 'a', name: 'Адмін', email: 'a@example.com' });
+    const [row] = await db.insert(announcement).values({ text: 'Привіт', createdBy: 'a', createdAt: T }).returning();
+    expect(row.url).toBeNull();
+    expect(row.expiresAt).toBeNull();
+    expect(row.clearedAt).toBeNull();
+    await db.delete(user).where(eq(user.id, 'a'));
+    const [kept] = await db.select().from(announcement);
+    expect(kept.text).toBe('Привіт');
+    expect(kept.createdBy).toBeNull();
+  });
+});

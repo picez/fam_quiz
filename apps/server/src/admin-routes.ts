@@ -1,4 +1,4 @@
-import { ADMIN_CACHE_MS, adminListQuerySchema, adminProfileActionSchema, adminQuizActionSchema, banSchema, type AdminBackupInfo, type AdminHealth } from '@quiz/shared';
+import { ADMIN_CACHE_MS, ANNOUNCEMENT_MAX_DAYS, adminListQuerySchema, announcementInputSchema, adminProfileActionSchema, adminQuizActionSchema, banSchema, type AdminBackupInfo, type AdminHealth } from '@quiz/shared';
 import { eq } from 'drizzle-orm';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { CurrentUser } from './account-routes';
@@ -6,6 +6,7 @@ import { isAdmin } from './admin';
 import { adminCharts } from './admin-charts';
 import { liveRooms } from './admin-live';
 import { adminLog, adminQuiz, adminQuizzes, adminStats, adminUser, adminUsers } from './admin-store';
+import { activeAnnouncement, clearAnnouncement, setAnnouncement, type AnnouncementCache } from './announcement-store';
 import { banUser, logAction, unbanUser } from './bans';
 import type { Db } from './db/client';
 import { prize } from './db/schema';
@@ -25,6 +26,8 @@ export interface AdminDeps {
   currentUser: (request: FastifyRequest) => Promise<CurrentUser | null>;
   /** Список копій бази (53); без нього блок «Стан» каже, що сховища немає. */
   backupList?: () => Promise<StoredObject[]>;
+  /** Кеш публічного оголошення (53): кожен запис адміна його скидає. */
+  announcements: AnnouncementCache;
   now?: () => Date;
 }
 
@@ -138,6 +141,34 @@ export async function registerAdminRoutes(app: FastifyInstance, deps: AdminDeps)
     if (result === 'not_found') return reply.code(404).send(NOT_FOUND);
     if (result === 'finished') return reply.code(409).send({ error: 'game_finished' });
     await logAction(db, { adminId: me.id, kind: 'game_close', targetUserId: hostUserId, details: { title, code }, now: now() });
+    return reply.code(204).send();
+  });
+
+  // Оголошення (53): читання адміна без кешу; записи скидають публічний кеш.
+  app.get('/api/admin/announcement', read, async () => ({ announcement: await activeAnnouncement(db, now()) }));
+
+  app.put('/api/admin/announcement', write, async (request, reply) => {
+    const me = await adminOf(request);
+    if (me === null) return reply.code(404).send(NOT_FOUND);
+    const body = announcementInputSchema.safeParse(request.body);
+    if (!body.success) return reply.code(400).send(INVALID);
+    const at = now();
+    if (body.data.expiresAt !== null) {
+      const expires = Date.parse(body.data.expiresAt);
+      if (expires <= at.getTime() || expires > at.getTime() + ANNOUNCEMENT_MAX_DAYS * 86_400_000) {
+        return reply.code(400).send({ error: 'announcement_expiry' });
+      }
+    }
+    const saved = await setAnnouncement(db, { adminId: me.id, input: body.data, now: at });
+    deps.announcements.clear();
+    return saved;
+  });
+
+  app.delete('/api/admin/announcement', write, async (request, reply) => {
+    const me = await adminOf(request);
+    if (me === null) return reply.code(404).send(NOT_FOUND);
+    await clearAnnouncement(db, { adminId: me.id, now: now() });
+    deps.announcements.clear();
     return reply.code(204).send();
   });
 
