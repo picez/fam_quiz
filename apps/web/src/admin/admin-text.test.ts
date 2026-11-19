@@ -43,6 +43,11 @@ describe('logLine for moderation', () => {
     expect(logLine(entry({ kind: 'nickname_reset', details: { text: 'Ірися' } }))).toBe('Адмін скинув(-ла) нік Богдан (було: «Ірися»)');
     expect(logLine(entry({ kind: 'nickname_reset', details: {} }))).toBe('Адмін скинув(-ла) нік Богдан');
   });
+  it('writes the bot lines with the title and the room code', () => {
+    expect(logLine(entry({ admin: 'Оля', kind: 'bot_game_start', target: 'Квіз-бот', details: { title: 'Річки України 54', code: '123456' } }))).toBe('Оля запустив(-ла) гру бота «Річки України 54» (код 123456)');
+    expect(logLine(entry({ admin: 'Оля', kind: 'bot_copy', target: 'Квіз-бот', details: { title: 'Карпати' } }))).toBe('Оля передав(-ла) боту копію «Карпати»');
+    expect(logLine(entry({ admin: 'Оля', kind: 'bot_quiz_delete', target: 'Квіз-бот', details: { title: 'Карпати' } }))).toBe('Оля видалив(-ла) вікторину бота «Карпати»');
+  });
   it('shows a player without a nickname as the default name', () => {
     expect(logLine(entry({ kind: 'avatar_reset', target: '' }))).toBe('Адмін скинув(-ла) аватар Гравець');
   });
