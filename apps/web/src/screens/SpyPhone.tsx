@@ -86,7 +86,7 @@ function SpyVote({ info, meId, send }: { info: SpyInfo; meId: string; send: Send
 }
 
 /**
- * «Шпигун» (38) на телефоні у фазі question. words — своє слово великим і поле асоціації (шпигун бачить слово шпигуна, нічого не знаючи);
+ * «Шпигун» (38) на телефоні у фазі question. words — своє слово великим і поле асоціації (шпигун бачить лише «Ви — шпигун» і підказку ведучого);
  * vote — «Хто шпигун?» і кнопки інших учасників; guess — поле лише викритому шпигунові, решта чекає «Останній шанс шпигуна…».
  * Глядач (автор автопілота) — лише «Ви автор…», без поля й кнопок.
  */
@@ -99,14 +99,24 @@ export function SpyPhone({ info, mine, meId, send }: { info: SpyInfo; mine: Play
       </section>
     );
   }
-  const own = (
-    <p className="spy-me">
-      <span className="meta">{t('spyYourWord')}</span>
-      <strong className="spy-me-word" dir="auto">
-        {mine.word}
-      </strong>
-    </p>
-  );
+  const own =
+    mine.word === null ? (
+      <div className="spy-me spy-you">
+        <strong className="spy-you-role">{t('spyYouAreSpy')}</strong>
+        {mine.hint !== null && (
+          <p className="spy-hint" dir="auto">
+            {t('spyHintLine', { hint: mine.hint })}
+          </p>
+        )}
+      </div>
+    ) : (
+      <p className="spy-me">
+        <span className="meta">{t('spyYourWord')}</span>
+        <strong className="spy-me-word" dir="auto">
+          {mine.word}
+        </strong>
+      </p>
+    );
   if (info.stage === 'words') {
     return (
       <section className="spy-phone">

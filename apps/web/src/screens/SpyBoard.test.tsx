@@ -18,7 +18,7 @@ const voteInfo: SpyInfo = {
   total: 3,
   rows: [row('p1', 'Оля', 'аромат'), row('p2', 'Петро', 'листя'), row('p3', 'Тарас', null)],
   playersWord: null,
-  spyWord: null,
+  spyHint: null,
   spyName: null,
   caught: null,
   guess: null,
@@ -35,7 +35,7 @@ const revealInfo = (over: Partial<SpyInfo> = {}): SpyInfo => ({
     row('p3', 'Тарас', 'ранок', { voters: [], spy: false, points: 1000 }),
   ],
   playersWord: 'кава',
-  spyWord: 'чай',
+  spyHint: 'Її п’ють зранку',
   spyName: 'Петро',
   caught: true,
   guess: 'кава',
@@ -69,10 +69,17 @@ describe('SpyBoard', () => {
     expect(document.querySelector('.spy-row.is-spy')).toBeNull();
   });
 
+  it('reveal without a hint has no hint line', () => {
+    render(<SpyBoard info={revealInfo({ spyHint: null })} />);
+    expect(screen.getByText(t('spyRevealWord', { word: 'кава' }))).toBeTruthy();
+    expect(screen.queryByText(/Підказка шпигуну/)).toBeNull();
+  });
+
   it('reveal', () => {
     render(<SpyBoard info={revealInfo()} />);
     expect(screen.getByText(t('spyRevealSpy', { name: 'Петро' }))).toBeTruthy();
-    expect(screen.getByText(t('spyRevealWords', { players: 'кава', spy: 'чай' }))).toBeTruthy();
+    expect(screen.getByText(t('spyRevealWord', { word: 'кава' }))).toBeTruthy();
+    expect(screen.getByText(t('spyRevealHint', { hint: 'Її п’ють зранку' }))).toBeTruthy();
     expect(screen.getByText(t('spyCaught'))).toBeTruthy();
     const petro = lineOf('Петро');
     expect(petro.className).toContain('is-spy');

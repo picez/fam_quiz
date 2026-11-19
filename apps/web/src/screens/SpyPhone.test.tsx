@@ -19,7 +19,7 @@ const info = (over: Partial<SpyInfo> = {}): SpyInfo => ({
   total: 4,
   rows: null,
   playersWord: null,
-  spyWord: null,
+  spyHint: null,
   spyName: null,
   caught: null,
   guess: null,
@@ -27,7 +27,7 @@ const info = (over: Partial<SpyInfo> = {}): SpyInfo => ({
   ...over,
 });
 
-const mine = (over: Partial<PlayerSpy> = {}): PlayerSpy => ({ word: 'кава', wrote: null, vote: null, spectator: false, guessing: false, guess: null, spy: null, ...over });
+const mine = (over: Partial<PlayerSpy> = {}): PlayerSpy => ({ word: 'кава', hint: null, wrote: null, vote: null, spectator: false, guessing: false, guess: null, spy: false, ...over });
 
 const voteRows = [row('p1', 'Оля', 'ранок'), row('p2', 'Тарас', 'аромат'), row('p3', 'Петро', 'листя'), row('p4', 'Ганна', null)];
 
@@ -49,6 +49,33 @@ describe('SpyPhone', () => {
     expect(screen.queryByRole('textbox')).toBeNull();
     expect(screen.getByText('аромат')).toBeTruthy();
     expect(screen.getByText(t('spyWaitVote'))).toBeTruthy();
+  });
+
+  it('the spy sees only the role and the hint', () => {
+    const spyMine = mine({ word: null, hint: "Її п’ють зранку", spy: true });
+    const { rerender } = render(<SpyPhone info={info()} mine={spyMine} meId="p1" send={ok()} />);
+    expect(screen.getByText(t('spyYouAreSpy'))).toBeTruthy();
+    expect(screen.getByText(t('spyHintLine', { hint: "Її п’ють зранку" }))).toBeTruthy();
+    expect(screen.getByRole('textbox', { name: t('spyWordPrompt') })).toBeTruthy();
+    expect(screen.queryByText(t('spyYourWord'))).toBeNull();
+    rerender(<SpyPhone info={info({ stage: 'vote', rows: voteRows })} mine={spyMine} meId="p1" send={ok()} />);
+    expect(screen.getByText(t('spyYouAreSpy'))).toBeTruthy();
+    expect(screen.getByText(t('spyHintLine', { hint: "Її п’ють зранку" }))).toBeTruthy();
+    expect(screen.queryByText(t('spyYourWord'))).toBeNull();
+    expect(screen.getAllByRole('button')).toHaveLength(3);
+  });
+
+  it('the spy without a hint sees only the role', () => {
+    render(<SpyPhone info={info()} mine={mine({ word: null, hint: null, spy: true })} meId="p1" send={ok()} />);
+    expect(screen.getByText(t('spyYouAreSpy'))).toBeTruthy();
+    expect(screen.queryByText(/Підказка/)).toBeNull();
+  });
+
+  it('other players still see their word', () => {
+    render(<SpyPhone info={info()} mine={mine({ word: 'кава' })} meId="p1" send={ok()} />);
+    expect(screen.getByText(t('spyYourWord'))).toBeTruthy();
+    expect(screen.getByText('кава')).toBeTruthy();
+    expect(screen.queryByText(t('spyYouAreSpy'))).toBeNull();
   });
 
   it('a refused association shows the reason and keeps the text', async () => {
@@ -86,7 +113,7 @@ describe('SpyPhone', () => {
 
   it('guess for the spy only', async () => {
     const send = ok();
-    const { unmount } = render(<SpyPhone info={info({ stage: 'guess', rows: voteRows })} mine={mine({ word: 'чай', guessing: true })} meId="p3" send={send} />);
+    const { unmount } = render(<SpyPhone info={info({ stage: 'guess', rows: voteRows })} mine={mine({ word: null, spy: true, guessing: true })} meId="p3" send={send} />);
     expect(screen.getByText(t('spyCaughtYou'))).toBeTruthy();
     fireEvent.change(screen.getByRole('textbox', { name: t('spyPlayersWord') }), { target: { value: 'кава' } });
     fireEvent.click(screen.getByRole('button', { name: t('submit') }));

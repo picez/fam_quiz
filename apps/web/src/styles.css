@@ -24960,6 +24960,21 @@ input.sudoku-editor-cell:focus-visible {
   text-align: center;
 }
 
+.spy-you-role {
+  min-width: 0;
+  font-family: var(--display);
+  font-size: 2rem;
+  line-height: 1.15;
+  overflow-wrap: anywhere;
+}
+
+.spy-hint {
+  min-width: 0;
+  margin: 0;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
 .spy-me-word {
   min-width: 0;
   font-family: var(--display);

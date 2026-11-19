@@ -4172,7 +4172,7 @@ describe('HostScreen: thinkalike and no overshoot (37)', () => {
 });
 
 describe('HostScreen: spy (38)', () => {
-  const spyQ = { id: 'q7', type: 'spy', text: 'Напишіть одне слово-асоціацію до свого слова', imageUrl: null, video: null, timeLimit: 40, points: 1000, accepted: ['кава'], spyWord: 'чай', voteTime: 30 } as Question;
+  const spyQ = { id: 'q7', type: 'spy', text: 'Напишіть одне слово-асоціацію до свого слова', imageUrl: null, video: null, timeLimit: 40, points: 1000, accepted: ['кава'], voteTime: 30 } as Question;
   const hostSpy = {
     stage: 'words' as const,
     written: 1,
@@ -4185,7 +4185,7 @@ describe('HostScreen: spy (38)', () => {
     ],
     spyId: 'p2',
     playersWord: 'кава',
-    spyWord: 'чай',
+    spyHint: 'Її п’ють зранку',
     spyName: 'Петро',
     caught: false,
     guess: null,
@@ -4197,7 +4197,7 @@ describe('HostScreen: spy (38)', () => {
     const send = show(during('question', spyQ, { endsAt: Date.now() + 30_000, limitMs: 40_000, spy: hostSpy, live }));
     const panel = document.querySelector('.host-spy') as HTMLElement;
     expect(within(panel).getByText(t('spyRevealSpy', { name: 'Петро' }))).toBeTruthy();
-    expect(within(panel).getByText(t('spyRevealWords', { players: 'кава', spy: 'чай' }))).toBeTruthy();
+    expect(within(panel).getByText(t('spyRevealWord', { word: 'кава' }))).toBeTruthy();
     expect(within(panel).getByText('аромат')).toBeTruthy();
     expect(document.getElementById('live-answers')).toBeNull();
     expect(screen.queryByText(t('correctAnswer', { answer: t('spyCorrect') }))).toBeNull();
