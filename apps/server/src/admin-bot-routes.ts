@@ -5,6 +5,7 @@ import type { CurrentUser } from './account-routes';
 import type { AdminDeps } from './admin-routes';
 import { botQuizzes } from './admin-store';
 import { ensureBotAccount } from './bot-account';
+import { registerAdminBotScheduleRoutes } from './admin-bot-schedule-routes';
 import { openBotGame } from './bot-games';
 import { botGroups, listPlans } from './bot-plan-store';
 import { logAction } from './bans';
@@ -118,4 +119,6 @@ export async function registerAdminBotRoutes(app: FastifyInstance, deps: AdminDe
     if (done.ok) return reply.code(204).send();
     return done.error === 'game_not_found' ? reply.code(404).send(NOT_FOUND) : reply.code(409).send({ error: done.error });
   });
+
+  await registerAdminBotScheduleRoutes(app, deps, guards);
 }
