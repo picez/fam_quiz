@@ -281,14 +281,37 @@ async function xpCard49() {
   const card = olya.locator('.xp-moment');
   await card.waitFor({ timeout: 30_000 });
   await card.getByRole('heading', { name: 'Досвід за гру', ...exact }).waitFor();
-  const lines = (await card.locator('.xp-moment-lines li').allTextContents()).map(squash49);
-  console.log(`part 49: Olya's lines — ${JSON.stringify(lines)}`);
-  for (const wanted of [/^За участь\s*\+50$/, /^5 правильних відповідей\s*\+50$/, /^За 1-е місце\s*\+100$/, /^Досягнення «Перша гра»\s*\+25$/]) {
+  const value49 = (line: string) => Number(/([+\-−]\d+)$/.exec(line)![1]!.replace('−', '-'));
+  // Рядки гри — прямі рядки картки; два й більше досягнень згорнуті в один рядок «Досягнення (N)» із сумою.
+  const lines = (await card.locator(':scope > .xp-moment-lines > li:not(.xp-moment-group)').allTextContents()).map(squash49);
+  const group = card.locator('.xp-moment-group');
+  let achievementLines = lines.filter((line) => line.startsWith('Досягнення «'));
+  let groupValue = 0;
+  if ((await group.count()) > 0) {
+    const details = group.locator('details');
+    expect(await details.evaluate((el) => (el as HTMLDetailsElement).open), 'the group is closed at first').toBe(false);
+    const summary = squash49(await group.locator('summary').textContent());
+    const count = /^Досягнення \((\d+)\)/.exec(summary)?.[1];
+    expect(count, `the group summary «${summary}»`).toBeDefined();
+    groupValue = value49(summary);
+    await group.locator('summary').click();
+    expect(await details.evaluate((el) => (el as HTMLDetailsElement).open), 'the group opens').toBe(true);
+    achievementLines = (await group.locator('details li').allTextContents()).map(squash49);
+    expect(achievementLines.length, 'names in the group').toBe(Number(count));
+    expect(achievementLines.length).toBeGreaterThanOrEqual(2);
+    expect(achievementLines.every((line) => line.startsWith('Досягнення «')), JSON.stringify(achievementLines)).toBe(true);
+    expect(achievementLines.reduce((sum, line) => sum + value49(line), 0), 'the group value is the sum of its rows').toBe(groupValue);
+    // Знімок — згорнутої картки.
+    await group.locator('summary').click();
+    expect(await details.evaluate((el) => (el as HTMLDetailsElement).open), 'the group closes again').toBe(false);
+  }
+  console.log(`part 49: Olya's lines — ${JSON.stringify(lines)}, achievements ${JSON.stringify(achievementLines)}`);
+  for (const wanted of [/^За участь\s*\+50$/, /^5 правильних відповідей\s*\+50$/, /^За 1-е місце\s*\+100$/]) {
     expect(lines.some((line) => wanted.test(line)), `${wanted} in ${JSON.stringify(lines)}`).toBe(true);
   }
-  const achievementLines = lines.filter((line) => line.startsWith('Досягнення «'));
+  expect(achievementLines.some((line) => /^Досягнення «Перша гра»\s*\+25$/.test(line)), JSON.stringify(achievementLines)).toBe(true);
   expect(achievementLines.length, 'achievements of the game among the lines').toBeGreaterThanOrEqual(1);
-  const gained = lines.reduce((sum, line) => sum + Number(/([+\-−]\d+)$/.exec(line)![1]!.replace('−', '-')), 0);
+  const gained = lines.reduce((sum, line) => sum + value49(line), 0) + groupValue;
   expect(squash49(await card.locator('.xp-moment-sum').textContent()), 'the sum under the lines').toBe(`+${gained} досвіду`);
   expect(await card.locator('.xp-moment-reason').count(), 'a reason for zero next to a positive game').toBe(0);
 
@@ -312,7 +335,7 @@ async function xpCard49() {
   // ── Тарас і Петро: свої картки (Петро — 3-є місце). ──
   await taras.locator('.xp-moment').waitFor({ timeout: 30_000 });
   await petro.locator('.xp-moment').waitFor({ timeout: 30_000 });
-  expect(squash49(await petro.locator('.xp-moment-lines').textContent()), 'Petro on the third place').toMatch(/За 3-е місце\s*\+30/);
+  expect(squash49(await petro.locator('.xp-moment > .xp-moment-lines').textContent()), 'Petro on the third place').toMatch(/За 3-е місце\s*\+30/);
   await noSide49(taras, 'taras xp card');
   await noSide49(petro, 'petro xp card');
 
@@ -381,11 +404,14 @@ async function solo49() {
   const card = olya.locator('.xp-moment');
   await card.waitFor({ timeout: 30_000 });
   await text49(card.locator('.xp-moment-reason'), 'У грі менше 3 гравців з акаунтом (або гра наодинці) — досвіду немає.');
-  const lines = (await card.locator('.xp-moment-lines li').allTextContents()).map(squash49);
-  console.log(`part 49: solo lines — ${JSON.stringify(lines)}`);
+  // Прямі рядки картки й згорнутий рядок досягнень (два й більше) — його сума в підсумку.
+  const lines = (await card.locator(':scope > .xp-moment-lines > li:not(.xp-moment-group)').allTextContents()).map(squash49);
+  const groups = (await card.locator('.xp-moment-group summary').allTextContents()).map(squash49);
+  console.log(`part 49: solo lines — ${JSON.stringify(lines)}, groups ${JSON.stringify(groups)}`);
   // Участі, відповідей і місця немає; якщо щось є — лише досягнення (вони поза правилами гри).
   expect(lines.filter((line) => !line.startsWith('Досягнення «')), 'game lines in a solo game').toEqual([]);
-  const sum = lines.reduce((total, line) => total + Number(/\+(\d+)$/.exec(line)![1]), 0);
+  expect(groups.every((line) => /^Досягнення \(\d+\)/.test(line)), JSON.stringify(groups)).toBe(true);
+  const sum = [...lines, ...groups].reduce((total, line) => total + Number(/\+(\d+)$/.exec(line)![1]), 0);
   await text49(card.locator('.xp-moment-sum'), `+${sum} досвіду`);
   await settle49(olya);
   await card.evaluate((el) => el.scrollIntoView({ block: 'start' }));
@@ -511,31 +537,50 @@ async function map49() {
   expect(await olya.locator('.level-row.is-future').count(), 'future rows').toBe(40 - level);
   // Поточний рядок — у вікні (прокручується до центра), навіть коли рівень високий.
   await expect.poll(() => current.evaluate((el) => { const r = el.getBoundingClientRect(); return r.top >= 0 && r.bottom <= innerHeight; }), POLL).toBe(true);
-  // Майбутні: підпис «з рівня N» і сірий силует картинки.
+  // Майбутні: заголовок «Рівень N» без повтору «з рівня N», замок «Ще закрито» для читача з екрана і сірий силует картинки.
   const future = olya.locator('.level-row.is-future').first();
   await future.scrollIntoViewIfNeeded();
-  expect(squash49(await future.locator('.level-row-from').textContent())).toBe(`з рівня ${level + 1}`);
+  expect(squash49(await future.locator('.level-row-head').textContent())).not.toContain('з рівня');
+  expect(await future.getByRole('img', { name: 'Ще закрито', ...exact }).count(), 'the lock of a future row').toBe(1);
   const art = await future.locator('.reward-art').first().evaluate((el) => ({ filter: getComputedStyle(el).filter, opacity: getComputedStyle(el).opacity }));
   console.log(`part 49: a future reward — ${JSON.stringify(art)}`);
   expect(art.filter, 'a grey silhouette').toContain('grayscale(1)');
   expect(Number(art.opacity), 'a faded silhouette').toBeLessThan(1);
+  // Темна тема: силует не тоне у тлі (не притемнений, прозорість ≥ 0,6).
+  expect(Number(art.opacity), 'a visible silhouette').toBeGreaterThanOrEqual(0.6);
+  expect(art.filter, 'not darkened in the dark theme').not.toMatch(/brightness\(0\.\d+\)/);
+  // Однакові квадратні рамки картинок, і всередині нічого не обрізано: жоден текст чи елемент не виходить за рамку
+  // (кільце рамки фото обертається псевдоелементом — його квадрат ширший за коло, тож scrollWidth тут не мірило).
+  const boxes = await olya.locator('.reward-art').evaluateAll((els) =>
+    els.map((el) => {
+      const box = el.getBoundingClientRect();
+      const out = [...el.querySelectorAll('*')].filter((child) => {
+        const r = child.getBoundingClientRect();
+        return r.width > 0 && (r.left < box.left - 1 || r.right > box.right + 1 || r.top < box.top - 1 || r.bottom > box.bottom + 1);
+      });
+      const clipped = [...el.querySelectorAll('.nick-name')].some((name) => name.scrollWidth > name.clientWidth + 1);
+      return { w: Math.round(box.width), h: Math.round(box.height), over: out.length > 0 || clipped, what: out.map((child) => child.className.toString()).join(' | ') || el.innerHTML.slice(0, 120) };
+    }),
+  );
+  const sizes = [...new Set(boxes.map((b) => `${b.w}x${b.h}`))];
+  console.log(`part 49: art boxes — ${JSON.stringify(sizes)}`);
+  expect(sizes, 'all art boxes are the same size').toHaveLength(1);
+  expect(boxes.filter((b) => b.over), 'art wider than its box').toEqual([]);
   const got = olya.locator('.level-row.is-got .reward-art').first();
   expect(await got.evaluate((el) => getComputedStyle(el).filter), 'a received reward stays in colour').toBe('none');
   await text49(olya.locator('.level-row.is-got .level-row-date').first(), /^Отримано \d{2}\.\d{2}\.\d{4}$/);
   // Кожен з 40 рівнів має нагороду: рядка «Лише досвід» немає.
   await count49(olya.locator('.level-row-none'), 0);
-  await count49(olya.locator('.level-row-from'), 40 - level);
+  await count49(olya.locator('.level-row-lock'), 40 - level);
   await noSide49(olya, 'levels map dark');
   await current.evaluate((el) => el.scrollIntoView({ block: 'start' }));
   await viewShot49(olya, 'levels49-map-360');
   // Силует сірий, а підписи читаються.
-  await expectReadable49(olya.locator('.level-row.is-future .level-row-from').first(), 'dark future label');
   await expectReadable49(olya.locator('.level-row.is-future strong').first(), 'dark future level name');
 
   await theme49(olya, 'light');
   await current.waitFor();
   await current.evaluate((el) => el.scrollIntoView({ block: 'start' }));
-  await expectReadable49(olya.locator('.level-row.is-future .level-row-from').first(), 'light future label');
   await expectReadable49(olya.locator('.level-row.is-future strong').first(), 'light future level name');
   await expectReadable49(olya.locator('.level-row.is-future .level-row-rewards span:not(.reward-art)').first(), 'light future reward name');
   await expectReadable49(olya.locator('.level-row-here'), 'light here label');
@@ -579,7 +624,7 @@ async function form49() {
   expect(await own.locator('.recent-form-chip').allTextContents(), 'medals and a number').toEqual(['🥇', '🥇', '5']);
   await text49(own.locator('.recent-form-streak'), '2 перемоги поспіль');
   const chip = own.locator('.recent-form-chip').first();
-  expect(await chip.getAttribute('aria-label')).toMatch(/^1-е місце, Нова гра 49 · \d{2}\.\d{2}\.\d{4}$/);
+  expect(await chip.getAttribute('aria-label')).toMatch(/^1-е місце, Нова гра 49, \d{2}\.\d{2}\.\d{4}$/);
   expect((await chip.boundingBox())!.height, 'a chip is too small to tap').toBeGreaterThanOrEqual(32);
   await own.locator('.recent-form-chip').nth(2).click();
   await text49(own.locator('.recent-form-caption'), /^Минулого тижня 49 · \d{2}\.\d{2}\.\d{4}$/);
