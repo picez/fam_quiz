@@ -65,6 +65,7 @@ export function Profile() {
           title={profile.showcase.title?.text ?? null}
           stats={profile.stats}
           progress={profile.level.progress}
+          form={profile.form}
           editTo="/profile/settings?edit=1"
         />
         <LeagueTitles titles={profile.leagueTitles} />

@@ -1,5 +1,6 @@
 import { LOOK_IDS, lookLevel, PACK_ACHIEVEMENTS, type LevelReward, type LookSlot, type NickEffect, type NickFont, type NickLooks, type OwnLevel, type PhotoFrame, type ProfileCard } from '@quiz/shared';
 import { useEffect, useId, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { saveLooks } from '../api';
 import { errorText, t, type TextKey } from '../i18n';
 import { loadNickFont } from '../nick-fonts';
@@ -39,7 +40,8 @@ export function rewardText(reward: LevelReward): string {
   }
 }
 
-function dateText(iso: string | null): string {
+/** Дата ДД.ММ.РРРР за місцевим часом; порожня чи зіпсована — «давно». */
+export function shortDate(iso: string | null): string {
   if (iso === null) return t('levelLongAgo');
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return t('levelLongAgo');
@@ -149,7 +151,7 @@ function lookName(slot: LookSlot, id: string): string {
 }
 
 /** Вміст плитки: власне фото в рамці, нік власним шрифтом, назва кольором/рамкою, емодзі. Підпис — назва вигляду. */
-function TileFace({ slot, id, nickname, avatar }: { slot: LookSlot; id: string | null; nickname: string; avatar: ProfileCard }) {
+export function TileFace({ slot, id, nickname, avatar }: { slot: LookSlot; id: string | null; nickname: string; avatar: ProfileCard }) {
   const name = id === null ? null : lookName(slot, id);
   switch (slot) {
     case 'photo':
@@ -196,17 +198,30 @@ export function unlockedByLevel(rows: OwnLevel['unlocked']): { level: number; te
     .sort(([a], [b]) => b - a)
     .map(([lvl, group]) => {
       const at = group.find((row) => row.at !== null)?.at ?? null;
-      return { level: lvl, text: `${t('levelAria', { n: lvl })} · ${group.map((row) => rewardText(row.reward)).join(', ')} · ${dateText(at)}` };
+      return { level: lvl, text: `${t('levelAria', { n: lvl })} · ${group.map((row) => rewardText(row.reward)).join(', ')} · ${shortDate(at)}` };
     });
 }
 
+/** «Усі нагороди ›» — на карту нагород за рівні (49). */
+function MapLink({ to }: { to: string }) {
+  return (
+    <Link className="level-map-link" to={to}>
+      {t('levelMapLink')}{' '}
+      <span className="flip-rtl" aria-hidden="true">
+        ›
+      </span>
+    </Link>
+  );
+}
+
 /** Власний профіль, одразу під ніком: «Рівень N», шкала, «X / Y досвіду» і правила досвіду в підказці «ⓘ». */
-export function LevelBar({ progress }: { progress: OwnLevel['progress'] }) {
+export function LevelBar({ progress, mapTo }: { progress: OwnLevel['progress']; mapTo?: string }) {
   const span = Math.max(1, progress.nextAt - progress.levelAt);
   return (
     <section className="profile-section level-bar">
       <h2>{t('levelTitle', { n: progress.level })}</h2>
       <LevelMeter value={progress.xp - progress.levelAt} max={span} level={progress.level} xp={t('levelXp', { xp: progress.xp, next: progress.nextAt })} />
+      {mapTo !== undefined && <MapLink to={mapTo} />}
     </section>
   );
 }
@@ -238,6 +253,7 @@ export function LevelCard({ level, nickname, profile, onSaved }: { level: OwnLev
   return (
     <section className="profile-section level-card">
       <h2>{t('levelRewardsTitle')}</h2>
+      <MapLink to="/profile/levels" />
       <h3>{t('looksTitle')}</h3>
       <div className="look-preview-box" data-testid="look-preview" aria-live="polite">
         <p className="meta">{t('lookPreview')}</p>

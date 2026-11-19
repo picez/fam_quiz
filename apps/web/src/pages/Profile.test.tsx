@@ -33,6 +33,7 @@ vi.mock('../api', () => ({
   dismissInvite: vi.fn(),
   saveLooks: vi.fn(),
   saveMyLocale: vi.fn(async () => ({ ok: true })),
+  getAchievementShares: vi.fn(async () => ({ ok: false, error: 'network' })),
 }));
 
 vi.mock('../locales/locales', async (importOriginal) => {
@@ -98,6 +99,24 @@ const tiles = () => screen.getByRole('navigation', { name: 'Розділи пр�
 const before = (a: Node, b: Node) => Boolean(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
 
 describe('Profile', () => {
+  it('49: shows the recent form in the header and the link to all level rewards by the bar', async () => {
+    vi.mocked(getMyProfile).mockResolvedValue({
+      ok: true,
+      data: { ...mine, form: { games: [{ gameId: 'g1', title: 'Хіт', startedAt: '2026-11-12T12:00:00.000Z', place: 1, medal: 1, team: null }], streak: null } },
+    });
+    const { container } = open();
+    expect(await screen.findByText('Остання форма')).toBeTruthy();
+    const head = container.querySelector('header.profile-head')!;
+    const link = within(head as HTMLElement).getByRole('link', { name: /Усі нагороди/ });
+    expect(link.getAttribute('href')).toBe('/profile/levels');
+  });
+
+  it('49: no form block for an old cached profile', async () => {
+    const { container } = open();
+    await screen.findByRole('heading', { level: 1, name: 'Олена' });
+    expect(container.querySelector('.recent-form')).toBeNull();
+  });
+
   it('shows the league titles under the header', async () => {
     vi.mocked(getMyProfile).mockResolvedValue({ ok: true, data: { ...mine, leagueTitles: [{ group: 'Родина', month: '2026-10' }] } });
     const { container } = open();

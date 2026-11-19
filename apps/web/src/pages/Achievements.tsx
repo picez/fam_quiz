@@ -1,8 +1,9 @@
-import { isAnti, PACK_ACHIEVEMENTS, STICKER_PACKS, type AchievementCard, type AchievementsPage } from '@quiz/shared';
+import { ACHIEVEMENT_XP, achievementRarity, isAnti, PACK_ACHIEVEMENTS, STICKER_PACKS, type AchievementCard, type AchievementShares, type AchievementsPage } from '@quiz/shared';
 import { useEffect, useState, type ReactNode } from 'react';
 import { Link, Navigate, useLocation, useParams } from 'react-router-dom';
 import { getAchievements, getMyAchievements, setHideAnti } from '../api';
 import { ACHIEVEMENT_ICONS } from '../achievement-meta';
+import { shareOf, useAchievementShares } from '../achievement-shares';
 import { groupCards } from '../achievements';
 import { formatDay } from '../format';
 import { errorText, t, type TextKey } from '../i18n';
@@ -77,6 +78,8 @@ type Pinning = ReturnType<typeof usePins>;
 
 function PageView({ page, pinning }: { page: AchievementsPage; pinning?: Pinning }) {
   const { profile } = page;
+  // Частки приходять окремим запитом: поки їх немає (чи збій), картки без цих рядків.
+  const shares = useAchievementShares();
   const groups = groupCards(page.items);
   // Ім’я в заголовку «Ачівки: Оля» — посилання на профіль; текст навколо береться з перекладу.
   const [before = '', after = ''] = t('achievementsOf', { name: NAME }).split(NAME);
@@ -104,7 +107,7 @@ function PageView({ page, pinning }: { page: AchievementsPage; pinning?: Pinning
           {group === 'anti' && page.own && <HideAntiSwitch initial={page.hideAnti ?? false} />}
           <ul className="achievement-cards">
             {items.map((item) => (
-              <CardView key={item.id} item={item} pinning={page.own ? pinning : undefined} />
+              <CardView key={item.id} item={item} shares={shares} pinning={page.own ? pinning : undefined} />
             ))}
           </ul>
         </section>
@@ -148,11 +151,12 @@ function HideAntiSwitch({ initial }: { initial: boolean }) {
   );
 }
 
-function CardView({ item, pinning }: { item: AchievementCard; pinning?: Pinning }) {
+function CardView({ item, shares, pinning }: { item: AchievementCard; shares: AchievementShares | null; pinning?: Pinning }) {
   const name = t(`achievement_${item.id}` as TextKey);
   const progress = !item.earned ? item.progress : null;
   // Набір стікерів, який це досягнення відкриває раніше за рівень (34).
   const stickerPack = STICKER_PACKS.find((pack) => PACK_ACHIEVEMENTS[pack] === item.id);
+  const share = shares === null ? null : shareOf(shares, item.id);
   const className = ['achievement-card', ...(item.earned ? [] : ['is-locked']), ...(isAnti(item.id) ? ['is-anti'] : [])].join(' ');
   return (
     <li className={className}>
@@ -167,6 +171,13 @@ function CardView({ item, pinning }: { item: AchievementCard; pinning?: Pinning 
       <p className="achievement-joke">{t(`achievementJoke_${item.id}` as TextKey)}</p>
       <p className="achievement-hint">{t(`achievementHint_${item.id}` as TextKey)}</p>
       {stickerPack !== undefined && <p className="achievement-hint">{t('achievementStickers', { name: t(`pack_${stickerPack}` as TextKey) })}</p>}
+      {share !== null && (
+        <p className="achievement-share">
+          {share.percent === 0 ? t('achievementShareNone') : t('achievementShare', { percent: share.percent })}
+          {share.tier !== null && <span className={`achievement-rarity is-${share.tier === 'very_rare' ? 'very-rare' : 'rare'}`}>{t(share.tier === 'very_rare' ? 'achievementVeryRare' : 'achievementRare')}</span>}
+        </p>
+      )}
+      {item.earned && <p className="achievement-xp">{t('achievementXp', { xp: ACHIEVEMENT_XP[achievementRarity(item.id)] })}</p>}
       {item.earned && (
         <p className="achievement-date">
           {item.earnedAt === null ? t('achievementEarnedLongAgo') : t('achievementEarnedOn', { date: formatDay(item.earnedAt) })}
