@@ -1,4 +1,4 @@
-import { classicRound, makeRoundsQuiz, single, spy as spyQ, spy2 as spy2Q } from '@quiz/engine/testing';
+import { classicRound, makeRoundsQuiz, single, spy as spyQ, spy2 as spy2Q, spyLegacy as spyLegacyQ } from '@quiz/engine/testing';
 import { type Locator, type Page } from 'playwright-core';
 import { type Socket } from 'socket.io-client';
 import { expect, it } from 'vitest';
@@ -6,8 +6,8 @@ import { open, click, field, questionText, join, expectNoSideScroll, register, P
 import { exact, base, problems, snapshot, afterSplash, shot, restart, flags, useE2eServer } from './helpers/setup';
 
 /**
- * Наскрізні тести: частина 38 — «Шпигун» (spy): пара слів у редакторі (лише класика, без команд), шпигун з rng гри при відкритті,
- * власні слова на телефонах, нічого з пари на сцені до розкриття, останній шанс викритого шпигуна, подвійна ціна непоміченого,
+ * Наскрізні тести: частина 38 — «Шпигун» (spy): загальне слово й підказка в редакторі (лише класика, без команд; з 50 шпигун слова не бачить), шпигун з rng гри при відкритті,
+ * слово на телефонах гравців і «Ви — шпигун» на телефоні шпигуна, нічого зайвого на сцені до розкриття, останній шанс викритого шпигуна, подвійна ціна непоміченого,
  * перезапуск з тим самим шпигуном і голосами, пропуск з двома гравцями, 24 гравці на сцені 1280×720.
  */
 
@@ -55,7 +55,14 @@ it('part 38: 24 players — associations and the vote reveal stay inside 1280×7
 // ——— Помічники ———
 
 const SPY_TEXT38 = 'Напишіть одне слово-асоціацію до свого слова';
+/** Типовий текст нового запитання «Шпигун» у редакторі (з 50). */
+const SPY_DEFAULT38 = 'Напишіть одне слово-асоціацію до загального слова';
 const WORD_FIELD38 = 'Напишіть одне слово-асоціацію';
+const HINT_FIELD38 = 'Підказка шпигуну (необов’язково)';
+const CAUGHT38 = 'Вас викрили! Впишіть загальне слово';
+const GUESS_FIELD38 = 'Загальне слово';
+/** Власне «слово» на телефоні: гравцям — слово, шпигунові — «Ви — шпигун». */
+const ownOf38 = (page: Page) => page.locator('.spy-me-word, .spy-you-role').first().textContent().catch(() => '');
 
 /** Слово цілим (кирилиця): «чай» не в «звичайний», «кава» не в «цікава». */
 const hasWord38 = (text: string, word: string) => new RegExp(`(^|[^\\p{L}'’])${word}($|[^\\p{L}'’])`, 'iu').test(text);
@@ -87,44 +94,6 @@ const rowsOf38 = (page: Page, scope: string) => page.locator(`${scope} .spy-row`
 
 async function scores38(phones: Page[], wanted: number[]) {
   for (const [at, page] of phones.entries()) await expect.poll(() => phoneScore27a(page).textContent().then((t) => (t ?? '').replace(/\s/g, '')), POLL).toBe(String(wanted[at]));
-}
-
-/**
- * Вигляд телефона «Шпигуна» для порівняння двох телефонів: кожен елемент .spy-phone — тег і клас, текст листка (власне слово → «W»),
- * відступ зліва, згори й висота від секції. Ширини немає (слова різної довжини); у кнопках голосу — без тексту й x (кожен бачить інших),
- * у .spy-me-word — без x (слово по центру). Плюс увесь текст сторінки без власного слова, ніка й цифр (таймер).
- */
-async function phoneLook38(page: Page, word: string, nickname: string): Promise<string[]> {
-  const look = await page.locator('.spy-phone').evaluate(
-    (root, [own]) => {
-      const top = root.getBoundingClientRect();
-      const rows = [...root.querySelectorAll('*')].map((el) => {
-        const r = el.getBoundingClientRect();
-        const inVote = el.closest('.spy-vote li') !== null;
-        const leaf = el.children.length === 0 && !inVote ? (el.textContent ?? '').split(own!).join('«W»') : '';
-        const x = el.classList.contains('spy-me-word') || inVote ? '' : Math.round(r.left - top.left);
-        return `${el.tagName.toLowerCase()}.${el.getAttribute('class') ?? ''}|${leaf}|${x}|${Math.round(r.top - top.top)}|${Math.round(r.height)}`;
-      });
-      return [`section ${Math.round(top.left)},${Math.round(top.top)} ${Math.round(top.width)}×${Math.round(top.height)}`, ...rows];
-    },
-    [word] as const,
-  );
-  const vote = await page.locator('.spy-vote').count();
-  const text = vote > 0 ? '' : (await page.locator('body').innerText()).split(word).join('«W»').split(nickname).join('«N»').replace(/\d/g, '#');
-  return [...look, text];
-}
-
-/** Два телефони 320 px показують те саме, крім слова: порівняння, доки обидва кадри стану не дійдуть. */
-async function expectSameLook38(a: Page, aWord: string, aName: string, b: Page, bWord: string, bName: string, name: string) {
-  let last: [string[], string[]] = [[], []];
-  await expect
-    .poll(async () => {
-      last = [await phoneLook38(a, aWord, aName), await phoneLook38(b, bWord, bName)];
-      return JSON.stringify(last[0]) === JSON.stringify(last[1]);
-    }, POLL)
-    .toBe(true)
-    .catch(() => undefined);
-  expect(last[0], `${name}: the spy and a non-spy phone differ beyond the word`).toEqual(last[1]);
 }
 
 /** Контраст тексту з його справжнім тлом (альфи предків змішано через canvas): відношення яскравостей WCAG. */
@@ -221,15 +190,15 @@ async function expectPhoneRows38(page: Page, name: string) {
 }
 
 /** Витоки до розкриття: кадри (з from до першого reveal) без слів і ключів зі списку. */
-function expectNoLeak38(who: string, frames: string[], from: number, words: string[], keys: string[]) {
-  const text = framesBeforeReveal(frames.slice(from)).join(NL);
+function expectNoLeak38(who: string, frames: string[], from: number, words: string[], keys: string[], until?: number) {
+  const text = (until === undefined ? framesBeforeReveal(frames.slice(from)) : frames.slice(from, until)).join(NL);
   expect(text.length, `${who}: no frames before reveal`).toBeGreaterThan(0);
   for (const word of words) expect(hasWord38(text, word), `«${word}» in the ${who} before reveal`).toBe(false);
   for (const key of keys) expect(text.includes(key), `${key} in the ${who} before reveal`).toBe(false);
 }
 
-/** Ключі, яких до розкриття немає ні на сцені, ні в чужих телефонах: шпигун, обидва слова, голоси. */
-const SECRET_KEYS38 = ['"spyId"', '"spyName":"', '"spy":true', '"playersWord":"', '"spyWord":"', '"voters":["', '"accepted"'];
+/** Ключі, яких до розкриття немає ні на сцені, ні в чужих телефонах: шпигун, загальне слово, підказка, голоси. */
+const SECRET_KEYS38 = ['"spyId"', '"spyName":"', '"spy":true', '"playersWord":"', '"spyHint":"', '"spyWord":"', '"voters":["', '"accepted"'];
 
 // ——— 1. Редактор ———
 
@@ -243,12 +212,12 @@ async function editor38() {
   const types = host.getByRole('group', { name: 'Тип запитання', ...exact });
   expect(await types.getByRole('button', { name: 'Шпигун', ...exact }).count(), 'spy in the classic menu').toBe(1);
   await types.getByRole('button', { name: 'Шпигун', ...exact }).click();
-  await expect.poll(() => questionText(host).inputValue(), POLL).toBe(SPY_TEXT38);
+  await expect.poll(() => questionText(host).inputValue(), POLL).toBe(SPY_DEFAULT38);
   await expect.poll(() => field(host, 'Час, с').inputValue(), POLL).toBe('40');
   await expect.poll(() => field(host, 'Час голосування, с').inputValue(), POLL).toBe('30');
-  await host.getByText('Шпигуна вибере програма. Потрібно щонайменше 3 гравці; з меншою кількістю запитання пропуститься.', exact).waitFor();
-  await host.getByRole('textbox', { name: 'Слово гравців', ...exact }).fill('потяг');
-  await field(host, 'Слово шпигуна').fill('автобус');
+  await host.getByText('Шпигуна вибере програма; він бачитиме лише «Ви — шпигун» і вашу підказку. Потрібно щонайменше 3 гравці; з меншою кількістю запитання пропуститься.', exact).waitFor();
+  await host.getByRole('textbox', { name: 'Загальне слово', ...exact }).fill('потяг');
+  await field(host, HINT_FIELD38).fill('їздить рейками');
   await field(host, 'Час голосування, с').fill('30');
 
   // ── Бліц: «Шпигуна» в меню немає; раунд прибрано. ──
@@ -290,14 +259,15 @@ async function editor38() {
   const stored = (await (await host.request.get(`${base}/api/quizzes/${quizId}`)).json()) as { settings: { teams?: unknown }; rounds: { type: string; questions: Record<string, unknown>[] }[] };
   expect(stored.rounds.map((round) => round.type)).toEqual(['classic']);
   expect(stored.settings.teams, 'teams after switching them off').toBeUndefined();
-  expect(stored.rounds[0]!.questions[0]).toMatchObject({ type: 'spy', text: SPY_TEXT38, accepted: ['потяг'], spyWord: 'автобус', timeLimit: 40, voteTime: 30 });
+  expect(stored.rounds[0]!.questions[0]).toMatchObject({ type: 'spy', text: SPY_DEFAULT38, accepted: ['потяг'], spyHint: 'їздить рейками', timeLimit: 40, voteTime: 30 });
+  expect(stored.rounds[0]!.questions[0], 'the stored question has no spy word').not.toHaveProperty('spyWord');
 
-  // ── Повторне відкриття: обидва слова й час голосування на місці. ──
+  // ── Повторне відкриття: загальне слово, підказка й час голосування на місці. ──
   await host.goto(`${base}/quizzes`);
   await host.locator('.quiz-list li', { hasText: 'Шпигун 38' }).getByRole('link', { name: 'Редагувати' }).click();
   await host.locator('main.editor').waitFor();
-  await expect.poll(() => host.getByRole('textbox', { name: 'Слово гравців', ...exact }).inputValue().catch(() => ''), POLL).toBe('потяг');
-  expect(await field(host, 'Слово шпигуна').inputValue()).toBe('автобус');
+  await expect.poll(() => host.getByRole('textbox', { name: 'Загальне слово', ...exact }).inputValue().catch(() => ''), POLL).toBe('потяг');
+  expect(await field(host, HINT_FIELD38).inputValue()).toBe('їздить рейками');
   expect(await field(host, 'Час голосування, с').inputValue()).toBe('30');
   await shot(host, 'spy38-editor');
 
@@ -344,21 +314,23 @@ async function game38() {
   const spyAt = names.indexOf(spyName);
   expect(spyAt, `the spy «${spyName}» is a player`).toBeGreaterThanOrEqual(0);
   console.log(`part 38: the spy of question 1 is ${spyName}`);
-  await host.locator('.host-spy .spy-words', { hasText: 'Слово гравців — кава, шпигуна — чай' }).waitFor();
+  await host.locator('.host-spy .spy-words', { hasText: 'Загальне слово — кава' }).waitFor();
+  await host.locator('.host-spy .spy-hint', { hasText: "Підказка шпигуну: Її п'ють зранку" }).waitFor();
   const spyPage = phones[spyAt]!;
   const others = phones.map((page, at) => ({ page, name: names[at]!, at })).filter((entry) => entry.at !== spyAt);
 
-  // ── Телефони: шпигун бачить «чай», решта — «кава»; поле асоціації в кожного. ──
-  for (const [at, page] of phones.entries()) await expect.poll(() => page.locator('.spy-me-word').textContent().catch(() => ''), POLL).toBe(at === spyAt ? 'чай' : 'кава');
+  // ── Телефони: шпигун бачить «Ви — шпигун» і підказку, решта — «кава»; поле асоціації в кожного. ──
+  for (const [at, page] of phones.entries()) await expect.poll(() => ownOf38(page), POLL).toBe(at === spyAt ? 'Ви — шпигун' : 'кава');
+  await spyPage.locator('.spy-hint', { hasText: "Підказка: Її п'ють зранку" }).waitFor();
+  for (const entry of others) expect(await entry.page.locator('.spy-hint').count(), `${entry.name} sees the hint`).toBe(0);
   for (const page of phones) await field(page, WORD_FIELD38).waitFor();
   await stage.getByText('Відповіли 0 з 4', exact).first().waitFor();
   expect(await stage.locator('.stage-question .spy-board').count(), 'rows on the stage before the vote').toBe(0);
 
-  // ── 320 px: шпигун і не-шпигун бачать той самий екран, крім слова. Оля вже 320; другий телефон на час порівняння теж 320 × 640. ──
-  const pair = spyAt === 0 ? { spy: olya, other: taras, otherAt: 1 } : { spy: spyPage, other: olya, otherAt: 0 };
+  // ── 320 px: обидва вигляди — шпигуна й гравця — без прокрутки вбік. Оля вже 320; другий телефон на час перевірки теж 320 × 640. ──
+  const pair = spyAt === 0 ? { spy: olya, other: taras } : { spy: spyPage, other: olya };
   const narrowed = spyAt === 0 ? 1 : spyAt;
   await phones[narrowed]!.setViewportSize({ width: 320, height: 640 });
-  await expectSameLook38(pair.spy, 'чай', spyName, pair.other, 'кава', names[pair.otherAt]!, 'words 320');
   await expectNoSideScroll(pair.spy, 'spy38-phone-320-spy-words');
   await expectNoSideScroll(pair.other, 'spy38-phone-320-other-words');
   await expectNoSideScroll(olya, 'spy38-phone-320');
@@ -383,7 +355,6 @@ async function game38() {
     await page.locator('.spy-vote').waitFor();
     expect(await page.locator('.spy-vote .name').allTextContents(), `${names[at]} vote list`).toEqual(names.filter((name) => name !== names[at]));
   }
-  await expectSameLook38(pair.spy, 'чай', spyName, pair.other, 'кава', names[pair.otherAt]!, 'vote 320');
   await expectPhoneRows38(pair.spy, 'vote 320 spy');
   await expectNoSideScroll(pair.spy, 'spy38-phone-320-spy-vote');
   await expectNoSideScroll(pair.other, 'spy38-phone-320-other-vote');
@@ -398,7 +369,7 @@ async function game38() {
   await stage.locator('.stage-question .spy-guess-stage', { hasText: 'Останній шанс шпигуна…' }).waitFor();
   expect(await stage.locator('body').innerText(), 'the spy name on the stage at the last chance').not.toContain('Шпигун:');
   expect(await stage.locator('.stage-question .spy-row.is-spy').count(), 'the spy mark at the last chance').toBe(0);
-  await spyPage.getByText('Вас викрили! Ви — шпигун. Впишіть слово гравців', exact).waitFor();
+  await spyPage.getByText(CAUGHT38, exact).waitFor();
   for (const entry of others) await entry.page.locator('.spy-phone .spy-guess-stage', { hasText: 'Останній шанс шпигуна…' }).waitFor();
   expect(await others[0]!.page.locator('input').count(), 'a field for a non-spy at the last chance').toBe(0);
   await expectNoSideScroll(spyPage, 'spy38-guess-phone');
@@ -407,10 +378,12 @@ async function game38() {
 
   // До розкриття: сцена — жодного слова пари, шпигуна, голосів; чужі телефони — без слова шпигуна (DOM сцени — теж).
   const stageDom = await stage.locator('body').innerText();
-  for (const word of ['кава', 'чай']) expect(hasWord38(stageDom, word), `«${word}» in the stage DOM before reveal`).toBe(false);
+  expect(hasWord38(stageDom, 'кава'), '«кава» in the stage DOM before reveal').toBe(false);
+  expect(stageDom.includes('зранку'), 'the hint in the stage DOM before reveal').toBe(false);
 
-  // ── Шпигун вписує слово гравців → закрито, розкриття. ──
-  await field(spyPage, 'Слово гравців').fill('кава');
+  // ── Шпигун вписує загальне слово → закрито, розкриття. ──
+  const beforeGuess = phoneFrames[spyAt]!.length;
+  await field(spyPage, GUESS_FIELD38).fill('кава');
   await click(spyPage, 'Відповісти');
   await host.getByRole('button', { name: 'Показати відповідь', ...exact }).waitFor();
   expect(hasWord38(await stage.locator('body').innerText(), 'кава'), '«кава» in the stage DOM on locked').toBe(false);
@@ -418,7 +391,8 @@ async function game38() {
 
   // ── Розкриття: шпигун, обидва слова, «Шпигуна викрито!», «…і вгадав слово: +500»; голоси за шпигуна — 3. ──
   await stage.locator('.stage-question .spy-view h2.spy-title', { hasText: `Шпигун: ${spyName}` }).waitFor();
-  await stage.locator('.stage-question .spy-words', { hasText: 'Слово гравців — кава, шпигуна — чай' }).waitFor();
+  await stage.locator('.stage-question .spy-words', { hasText: 'Загальне слово — кава' }).waitFor();
+  await stage.locator('.stage-question .spy-hint', { hasText: "Підказка шпигуну: Її п'ють зранку" }).waitFor();
   await stage.locator('.stage-question .spy-caught', { hasText: 'Шпигуна викрито!' }).waitFor();
   expect((await stage.locator('.stage-question .spy-guess.is-guessed').textContent())!.replace(/\s/g, '')).toBe('…івгадавслово:+500');
   const spyRow = stage.locator('.stage-question .spy-row.is-spy');
@@ -434,11 +408,12 @@ async function game38() {
   await spyPage.getByText('Ви були шпигуном', exact).waitFor();
   // Кадри до розкриття (усі телефони вже на reveal).
   for (const page of phones) await page.locator('section.result').first().waitFor();
-  expectNoLeak38('stage frames', stageFrames, from.stage, ['кава', 'чай'], SECRET_KEYS38);
-  for (const entry of others) expectNoLeak38(`${entry.name} frames`, phoneFrames[entry.at]!, from.phones[entry.at]!, ['чай'], SECRET_KEYS38);
-  expectNoLeak38(`${spyName} (spy) frames`, phoneFrames[spyAt]!, from.phones[spyAt]!, [], ['"spyId"', '"spyName":"', '"playersWord":"', '"voters":["', '"accepted"']);
+  expectNoLeak38('stage frames', stageFrames, from.stage, ['кава', 'зранку'], SECRET_KEYS38);
+  for (const entry of others) expectNoLeak38(`${entry.name} frames`, phoneFrames[entry.at]!, from.phones[entry.at]!, ['зранку'], SECRET_KEYS38);
+  // Шпигун до власної здогадки: ні загального слова, ні ключів чужих секретів (свою підказку й «spy» він знає).
+  expectNoLeak38(`${spyName} (spy) frames`, phoneFrames[spyAt]!, from.phones[spyAt]!, ['кава'], ['"spyId"', '"spyName":"', '"playersWord":"', '"spyWord":"', '"voters":["', '"accepted"'], beforeGuess);
   const hostText = framesBeforeReveal(hostFrames.slice(from.host)).join(NL);
-  expect(hostText.includes('"spyId"') && hasWord38(hostText, 'кава') && hasWord38(hostText, 'чай'), 'the host gets the spy and both words before reveal').toBe(true);
+  expect(hostText.includes('"spyId"') && hasWord38(hostText, 'кава') && hostText.includes('зранку'), 'the host gets the spy, the word and the hint before reveal').toBe(true);
 
   await expectPhoneRows38(olya, 'reveal 320');
   await expectNoSideScroll(olya, 'spy38-reveal-phone-320');
@@ -462,15 +437,17 @@ async function game38() {
   await expectNoSideScroll(olya, 'spy38-light-phone-320');
   for (const page of [stage, olya]) await theme38(page, 'dark');
 
-  // ── Друге: «гітара»/«скрипка»; голоси 2 і 2 (нічия зі шпигуном) → «Шпигун лишився непоміченим — подвійна ціна», шпигун +1000. ──
+  // ── Друге: «гітара» без підказки; голоси 2 і 2 (нічия зі шпигуном) → «Шпигун лишився непоміченим — подвійна ціна», шпигун +1000. ──
   await step27a(host, 'Далі');
   await afterSplash(host, stage, ...phones);
-  await host.locator('.host-spy .spy-words', { hasText: 'Слово гравців — гітара, шпигуна — скрипка' }).waitFor();
+  await host.locator('.host-spy .spy-words', { hasText: 'Загальне слово — гітара' }).waitFor();
+  await host.locator('.host-spy .spy-hint', { hasText: 'Без підказки' }).waitFor();
   const spy2Name = await hostSpyName38(host);
   const spy2At = names.indexOf(spy2Name);
   console.log(`part 38: the spy of question 2 is ${spy2Name}`);
   const others2 = phones.map((page, at) => ({ page, name: names[at]!, at })).filter((entry) => entry.at !== spy2At);
-  for (const [at, page] of phones.entries()) await expect.poll(() => page.locator('.spy-me-word').textContent().catch(() => ''), POLL).toBe(at === spy2At ? 'скрипка' : 'гітара');
+  for (const [at, page] of phones.entries()) await expect.poll(() => ownOf38(page), POLL).toBe(at === spy2At ? 'Ви — шпигун' : 'гітара');
+  expect(await phones[spy2At]!.locator('.spy-hint').count(), 'a hint on the spy phone of a question without one').toBe(0);
   const words2 = ['струни', 'вогнище', 'акорд'];
   for (const [at, entry] of others2.entries()) await writeWord38(entry.page, words2[at]!);
   await writeWord38(phones[spy2At]!, 'смичок');
@@ -482,7 +459,7 @@ async function game38() {
   await vote38(c.page, spy2Name);
   await reveal28a(host);
   await stage.locator('.stage-question .spy-hidden', { hasText: 'Шпигун лишився непоміченим — подвійна ціна' }).waitFor();
-  await stage.locator('.stage-question .spy-words', { hasText: 'Слово гравців — гітара, шпигуна — скрипка' }).waitFor();
+  await stage.locator('.stage-question .spy-words', { hasText: 'Загальне слово — гітара' }).waitFor();
   const hidden = stage.locator('.stage-question .spy-row.is-spy');
   expect(await hidden.locator('.name').textContent()).toBe(spy2Name);
   expect((await hidden.locator('.spy-points').textContent())!.replace(/\s/g, '')).toBe('+1000');
@@ -502,7 +479,8 @@ async function restart38() {
   const host = await open('host38r', 1280, 900);
   await register(host, 'host', 'Олег Ведучий', 'host38r@example.com');
   // Довгі таймери: перезапуск посеред голосування не має з’їсти його час.
-  const question = { ...spyQ, id: 'sr38', accepted: ['сонце'], spyWord: 'місяць', timeLimit: 60, voteTime: 90 };
+  // Старе запитання (до 50) зі словом шпигуна: грається за новими правилами — шпигун його не бачить.
+  const question = { ...spyLegacyQ, id: 'sr38', accepted: ['сонце'], spyWord: 'місяць', timeLimit: 60, voteTime: 90, points: 1000 };
   const data = { ...makeRoundsQuiz([classicRound('cr38', [question as never], { speedBonus: false })], { leaderboard: 'end' }), title: 'Шпигун перезапуск 38' };
   const saved = await host.request.post(`${base}/api/quizzes`, { data });
   expect(saved.ok(), await saved.text()).toBe(true);
@@ -538,8 +516,9 @@ async function restart38() {
   await vote38(others[1]!.page, others[2]!.name);
   await stage.getByText('Проголосували 2 з 4', exact).first().waitFor();
   const hostRows = await rowsOf38(host, '.host-spy');
-  const ownWords = await Promise.all(phones.map((page) => page.locator('.spy-me-word').textContent()));
-  expect(ownWords).toEqual(names.map((name) => (name === spyName ? 'місяць' : 'сонце')));
+  const ownWords = await Promise.all(phones.map((page) => ownOf38(page)));
+  expect(ownWords).toEqual(names.map((name) => (name === spyName ? 'Ви — шпигун' : 'сонце')));
+  for (const page of phones) expect(await page.locator('body').innerText(), 'the old spy word on a phone').not.toContain('місяць');
 
   await restart(async () => {
     await stage.getByText(RESTARTING_TEXT, exact).waitFor({ timeout: 15_000 });
@@ -552,7 +531,7 @@ async function restart38() {
   // Той самий шпигун, ті самі слова, ті самі голоси й асоціації.
   expect(await hostSpyName38(host), 'the spy after a restart').toBe(spyName);
   await expect.poll(() => rowsOf38(host, '.host-spy'), POLL).toEqual(hostRows);
-  for (const [at, page] of phones.entries()) await expect.poll(() => page.locator('.spy-me-word').textContent().catch(() => ''), POLL).toBe(ownWords[at]);
+  for (const [at, page] of phones.entries()) await expect.poll(() => ownOf38(page), POLL).toBe(ownWords[at]);
   for (const entry of others.slice(0, 2)) await entry.page.getByText('Голос прийнято', exact).waitFor();
   for (const page of [others[2]!.page, phones[spyAt]!]) await page.locator('.spy-vote button').first().waitFor();
   await stage.getByText('Проголосували 2 з 4', exact).first().waitFor();
@@ -561,8 +540,8 @@ async function restart38() {
   // Далі: третій — за шпигуна (2 проти 1), шпигун — за першого → викрито; здогадка «зірка» — мимо.
   await vote38(others[2]!.page, spyName);
   await vote38(phones[spyAt]!, others[0]!.name);
-  await phones[spyAt]!.getByText('Вас викрили! Ви — шпигун. Впишіть слово гравців', exact).waitFor();
-  await field(phones[spyAt]!, 'Слово гравців').fill('зірка');
+  await phones[spyAt]!.getByText(CAUGHT38, exact).waitFor();
+  await field(phones[spyAt]!, GUESS_FIELD38).fill('зірка');
   await click(phones[spyAt]!, 'Відповісти');
   await reveal28a(host);
   await stage.locator('.stage-question .spy-caught').waitFor();
@@ -609,7 +588,7 @@ const NAMES38 = [
   'Тарас Гончаренко', 'Ірина Кузьменко', 'Максим Литвиненко', 'Вероніка Захарчук', 'Назар Поліщук', 'Злата Тимошенко',
   'Дмитро Павленко', 'Олена Кириленко', 'Роман Мороз', 'Оксана Бойко', 'Левко Гнатюк', 'Дарина Ковальчук',
 ];
-/** 24 різні асоціації до «море»/«озеро»; кілька довгих — до 40 символів. */
+/** 24 різні асоціації до «море»; кілька довгих — до 40 символів. */
 const ASSOC38 = [
   'хвилі', 'пляж', 'відпустка біля теплої води з друзями', 'сіль', 'маяк', 'чайки над берегом', 'пісок', 'корабель', 'шторм', 'дельфіни',
   'засмага', 'мушлі', 'серфінг на великих хвилях узимку', 'якір', 'бриз', 'горизонт', 'капітан', 'вітрило', 'рибалка', 'медузи',
@@ -621,7 +600,7 @@ async function crowd38(sockets: Socket[]) {
   for (const word of ASSOC38) expect(word.length, word).toBeLessThanOrEqual(40);
   const host = await open('host38c', 1280, 900);
   await register(host, 'host', 'Леся Ведуча', 'host38c@example.com');
-  const question = { ...spyQ, id: 'sc38', accepted: ['море'], spyWord: 'озеро', timeLimit: 120, voteTime: 120 };
+  const question = { ...spyQ, id: 'sc38', accepted: ['море'], timeLimit: 120, voteTime: 120 };
   const data = { ...makeRoundsQuiz([classicRound('cc38', [question as never], { speedBonus: false })], { leaderboard: 'end' }), title: 'Шпигун натовп 38' };
   const saved = await host.request.post(`${base}/api/quizzes`, { data });
   expect(saved.ok(), await saved.text()).toBe(true);
@@ -679,8 +658,8 @@ async function crowd38(sockets: Socket[]) {
   for (const [at, pilot] of pilots.entries()) await emitOk(pilot, 'player:spy-vote', { playerId: idOf.get(targetOf(at)) });
   const spyAt = NAMES38.indexOf(spyName);
   if (spyAt === 23) {
-    await phone.getByText('Вас викрили! Ви — шпигун. Впишіть слово гравців', exact).waitFor();
-    await field(phone, 'Слово гравців').fill('річка');
+    await phone.getByText(CAUGHT38, exact).waitFor();
+    await field(phone, GUESS_FIELD38).fill('річка');
     await click(phone, 'Відповісти');
   } else {
     await frame(pilots[spyAt]!, (view) => view.me.spy?.guessing === true);
@@ -690,7 +669,7 @@ async function crowd38(sockets: Socket[]) {
 
   // ── Розкриття: голоси, слова, шпигун — усе в 1280×720, темна й світла тема. ──
   await stage.locator('.stage-question .spy-caught').waitFor();
-  await stage.locator('.stage-question .spy-words', { hasText: 'Слово гравців — море, шпигуна — озеро' }).waitFor();
+  await stage.locator('.stage-question .spy-words', { hasText: 'Загальне слово — море' }).waitFor();
   expect(await stage.locator('.stage-question .spy-row.is-spy .name').textContent()).toBe(spyName);
   console.log(`part 38: 24 reveal — the spy row ${(await stage.locator('.stage-question .spy-row.is-spy').textContent())?.replace(/\s+/g, ' ')}`);
   if (process.env.E2E_SHOTS === '1') await sleep(800);
