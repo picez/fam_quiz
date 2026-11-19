@@ -26514,6 +26514,55 @@ a.library-card:focus-visible {
   color: var(--accent-text);
 }
 
+/* Два й більше досягнень — один згорнутий рядок із сумою; маркер стоїть усередині рядка, тож у RTL він сам переходить на правий бік. */
+.xp-moment-lines li.xp-moment-group {
+  display: block;
+}
+
+.xp-moment-group summary {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+  min-block-size: 2.75rem;
+  min-width: 0;
+  cursor: pointer;
+  list-style: none;
+}
+
+.xp-moment-group summary > span {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.xp-moment-group summary::before {
+  content: '▸';
+  flex: none;
+}
+
+[dir='rtl'] .xp-moment-group summary::before {
+  content: '◂';
+}
+
+.xp-moment-group details[open] > summary::before {
+  content: '▾';
+}
+
+.xp-moment-group summary::-webkit-details-marker {
+  display: none;
+}
+
+.xp-moment-group summary:focus-visible {
+  outline: 2px solid var(--accent-text);
+  outline-offset: 2px;
+  border-radius: 0.25rem;
+}
+
+.xp-moment-group details > .xp-moment-lines {
+  padding-inline-start: 1.25rem;
+}
+
 .xp-moment-sum {
   margin: 0;
   font-size: 1.25rem;

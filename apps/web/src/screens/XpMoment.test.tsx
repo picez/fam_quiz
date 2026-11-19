@@ -52,7 +52,39 @@ describe('XpMoment', () => {
     expect(screen.getByText(/Денний ліміт 600 досвіду вичерпано/)).toBeTruthy();
   });
 
+  it('two or more achievements fold into one closed row with the count and the sum', () => {
+    const many: XpLine[] = [
+      { kind: 'join', xp: 50 },
+      { kind: 'achievement', xp: 25, id: 'first_game' },
+      { kind: 'achievement', xp: 50, id: 'first_win' },
+    ];
+    render(<XpMoment xp={{ account: true, moment: moment({ lines: many, gained: 125 }) }} />);
+    const details = document.querySelector('.xp-moment-group details') as HTMLDetailsElement;
+    expect(details).toBeTruthy();
+    expect(details.open).toBe(false);
+    const summary = details.querySelector('summary')!;
+    expect(summary.querySelector('span')?.textContent).toBe('Досягнення (2)');
+    expect(summary.querySelector('b')?.textContent).toBe('+75');
+    // Назви — усередині згорнутого рядка; відкриття їх показує.
+    const names = [...details.querySelectorAll('ul li span')].map((el) => el.textContent);
+    expect(names).toEqual(['Досягнення «Перша гра»', 'Досягнення «Перша перемога»']);
+    act(() => {
+      details.open = true;
+    });
+    expect(details.open).toBe(true);
+    expect(screen.getByText('Досягнення «Перша перемога»').closest('li')?.textContent).toContain('+50');
+    // Рядки гри — поза групою.
+    expect(screen.getByText('За участь').closest('.xp-moment-group')).toBeNull();
+  });
+
+  it('one achievement stays a plain row', () => {
+    render(<XpMoment xp={{ account: true, moment: moment({ lines }) }} />);
+    expect(document.querySelector('.xp-moment-group')).toBeNull();
+    expect(screen.getByText('Досягнення «Перша гра»').closest('li')?.textContent).toContain('+25');
+  });
+
   it('xpLineText names each kind', () => {
+    expect(xpLineText({ kind: 'game', xp: 190 })).toBe('За гру');
     expect(xpLineText({ kind: 'join', xp: 50 })).toBe('За участь');
     expect(xpLineText({ kind: 'correct', xp: 10, count: 1 })).toBe('1 правильна відповідь');
     expect(xpLineText({ kind: 'correct', xp: 50, count: 5 })).toBe('5 правильних відповідей');
@@ -129,7 +161,8 @@ describe('XpMoment', () => {
     render(<XpMoment xp={{ account: true, moment: moment({ gained: 900, before, after, unlocked }) }} />);
     expect(document.querySelector('.xp-moment-levelup h3')?.textContent).toBe('Новий рівень 7!');
     const text = document.querySelector('.xp-moment-levelup p')!.textContent!;
-    expect(text.split(', ')).toHaveLength(3);
+    // Нагороди з двокрапками всередині — через « · », не через кому.
+    expect(text.split(' · ')).toHaveLength(3);
   });
 
   it('the bar reads its value aloud', () => {

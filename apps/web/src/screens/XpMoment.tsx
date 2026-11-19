@@ -19,6 +19,8 @@ export function xpLineText(line: XpLine): string {
   switch (line.kind) {
     case 'join':
       return t('xpLineJoin');
+    case 'game':
+      return t('xpLineGame');
     case 'correct':
       return countText('xpLineCorrect', line.count, { count: num(line.count) });
     case 'place':
@@ -74,6 +76,15 @@ function XpBody({ xp }: { xp: PlayerXpView }): JSX.Element {
   return <XpCard moment={xp.moment} />;
 }
 
+function XpRow({ line }: { line: XpLine }): JSX.Element {
+  return (
+    <li className={line.xp < 0 ? 'is-minus' : undefined}>
+      <span>{xpLineText(line)}</span>
+      <b>{signed(line.xp)}</b>
+    </li>
+  );
+}
+
 function XpCard({ moment }: { moment: GameXpMoment }): JSX.Element {
   const { before, after } = moment;
   const still = reducedMotion();
@@ -81,17 +92,33 @@ function XpCard({ moment }: { moment: GameXpMoment }): JSX.Element {
   const style = { '--xp-from': `${pct(before)}%`, '--xp-to': `${pct(after)}%` } as CSSProperties;
   const classes = ['xp-moment', still ? 'is-still' : 'is-animated', leveled ? 'is-levelup' : ''].filter(Boolean).join(' ');
   const toNext = after.nextAt - after.xp;
+  const game = moment.lines.filter((line) => line.kind !== 'achievement');
+  const achievements = moment.lines.filter((line) => line.kind === 'achievement');
   return (
     <section className={classes} style={style} aria-labelledby="xp-moment-title">
       <h2 id="xp-moment-title">{t('xpMomentTitle')}</h2>
       {moment.lines.length > 0 && (
         <ul className="xp-moment-lines">
-          {moment.lines.map((line, index) => (
-            <li key={`${line.kind}-${index}`} className={line.xp < 0 ? 'is-minus' : undefined}>
-              <span>{xpLineText(line)}</span>
-              <b>{signed(line.xp)}</b>
-            </li>
+          {game.map((line, index) => (
+            <XpRow key={`${line.kind}-${index}`} line={line} />
           ))}
+          {achievements.length === 1 && <XpRow line={achievements[0]!} />}
+          {achievements.length >= 2 && (
+            <li className="xp-moment-group">
+              {/* Багато досягнень — один згорнутий рядок із сумою, щоб картка не займала весь екран. */}
+              <details>
+                <summary>
+                  <span>{t('xpLineAchievements', { count: num(achievements.length) })}</span>
+                  <b>{signed(achievements.reduce((sum, line) => sum + line.xp, 0))}</b>
+                </summary>
+                <ul className="xp-moment-lines">
+                  {achievements.map((line, index) => (
+                    <XpRow key={`${line.kind}-${index}`} line={line} />
+                  ))}
+                </ul>
+              </details>
+            </li>
+          )}
         </ul>
       )}
       <p className="xp-moment-sum">{t('xpMomentGained', { xp: num(moment.gained) })}</p>
@@ -106,7 +133,7 @@ function XpCard({ moment }: { moment: GameXpMoment }): JSX.Element {
       {leveled && (
         <div className="xp-moment-levelup">
           <h3>{t('xpMomentLevelUp', { n: after.level })}</h3>
-          {moment.unlocked.length > 0 && <p>{t('xpMomentUnlocked', { list: moment.unlocked.map((u) => rewardText(u.reward)).join(', ') })}</p>}
+          {moment.unlocked.length > 0 && <p>{t('xpMomentUnlocked', { list: moment.unlocked.map((u) => rewardText(u.reward)).join(' · ') })}</p>}
           {/* Звичайне посилання, як MenuLinks: повне перезавантаження закриває сокет гри. */}
           <a href="/profile/levels">{t('xpMomentAllRewards')}</a>
         </div>
