@@ -316,13 +316,12 @@ const USAGE = [
   'Usage: DATABASE_URL=... [SITE_URL=...] seed-demo <email> [' + SEEDS.join('|') + ']',
   '       DATABASE_URL=... [SITE_URL=...] seed-demo --bot <' + SEEDS.join('|') + '>',
   '       DATABASE_URL=... [SITE_URL=...] seed-demo --update <quizId> <' + SEEDS.join('|') + '>',
-].join('
-');
+].join('\n');
 
 const parsed = parseSeedArgs(process.argv.slice(2), SEEDS);
 const name = parsed !== null && isSeed(parsed.seed) ? parsed.seed : undefined;
 const url = process.env.DATABASE_URL;
-const site = process.env.SITE_URL?.replace(//$/, '');
+const site = process.env.SITE_URL?.replace(/\/$/, '');
 if (!parsed || !url || !name || (name === 'party-media' && !site)) {
   console.error(USAGE);
   process.exit(1);
