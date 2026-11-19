@@ -1,4 +1,8 @@
 {
+  "pushBotOpenBody": "Code: {code}. Tap to join.",
+  "pushBotOpenTitle": "Quiz bot opened “{title}”",
+  "pushBotSoonBody": "The code will arrive in a separate notification as soon as the room opens.",
+  "pushBotSoonTitle": "Quiz bot opens “{title}” at {time}",
   "pushCancelledBody": "The host cancelled the game planned for {when}.",
   "pushCancelledTitle": "“{title}” has been cancelled",
   "pushFallbackBody": "There's an update about a planned game.",

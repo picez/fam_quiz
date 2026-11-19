@@ -12,6 +12,7 @@ import enHelp from './locales/en.help.json';
 import esHelp from './locales/es.help.json';
 import itHelp from './locales/it.help.json';
 import plHelp from './locales/pl.help.json';
+import { pushStrings } from './push/push-strings';
 import pushAr from './push/strings/ar.json';
 import pushDe from './push/strings/de.json';
 import pushEn from './push/strings/en.json';
@@ -147,6 +148,8 @@ describe('uk golden (22a)', () => {
     'stickerPackLocked', 'stickerPackLockedOr', 'stickerPackMore', 'achievementStickers',
   ];
   /** Світла тема: перемикач теми на пристрої. */
+  /** 56: сповіщення бота за розкладом (живуть у pushStrings). */
+  const ADDED_BOT_SCHEDULE_56_SW = ['pushBotSoonTitle', 'pushBotSoonBody', 'pushBotOpenTitle', 'pushBotOpenBody'];
   const ADDED_THEME = ['themeLabel', 'themeDark', 'themeLight', 'themeSystem', 'themeHint', 'themeQuick', 'themeQuickToLight', 'themeQuickToDark'];
   /** «Правда про гравця»: автори й бали раунду — разом у підсумку наприкінці раунду. */
   const ADDED_TRUTH_RECAP = ['truthHeldNote', 'truthSealed', 'truthClosed', 'truthYourPick', 'truthYouSkipped', 'truthHeldScores', 'truthRecapTitle', 'truthRecapEarly', 'truthRecapMine', 'truthRecapRight', 'truthRecapRightCount', 'truthRecapNobody', 'truthRecapOwn', 'truthHostHeld'];
@@ -670,9 +673,21 @@ describe('uk golden (22a)', () => {
     for (const [lang, dict] of Object.entries(locales)) expect(ADDED_MENU_ADMIN.filter((key) => !dict[key]?.trim()), lang).toEqual([]);
   });
 
+  it('56 push keys (the bot schedule) are in every push dictionary', () => {
+    const push: Record<string, Record<string, string>> = { en: pushEn, pl: pushPl, de: pushDe, es: pushEs, it: pushIt, ar: pushAr };
+    const vars = (text: string) => [...text.matchAll(/\{(\w+)\}/g)].map((m) => m[1]).sort();
+    for (const key of ADDED_BOT_SCHEDULE_56_SW) {
+      expect(pushStrings, key).toHaveProperty(key);
+      for (const [lang, dict] of Object.entries(push)) {
+        expect(dict[key]?.trim(), lang + ' ' + key).toBeTruthy();
+        expect(vars(dict[key]!), lang + ' ' + key).toEqual(vars((pushStrings as Record<string, string>)[key]!));
+      }
+    }
+  });
+
   it('adds no uk keys beyond the agreed list', () => {
     const fresh = Object.keys(ukMessages).filter((key) => !(key in golden));
-    expect(fresh.filter((key) => !ADDED.includes(key) && !ADDED_LATER.includes(key) && !ADDED_23A.includes(key) && !ADDED_24A.includes(key) && !ADDED_24B.includes(key) && !ADDED_24C.includes(key) && !ADDED_24D.includes(key) && !ADDED_GRAIL.includes(key) && !ADDED_25C.includes(key) && !ADDED_25D.includes(key) && !ADDED_25E.includes(key) && !ADDED_26A.includes(key) && !ADDED_26B.includes(key) && !ADDED_26C.includes(key) && !ADDED_27A.includes(key) && !ADDED_27B.includes(key) && !ADDED_27C.includes(key) && !ADDED_27D.includes(key) && !ADDED_28A.includes(key) && !ADDED_28B.includes(key) && !ADDED_28C.includes(key) && !ADDED_28D.includes(key) && !ADDED_28D_PLURALS.includes(key) && !ADDED_29C.includes(key) && !ADDED_29C_PLURALS.includes(key) && !ADDED_29D.includes(key) && !ADDED_29D_PLURALS.includes(key) && !ADDED_29F.includes(key) && !ADDED_29F_PLURALS.includes(key) && !ADDED_29E.includes(key) && !ADDED_29E_PLURALS.includes(key) && !ADDED_29I.includes(key) && !ADDED_29H.includes(key) && !ADDED_29G.includes(key) && !ADDED_29G_PLURALS.includes(key) && !ADDED_30A.includes(key) && !ADDED_12J.includes(key) && !ADDED_12K.includes(key) && !ADDED_12K_PLURALS.includes(key) && !ADDED_12L.includes(key) && !ADDED_31.includes(key) && !ADDED_32.includes(key) && !ADDED_33.includes(key) && !ADDED_34.includes(key) && !ADDED_35.includes(key) && !ADDED_THEME.includes(key) && !ADDED_MEMORY_PEEK.includes(key) && !ADDED_TRUTH_RECAP.includes(key) && !ADDED_TRUTH_TEAM.includes(key) && !ADDED_THINK.includes(key) && !ADDED_THINK_51.includes(key) && !ADDED_VIDEOCLIP.includes(key) && !ADDED_VIDEOCLIP_PLURALS.includes(key) && !ADDED_MORELESS_STEP.includes(key) && !ADDED_OVERSHOOT.includes(key) && !ADDED_THINKALIKE.includes(key) && !ADDED_THINKALIKE_PLURALS.includes(key) && !ADDED_SPY.includes(key) && !ADDED_SPY_50.includes(key) && !ADDED_TRUTH_52.includes(key) && !ADDED_SPY_PLURALS.includes(key) && !ADDED_DUEL_BETS.includes(key) && !ADDED_DUEL_BETS_PLURALS.includes(key) && !ADDED_STAGE_SOUNDS.includes(key) && !ADDED_RESULT_IMAGE.includes(key) && !ADDED_IMPORT_EXPORT.includes(key) && !ADDED_IMPORT_EXPORT_PLURALS.includes(key) && !ADDED_QUESTION_BANK.includes(key) && !ADDED_CHALLENGE.includes(key) && !ADDED_CHALLENGE_PLURALS.includes(key) && !ADDED_LEAGUE.includes(key) && !ADDED_LEAGUE_PLURALS.includes(key) && !ADDED_LIBRARY.includes(key) && !ADDED_LIBRARY_PLURALS.includes(key) && !ADDED_WORDLE.includes(key) && !ADDED_WORDLE_PLURALS.includes(key) && !ADDED_LEVELS_49.includes(key) && !ADDED_LEVELS_49_PLURALS.includes(key) && !ADDED_ADMIN_HOME_53.includes(key) && !ADDED_STICKY_TIMER_55.includes(key) && !ADDED_BOT_54.includes(key) && !ADDED_BOT_54_PLURALS.includes(key) && !ADDED_MENU_ADMIN.includes(key))).toEqual([]);
+    expect(fresh.filter((key) => !ADDED.includes(key) && !ADDED_LATER.includes(key) && !ADDED_23A.includes(key) && !ADDED_24A.includes(key) && !ADDED_24B.includes(key) && !ADDED_24C.includes(key) && !ADDED_24D.includes(key) && !ADDED_GRAIL.includes(key) && !ADDED_25C.includes(key) && !ADDED_25D.includes(key) && !ADDED_25E.includes(key) && !ADDED_26A.includes(key) && !ADDED_26B.includes(key) && !ADDED_26C.includes(key) && !ADDED_27A.includes(key) && !ADDED_27B.includes(key) && !ADDED_27C.includes(key) && !ADDED_27D.includes(key) && !ADDED_28A.includes(key) && !ADDED_28B.includes(key) && !ADDED_28C.includes(key) && !ADDED_28D.includes(key) && !ADDED_28D_PLURALS.includes(key) && !ADDED_29C.includes(key) && !ADDED_29C_PLURALS.includes(key) && !ADDED_29D.includes(key) && !ADDED_29D_PLURALS.includes(key) && !ADDED_29F.includes(key) && !ADDED_29F_PLURALS.includes(key) && !ADDED_29E.includes(key) && !ADDED_29E_PLURALS.includes(key) && !ADDED_29I.includes(key) && !ADDED_29H.includes(key) && !ADDED_29G.includes(key) && !ADDED_29G_PLURALS.includes(key) && !ADDED_30A.includes(key) && !ADDED_12J.includes(key) && !ADDED_12K.includes(key) && !ADDED_12K_PLURALS.includes(key) && !ADDED_12L.includes(key) && !ADDED_31.includes(key) && !ADDED_32.includes(key) && !ADDED_33.includes(key) && !ADDED_34.includes(key) && !ADDED_35.includes(key) && !ADDED_THEME.includes(key) && !ADDED_BOT_SCHEDULE_56_SW.includes(key) && !ADDED_MEMORY_PEEK.includes(key) && !ADDED_TRUTH_RECAP.includes(key) && !ADDED_TRUTH_TEAM.includes(key) && !ADDED_THINK.includes(key) && !ADDED_THINK_51.includes(key) && !ADDED_VIDEOCLIP.includes(key) && !ADDED_VIDEOCLIP_PLURALS.includes(key) && !ADDED_MORELESS_STEP.includes(key) && !ADDED_OVERSHOOT.includes(key) && !ADDED_THINKALIKE.includes(key) && !ADDED_THINKALIKE_PLURALS.includes(key) && !ADDED_SPY.includes(key) && !ADDED_SPY_50.includes(key) && !ADDED_TRUTH_52.includes(key) && !ADDED_SPY_PLURALS.includes(key) && !ADDED_DUEL_BETS.includes(key) && !ADDED_DUEL_BETS_PLURALS.includes(key) && !ADDED_STAGE_SOUNDS.includes(key) && !ADDED_RESULT_IMAGE.includes(key) && !ADDED_IMPORT_EXPORT.includes(key) && !ADDED_IMPORT_EXPORT_PLURALS.includes(key) && !ADDED_QUESTION_BANK.includes(key) && !ADDED_CHALLENGE.includes(key) && !ADDED_CHALLENGE_PLURALS.includes(key) && !ADDED_LEAGUE.includes(key) && !ADDED_LEAGUE_PLURALS.includes(key) && !ADDED_LIBRARY.includes(key) && !ADDED_LIBRARY_PLURALS.includes(key) && !ADDED_WORDLE.includes(key) && !ADDED_WORDLE_PLURALS.includes(key) && !ADDED_LEVELS_49.includes(key) && !ADDED_LEVELS_49_PLURALS.includes(key) && !ADDED_ADMIN_HOME_53.includes(key) && !ADDED_STICKY_TIMER_55.includes(key) && !ADDED_BOT_54.includes(key) && !ADDED_BOT_54_PLURALS.includes(key) && !ADDED_MENU_ADMIN.includes(key))).toEqual([]);
   });
 });
 

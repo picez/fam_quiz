@@ -13,8 +13,15 @@ export interface PushNotice {
 export function pushNotice(payload: PushPayload, zone: string, now: Date = new Date()): PushNotice {
   const locale = pushLocale(payload.locale);
   const t = pushStringsFor(locale);
-  const tag = `event-${payload.eventId}`;
   const title = payload.title;
+  if (payload.kind === 'bot') {
+    const tag = `bot-${payload.planId}`;
+    if (payload.code === null) {
+      return { title: t('pushBotSoonTitle', { title, time: timeText(payload.startsAt, zone) }), body: t('pushBotSoonBody'), url: '/', tag };
+    }
+    return { title: t('pushBotOpenTitle', { title }), body: t('pushBotOpenBody', { code: payload.code }), url: `/play/${payload.code}`, tag };
+  }
+  const tag = `event-${payload.eventId}`;
   switch (payload.kind) {
     case 'reminder':
       return {

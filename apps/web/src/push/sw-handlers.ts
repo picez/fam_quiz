@@ -26,7 +26,7 @@ export interface SwScope {
 }
 
 const ICON = '/icon-192.png';
-const KINDS = ['reminder', 'opened', 'cancelled'];
+const KINDS = ['reminder', 'opened', 'cancelled', 'bot'];
 
 function isObject(v: unknown): v is Record<string, unknown> {
   return typeof v === 'object' && v !== null;
@@ -35,6 +35,9 @@ function isObject(v: unknown): v is Record<string, unknown> {
 /** Легка перевірка форми пуша (zod у воркер не тягнемо). */
 export function isPushPayload(raw: unknown): raw is PushPayload {
   if (!isObject(raw) || typeof raw.kind !== 'string' || !KINDS.includes(raw.kind)) return false;
+  if (raw.kind === 'bot') {
+    return typeof raw.planId === 'string' && typeof raw.title === 'string' && typeof raw.startsAt === 'string' && (raw.code === null || typeof raw.code === 'string');
+  }
   if (typeof raw.eventId !== 'string' || typeof raw.title !== 'string') return false;
   return raw.kind === 'opened' ? typeof raw.code === 'string' : typeof raw.startsAt === 'string';
 }
