@@ -1,9 +1,10 @@
 import { BOT_EMAIL, BOT_USER_ID } from '@quiz/shared';
 import { hashPassword, makeSignature } from 'better-auth/crypto';
 import { and, eq } from 'drizzle-orm';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { buildApp } from './app';
 import { ensureBotAccount } from './bot-account';
+import { log } from './log';
 import { account, profile, session, user } from './db/schema';
 import { TEST_AUTH } from './testing/accounts';
 import { createTestDb } from './testing/test-db';
@@ -52,6 +53,19 @@ describe('the bot account (54)', () => {
       expect(bot?.nickname).toBe('Квіз-бот 2');
     } finally {
       await app.shutdown();
+    }
+  });
+
+  it('someone else holding the bot email gives a warning and no failure, and no bot', async () => {
+    const own = await createTestDb();
+    await own.insert(user).values({ id: 'squatter-54', name: 'Зайняв', email: BOT_EMAIL });
+    const warn = vi.spyOn(log, 'warn').mockImplementation(() => undefined);
+    try {
+      await expect(ensureBotAccount(own)).resolves.toBe(false);
+      expect(warn).toHaveBeenCalledTimes(1);
+      expect(await own.select().from(user).where(eq(user.id, BOT_USER_ID))).toHaveLength(0);
+    } finally {
+      warn.mockRestore();
     }
   });
 
