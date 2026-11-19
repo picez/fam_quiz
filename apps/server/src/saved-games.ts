@@ -1,6 +1,6 @@
 import { READABLE_STATE_VERSIONS, slotsOf, type GameState } from '@quiz/engine';
-import { claimSchema, isRecord, type ContinueResponse, type GameSummary, type PlacedPrize, type SavedMode } from '@quiz/shared';
-import { and, desc, eq, gt, inArray, notInArray, sql } from 'drizzle-orm';
+import { BOT_USER_ID, claimSchema, isBotUser, isRecord, type ContinueResponse, type GameSummary, type PlacedPrize, type SavedMode } from '@quiz/shared';
+import { and, desc, eq, gt, inArray, ne, notInArray, sql } from 'drizzle-orm';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { CODE_LIMIT, type CurrentUser } from './account-routes';
@@ -19,6 +19,11 @@ import type { Located } from './rooms/store';
 function replacesOf(data: SavedRoom): string | null {
   const continued = (data as unknown as { continued?: unknown }).continued;
   return isRecord(continued) && typeof continued.replaces === 'string' ? continued.replaces : null;
+}
+
+/** Запис кімнати бота (54): ведучий — бот. */
+function isBotRoom(data: unknown): boolean {
+  return isRecord(data) && isBotUser(typeof data.hostUserId === 'string' ? data.hostUserId : null);
 }
 
 /** Точне збереження з контрольної точки читабельного запису: лише гра з ведучим-акаунтом, що дійшла до запитання й не фінішувала. */
@@ -92,6 +97,12 @@ async function saveRecorded(db: Db, roomId: string, data: unknown): Promise<bool
 export async function abandonRooms(db: Db, rows: { roomId: string; data: unknown }[], onError: (error: unknown) => void): Promise<void> {
   for (const row of rows) {
     try {
+      // Гра бота (54) ніколи не стає збереженою грою бота: недограна просто перервана.
+      if (isBotRoom(row.data)) {
+        await markAborted(db, [row.roomId]);
+        await releaseUnsaved(db, row.roomId);
+        continue;
+      }
       const write = exactWrite(row.data);
       if (write !== null && write.id === row.roomId && (await stillOpen(db, row.roomId))) {
         await saveSavedGame(db, write);
@@ -111,14 +122,14 @@ async function stillOpen(db: Db, id: string): Promise<boolean> {
   return row === undefined || row.status === 'running' || row.status === 'saved';
 }
 
-/** Старт сервера: 'running' поза except з questions_played > 0 → 'saved' + saved_game з data null; решта 'running' поза except → 'aborted'. */
+/** Старт сервера (ігри бота, 54, не паркуються — перериваються): 'running' поза except з questions_played > 0 → 'saved' + saved_game з data null; решта 'running' поза except → 'aborted'. */
 export async function parkInterrupted(db: Db, except: string[]): Promise<void> {
   const running = except.length === 0 ? eq(game.status, 'running') : and(eq(game.status, 'running'), notInArray(game.id, except));
   await db.transaction(async (tx) => {
     const parked = await tx
       .update(game)
       .set({ status: 'saved' })
-      .where(and(running, gt(game.questionsPlayed, 0)))
+      .where(and(running, gt(game.questionsPlayed, 0), ne(game.hostId, BOT_USER_ID)))
       .returning({ id: game.id });
     if (parked.length > 0) {
       const savedAt = new Date();

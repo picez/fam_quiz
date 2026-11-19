@@ -1,4 +1,4 @@
-import { ACHIEVEMENTS, FEED_RETENTION_DAYS, isAnti, levelOf, type FeedData } from '@quiz/shared';
+import { ACHIEVEMENTS, FEED_RETENTION_DAYS, isAnti, isBotUser, levelOf, type FeedData } from '@quiz/shared';
 import { and, asc, eq, gt, gte, isNotNull, isNull, lt, or, sql, type SQL } from 'drizzle-orm';
 import type { Db } from './db/client';
 import { feedEvent, game, participant, profile, quiz } from './db/schema';
@@ -181,7 +181,7 @@ export async function publishGameFeed(db: Db, gameId: string): Promise<void> {
     .selectDistinct({ userId: participant.userId })
     .from(participant)
     .where(and(eq(participant.gameId, gameId), isNotNull(participant.userId)));
-  const candidates = [...players.map((p) => p.userId!), row.hostId, row.ownerId ?? row.hostId];
+  const candidates = [...players.map((p) => p.userId!), row.hostId, row.ownerId ?? row.hostId].filter((id) => !isBotUser(id));
   await announceLevels(db, candidates, gameId, row.finishedAt);
 }
 
