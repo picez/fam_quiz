@@ -1,7 +1,8 @@
-import { useState, type FormEvent } from 'react';
+import { useRef, useState, type FormEvent } from 'react';
 import { LIMITS, type Answer, type SubmittedAnswer, type Choice, type PlayerScope, type PublicQuestion } from '@quiz/shared';
 import { choiceLabel, LETTERS } from '../format';
 import { t } from '../i18n';
+import { useAnswerFocus } from '../live/useAnswerFocus';
 import { ChoiceFace, choicesClass, ZoomCell } from './ChoiceFace';
 import { CloudInput } from './CloudInput';
 import { MatchInput } from './MatchView';
@@ -112,6 +113,8 @@ function wordsAnswer(question: PublicQuestion, value: string): SubmittedAnswer {
 
 function TypedInput({ question, onSubmit, submitLabel, autoFocus = true, onDraft, disabled = false }: Props) {
   const [raw, setRaw] = useState('');
+  const field = useRef<HTMLInputElement>(null);
+  useAnswerFocus(field, autoFocus);
   const numeric = question.type === 'numeric';
   const number = numeric ? parseNumber(raw) : null;
   const text = raw.trim();
@@ -144,7 +147,7 @@ function TypedInput({ question, onSubmit, submitLabel, autoFocus = true, onDraft
           placeholder={t(numeric ? 'numberPlaceholder' : question.type === 'thinkalike' ? 'alikePhoneHint' : 'answerPlaceholder')}
           maxLength={question.type === 'thinkalike' ? LIMITS.thinkWord : 200}
           autoComplete="off"
-          autoFocus={autoFocus}
+          ref={field}
           disabled={disabled}
         />
       </label>

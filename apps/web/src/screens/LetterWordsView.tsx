@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { LIMITS, ladderKey, shuffle, wordLetters, type LetterWordsInfo, type PlayerLetterWords, type PublicQuestion } from '@quiz/shared';
 import { signed } from '../format';
 import { errorText, t } from '../i18n';
+import { useAnswerFocus } from '../live/useAnswerFocus';
 import type { Send } from '../live/types';
 
 /** Блимання вже знайденого слова при повторі. */
@@ -110,6 +111,7 @@ export function LetterWordsPlay({ info, question, paused, send }: { info: Player
   // Перемішаний порядок — лише локальний; новий набір (роздача) скидає його.
   const [order, setOrder] = useState<{ source: string; letters: string[] } | null>(null);
   const input = useRef<HTMLInputElement>(null);
+  useAnswerFocus(input);
   // Поточне значення поля для відповідей сервера, що приходять пізніше за рендер.
   const value = useRef('');
   const wordsNow = useRef(info.words);

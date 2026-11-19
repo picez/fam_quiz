@@ -1,6 +1,7 @@
 import { useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
 import { answerKey, LIMITS, type Answer, type SubmittedAnswer } from '@quiz/shared';
 import { t } from '../i18n';
+import { useAnswerFocus } from '../live/useAnswerFocus';
 
 /** «100 до 1» на телефоні: одразу answers полів; однакові відповіді підсвічуються; Enter веде до наступного поля, з останнього надсилає. */
 export function SurveyInput({
@@ -18,6 +19,8 @@ export function SurveyInput({
 }) {
   const [fields, setFields] = useState<string[]>(() => Array.from({ length: answers }, () => ''));
   const refs = useRef<(HTMLInputElement | null)[]>([]);
+  const first = useRef<HTMLInputElement | null>(null);
+  useAnswerFocus(first, autoFocus);
   const keys = fields.map((value) => answerKey(value));
   const same = keys.map((key, index) => key !== '' && keys.some((other, i) => i !== index && other === key));
   const ready = fields.some((value) => value.trim() !== '');
@@ -49,6 +52,7 @@ export function SurveyInput({
           <input
             ref={(node) => {
               refs.current[index] = node;
+              if (index === 0) first.current = node;
             }}
             value={value}
             onChange={(event) => change(fields.map((old, i) => (i === index ? event.target.value : old)))}
@@ -57,7 +61,6 @@ export function SurveyInput({
             maxLength={LIMITS.surveyAnswer}
             enterKeyHint={index < fields.length - 1 ? 'next' : 'send'}
             autoComplete="off"
-            autoFocus={autoFocus && index === 0}
           />
           {same[index] && <span className="meta cloud-same">{t('surveySame')}</span>}
         </label>

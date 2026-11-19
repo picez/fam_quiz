@@ -90,3 +90,15 @@ describe('BluffLieInput', () => {
     await waitFor(() => expect(screen.getByRole('alert')).toBeTruthy());
   });
 });
+
+describe('BluffLieInput: the cursor (45b)', () => {
+  it('focuses the lie field', () => {
+    render(<BluffLieInput send={vi.fn(async () => ({ ok: true as const }))} />);
+    expect(document.activeElement).toBe(field());
+  });
+
+  it('does not focus it with autoFocus false', () => {
+    render(<BluffLieInput send={vi.fn(async () => ({ ok: true as const }))} autoFocus={false} />);
+    expect(document.activeElement).toBe(document.body);
+  });
+});

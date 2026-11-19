@@ -4,6 +4,7 @@ import { secondsText, signed } from '../format';
 import { errorText, t } from '../i18n';
 import { secondsLeft } from '../clock';
 import { Timer } from '../live/Timer';
+import { useAnswerFocus } from '../live/useAnswerFocus';
 import type { Send } from '../live/types';
 import type { DraftInput } from './TeamWatch';
 
@@ -92,6 +93,7 @@ export function ChainPlay({
   const [error, setError] = useState<string | null>(null);
   const [now, setNow] = useState(() => Date.now());
   const input = useRef<HTMLInputElement>(null);
+  useAnswerFocus(input);
   const busy = useRef(false);
   // Останнє надруковане слово: після відповіді сервера поле могло вже змінитися.
   const typed = useRef('');

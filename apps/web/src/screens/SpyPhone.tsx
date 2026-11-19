@@ -1,6 +1,7 @@
-import { useState, type FormEvent } from 'react';
+import { useRef, useState, type FormEvent } from 'react';
 import { LIMITS, type PlayerSpy, type SpyInfo } from '@quiz/shared';
 import { errorText, t, type TextKey } from '../i18n';
+import { useAnswerFocus } from '../live/useAnswerFocus';
 import type { Send } from '../live/types';
 
 /** Одне слово й «Відповісти»: асоціація (words) чи здогадка шпигуна (guess). Відмову сервера видно під полем, текст лишається. */
@@ -8,6 +9,8 @@ function SpyTextForm({ event, label, send }: { event: 'player:spy-word' | 'playe
   const [text, setText] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  const field = useRef<HTMLInputElement>(null);
+  useAnswerFocus(field);
   const submit = (formEvent?: FormEvent) => {
     formEvent?.preventDefault();
     const value = text.trim();
@@ -31,7 +34,7 @@ function SpyTextForm({ event, label, send }: { event: 'player:spy-word' | 'playe
         maxLength={LIMITS.thinkWord}
         enterKeyHint="send"
         autoComplete="off"
-        autoFocus
+        ref={field}
         dir="auto"
       />
       <button type="submit" className="btn btn-primary" disabled={text.trim() === '' || pending}>

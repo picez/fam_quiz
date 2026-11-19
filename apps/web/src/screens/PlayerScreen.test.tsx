@@ -5746,3 +5746,49 @@ describe('sticky timer (55)', () => {
     expect(strip()).toBeNull();
   });
 });
+
+describe('PlayerScreen: the answer field gets the cursor (45b)', () => {
+  const text = { ...publicQuestion, choices: [] };
+  const numeric = { ...publicQuestion, type: 'numeric' as const, text: 'Скільки?', choices: [] };
+  const thinkQ = { ...publicQuestion, type: 'think' as const, text: 'Напишіть колір веселки', points: 0, choices: [] };
+  const field = () => screen.getByLabelText('Ваша відповідь');
+  afterEach(() => vi.useRealTimers());
+
+  it('a text question under the splash focuses the field when the splash ends', () => {
+    vi.useFakeTimers();
+    const now = Date.now();
+    const splash = { kind: 'question' as const, at: now, until: now + 3000 };
+    const current = onQuestion({ question: { ...text, type: 'text' as const }, splash });
+    const { rerender } = render(<PlayerScreen view={current} hostOnline offsetMs={0} send={vi.fn(async () => ({ ok: true as const }))} />);
+    expect(document.activeElement).not.toBe(field());
+    act(() => void vi.advanceTimersByTime(3100));
+    rerender(<PlayerScreen view={{ ...current, splash: null }} hostOnline offsetMs={0} send={vi.fn(async () => ({ ok: true as const }))} />);
+    expect(document.activeElement).toBe(field());
+  });
+
+  it('a numeric question focuses the field', () => {
+    show(onQuestion({ question: numeric }));
+    expect(document.activeElement).toBe(field());
+  });
+
+  it('no focus after the answer is sent', () => {
+    show(onQuestion({ question: { ...text, type: 'text' as const }, me: { ...me, answer: { type: 'text', value: 'Київ' } } as never }));
+    expect(screen.queryByLabelText('Ваша відповідь')).toBeNull();
+    expect(document.activeElement).toBe(document.body);
+  });
+
+  it('no focus on a pause; focus once it goes on', () => {
+    const send = vi.fn(async () => ({ ok: true as const }));
+    const paused = onQuestion({ question: numeric, paused: true, endsAt: null, remainingMs: 15_000 });
+    const { rerender } = render(<PlayerScreen view={paused} hostOnline offsetMs={0} send={send} />);
+    expect(document.activeElement).not.toBe(field());
+    rerender(<PlayerScreen view={{ ...paused, paused: false, endsAt: Date.now() + 15_000, remainingMs: null }} hostOnline offsetMs={0} send={send} />);
+    expect(document.activeElement).toBe(field());
+  });
+
+  it('a think spectator gets no field and no focus', () => {
+    const think = { lives: 3, points: 10000, index: 0, total: 5, rows: [], words: null, places: null, vote: null };
+    show(onQuestion({ question: thinkQ as never, think, me: { ...me, think: { lives: 0, status: 'spectator', verdict: null, off: null, vote: null, place: null } } as never }));
+    expect(document.activeElement).toBe(document.body);
+  });
+});

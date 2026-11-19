@@ -1,6 +1,7 @@
 import { useRef, useState, type FormEvent } from 'react';
 import { LIMITS } from '@quiz/shared';
 import { errorText, t } from '../i18n';
+import { useAnswerFocus } from '../live/useAnswerFocus';
 import type { Send } from '../live/types';
 import type { DraftInput } from './TeamWatch';
 
@@ -18,6 +19,8 @@ export function BluffLieInput({
   const [text, setText] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  const field = useRef<HTMLInputElement>(null);
+  useAnswerFocus(field, autoFocus);
   // Останній надрукований текст: поки чекали відповіді, гравець міг його змінити.
   const typed = useRef('');
   typed.current = text.trim();
@@ -55,7 +58,7 @@ export function BluffLieInput({
         maxLength={LIMITS.bluffLie}
         enterKeyHint="send"
         autoComplete="off"
-        autoFocus={autoFocus}
+        ref={field}
       />
       <button type="submit" className="btn btn-primary" disabled={text.trim() === '' || pending}>
         {t('bluffLieSend')}

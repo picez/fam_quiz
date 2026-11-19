@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { LIMITS, answerKey, type PlayerTimedList, type PublicQuestion, type TimedListInfo } from '@quiz/shared';
 import { signed } from '../format';
 import { errorText, t } from '../i18n';
+import { useAnswerFocus } from '../live/useAnswerFocus';
 import type { Send } from '../live/types';
 
 /** Пауза в наборі, після якої слово перевіряється без Enter. */
@@ -71,6 +72,7 @@ export function TimedListPlay({ list, question, paused, send }: { list: PlayerTi
   const [shake, setShake] = useState(false);
   const [minusFlash, setMinusFlash] = useState(false);
   const input = useRef<HTMLInputElement>(null);
+  useAnswerFocus(input);
   const done = useRef<HTMLHeadingElement>(null);
   // Поточне значення поля для відповідей сервера, що приходять пізніше за рендер.
   const value = useRef('');

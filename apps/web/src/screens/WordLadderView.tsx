@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { collapseLadder, LIMITS, type PlayerWordLadder, type PublicQuestion, type WordLadderInfo } from '@quiz/shared';
 import { signed } from '../format';
 import { countText, errorText, t } from '../i18n';
+import { useAnswerFocus } from '../live/useAnswerFocus';
 import type { Send, SendResult } from '../live/types';
 
 /** Скільки чекати, поки телефонна клавіатура відкриється, перш ніж прокрутити поле у видиму частину. */
@@ -51,6 +52,7 @@ export function WordLadderPlay({ ladder, question, paused, send }: { ladder: Pla
   const [word, setWord] = useState('');
   const [error, setError] = useState<string | null>(null);
   const input = useRef<HTMLInputElement>(null);
+  useAnswerFocus(input);
   const status = useRef<HTMLParagraphElement>(null);
   const done = useRef<HTMLHeadingElement>(null);
   const busy = useRef(false);

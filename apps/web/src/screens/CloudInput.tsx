@@ -1,6 +1,7 @@
-import { useState, type FormEvent } from 'react';
+import { useRef, useState, type FormEvent } from 'react';
 import { cloudKey, cloudWords, LIMITS, type Answer, type SubmittedAnswer } from '@quiz/shared';
 import { t } from '../i18n';
+import { useAnswerFocus } from '../live/useAnswerFocus';
 
 /** «Хмара слів» на телефоні: до words коротких слів; однакові слова підсвічуються. */
 export function CloudInput({
@@ -16,6 +17,8 @@ export function CloudInput({
   onDraft?: (draft: SubmittedAnswer | null) => void;
 }) {
   const [fields, setFields] = useState<string[]>(['']);
+  const first = useRef<HTMLInputElement>(null);
+  useAnswerFocus(first, autoFocus);
   const keys = fields.map((value) => cloudKey(value));
   const same = keys.map((key, index) => key !== '' && keys.some((other, i) => i !== index && other === key));
   const ready = fields.some((value) => value.trim() !== '');
@@ -43,7 +46,7 @@ export function CloudInput({
             aria-label={t('cloudWordN', { n: index + 1 })}
             maxLength={LIMITS.cloudWord}
             autoComplete="off"
-            autoFocus={autoFocus && index === 0}
+            ref={index === 0 ? first : undefined}
           />
           {same[index] && <span className="meta cloud-same">{t('cloudSame')}</span>}
         </label>

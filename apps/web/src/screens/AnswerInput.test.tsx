@@ -467,3 +467,15 @@ describe('AnswerInput: choice pictures full screen', () => {
     expect(onSubmit).toHaveBeenCalledWith({ type: 'single', optionId: 'b' });
   });
 });
+
+describe('AnswerInput: the cursor (45b)', () => {
+  it('the text field is focused by default', () => {
+    render(<AnswerInput question={question({ type: 'text', choices: [] })} onSubmit={vi.fn()} />);
+    expect(document.activeElement).toBe(screen.getByLabelText('Ваша відповідь'));
+  });
+
+  it('the vote sheet field (autoFocus false) is not focused', () => {
+    render(<AnswerInput question={question({ type: 'text', choices: [] })} onSubmit={vi.fn()} autoFocus={false} />);
+    expect(document.activeElement).toBe(document.body);
+  });
+});
