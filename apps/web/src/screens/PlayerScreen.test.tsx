@@ -5373,6 +5373,16 @@ describe('PlayerScreen: «Нове досягнення!» (12j)', () => {
     expect(block!.compareDocumentPosition(table) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
+  it('finished: the xp card sits above new achievements, the guest sees one sign-in hint', () => {
+    show(view({ phase: 'finished', questionIndex: 1, standings, xp: { account: true, moment: null }, newAchievements: { account: true, ids: ['fast_answer'] } }));
+    const card = screen.getByText('Рахуємо досвід…');
+    expect(card.compareDocumentPosition(document.querySelector('.new-achievements')!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    cleanup();
+    show(view({ phase: 'finished', questionIndex: 1, standings, xp: { account: false }, newAchievements: { account: false, ids: [] } }));
+    expect(screen.getAllByText(/Увійдіть, щоб отримувати досвід/)).toHaveLength(1);
+    expect(screen.queryByText('Увійди, щоб збирати досягнення')).toBeNull();
+  });
+
   it('not during the prize ceremony, only after it', () => {
     vi.useFakeTimers();
     show(view({ phase: 'finished', questionIndex: 1, standings, newAchievements: { account: true, ids: ['fast_answer'] }, prizes: { mine: null, places: [{ place: 1, content, winner: { name: 'Тарас', members: [] } }] } }));

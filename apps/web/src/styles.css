@@ -26472,3 +26472,156 @@ a.library-card:focus-visible {
 .app.stage.has-reactions:has(> .stage-speech):has(.wordle-board .score) {
   padding-bottom: calc(var(--banner-base) + var(--reaction-strip-h) + 2.75rem);
 }
+
+/* Досвід за гру (49): картка під «Твоя гра» на екрані фінішу. Кольори — змінні теми (контраст ≥ 4,5 : 1 і в світлій). */
+.xp-moment {
+  display: grid;
+  gap: 0.5rem;
+  margin-block: 1rem;
+  padding: 0.75rem 1rem;
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.xp-moment h2 {
+  margin: 0;
+  font-size: 1.25rem;
+}
+
+.xp-moment-lines {
+  display: grid;
+  gap: 0.25rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.xp-moment-lines li {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.xp-moment-lines li span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.xp-moment-lines li.is-minus b {
+  color: var(--accent-text);
+}
+
+.xp-moment-sum {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 700;
+}
+
+.xp-moment-reason,
+.xp-moment-next {
+  margin: 0;
+  color: var(--dim);
+  overflow-wrap: anywhere;
+}
+
+.xp-moment-bar {
+  width: 100%;
+  max-width: 100%;
+}
+
+.xp-moment-levelup {
+  display: grid;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.xp-moment-levelup h3 {
+  margin: 0;
+  font-size: 1.125rem;
+  color: var(--accent-text);
+}
+
+.xp-moment-levelup p {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.xp-moment-levelup a,
+.xp-moment-guest a {
+  color: var(--link);
+}
+
+.xp-moment-guest,
+.xp-moment-pending {
+  margin-block: 1rem;
+  color: var(--dim);
+}
+
+/* Анімація шкали: малюємо заповнення фоном самого progress від --xp-from до --xp-to; рідні псевдоелементи ховаємо.
+   Без анімації (.is-still, зменшений рух, легкий режим) лишається рідна шкала одразу на кінцевому значенні. */
+@media (prefers-reduced-motion: no-preference) {
+  :where(:root:not(.is-easy)) .xp-moment.is-animated .xp-moment-bar {
+    background: linear-gradient(var(--accent), var(--accent)) no-repeat left center / var(--xp-to) 100% var(--track);
+    animation: xp-fill 1.2s ease-out both;
+  }
+
+  :where(:root:not(.is-easy)) .xp-moment.is-animated .xp-moment-bar::-webkit-progress-value {
+    background: transparent;
+  }
+
+  :where(:root:not(.is-easy)) .xp-moment.is-animated .xp-moment-bar::-webkit-progress-bar {
+    background: transparent;
+  }
+
+  :where(:root:not(.is-easy)) .xp-moment.is-animated .xp-moment-bar::-moz-progress-bar {
+    background: transparent;
+  }
+
+  :where(:root:not(.is-easy)) .xp-moment.is-animated.is-levelup .xp-moment-bar {
+    animation-name: xp-fill-up;
+    animation-duration: 2.4s;
+  }
+
+  :where(:root:not(.is-easy)) .xp-moment.is-animated.is-levelup .xp-moment-levelup {
+    animation: xp-levelup-in 0.4s ease-out 1.2s both;
+  }
+
+  @keyframes xp-fill {
+    from {
+      background-size: var(--xp-from) 100%;
+    }
+    to {
+      background-size: var(--xp-to) 100%;
+    }
+  }
+
+  /* Новий рівень: спершу до кінця старої шкали, потім нова з нуля до кінцевого значення. */
+  @keyframes xp-fill-up {
+    0% {
+      background-size: var(--xp-from) 100%;
+    }
+    45% {
+      background-size: 100% 100%;
+    }
+    55% {
+      background-size: 0% 100%;
+    }
+    100% {
+      background-size: var(--xp-to) 100%;
+    }
+  }
+
+  @keyframes xp-levelup-in {
+    from {
+      opacity: 0;
+      transform: translateY(0.25rem);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+}
