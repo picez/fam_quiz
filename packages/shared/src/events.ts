@@ -245,6 +245,11 @@ export const duelAnswerSchema = z.object({
 });
 /** «Правда про гравця» (28b): факт про себе; рушій зводить пробіли й міряє довжину (порожній прибирає). */
 export const truthFactSchema = z.object({ text: z.string().max(LIMITS.truthText * 2).refine(isStorable, UNSTORABLE) });
+/** «Правда про гравця» (52): вигадка ведучого — id null і текст додає; id і текст змінює; id і '' прибирає. Рушій зводить пробіли й міряє довжину. */
+export const truthFakeSchema = z.object({
+  id: z.string().min(1).max(40).nullable(),
+  text: z.string().max(LIMITS.truthText * 2).refine(isStorable, UNSTORABLE),
+});
 /** «Квест із кодом» (29g): спроба коду — сирий рядок, нормалізує й перевіряє рушій. */
 export const questCodeSchema = z.object({ code: z.string().max(LIMITS.maxQuestInput) }).strict();
 /** «Думай інакше» (35): ведучий замінює весь список слів запитання (0–3); зводить і перевіряє рушій. */
@@ -467,6 +472,8 @@ export interface ClientToServerEvents {
   'host:team-form': (payload: z.infer<typeof teamFormSchema>, ack: Ack) => void;
   /** «Правда про гравця»: сховати чи повернути факт гравця. */
   'host:truth-hide': (payload: z.infer<typeof truthHideSchema>, ack: Ack) => void;
+  /** «Правда про гравця» (52): додати, змінити чи прибрати вигадку ведучого в лобі; ack ok чи truth_closed / truth_text / truth_fakes_full / not_found / not_allowed / too_soon. */
+  'host:truth-fake': (payload: z.infer<typeof truthFakeSchema>, ack: Ack) => void;
   /** «Думай інакше» (35): замінити слова ведучого поточного запитання; ack ok — прийнято, інакше помилка (think_word, think_words_closed, wrong_phase). Слова йдуть лише в зріз ведучого. */
   'host:think-words': (payload: z.infer<typeof thinkWordsEventSchema>, ack: Ack) => void;
   /** «Думай інакше» (51): позначити чи зняти «не на тему» з відповіді учасника (reveal); ack ok чи wrong_phase / not_found / not_allowed. */
