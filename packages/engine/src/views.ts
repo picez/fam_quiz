@@ -1282,14 +1282,17 @@ function truthIndex(state: GameState): number | null {
 function truthCard(state: GameState, index: number, play: Play & { truth: TruthPlay }): TruthCard {
   const options = play.question.type === 'single' ? play.question.options : [];
   const nameOf = (id: string) => options.find((o) => o.id === id)?.text ?? '';
+  // Вигадка ведучого (52): автора-людини немає, балів автора теж; вибір «Вигадка» — текст варіанта (веб перекладає за pickedId).
+  const fake = play.truth.fake === true;
   return {
-    author: { id: play.truth.authorId, nickname: nameOf(play.truth.authorId) },
-    points: recordOf(state, index, play.truth.actorId)?.points ?? 0,
+    author: { id: play.truth.authorId, nickname: fake ? '' : nameOf(play.truth.authorId) },
+    points: fake ? 0 : (recordOf(state, index, play.truth.actorId)?.points ?? 0),
     picks: truthGuessers(state, play).map((id) => {
       const record = recordOf(state, index, id);
       const pickedId = record?.answer?.type === 'single' ? record.answer.optionId : null;
       return { id, nickname: state.players.find((p) => p.id === id)?.nickname ?? '', pickedId, picked: pickedId === null ? null : nameOf(pickedId), correct: record?.grade === 'correct' };
     }),
+    ...(fake ? { fake: true as const } : {}),
   };
 }
 
@@ -1337,6 +1340,7 @@ function truthInfo(state: GameState, forPublic = false): TruthInfo | undefined {
     ...(held ? { held: true as const } : {}),
     ...(held && state.phase === 'reveal' ? { sealed: true as const } : {}),
     ...optional('recap', recap),
+    ...(truthFaked(state) ? { faked: true as const } : {}),
   };
 }
 
@@ -1400,10 +1404,11 @@ function hostTruth(state: GameState): HostTruth | undefined {
     ];
   });
   const open = truthPlayOf(state);
-  const authorId = open !== null && (state.phase === 'question' || state.phase === 'locked') ? open.truth.authorId : null;
+  const current = open !== null && (state.phase === 'question' || state.phase === 'locked') ? open.truth : null;
+  const authorId = current?.authorId ?? null;
   // Автора вилучили на відкритому запитанні — нік зі знімка варіантів.
   const options = open?.question.type === 'single' ? open.question.options : [];
-  const nickname = authorId === null ? undefined : (truthPeople(state).find((p) => p.id === authorId)?.nickname ?? options.find((o) => o.id === authorId)?.text);
+  const nickname = authorId === null || current?.fake === true ? undefined : (truthPeople(state).find((p) => p.id === authorId)?.nickname ?? options.find((o) => o.id === authorId)?.text);
   // Вигадки ведучого (52): до роздачі зіграються перші min(вигадок, нехованих справжніх фактів); після — ті, що в колоді.
   const real = truth.deck === undefined ? truthCount(state) : 0;
   const fakes = (truth.fakes ?? []).map((f, i) => ({
@@ -1413,7 +1418,7 @@ function hostTruth(state: GameState): HostTruth | undefined {
     played: state.plays.some((play) => play.truth?.authorId === f.id),
     inDeck: truth.deck === undefined ? i < real : truth.deck.includes(f.id),
   }));
-  return { ...info, facts, fakes, author: authorId === null ? null : { id: authorId, nickname: nickname ?? '' } };
+  return { ...info, facts, fakes, author: authorId === null ? null : { id: authorId, nickname: nickname ?? '', ...(current?.fake === true ? { fake: true as const } : {}) } };
 }
 
 /** Людині про себе: свій факт, чи можна писати, і (question, locked) чи це її факт — у командній грі факт її команди. */
