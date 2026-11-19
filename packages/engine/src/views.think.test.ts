@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import type { Answer, ThinkRound, ThinkWord } from '@quiz/shared';
-import { end, endRound, next, override, start, submitAnswer, tick, type GameState } from './game';
+import { addPlayer, createGame, end, endRound, next, override, start, submitAnswer, tick, type GameState } from './game';
 import { addLatePlayer } from './saved';
 import { actAnswer } from './team-act';
-import { setThinkWords } from './think';
+import { markThinkOff, setThinkWords, voteThinkOff } from './think';
 import { hostView, playerView, stageView } from './views';
 import { classicRound, makeRoundsQuiz, single, survivalRound, think, thinkRound, truthRound } from './testing/fixtures';
 import { lobbyWith, must } from './testing/helpers';
@@ -226,3 +226,174 @@ describe('think views (35)', () => {
     }
   });
 });
+
+// «Думай інакше» (51): анонімний бюлетень на етапі голосування автопілота й позначки «не на тему» на розкритті.
+describe('think off-topic views (51)', () => {
+  const NAMES: Record<string, string> = { olya: 'Оля', petro: 'Петро', vira: 'Віра', ihor: 'Ігор', marta: 'Марта' };
+  const PLAYERS = ['olya', 'petro', 'vira', 'ihor'];
+  const ANSWERS: Record<string, string> = { olya: 'синій', petro: 'банан', vira: 'зелений' };
+  const quiz51 = () => {
+    const questions = ['q1', 'q2', 'q3'].map((id) => think(id, [red], { timeLimit: 30 }));
+    return makeRoundsQuiz([thinkRound('t', questions, { lives: 2 }), classicRound('r2', [single])], { leaderboard: 'end' });
+  };
+  const lobby51 = (ids: string[]) => ids.reduce((s, id) => must(addPlayer(s, { id, nickname: NAMES[id] })), createGame(quiz51()));
+  /** Автопілот: автор Марта — глядач раунду; q1 відкрито о t0. */
+  const piloted = () => {
+    const intro51 = must(start(lobby51(['marta', ...PLAYERS])));
+    return must(next({ ...intro51, autopilot: { authorId: 'marta', at: null } }, t0, rng0));
+  };
+  const hosted = () => must(next(must(start(lobby51(PLAYERS))), t0, rng0));
+  const answer51 = (s: GameState, values: Record<string, string>) =>
+    Object.entries(values).reduce((out, [id, value]) => must(submitAnswer(out, id, say(value), (out.startedAt ?? t0) + 1000)), s);
+  const timeUp = (s: GameState) => tick(s, (s.endsAt ?? 0) + 1, rng0);
+  /** Етап голосування: Оля «синій», Петро «банан», Віра «зелений», Ігор мовчить → таймер. */
+  const voting = () => {
+    const s = timeUp(answer51(piloted(), ANSWERS));
+    expect(s.phase).toBe('question');
+    expect(s.plays[s.questionIndex].think?.vote).toBeDefined();
+    return s;
+  };
+  const mark = (s: GameState, id: string, keys: string[]) => must(voteThinkOff(s, id, keys, (s.startedAt ?? t0) + 1000));
+  const ENTRIES = [
+    { key: 'банан', text: 'банан' },
+    { key: 'зелений', text: 'зелений' },
+    { key: 'синій', text: 'синій' },
+  ];
+
+  /** Жоден об'єкт зрізу не має водночас id/ніка автора (крім себе — viewer) і тексту його відповіді. */
+  function expectNoAuthorPairs(view: unknown, viewer: string | null = null) {
+    const authors = Object.entries(ANSWERS).filter(([id]) => id !== viewer);
+    const walk = (node: unknown) => {
+      if (Array.isArray(node)) return node.forEach(walk);
+      if (node === null || typeof node !== 'object') return;
+      const values = Object.values(node);
+      const strings = values.filter((v): v is string => typeof v === 'string');
+      for (const [id, text] of authors) {
+        const named = strings.includes(id) || strings.includes(NAMES[id]);
+        expect(named && strings.some((v) => v.toLowerCase() === text)).toBe(false);
+      }
+      values.forEach(walk);
+    };
+    walk(view);
+  }
+
+  it('the ballot reaches the stage and phones without authors', () => {
+    const s = voting();
+    const stage = stageView(s);
+    expect(stage.think?.vote).toEqual({ entries: ENTRIES, voted: [], voters: 4 });
+    expect(stage.think?.rows.map((r) => r.answer)).toEqual([null, null, null, null]);
+    expect(stage.think?.rows.map((r) => r.off)).toEqual([null, null, null, null]);
+    expectNoAuthorPairs(stage);
+    for (const id of [...PLAYERS, 'marta']) expectNoAuthorPairs(playerView(s, id), id);
+    // ключі — нормалізовані тексти, не id гравців
+    for (const json of [JSON.stringify(stage.think?.vote), JSON.stringify(playerView(s, 'olya')?.me.think?.vote)]) {
+      for (const id of [...PLAYERS, 'marta']) expect(json).not.toContain(id);
+    }
+  });
+
+  it('a voter does not see their own answer', () => {
+    const s = voting();
+    expect(playerView(s, 'petro')?.me.think?.vote).toEqual({ entries: ENTRIES.filter((e) => e.key !== 'банан'), marked: [], canVote: true, done: false });
+    // Ігор мовчав — бачить усі відповіді
+    expect(playerView(s, 'ihor')?.me.think?.vote).toEqual({ entries: ENTRIES, marked: [], canVote: true, done: false });
+    const voted = mark(s, 'petro', ['синій']);
+    expect(playerView(voted, 'petro')?.me.think?.vote).toMatchObject({ marked: ['синій'], done: true });
+    expect(playerView(voted, 'olya')?.me.think?.vote).toEqual({ entries: ENTRIES.filter((e) => e.key !== 'синій'), marked: [], canVote: true, done: false });
+    expect(stageView(voted).think?.vote).toEqual({ entries: ENTRIES, voted: ['petro'], voters: 4 });
+    // кількостей позначок ніде немає: ні в сцені, ні в чужих телефонах, ні на пульті
+    for (const view of [stageView(voted), hostView(voted), ...['olya', 'vira', 'ihor', 'marta'].map((id) => playerView(voted, id))]) {
+      const json = JSON.stringify(view);
+      expect(json).not.toContain('"marks":{');
+      expect(json).not.toContain('"marked":["');
+    }
+    expect(JSON.stringify(hostView(voted).think)).not.toContain('vote":{"voters');
+  });
+
+  it('non-voters see the list read-only', () => {
+    // Віра вибуває на q1 (збіг на останньому житті), на q2 — голосування без неї.
+    const s0 = piloted();
+    const q1 = s0.plays[s0.questionIndex];
+    const oneLife: GameState = withLives(s0, { ...q1.think!.lives, vira: 1 });
+    let s = answer51(oneLife, { olya: 'синій', petro: 'банан', vira: 'червоний', ihor: 'жовтий' });
+    expect(s.plays[s.questionIndex].think?.vote).toBeDefined();
+    for (const id of PLAYERS) s = mark(s, id, []);
+    expect(s.phase).toBe('locked');
+    s = must(next(s, t0 + 90_000, rng0));
+    expect(s.phase).toBe('reveal');
+    s = must(next(s, t0 + 100_000, rng0));
+    expect(s.phase).toBe('question');
+    // живі присутні — Оля, Петро, Ігор: усі відповіли → голосування одразу
+    s = answer51(s, { olya: 'синій', petro: 'банан', ihor: 'зелений' });
+    expect(s.phase).toBe('question');
+    expect(s.plays[s.questionIndex].think?.vote?.voters).toEqual(['olya', 'petro', 'ihor']);
+    expect(playerView(s, 'vira')?.me.think).toMatchObject({ status: 'out', vote: { entries: ENTRIES, marked: [], canVote: false, done: false } });
+    expect(playerView(s, 'marta')?.me.think).toMatchObject({ status: 'spectator', vote: { entries: ENTRIES, marked: [], canVote: false, done: false } });
+  });
+
+  it('a team member who is not the captain cannot vote', () => {
+    const quiz = teamQuiz([thinkRound('r1', ['t1', 't2'].map((id) => think(id, [red], { timeLimit: 30 })), { lives: 2 }), classicRound('r2', [single])], 4);
+    // t4 — лише автор автопілота (Марта, m5): глядач раунду.
+    const intro51 = teamGame(quiz, [['Олена', 'Тарас'], ['Віра'], ['Хосе'], ['Марта']]);
+    let s = opened({ ...intro51, autopilot: { authorId: 'm5', at: null } });
+    s = must(actAnswer(s, 'm1', say('синій'), at(s, 1000)));
+    s = must(actAnswer(s, 'm3', say('банан'), at(s, 1000)));
+    s = timeUp(s);
+    expect(s.plays[s.questionIndex].think?.vote?.voters).toEqual(['t1', 't2', 't3']);
+    const own = [{ key: 'банан', text: 'банан' }];
+    expect(playerView(s, 'm1')?.me.think?.vote).toEqual({ entries: own, marked: [], canVote: true, done: false });
+    expect(playerView(s, 'm2')?.me.think?.vote).toEqual({ entries: own, marked: [], canVote: false, done: false });
+    expect(playerView(s, 'm4')?.me.think?.vote).toMatchObject({ canVote: true });
+    expect(playerView(s, 'm5')?.me.think?.vote).toMatchObject({ canVote: false });
+  });
+
+  it('the reveal shows off-topic marks', () => {
+    let s = voting();
+    for (const id of ['olya', 'vira', 'ihor']) s = mark(s, id, ['банан']);
+    s = mark(s, 'petro', []);
+    expect(s.phase).toBe('locked');
+    expect(stageView(s).think?.vote).toBeNull();
+    s = must(next(s, t0 + 90_000, rng0));
+    expect(s.phase).toBe('reveal');
+    const rows = stageView(s).think?.rows ?? [];
+    expect(rows.find((r) => r.id === 'petro')).toMatchObject({ answer: 'банан', verdict: 'safe', off: 'vote', lost: true, lives: 1 });
+    expect(rows.find((r) => r.id === 'olya')).toMatchObject({ off: null, lost: false });
+    expect(rows.find((r) => r.id === 'ihor')).toMatchObject({ verdict: 'empty', off: null, lost: true });
+    expect(playerView(s, 'petro')?.me.think).toMatchObject({ off: 'vote', verdict: 'safe', vote: null, lives: 1 });
+    expect(playerView(s, 'olya')?.think?.rows.find((r) => r.id === 'petro')?.off).toBe('vote');
+    expect(hostView(s).think?.answers.find((a) => a.id === 'petro')?.off).toBe('vote');
+    // Ведучий: позначка на розкритті — 'host' усюди й одразу −1 ❤️.
+    const shown = revealOf(answer51(hosted(), ANSWERS));
+    expect(stageView(shown).think?.rows.find((r) => r.id === 'petro')).toMatchObject({ off: null, lost: false, lives: 2 });
+    const marked = must(markThinkOff(shown, 'petro', true));
+    expect(stageView(marked).think?.rows.find((r) => r.id === 'petro')).toMatchObject({ off: 'host', lost: true, lives: 1 });
+    expect(playerView(marked, 'petro')?.me.think).toMatchObject({ off: 'host', verdict: 'safe', lives: 1 });
+    expect(hostView(marked).think?.answers.find((a) => a.id === 'petro')).toMatchObject({ answer: 'банан', off: 'host' });
+    expect(hostView(marked).think?.answers.find((a) => a.id === 'olya')?.off).toBeNull();
+  });
+
+  it('no vote outside the stage', () => {
+    const open = answer51(piloted(), ANSWERS);
+    expect(open.phase).toBe('question');
+    const s = voting();
+    let locked = s;
+    for (const id of PLAYERS) locked = mark(locked, id, []);
+    expect(locked.phase).toBe('locked');
+    const shown = must(next(locked, t0 + 90_000, rng0));
+    expect(shown.phase).toBe('reveal');
+    for (const state of [open, locked, shown]) {
+      expect(stageView(state).think?.vote).toBeNull();
+      expect(hostView(state).think?.vote).toBeNull();
+      for (const id of [...PLAYERS, 'marta']) expect(playerView(state, id)?.me.think?.vote).toBeNull();
+      expect(stageView(state).think?.rows.every((r) => r.off === null)).toBe(true);
+    }
+    // з ведучим етапу немає
+    const hostedLocked = lockOf(answer51(hosted(), ANSWERS));
+    expect(stageView(hostedLocked).think?.vote).toBeNull();
+  });
+});
+
+/** Життя на відкритті поточного запитання think — для сценаріїв вибування. */
+function withLives(s: GameState, lives: Record<string, number>): GameState {
+  const plays = s.plays.map((p, i) => (i === s.questionIndex && p.think !== undefined ? { ...p, think: { ...p.think, lives } } : p));
+  return { ...s, plays };
+}

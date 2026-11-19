@@ -196,12 +196,12 @@ import {
   roundBrief,
   rulesOf,
 } from '@quiz/shared';
-import { currentRound, finalOutcome, type AnswerRecord, type TruthPlay, type TeamMember, finalShown, finalVisiblePoints, needsSplit, recordOf, roundQuestionNumber, streakCounts, type BlitzPlay, type BoardPlay, type FinalState, type GameState, type LadderPlay, type Play, type PlayerState, type PuzzlePlay } from './game';
+import { currentRound, finalOutcome, type AnswerRecord, type TruthPlay, type TeamMember, finalShown, finalVisiblePoints, needsSplit, recordOf, roundQuestionNumber, streakCounts, type BlitzPlay, type BoardPlay, type FinalState, type GameState, type LadderPlay, type Play, type PlayerState, type PuzzlePlay, type ThinkVote } from './game';
 import { lastNotice } from './adjust';
 import { BETS_OPEN_PHASES, betLimit, betsIndex, betsPlaying, stakedPlay, wagerLimitOf, wagerRound } from './bets';
 import { auctionLeader, auctionNextNow, auctionRoundOf } from './auction';
 import { questAfter, questOpened, questRoundOf, questSolved, questWindowOpen, type QuestTry } from './quest';
-import { thinkHit, thinkLivesAfter, thinkPlaces, thinkPlayOf, thinkRoundOf, thinkRoundPlays, thinkVerdicts, thinkWatches } from './think';
+import { thinkBallot, thinkHit, thinkLivesAfter, thinkOffOf, thinkPlaces, thinkPlayOf, thinkRoundOf, thinkRoundPlays, thinkVerdicts, thinkWatches } from './think';
 import { inTruthDeck, nextTruthQuestion, truthCount, truthGuessers, truthHeld, truthOpen, truthPlayOf, truthRoundOf, truthSkipped } from './truth';
 import { presentPlayers } from './present';
 import { appealView, playerAppeal } from './appeal';
@@ -3094,6 +3094,7 @@ function thinkInfo(state: GameState): ThinkInfo | undefined {
   const last = play !== null ? state.questionIndex : thinkRoundPlays(state, state.roundIndex).at(-1);
   const shown = open && state.phase === 'reveal';
   const verdicts = shown ? thinkVerdicts(state, state.questionIndex) : {};
+  const offs = shown ? thinkOffOf(state, state.questionIndex) : {};
   const rows = state.players.flatMap((p): ThinkRow[] => {
     if (last === undefined) {
       if (thinkWatches(state, p.id)) return [];
@@ -3119,8 +3120,8 @@ function thinkInfo(state: GameState): ThinkInfo | undefined {
         overridden: verdict !== null && recordOf(state, last, p.id)?.overridden === true,
         // Збіг програми: з яким словом ведучого (індекс у words); ручний збіг і порожня відповідь — null.
         matched: verdict === 'hit' && play !== null && recordOf(state, last, p.id)?.overridden !== true ? thinkHit(play.think.words, thinkText(state, last, p.id)) : null,
-        // 51: позначки «не на тему» в зрізах — окремою задачею плану.
-        off: null,
+        // 51: не на тему — позначка ведучого чи голосування (лише reveal; втрата життя вже в lives/lost).
+        off: verdict === null ? null : (offs[p.id] ?? null),
       },
     ];
   });
@@ -3135,8 +3136,43 @@ function thinkInfo(state: GameState): ThinkInfo | undefined {
     rows,
     words: shown && play !== null ? play.think.words : null,
     places: ended ? thinkPlaces(state).map((row) => ({ ...row, nickname: nickname(row.id) })) : null,
-    vote: null,
+    vote: thinkStageVote(state),
   };
+}
+
+/** Етап голосування «не на тему» (51) поточного запитання think: question з play.think.vote; інакше null. */
+function thinkVoteOf(state: GameState): ThinkVote | null {
+  if (state.phase !== 'question') return null;
+  return thinkPlayOf(state)?.think.vote ?? null;
+}
+
+/** Голосувальники етапу, ще в грі (вилучені не рахуються), у порядку state.players. */
+function thinkVotersIn(state: GameState, vote: ThinkVote): string[] {
+  return state.players.map((p) => p.id).filter((id) => vote.voters.includes(id));
+}
+
+/**
+ * Бюлетень для сцени (51): лише { key, text } за ключем — без авторів; хто натиснув «Готово» (id) і скільки голосувальників.
+ * Самих позначок і їхніх кількостей до reveal немає.
+ */
+function thinkStageVote(state: GameState): ThinkInfo['vote'] {
+  const vote = thinkVoteOf(state);
+  if (vote === null) return null;
+  const voters = thinkVotersIn(state, vote);
+  const entries = thinkBallot(state, state.questionIndex).map(({ key, text }) => ({ key, text }));
+  return { entries, voted: voters.filter((id) => Object.hasOwn(vote.marks, id)), voters: voters.length };
+}
+
+/** Бюлетень телефона учасника (51): голосувальнику — без власного ключа, не голосувальнику — повний; свої позначки й «Готово». */
+function thinkPhoneVote(state: GameState, actorId: string): PlayerThink['vote'] {
+  const vote = thinkVoteOf(state);
+  if (vote === null) return null;
+  const canVote = thinkVotersIn(state, vote).includes(actorId);
+  const entries = thinkBallot(state, state.questionIndex)
+    .filter((entry) => !canVote || !entry.authors.includes(actorId))
+    .map(({ key, text }) => ({ key, text }));
+  const done = Object.hasOwn(vote.marks, actorId);
+  return { entries, marked: done ? vote.marks[actorId] : [], canVote, done };
 }
 
 /** Пульт «Думай інакше» (35): спільна частина й слова ведучого до reveal, відповіді наживо зі збігом, чи можна міняти слова й розкривати. */
@@ -3148,6 +3184,7 @@ function hostThink(state: GameState): HostThink | undefined {
   const words = play.think.words;
   const pilot = state.autopilot !== undefined;
   const verdicts = thinkVerdicts(state, state.questionIndex);
+  const offs = state.phase === 'reveal' ? thinkOffOf(state, state.questionIndex) : {};
   const answers = state.players.flatMap((p) => {
     if (!Object.hasOwn(verdicts, p.id)) return [];
     const record = recordOf(state, state.questionIndex, p.id);
@@ -3158,7 +3195,7 @@ function hostThink(state: GameState): HostThink | undefined {
         answer: record === undefined ? null : thinkText(state, state.questionIndex, p.id),
         hit: record === undefined ? null : verdicts[p.id] === 'hit',
         overridden: record?.overridden ?? false,
-        off: null,
+        off: offs[p.id] ?? null,
       },
     ];
   });
@@ -3181,8 +3218,8 @@ function playerThink(state: GameState, actorId: string): PlayerThink | undefined
     lives: row?.lives ?? 0,
     status: row === undefined ? 'spectator' : row.out ? 'out' : 'alive',
     verdict: row?.verdict ?? null,
-    off: null,
-    vote: null,
+    off: row?.off ?? null,
+    vote: thinkPhoneVote(state, actorId),
     place: place === undefined ? null : { place: place.place, points: place.points },
   };
 }
@@ -3758,7 +3795,7 @@ function playerViewOf(state: GameState, playerId: string, now?: number): PlayerV
   return {
     ...withDrawerText(state, member.id, view),
     teams: ownAnswerers(state, view.teams, teamId),
-    me: { ...view.me, ...(view.me.moreless === undefined ? {} : { moreless: { ...view.me.moreless, canPick: view.me.moreless.canPick && answererOf(state, teamId) === member.id } }), ...(view.me.duel?.bet == null ? {} : { duel: { ...view.me.duel, bet: { ...view.me.duel.bet, can: view.me.duel.bet.can && captainOf(state, teamId) === member.id } } }), answer: vote, vote: votePrompt(state, member.id), appeal: playerAppeal(state, member.id, teamId), ...optional('truth', playerTruth(state, member.id)), ...optional('quest', playerQuest(state, teamId)), ...optional('drawing', playerDrawing(state, member.id)), ...optional('jigsaw', playerJigsaw(state, teamId, member.id, now)), ...optional('spotdiff', playerSpotdiff(state, teamId)), ...optional('memory', playerMemory(state, teamId, member.id, now)), ...optional('melody', playerSnippets(state, teamId, now, 'melody')), ...optional('videoclip', playerSnippets(state, teamId, now, 'videoclip')) },
+    me: { ...view.me, ...(view.me.moreless === undefined ? {} : { moreless: { ...view.me.moreless, canPick: view.me.moreless.canPick && answererOf(state, teamId) === member.id } }), ...(view.me.duel?.bet == null ? {} : { duel: { ...view.me.duel, bet: { ...view.me.duel.bet, can: view.me.duel.bet.can && captainOf(state, teamId) === member.id } } }), ...(view.me.think?.vote == null ? {} : { think: { ...view.me.think, vote: { ...view.me.think.vote, canVote: view.me.think.vote.canVote && answererOf(state, teamId) === member.id } } }), answer: vote, vote: votePrompt(state, member.id), appeal: playerAppeal(state, member.id, teamId), ...optional('truth', playerTruth(state, member.id)), ...optional('quest', playerQuest(state, teamId)), ...optional('drawing', playerDrawing(state, member.id)), ...optional('jigsaw', playerJigsaw(state, teamId, member.id, now)), ...optional('spotdiff', playerSpotdiff(state, teamId)), ...optional('memory', playerMemory(state, teamId, member.id, now)), ...optional('melody', playerSnippets(state, teamId, now, 'melody')), ...optional('videoclip', playerSnippets(state, teamId, now, 'videoclip')) },
     away: ownAway(state, member.id),
     lastAway: lastAway(state, member.id),
     team,
