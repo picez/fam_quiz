@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import type { AdminList, AdminQuizRow } from '@quiz/shared';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AdminQuizzes } from './AdminQuizzes';
@@ -21,7 +21,7 @@ beforeEach(() => {
   body = { rows: [row()], total: 1, page: 1, pages: 1 };
   vi.stubGlobal(
     'fetch',
-    vi.fn(async () => ({ status: 200, ok: true, json: async () => body })),
+    vi.fn(async (_url: string, init: RequestInit = {}) => ({ status: 200, ok: true, json: async () => (init.method === 'POST' ? { quizId: 'x', checkedAt: '2026-11-19T10:00:00.000Z', errors: 2, warnings: 1, issues: [] } : body) })),
   );
 });
 afterEach(() => {
@@ -53,5 +53,12 @@ describe('AdminQuizzes', () => {
     expect(one.textContent).toContain('1 запитання');
     const three = screen.getByRole('heading', { name: 'Карпати' }).closest('li') as HTMLElement;
     expect(three.textContent).toContain('3 запитання');
+  });
+
+  it('has a short check in each card that ends in a summary line', async () => {
+    open();
+    const item = (await screen.findByRole('heading', { name: 'Річки України' })).closest('li') as HTMLElement;
+    fireEvent.click(within(item).getByRole('button', { name: 'Перевірити' }));
+    expect((await within(item).findByRole('status')).textContent).toBe('Помилок: 2 · попереджень: 1');
   });
 });

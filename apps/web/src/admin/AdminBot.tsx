@@ -7,6 +7,7 @@ import { countText, errorText, t, type TextKey } from '../i18n';
 import { Avatar } from '../profile/Avatar';
 import { adminBot, botRoomAct, copyToBot, deleteBotQuiz, startBotGame } from './admin-api';
 import { AdminBotSchedule } from './AdminBotSchedule';
+import { QuizCheckButton } from './QuizCheck';
 import { useAdminData } from './useAdminData';
 
 const STATUS_KEY: Record<AdminBotStatus, TextKey> = {
@@ -85,7 +86,12 @@ export function AdminBot(): JSX.Element {
     if (action === 'end' && !window.confirm(t('adminBotEndConfirm', { code: room.code, title: room.title }))) return;
     void run(() => botRoomAct(room.code, action), 'err_game_not_found', () => null);
   };
-  const launch = (quiz: AdminBotQuiz) => void run(() => startBotGame(quiz.id), 'err_quiz_not_found', (result) => t('adminBotLaunched', { code: result.code }));
+  const launch = (quiz: AdminBotQuiz) => {
+    // Остання перевірка знайшла помилки: питаємо, чи справді запускати (без перевірки чи без помилок — без питань).
+    const errors = quiz.check?.errors ?? 0;
+    if (errors > 0 && !window.confirm(t('adminCheckLaunchConfirm', { title: quiz.title, count: errors }))) return;
+    void run(() => startBotGame(quiz.id), 'err_quiz_not_found', (result) => t('adminBotLaunched', { code: result.code }));
+  };
   const remove = (quiz: AdminBotQuiz) => {
     if (!window.confirm(t('adminBotDeleteConfirm', { title: quiz.title }))) return;
     void run(() => deleteBotQuiz(quiz.id), 'err_quiz_not_found', () => null);
@@ -177,12 +183,20 @@ export function AdminBot(): JSX.Element {
                 {state.data.quizzes.map((quiz) => (
                   <li key={quiz.id} className="admin-card">
                     <h3 dir="auto">{quiz.title}</h3>
+                    {quiz.check !== null && quiz.check.errors > 0 && (
+                      <p>
+                        <span className="admin-check-badge" role="img" aria-label={t('adminCheckBadge', { count: quiz.check.errors })}>
+                          ⚠ {quiz.check.errors}
+                        </span>
+                      </p>
+                    )}
                     <p className="meta">{sizeText(quiz)}</p>
                     <p className="meta">{formatDay(quiz.updatedAt)}</p>
                     <div className="admin-actions">
-                      <Link className="btn" to={`/admin/bot/quizzes/${encodeURIComponent(quiz.id)}`}>
+                      <Link className="btn" to={`/admin/bot/quizzes/${encodeURIComponent(quiz.id)}`} aria-label={`${t('adminView')}: ${quiz.title}`}>
                         {t('adminView')}
                       </Link>
+                      <QuizCheckButton quizId={quiz.id} onDone={reload} />
                       <button type="button" className="btn btn-primary" disabled={busy} onClick={() => launch(quiz)}>
                         {t('adminBotLaunch')}
                       </button>

@@ -4,6 +4,7 @@ import { quizSizeText } from '../format';
 import { countText, errorText, t } from '../i18n';
 import { AdminPager } from './Admin';
 import { adminQuizzes, deleteQuizAsAdmin } from './admin-api';
+import { QuizCheckButton } from './QuizCheck';
 import { useAdminData } from './useAdminData';
 import { nickText } from '../nick';
 
@@ -80,6 +81,7 @@ export function AdminQuizzes(): JSX.Element {
                     <Link className="btn" to={`/admin/quizzes/${encodeURIComponent(row.id)}`}>
                       {t('adminView')}
                     </Link>
+                    <QuizCheckButton quizId={row.id} />
                     <button type="button" className="btn btn-danger" disabled={busy} onClick={() => void remove(row.id, row.title, nickText(row.author.nickname))}>
                       {t('adminDeleteQuiz')}
                     </button>

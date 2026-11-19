@@ -1,11 +1,12 @@
 import { useState, type JSX } from 'react';
 import { Link, Navigate, useParams } from 'react-router-dom';
-import { allSpares, roundQuestions, roundTrials, type AdminQuizView, type Question, type Quiz, type Round } from '@quiz/shared';
+import { allSpares, roundQuestions, roundTrials, type AdminQuizView, type QuizCheckIssue, type Question, type Quiz, type Round } from '@quiz/shared';
 import { errorText, t } from '../i18n';
 import { formatDate, roundLabel } from '../format';
 import { clockText } from '../live/Timer';
 import { adminQuiz, adminReportedQuiz, deleteQuestionAsAdmin, deleteQuizAsAdmin } from './admin-api';
 import { questionConfirm } from './admin-text';
+import { QuizCheckPanel } from './QuizCheck';
 import { questionPreview } from './quiz-preview';
 import { useAdminData } from './useAdminData';
 import { nickText } from '../nick';
@@ -155,6 +156,14 @@ function QuizView({ loaded, mode }: { loaded: AdminQuizView; mode: Mode }): JSX.
     else setError(errorText(result.error));
   };
 
+  /** Відкриває згорнутий раунд запитання з проблемою й прокручує до нього. */
+  const goTo = (issue: QuizCheckIssue) => {
+    const target = issue.questionId === null ? null : document.getElementById(`q-${issue.questionId}`);
+    const round = target?.closest('details') ?? document.querySelector(`details[data-round="${issue.round ?? 'spares'}"]`);
+    if (round instanceof HTMLDetailsElement) round.open = true;
+    target?.scrollIntoView({ block: 'center' });
+  };
+
   const card = (question: Question, roundTitle: string): JSX.Element => {
     const body = <PreviewBody question={question} />;
     if (!moderate) {
@@ -223,6 +232,7 @@ function QuizView({ loaded, mode }: { loaded: AdminQuizView; mode: Mode }): JSX.
         {t('adminAuthor', { name: '' })}
         <Link to={`/admin/users/${encodeURIComponent(view.author.id)}`}>{nickText(view.author.nickname)}</Link>
       </p>
+      <QuizCheckPanel quizId={view.id} onIssue={goTo} />
       {error !== null && (
         <p className="error" role="alert">
           {error}

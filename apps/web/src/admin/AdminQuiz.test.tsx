@@ -4,9 +4,9 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import type { AdminQuizView, Question } from '@quiz/shared';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AdminBotQuizView, AdminQuiz, AdminReportedQuiz } from './AdminQuiz';
-import { adminQuiz, adminReportedQuiz, deleteQuestionAsAdmin, deleteQuizAsAdmin } from './admin-api';
+import { adminQuiz, adminReportedQuiz, checkQuiz, deleteQuestionAsAdmin, deleteQuizAsAdmin } from './admin-api';
 
-vi.mock('./admin-api', () => ({ adminQuiz: vi.fn(), adminReportedQuiz: vi.fn(), deleteQuestionAsAdmin: vi.fn(), deleteQuizAsAdmin: vi.fn() }));
+vi.mock('./admin-api', () => ({ adminQuiz: vi.fn(), adminReportedQuiz: vi.fn(), checkQuiz: vi.fn(), deleteQuestionAsAdmin: vi.fn(), deleteQuizAsAdmin: vi.fn() }));
 
 const q = (id: string, text: string): Question => ({ id, type: 'boolean', text, correct: true, imageUrl: null, video: null, timeLimit: 30, points: 1000 });
 const rules = { streak: false, penalty: false, partial: false, multiplier: 1 };
@@ -199,5 +199,24 @@ describe('AdminQuiz', () => {
     expect(screen.queryByRole('button', { name: 'Видалити вікторину' })).toBeNull();
     expect(screen.getByRole('link', { name: 'До списку' }).getAttribute('href')).toBe('/admin/bot');
     expect(screen.getByText('Написання: Говерла, гора Говерла')).toBeTruthy();
+  });
+
+  it('going to an issue opens its folded round', async () => {
+    vi.mocked(adminQuiz).mockResolvedValue({ ok: true, data: rich(many(21)) });
+    const scroll = vi.fn();
+    Element.prototype.scrollIntoView = scroll;
+    vi.mocked(checkQuiz).mockResolvedValue({
+      ok: true,
+      data: { quizId: 'z1', checkedAt: '2026-11-19T10:00:00.000Z', errors: 1, warnings: 0, issues: [{ code: 'media_missing', round: 0, questionId: 'm20', question: 'Текст m20', detail: '/uploads/aaaaaaaaaaaaaaaa.jpg' }] },
+    });
+    const { container } = open();
+    await screen.findByRole('heading', { name: 'Карпати' });
+    const round = container.querySelector('details[data-round="0"]') as HTMLDetailsElement;
+    expect(round.open).toBe(false);
+    fireEvent.click(screen.getByRole('button', { name: 'Перевірити вікторину' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'До запитання' }));
+    expect(round.open).toBe(true);
+    expect(scroll).toHaveBeenCalledTimes(1);
+    expect(scroll.mock.instances[0]).toBe(container.querySelector('#q-m20'));
   });
 });
