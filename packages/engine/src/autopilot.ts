@@ -1,4 +1,4 @@
-import { AUTOPILOT_MAX_RETRIES, AUTOPILOT_MS, autopilotIntroMs, autopilotQuiz, boardCells, type ErrorCode, type Quiz, type ResumeSetup, type TeamForm } from '@quiz/shared';
+import { AUTOPILOT_MAX_RETRIES, AUTOPILOT_MS, autopilotIntroMs, autopilotQuiz, boardCells, BOT_PLAYER_ID, type ErrorCode, type Quiz, type ResumeSetup, type TeamForm } from '@quiz/shared';
 import { appealOpen, appealPossible, lastAppeal } from './appeal';
 import { pickCell, skipTurn } from './board';
 import { dicePending, rollForRest, startDice } from './board-dice';
@@ -46,6 +46,11 @@ export function createAutopilotGame(quiz: Quiz, author: { id: string; nickname: 
   const added = addPlayer(createGame(autopilotQuiz(quiz), options), author);
   if (!added.ok) return added;
   return ok({ ...added.state, autopilot: { authorId: author.id, at: null } });
+}
+
+/** Гра бота (54): автопілот, чий автор — Квіз-бот (BOT_PLAYER_ID), якого немає серед гравців; усі гравці грають без обмежень автора. */
+export function createBotGame(quiz: Quiz, options?: GameOptions): GameState {
+  return { ...createGame(autopilotQuiz(quiz), options), autopilot: { authorId: BOT_PLAYER_ID, at: null } };
 }
 
 /** Чи це автор кімнати-автопілота (у командній грі — id учасника). */
