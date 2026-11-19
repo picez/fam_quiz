@@ -1,25 +1,41 @@
 import { useState, type JSX } from 'react';
 import { Link, Navigate, useParams } from 'react-router-dom';
-import { allSpares, roundQuestions, roundTrials, type AdminQuizView, type Question, type Round } from '@quiz/shared';
+import { allSpares, roundQuestions, roundTrials, type AdminQuizView, type Question, type Quiz, type Round } from '@quiz/shared';
 import { errorText, t } from '../i18n';
 import { formatDate, roundLabel } from '../format';
+import { clockText } from '../live/Timer';
 import { adminQuiz, adminReportedQuiz, deleteQuestionAsAdmin, deleteQuizAsAdmin } from './admin-api';
-import { questionConfirm, questionLines } from './admin-text';
+import { questionConfirm } from './admin-text';
+import { questionPreview } from './quiz-preview';
 import { useAdminData } from './useAdminData';
 import { nickText } from '../nick';
 
+/** moderate — вікторина користувача з кнопками видалення; report — знімок з каталогу за скаргою; bot — вікторина бота лише для перегляду. */
+type Mode = 'moderate' | 'report' | 'bot';
+
+/** Більше запитань — раунди стартують згорнутими. */
+const FOLD_OVER = 20;
+
+const BACK: Record<Mode, string> = { moderate: '/admin/quizzes', report: '/admin/reports', bot: '/admin/bot' };
+
 export function AdminQuiz(): JSX.Element {
   const { id = '' } = useParams();
-  return <Loaded id={id} load={() => adminQuiz(id)} readOnly={false} />;
+  return <Loaded id={id} load={() => adminQuiz(id)} mode="moderate" />;
 }
 
 /** Знімок вікторини з каталогу, на який скаржаться: те, що бачать гравці, лише для перегляду. */
 export function AdminReportedQuiz(): JSX.Element {
   const { entryId = '' } = useParams();
-  return <Loaded id={entryId} load={() => adminReportedQuiz(entryId)} readOnly />;
+  return <Loaded id={entryId} load={() => adminReportedQuiz(entryId)} mode="report" />;
 }
 
-function Loaded({ id, load, readOnly }: { id: string; load: () => ReturnType<typeof adminQuiz>; readOnly: boolean }): JSX.Element {
+/** Вікторина бота з вкладки «Бот»: лише перегляд, видаляють її у вкладці. */
+export function AdminBotQuizView(): JSX.Element {
+  const { id = '' } = useParams();
+  return <Loaded id={id} load={() => adminQuiz(id)} mode="bot" />;
+}
+
+function Loaded({ id, load, mode }: { id: string; load: () => ReturnType<typeof adminQuiz>; mode: Mode }): JSX.Element {
   const state = useAdminData(load, id);
   if (state.status === 'home') return <Navigate to="/" replace />;
   if (state.status === 'loading') return <p className="meta">{t('loading')}</p>;
@@ -35,17 +51,86 @@ function Loaded({ id, load, readOnly }: { id: string; load: () => ReturnType<typ
       </>
     );
   }
-  return <QuizView key={id} loaded={state.data} readOnly={readOnly} />;
+  return <QuizView key={id} loaded={state.data} mode={mode} />;
 }
 
-function QuizView({ loaded, readOnly }: { loaded: AdminQuizView; readOnly: boolean }): JSX.Element {
+/** Список з даних, що можуть не пройти схему (стара вікторина): збій чи не масив — порожньо. */
+function listOf<T>(read: () => T[] | undefined): T[] {
+  try {
+    const list = read();
+    return Array.isArray(list) ? list : [];
+  } catch {
+    return [];
+  }
+}
+
+const questionsOf = (round: Round) => listOf(() => roundQuestions(round));
+const trialsOf = (round: Round) => listOf(() => roundTrials(round));
+const sparesOf = (quiz: Quiz) => listOf(() => allSpares(quiz));
+
+function questionCount(quiz: Quiz): number {
+  return listOf(() => quiz.rounds).reduce((sum, round) => sum + questionsOf(round).length + trialsOf(round).length, 0) + sparesOf(quiz).length;
+}
+
+/** Відповіді, написання, підказка, медіа, бали й таймер запитання. */
+function PreviewBody({ question }: { question: Question }): JSX.Element {
+  const preview = questionPreview(question);
+  return (
+    <>
+      <p dir="auto">{preview.text}</p>
+      {preview.items.length > 0 && (
+        <ul className="admin-preview-items">
+          {preview.items.map((item, index) => (
+            <li key={index} dir="auto" className={item.correct === true ? 'is-correct' : undefined}>
+              {item.correct === true && (
+                <span className="admin-preview-mark" role="img" aria-label={t('adminPreviewCorrect')}>
+                  ✓
+                </span>
+              )}
+              {item.text}
+            </li>
+          ))}
+        </ul>
+      )}
+      {preview.answer !== null && <p className="meta" dir="auto">{t('adminPreviewAnswer', { answer: preview.answer })}</p>}
+      {preview.accepted.length > 0 && <p className="meta" dir="auto">{t('adminPreviewAccepted', { list: preview.accepted.join(', ') })}</p>}
+      {preview.hint !== null && <p className="meta" dir="auto">{t('adminPreviewHint', { hint: preview.hint })}</p>}
+      {preview.images.length > 0 && (
+        <div className="admin-thumbs">
+          {preview.images.map((url, index) => (
+            <img key={url} className="admin-thumb" src={url} alt={url === question.imageUrl ? t('adminQuestionImage') : t('adminPreviewImage', { number: index + 1 })} loading="lazy" />
+          ))}
+        </div>
+      )}
+      {preview.video !== null && (
+        <a className="quiet-link" href={preview.video.url} target="_blank" rel="noopener noreferrer">
+          {t('adminPreviewVideo', { start: clockText(preview.video.start * 1000) })}
+        </a>
+      )}
+      {preview.audio !== null && (
+        <a className="quiet-link" href={preview.audio.url} target="_blank" rel="noopener noreferrer">
+          {t('adminPreviewAudio', { start: clockText(preview.audio.start * 1000), duration: preview.audio.duration })}
+        </a>
+      )}
+      <p className="meta">
+        {preview.timeLimit === null && preview.video !== null
+          ? t('adminPreviewNoTimer', { points: preview.points })
+          : t('adminPreviewPoints', { points: preview.points, seconds: preview.timeLimit ?? '—' })}
+      </p>
+    </>
+  );
+}
+
+function QuizView({ loaded, mode }: { loaded: AdminQuizView; mode: Mode }): JSX.Element {
   // Після видалення запитання сервер віддає вікторину наново — далі беремо її.
   const [fresh, setFresh] = useState<AdminQuizView | null>(null);
   const view = fresh ?? loaded;
-  const { quiz, effects } = view;
+  const { quiz } = view;
+  const effects = view.effects ?? {};
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [target, setTarget] = useState<'home' | 'list' | null>(null);
+  const moderate = mode === 'moderate';
 
   const removeQuestion = async (question: Question, roundTitle: string) => {
     const text = questionConfirm(effects[question.id] ?? 'not_found', roundTitle);
@@ -71,17 +156,11 @@ function QuizView({ loaded, readOnly }: { loaded: AdminQuizView; readOnly: boole
   };
 
   const card = (question: Question, roundTitle: string): JSX.Element => {
-    const lines = questionLines(question).map((line, index) => (
-      <p key={index} className={index === 0 ? undefined : 'meta'}>
-        {line}
-      </p>
-    ));
-    const image = question.imageUrl !== null && <img className="admin-thumb" src={question.imageUrl} alt={t('adminQuestionImage')} loading="lazy" />;
-    if (readOnly) {
+    const body = <PreviewBody question={question} />;
+    if (!moderate) {
       return (
-        <li key={question.id} className="admin-card">
-          {lines}
-          {image}
+        <li key={question.id} id={`q-${question.id}`} className="admin-card">
+          {body}
         </li>
       );
     }
@@ -90,9 +169,8 @@ function QuizView({ loaded, readOnly }: { loaded: AdminQuizView; readOnly: boole
     const hintId = `hint-${question.id}`;
     const hint = effect === 'locked' ? t('err_question_locked') : effect === 'last_question' ? t('adminDeleteWholeQuiz') : null;
     return (
-      <li key={question.id} className="admin-card">
-        {lines}
-        {image}
+      <li key={question.id} id={`q-${question.id}`} className="admin-card">
+        {body}
         <button
           type="button"
           className="btn"
@@ -115,27 +193,32 @@ function QuizView({ loaded, readOnly }: { loaded: AdminQuizView; readOnly: boole
     if (round.type === 'board') {
       return (
         <>
-          {round.categories.map((category) => (
+          {listOf(() => round.categories).map((category) => (
             <section key={category.id}>
-              <h3>{category.title}</h3>
-              <ul className="admin-list">{category.cells.map((cell) => card(cell.question, title))}</ul>
+              <h3 dir="auto">{category.title}</h3>
+              <ul className="admin-list">{listOf(() => category.cells).map((cell) => card(cell.question, title))}</ul>
             </section>
           ))}
         </>
       );
     }
-    return <ul className="admin-list">{roundQuestions(round).map((question) => card(question, title))}</ul>;
+    return <ul className="admin-list">{questionsOf(round).map((question) => card(question, title))}</ul>;
   };
 
-  const spares = allSpares(quiz);
+  const rounds = listOf(() => quiz.rounds);
+  const spares = sparesOf(quiz);
+  const duels = quiz.duels;
+  const open = questionCount(quiz) <= FOLD_OVER;
   if (target === 'home') return <Navigate to="/" replace />;
   if (target === 'list') return <Navigate to="/admin/quizzes" replace />;
   return (
     <>
-      <Link className="quiet-link" to={readOnly ? '/admin/reports' : '/admin/quizzes'}>
+      <Link className="quiet-link" to={BACK[mode]}>
         {t('adminBack')}
       </Link>
-      <h2 className="admin-title" dir="auto">{quiz.title}</h2>
+      <h2 className="admin-title" dir="auto">
+        {quiz.title}
+      </h2>
       <p className="meta">
         {t('adminAuthor', { name: '' })}
         <Link to={`/admin/users/${encodeURIComponent(view.author.id)}`}>{nickText(view.author.nickname)}</Link>
@@ -145,19 +228,18 @@ function QuizView({ loaded, readOnly }: { loaded: AdminQuizView; readOnly: boole
           {error}
         </p>
       )}
-      {readOnly ? (
-        <p className="meta">{t('adminReportSnapshot', { date: formatDate(view.updatedAt) })}</p>
-      ) : (
+      {mode === 'report' && <p className="meta">{t('adminReportSnapshot', { date: formatDate(view.updatedAt) })}</p>}
+      {moderate && (
         <button type="button" className="btn btn-danger" disabled={busy} onClick={() => void removeQuiz()}>
           {t('adminDeleteQuiz')}
         </button>
       )}
-      {quiz.rounds.map((round, index) => {
+      {rounds.map((round, index) => {
         const title = roundLabel(round.title, index, round.type);
-        const trials = roundTrials(round);
+        const trials = trialsOf(round);
         return (
-          <section key={round.id}>
-            <h2>{title}</h2>
+          <details key={round.id ?? index} className="admin-round" data-round={index} open={open}>
+            <summary dir="auto">{title}</summary>
             {roundBody(round, title)}
             {trials.length > 0 && (
               <>
@@ -165,28 +247,37 @@ function QuizView({ loaded, readOnly }: { loaded: AdminQuizView; readOnly: boole
                 <ul className="admin-list">{trials.map((question) => card(question, title))}</ul>
               </>
             )}
-          </section>
+          </details>
         );
       })}
       {spares.length > 0 && (
-        <section>
-          <h2>{t('adminSpares')}</h2>
+        <details className="admin-round" data-round="spares" open={open}>
+          <summary>{t('adminSpares')}</summary>
           <ul className="admin-list">{spares.map((question) => card(question, ''))}</ul>
-        </section>
+        </details>
       )}
-      {quiz.duels !== undefined && (
-        <section>
-          <h2>{t('duelsTitle')}</h2>
-          <p className="meta">{t('adminDuelsReadOnly')}</p>
-          {quiz.duels.categories.map((category) => (
-            <div key={category.id} className="admin-card">
-              <h3>{category.title}</h3>
-              {category.questions.map((question) => (
-                <p key={question.id}>{question.text}</p>
-              ))}
-            </div>
+      {duels !== undefined && (
+        <details className="admin-round" data-round="duels" open={open}>
+          <summary>{t('duelsTitle')}</summary>
+          {moderate && <p className="meta">{t('adminDuelsReadOnly')}</p>}
+          {listOf(() => duels.categories).map((category) => (
+            <section key={category.id}>
+              <h3 dir="auto">{category.title}</h3>
+              <ul className="admin-list">
+                {listOf(() => category.questions).map((question) => (
+                  <li key={question.id} id={`q-${question.id}`} className="admin-card">
+                    <p dir="auto">{question.text}</p>
+                    {listOf(() => question.accepted).length > 0 && (
+                      <p className="meta" dir="auto">
+                        {t('adminPreviewAccepted', { list: question.accepted.join(', ') })}
+                      </p>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </section>
           ))}
-        </section>
+        </details>
       )}
     </>
   );

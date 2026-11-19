@@ -5011,6 +5011,17 @@ const uk = {
   adminLog_bot_plan_cancel: '{admin} скасував(-ла) гру бота «{title}» ({when})',
   adminLog_bot_plan_run: 'Розклад: бот відкрив гру «{title}» (код {code})',
   adminLog_bot_plan_fail: 'Розклад: гру бота «{title}» не відкрито — {reason}',
+  // 57: перегляд вікторини в адмінці й рядок журналу перегляду.
+  adminPreviewCorrect: 'Правильна відповідь',
+  adminPreviewAnswer: 'Відповідь: {answer}',
+  adminPreviewAccepted: 'Написання: {list}',
+  adminPreviewHint: 'Підказка: {hint}',
+  adminPreviewVideo: 'Відео з {start}',
+  adminPreviewAudio: 'Аудіо з {start}, {duration} с',
+  adminPreviewPoints: 'Бали: {points} · Таймер: {seconds} с',
+  adminPreviewNoTimer: 'Бали: {points} · Без таймера (відео)',
+  adminPreviewImage: 'Картинка {number}',
+  adminLog_quiz_view: '{admin} переглянув(-ла) вікторину «{title}» ({target})',
 } as const;
 
 /** uk-словник — той самий об'єкт, що читає t(); інші мови перевіряються проти нього. */

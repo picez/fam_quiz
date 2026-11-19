@@ -4870,5 +4870,15 @@
   "adminLog_bot_plan_update": "{admin} hat den Plan des Bot-Spiels „{title}“ geändert: {when}",
   "adminLog_bot_plan_cancel": "{admin} hat das Bot-Spiel „{title}“ abgesagt ({when})",
   "adminLog_bot_plan_run": "Zeitplan: Der Bot hat das Spiel „{title}“ geöffnet (Code {code})",
-  "adminLog_bot_plan_fail": "Zeitplan: Das Bot-Spiel „{title}“ wurde nicht geöffnet — {reason}"
+  "adminLog_bot_plan_fail": "Zeitplan: Das Bot-Spiel „{title}“ wurde nicht geöffnet — {reason}",
+  "adminPreviewCorrect": "Richtige Antwort",
+  "adminPreviewAnswer": "Antwort: {answer}",
+  "adminPreviewAccepted": "Schreibweisen: {list}",
+  "adminPreviewHint": "Hinweis: {hint}",
+  "adminPreviewVideo": "Video ab {start}",
+  "adminPreviewAudio": "Audio ab {start}, {duration} s",
+  "adminPreviewPoints": "Punkte: {points} · Timer: {seconds} s",
+  "adminPreviewNoTimer": "Punkte: {points} · Kein Timer (Video)",
+  "adminPreviewImage": "Bild {number}",
+  "adminLog_quiz_view": "{admin} hat das Quiz „{title}“ angesehen ({target})"
 }

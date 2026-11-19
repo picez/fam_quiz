@@ -18,7 +18,7 @@ const room = (over: Partial<AdminBotRoom> = {}): AdminBotRoom => ({
   openedAt: '2026-11-19T09:00:00.000Z',
   ...over,
 });
-const quiz = (over: Partial<AdminBotQuiz> = {}): AdminBotQuiz => ({ id: QUIZ_ID, title: 'Річки України', rounds: 2, questions: 10, truth: false, updatedAt: '2026-11-18T10:00:00.000Z', ...over });
+const quiz = (over: Partial<AdminBotQuiz> = {}): AdminBotQuiz => ({ id: QUIZ_ID, title: 'Річки України', rounds: 2, questions: 10, truth: false, updatedAt: '2026-11-18T10:00:00.000Z', check: null, ...over });
 const bot = (over: Partial<AdminBotData> = {}): AdminBotData => ({ bot: { nickname: 'Квіз-бот', ready: true }, quizzes: [quiz()], rooms: [], roomsMax: 3, schedule: { plans: [], groups: [], max: 20 }, ...over });
 
 type Reply = { status: number; body?: unknown };
@@ -167,6 +167,16 @@ describe('AdminBot', () => {
     expect(rooms.compareDocumentPosition(schedule) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(schedule.compareDocumentPosition(quizzes) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(schedule.closest('section')?.classList.contains('admin-bot-schedule')).toBe(true);
+  });
+
+  it('each bot quiz has a preview link', async () => {
+    const other = '33333333-3333-4333-8333-333333333333';
+    replies['GET /api/admin/bot'] = { status: 200, body: bot({ quizzes: [quiz(), quiz({ id: other, title: 'Карпати' })] }) };
+    open();
+    const first = (await screen.findByRole('heading', { name: 'Річки України' })).closest('li') as HTMLElement;
+    expect(within(first).getByRole('link', { name: 'Переглянути' }).getAttribute('href')).toBe(`/admin/bot/quizzes/${QUIZ_ID}`);
+    const second = screen.getByRole('heading', { name: 'Карпати' }).closest('li') as HTMLElement;
+    expect(within(second).getByRole('link', { name: 'Переглянути' }).getAttribute('href')).toBe(`/admin/bot/quizzes/${other}`);
   });
 
   it('the bot avatar is the bot picture', async () => {

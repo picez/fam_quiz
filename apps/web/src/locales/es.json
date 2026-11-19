@@ -4945,5 +4945,15 @@
   "adminLog_bot_plan_update": "{admin} cambió el plan de la partida del bot «{title}»: {when}",
   "adminLog_bot_plan_cancel": "{admin} canceló la partida del bot «{title}» ({when})",
   "adminLog_bot_plan_run": "Programación: el bot abrió la partida «{title}» (código {code})",
-  "adminLog_bot_plan_fail": "Programación: la partida del bot «{title}» no se abrió — {reason}"
+  "adminLog_bot_plan_fail": "Programación: la partida del bot «{title}» no se abrió — {reason}",
+  "adminPreviewCorrect": "Respuesta correcta",
+  "adminPreviewAnswer": "Respuesta: {answer}",
+  "adminPreviewAccepted": "Formas de escribir: {list}",
+  "adminPreviewHint": "Pista: {hint}",
+  "adminPreviewVideo": "Vídeo desde {start}",
+  "adminPreviewAudio": "Audio desde {start}, {duration} s",
+  "adminPreviewPoints": "Puntos: {points} · Temporizador: {seconds} s",
+  "adminPreviewNoTimer": "Puntos: {points} · Sin temporizador (vídeo)",
+  "adminPreviewImage": "Imagen {number}",
+  "adminLog_quiz_view": "{admin} vio el quiz «{title}» ({target})"
 }

@@ -4967,5 +4967,15 @@
   "adminLog_bot_plan_update": "{admin} zmienił(-a) plan gry bota „{title}”: {when}",
   "adminLog_bot_plan_cancel": "{admin} odwołał(-a) grę bota „{title}” ({when})",
   "adminLog_bot_plan_run": "Harmonogram: bot otworzył grę „{title}” (kod {code})",
-  "adminLog_bot_plan_fail": "Harmonogram: gra bota „{title}” nie została otwarta — {reason}"
+  "adminLog_bot_plan_fail": "Harmonogram: gra bota „{title}” nie została otwarta — {reason}",
+  "adminPreviewCorrect": "Poprawna odpowiedź",
+  "adminPreviewAnswer": "Odpowiedź: {answer}",
+  "adminPreviewAccepted": "Pisownie: {list}",
+  "adminPreviewHint": "Podpowiedź: {hint}",
+  "adminPreviewVideo": "Wideo od {start}",
+  "adminPreviewAudio": "Audio od {start}, {duration} s",
+  "adminPreviewPoints": "Punkty: {points} · Czas: {seconds} s",
+  "adminPreviewNoTimer": "Punkty: {points} · Bez czasu (wideo)",
+  "adminPreviewImage": "Obrazek {number}",
+  "adminLog_quiz_view": "{admin} wyświetlił(-a) quiz „{title}” ({target})"
 }

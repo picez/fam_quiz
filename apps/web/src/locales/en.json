@@ -4870,5 +4870,15 @@
   "adminLog_bot_plan_update": "{admin} changed the bot game plan “{title}”: {when}",
   "adminLog_bot_plan_cancel": "{admin} cancelled the bot game “{title}” ({when})",
   "adminLog_bot_plan_run": "Schedule: the bot opened the game “{title}” (code {code})",
-  "adminLog_bot_plan_fail": "Schedule: the bot game “{title}” did not open — {reason}"
+  "adminLog_bot_plan_fail": "Schedule: the bot game “{title}” did not open — {reason}",
+  "adminPreviewCorrect": "Correct answer",
+  "adminPreviewAnswer": "Answer: {answer}",
+  "adminPreviewAccepted": "Spellings: {list}",
+  "adminPreviewHint": "Hint: {hint}",
+  "adminPreviewVideo": "Video from {start}",
+  "adminPreviewAudio": "Audio from {start}, {duration} s",
+  "adminPreviewPoints": "Points: {points} · Timer: {seconds} s",
+  "adminPreviewNoTimer": "Points: {points} · No timer (video)",
+  "adminPreviewImage": "Picture {number}",
+  "adminLog_quiz_view": "{admin} viewed the quiz “{title}” ({target})"
 }

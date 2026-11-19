@@ -180,6 +180,9 @@ export function AdminBot(): JSX.Element {
                     <p className="meta">{sizeText(quiz)}</p>
                     <p className="meta">{formatDay(quiz.updatedAt)}</p>
                     <div className="admin-actions">
+                      <Link className="btn" to={`/admin/bot/quizzes/${encodeURIComponent(quiz.id)}`}>
+                        {t('adminView')}
+                      </Link>
                       <button type="button" className="btn btn-primary" disabled={busy} onClick={() => launch(quiz)}>
                         {t('adminBotLaunch')}
                       </button>

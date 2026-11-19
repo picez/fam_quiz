@@ -5170,5 +5170,15 @@
   "adminLog_bot_plan_update": "غيّر {admin} خطة لعبة البوت «{title}»: {when}",
   "adminLog_bot_plan_cancel": "ألغى {admin} لعبة البوت «{title}» ({when})",
   "adminLog_bot_plan_run": "الجدول: فتح البوت اللعبة «{title}» (الرمز {code})",
-  "adminLog_bot_plan_fail": "الجدول: لم تُفتح لعبة البوت «{title}» — {reason}"
+  "adminLog_bot_plan_fail": "الجدول: لم تُفتح لعبة البوت «{title}» — {reason}",
+  "adminPreviewCorrect": "الإجابة الصحيحة",
+  "adminPreviewAnswer": "الإجابة: {answer}",
+  "adminPreviewAccepted": "طرق الكتابة: {list}",
+  "adminPreviewHint": "تلميح: {hint}",
+  "adminPreviewVideo": "فيديو من {start}",
+  "adminPreviewAudio": "صوت من {start}، {duration} ث",
+  "adminPreviewPoints": "النقاط: {points} · المؤقت: {seconds} ث",
+  "adminPreviewNoTimer": "النقاط: {points} · بلا مؤقت (فيديو)",
+  "adminPreviewImage": "صورة {number}",
+  "adminLog_quiz_view": "عرض {admin} الاختبار «{title}» ({target})"
 }
