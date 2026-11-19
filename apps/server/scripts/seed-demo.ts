@@ -1,6 +1,6 @@
 /**
  * Додає демо-вікторину користувачу за email або оновлює вже наявну вікторину за її id.
- * Запуск: DATABASE_URL=... pnpm --filter @quiz/server seed:demo you@example.com [demo|party|party-media|movies|erudite|school|mosaic|compass|horizon|teams|showcase|grand|family|family2|evening|classroom|movies90|logic|world|fun|halloween|mix|quick|mix2|mega|fest|detective|think|video|alike|spy|school3|wordle|big1]
+ * Запуск: DATABASE_URL=... pnpm --filter @quiz/server seed:demo you@example.com [demo|party|party-media|movies|erudite|school|mosaic|compass|horizon|teams|showcase|grand|family|family2|evening|classroom|movies90|logic|world|fun|halloween|mix|quick|mix2|mega|fest|detective|think|video|alike|spy|school3|wordle|big1|big2]
  * Оновлення: DATABASE_URL=... pnpm --filter @quiz/server seed:demo --update <quizId> <seedName>
  * — замінює назву, опис, налаштування й раунди рядка новим вмістом сіда (як збереження в редакторі,
  * з новим updatedAt); власник лишається той самий, вікторина зберігає своє посилання й історію ігор.
@@ -9,6 +9,7 @@
  * що проявляються; без SITE_URL ці два запитання лишаються звичайними, текстовими. grand і family так само завантажують по три картинки.
  * logic потребує SITE_URL: завантажує намальовані PNG з scripts/logic/img і фото з Вікіпедії.
  * detective потребує SITE_URL: завантажує дві намальовані PNG «Знайди відмінності» з scripts/detective/img.
+ * big2 потребує SITE_URL: завантажує фото для пазлів і картини для «Пам’яті» з Wikimedia Commons (BIG2_PHOTOS).
  */
 import { join } from 'node:path';
 import { quizSchema, type Quiz } from '@quiz/shared';
@@ -53,6 +54,7 @@ import { spyQuiz } from './spy-quiz';
 import { school3Quiz } from './school3-quiz';
 import { wordleQuiz } from './wordle-quiz';
 import { big1Quiz } from './big1-quiz';
+import { BIG2_PHOTOS, big2Quiz } from './big2-quiz';
 
 /** Ключ картинки → стаття англійської Вікіпедії, чия головна ілюстрація підходить до запитання. */
 const ARTICLES: Record<string, string> = {
@@ -136,7 +138,7 @@ const uploadImages = (
   sources: () => Promise<Record<string, string>> = () => thumbnails(keys),
 ): Promise<Record<string, string>> => uploadSiteImages(site, db, keys, sources);
 
-const SEEDS = ['demo', 'party', 'party-media', 'movies', 'erudite', 'school', 'mosaic', 'compass', 'horizon', 'teams', 'showcase', 'grand', 'family', 'family2', 'evening', 'classroom', 'movies90', 'logic', 'world', 'fun', 'halloween', 'mix', 'quick', 'mix2', 'mega', 'fest', 'detective', 'think', 'video', 'alike', 'spy', 'school3', 'wordle', 'big1'] as const;
+const SEEDS = ['demo', 'party', 'party-media', 'movies', 'erudite', 'school', 'mosaic', 'compass', 'horizon', 'teams', 'showcase', 'grand', 'family', 'family2', 'evening', 'classroom', 'movies90', 'logic', 'world', 'fun', 'halloween', 'mix', 'quick', 'mix2', 'mega', 'fest', 'detective', 'think', 'video', 'alike', 'spy', 'school3', 'wordle', 'big1', 'big2'] as const;
 type SeedName = (typeof SEEDS)[number];
 const isSeed = (arg: string | undefined): arg is SeedName => (SEEDS as readonly string[]).includes(arg ?? '');
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -219,6 +221,15 @@ async function seedQuiz(name: SeedName, db: Db, site: string | undefined): Promi
       if (!site) throw new Error('The movies90 quiz needs SITE_URL: its pictures are required');
       const urls = await uploadImages(site, db, Object.keys(MOVIES90_IMAGES), () => wideSources(MOVIES90_IMAGES));
       return movies90Quiz((key) => {
+        const url = urls[key];
+        if (!url) throw new Error(`Picture ${key} was not uploaded`);
+        return url;
+      });
+    }
+    case 'big2': {
+      if (!site) throw new Error('The big2 quiz needs SITE_URL: its jigsaw photos and memory paintings are required');
+      const urls = await uploadImages(site, db, Object.keys(BIG2_PHOTOS), () => wideSources(BIG2_PHOTOS));
+      return big2Quiz((key) => {
         const url = urls[key];
         if (!url) throw new Error(`Picture ${key} was not uploaded`);
         return url;
