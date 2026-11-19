@@ -212,11 +212,25 @@ async function charts53() {
 
   await admin.goto(`${base}/admin`);
   expect(await isLight(admin)).toBe(true);
-  await admin.locator('.admin-charts svg[role="img"]').first().waitFor();
-  expect(await admin.locator('.admin-charts svg[role="img"]').count()).toBe(4);
-  const tables = admin.locator('.admin-charts table.sr-only');
-  expect(await tables.count()).toBe(4);
-  for (let i = 0; i < 4; i++) expect(await tables.nth(i).locator('tbody tr').count(), `chart ${i}: 30 days`).toBe(30);
+  const figures = admin.locator('.admin-charts figure.day-bars');
+  await figures.first().waitFor();
+  expect(await figures.count()).toBe(4);
+  // У свіжій e2e-базі частина графіків — самі нулі й прогалини: тоді рядок «Немає даних…» замість порожньої рамки.
+  let drawn = 0;
+  for (let i = 0; i < 4; i++) {
+    const figure = figures.nth(i);
+    if ((await figure.locator('svg[role="img"]').count()) === 1) {
+      drawn += 1;
+      expect(await figure.locator('table.sr-only tbody tr').count(), `chart ${i}: 30 days`).toBe(30);
+      // Нульовий день — без стовпчика, тож червоних рисок на осі немає.
+      const zeroDays = await figure.locator('table.sr-only tbody tr td:nth-child(2)').evaluateAll((cells) => cells.filter((cell) => cell.textContent === '0' || cell.textContent === '—').length);
+      expect(await figure.locator('rect').count(), `chart ${i}: bars only for non-zero days`).toBe(30 - zeroDays);
+    } else {
+      await figure.getByText('Немає даних за ці дні.', exact).waitFor();
+      expect(await figure.locator('table').count()).toBe(0);
+    }
+  }
+  expect(drawn, 'at least the players or games chart has data').toBeGreaterThan(0);
   await admin.getByRole('heading', { name: 'Останні 30 днів', ...exact }).scrollIntoViewIfNeeded();
   await viewportShot(admin, 'admin53-charts-360');
 
