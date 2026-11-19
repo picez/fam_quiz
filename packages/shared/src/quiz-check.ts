@@ -4,7 +4,7 @@ import { YOUTUBE_ID, answerKey, quizSchema, wordIn, type Question } from './quiz
 
 /** Перевірка вікторини адміном (57): помилки — вікторина зламана чи видає відповідь; попередження — варто глянути. */
 export const QUIZ_CHECK_ERRORS = ['schema', 'media_missing', 'media_unreachable', 'video_missing', 'video_not_embeddable', 'video_start_past_end', 'empty_answer', 'no_correct', 'duplicate_option', 'answer_leak', 'autopilot_blocked'] as const;
-export const QUIZ_CHECK_WARNINGS = ['short_timer', 'hint_leak', 'media_unchecked', 'video_unchecked'] as const;
+export const QUIZ_CHECK_WARNINGS = ['short_timer', 'hint_leak', 'media_unchecked', 'media_blocked', 'video_unchecked'] as const;
 export type QuizCheckCode = (typeof QUIZ_CHECK_ERRORS)[number] | (typeof QUIZ_CHECK_WARNINGS)[number];
 
 const ERROR_CODES: ReadonlySet<QuizCheckCode> = new Set(QUIZ_CHECK_ERRORS);
@@ -227,8 +227,9 @@ const leakIn = (texts: string[], answers: string[]) => answers.find((a) => texts
 /**
  * Перевірки без мережі (57): схема, будова сирих запитань, короткі таймери, витоки відповідей у тексті й підказці, блокування автопілота.
  * Спершу всі помилки, потім попередження; усередині — у порядку вікторини. Не кидає на будь-якому JSON.
+ * bot — вікторина бота: лише її грає автопілот, тож лише в ній раунд, що потребує ведучого, — помилка autopilot_blocked.
  */
-export function staticIssues(raw: unknown): QuizCheckIssue[] {
+export function staticIssues(raw: unknown, options: { bot?: boolean } = {}): QuizCheckIssue[] {
   const ranked: Ranked[] = [];
   const places = quizPlaces(raw);
   const posOf = new Map<unknown, number>();
@@ -296,7 +297,7 @@ export function staticIssues(raw: unknown): QuizCheckIssue[] {
       const hinted = question.hint === undefined ? null : leakIn([question.hint], answers);
       if (hinted !== null) forQuestion('hint_leak', place.round, q, hinted, pos);
     }
-    for (const blocked of autopilotCheck(quiz).blocked) {
+    for (const blocked of options.bot === true ? autopilotCheck(quiz).blocked : []) {
       for (const round of blocked.rounds) add({ code: 'autopilot_blocked', round, questionId: null, question: null, detail: blocked.code }, roundPos(round));
     }
   }

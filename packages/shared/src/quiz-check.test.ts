@@ -174,7 +174,20 @@ describe('staticIssues', () => {
     const thinkRound: Round = { id: 'r2', type: 'think', title: '', lives: 3, points: 3000, questions: [think('k1'), think('k2'), think('k3')] };
     const quiz = quizOf([classic('r1', [single]), thinkRound]);
     expect(quizSchema.safeParse(quiz).success).toBe(true);
-    expect(staticIssues(quiz)).toEqual([{ code: 'autopilot_blocked', round: 1, questionId: null, question: null, detail: 'think_words' }]);
+    expect(staticIssues(quiz, { bot: true })).toEqual([{ code: 'autopilot_blocked', round: 1, questionId: null, question: null, detail: 'think_words' }]);
+  });
+
+  it('a round that needs a host is no issue in a hosted quiz', () => {
+    const think = (id: string): Question => ({ ...base, id, type: 'think', text: 'Напишіть колір веселки', points: 0, words: [] });
+    const thinkRound: Round = { id: 'r2', type: 'think', title: '', lives: 3, points: 3000, questions: [think('k1'), think('k2'), think('k3')] };
+    const quiz = quizOf([classic('r1', [single]), thinkRound]);
+    expect(staticIssues(quiz)).toEqual([]);
+    expect(staticIssues(quiz, { bot: false })).toEqual([]);
+  });
+
+  it('a blocked address is a warning of its own', () => {
+    expect(checkSeverity('media_blocked')).toBe('warning');
+    expect(QUIZ_CHECK_WARNINGS).toContain('media_blocked');
   });
 
   it('errors come before warnings', () => {
