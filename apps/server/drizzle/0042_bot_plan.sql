@@ -1,4 +1,4 @@
--- Плани ігор бота за розкладом (план 56): нагадування, автозапуск, щотижневий повтор.
+-- Плани ігор бота за розкладом (план 56): нагадування, автозапуск, щотижневий повтор; wall_time — київська година серії.
 CREATE TABLE "bot_plan" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"quiz_id" uuid,
@@ -9,6 +9,7 @@ CREATE TABLE "bot_plan" (
 	"people" jsonb DEFAULT '[]'::jsonb NOT NULL,
 	"auto_start_min" integer,
 	"weekly" boolean DEFAULT false NOT NULL,
+	"wall_time" text,
 	"status" text DEFAULT 'scheduled' NOT NULL,
 	"reason" text,
 	"room_id" text,

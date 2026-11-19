@@ -20,6 +20,7 @@ import { reportError } from './log';
 import { getQuiz } from './quizzes';
 import type { RoomManager } from './rooms/manager';
 import { realScheduler, type Scheduler } from './rooms/scheduler';
+import { LEASE_MS } from './rooms/store';
 
 type Tx = Parameters<Parameters<Db['transaction']>[0]>[0];
 
@@ -82,11 +83,14 @@ export function createBotSchedule(deps: {
     void task.finally(() => inFlight.delete(task));
   }
 
-  /** Наступний план щотижневої серії: той самий київський час, перша така мить після now; ліміт не перевіряється (заміняє попередника). */
+  /**
+   * Наступний план щотижневої серії: той самий київський час (wall_time серії, тож весняна «дірка» не зсуває її назавжди),
+   * перша така мить після now; ліміт не перевіряється (заміняє попередника). Провал quiz_missing серію не продовжує — failPlan його не кличе.
+   */
   async function successor(tx: Tx, row: BotPlanRow, now: Date): Promise<void> {
     if (!row.weekly) return;
-    let next = nextWeekKyiv(row.startsAt);
-    while (next.getTime() <= now.getTime()) next = nextWeekKyiv(next);
+    let next = nextWeekKyiv(row.startsAt, row.wallTime);
+    while (next.getTime() <= now.getTime()) next = nextWeekKyiv(next, row.wallTime);
     await tx.insert(botPlan).values({
       quizId: row.quizId,
       title: row.title,
@@ -96,6 +100,7 @@ export function createBotSchedule(deps: {
       people: row.people,
       autoStartMin: row.autoStartMin,
       weekly: true,
+      wallTime: row.wallTime,
       previousId: row.id,
       createdBy: row.createdBy,
       createdAt: now,
@@ -103,7 +108,10 @@ export function createBotSchedule(deps: {
     });
   }
 
-  /** scheduled → failed; той самий замок, що й створення, тож наступник серії не проскочить повз межу паралельного створення. */
+  /**
+   * scheduled → failed; той самий замок, що й створення, тож наступник серії не проскочить повз межу паралельного створення.
+   * Вікторину видалено (quiz_missing) — серія зупиняється: інакше план провалювався б щотижня назавжди.
+   */
   async function failPlan(row: BotPlanRow, reason: BotPlanReason, now: Date): Promise<boolean> {
     return db.transaction(async (tx) => {
       await lockPlans(tx);
@@ -114,7 +122,7 @@ export function createBotSchedule(deps: {
         .returning();
       if (claimed === undefined) return false;
       await logAction(tx, { adminId: BOT_USER_ID, kind: 'bot_plan_fail', targetUserId: BOT_USER_ID, details: { title: claimed.title, reason }, now });
-      await successor(tx, claimed, now);
+      if (reason !== 'quiz_missing') await successor(tx, claimed, now);
       return true;
     });
   }
@@ -131,18 +139,26 @@ export function createBotSchedule(deps: {
     // Зупинка саме почалася: наступна хвилина (у межах запізнення) або наступний процес.
     if (!made.ok) return made.error === 'restarting' ? null : fail(made.error);
     const { room } = made;
-    const claimed = await db.transaction(async (tx) => {
-      await lockPlans(tx);
-      const [taken] = await tx
-        .update(botPlan)
-        .set({ status: 'opened', roomId: room.id, roomCode: room.code, openedAt: now, remindedAt: row.remindedAt ?? now, updatedAt: now })
-        .where(and(eq(botPlan.id, row.id), eq(botPlan.status, 'scheduled')))
-        .returning();
-      if (taken === undefined) return null;
-      await logAction(tx, { adminId: BOT_USER_ID, kind: 'bot_plan_run', targetUserId: BOT_USER_ID, details: { title: taken.title, code: room.code }, now });
-      await successor(tx, taken, now);
-      return taken;
-    });
+    let claimed: BotPlanRow | null;
+    try {
+      claimed = await db.transaction(async (tx) => {
+        await lockPlans(tx);
+        const [taken] = await tx
+          .update(botPlan)
+          .set({ status: 'opened', roomId: room.id, roomCode: room.code, openedAt: now, remindedAt: row.remindedAt ?? now, updatedAt: now })
+          .where(and(eq(botPlan.id, row.id), eq(botPlan.status, 'scheduled')))
+          .returning();
+        if (taken === undefined) return null;
+        await logAction(tx, { adminId: BOT_USER_ID, kind: 'bot_plan_run', targetUserId: BOT_USER_ID, details: { title: taken.title, code: room.code }, now });
+        await successor(tx, taken, now);
+        return taken;
+      });
+    } catch (error) {
+      // Збій бази під час «забирання»: кімната не лишається сиротою (план лишився scheduled — наступний прогін відкриє одну).
+      // Якщо коміт таки відбувся, наступний прогін чесно запише room_closed.
+      manager.botAct(room.code, 'end');
+      throw error;
+    }
     if (claimed === null) {
       // Скасували чи забрав інший прогін у цю мить: кімната не лишається.
       manager.botAct(room.code, 'end');
@@ -170,23 +186,29 @@ export function createBotSchedule(deps: {
   async function settlePlan(row: BotPlanRow, now: Date): Promise<boolean> {
     if (manager.frozen) return false;
     const room = row.roomId === null ? undefined : manager.roomById(row.roomId);
+    const opened = (row.openedAt ?? now).getTime();
+    const waited = now.getTime() >= opened + (row.autoStartMin ?? BOT_PLAN_WAIT_MIN) * MIN;
     if (room === undefined) {
-      // Кімнату ще веде інший процес (розгортання) чи її ще не підхопили з бази: чекаємо.
+      // Розгортання: старий процес пише live_room ~1 с після «забирання» — до кінця оренди кімнату не вважаємо закритою.
+      if (now.getTime() - opened <= LEASE_MS) return false;
+      // Кімнату ще веде інший процес чи її ще не підхопили з бази: чекаємо.
       if (row.roomId !== null) {
         const [held] = await db.select({ code: liveRoom.code }).from(liveRoom).where(eq(liveRoom.roomId, row.roomId));
         if (held !== undefined) return false;
       }
-      return finish(row, 'failed', now, 'room_closed');
+      // Без автостарту лобі дочекалося, але ніхто не натиснув «Почати гру», і воно закрилося саме.
+      return finish(row, 'failed', now, row.autoStartMin === null && waited ? 'not_started' : 'room_closed');
     }
     if (room.state.phase !== 'lobby') return finish(row, 'played', now);
-    const opened = (row.openedAt ?? now).getTime();
-    if (now.getTime() < opened + (row.autoStartMin ?? BOT_PLAN_WAIT_MIN) * MIN) return false;
+    if (!waited) return false;
     const online = room.state.players.filter((p) => (room.connections.get(p.id) ?? 0) > 0).length;
     if (online === 0) {
-      manager.botAct(room.code, 'end');
-      return finish(row, 'nobody', now);
+      // Спершу запис, потім закриття: збій бази лишає кімнату, і наступний прогін запише саме nobody.
+      const done = await finish(row, 'nobody', now);
+      if (done) manager.botAct(room.code, 'end');
+      return done;
     }
-    if (row.autoStartMin === null) return false; // Почне адмін; лобі, що вичерпало час, закриється саме → room_closed.
+    if (row.autoStartMin === null) return false; // Почне адмін; лобі, що вичерпало час, закриється саме → not_started.
     return manager.botAct(room.code, 'start').ok ? finish(row, 'played', now) : finish(row, 'failed', now, 'start_failed');
   }
 

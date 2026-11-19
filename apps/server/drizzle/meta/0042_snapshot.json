@@ -1,5 +1,5 @@
 {
-  "id": "642b9017-3440-4771-87f2-fc409df647f9",
+  "id": "cecc6197-d2f8-4050-9700-bb346fd7fabc",
   "prevId": "26602bd8-8881-4135-a693-585f5d245145",
   "version": "7",
   "dialect": "postgresql",
@@ -592,6 +592,12 @@
           "primaryKey": false,
           "notNull": true,
           "default": false
+        },
+        "wall_time": {
+          "name": "wall_time",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
         },
         "status": {
           "name": "status",

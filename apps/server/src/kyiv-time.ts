@@ -31,11 +31,25 @@ function offsetMs(ms: number): number {
   return wallMs(ms) - Math.floor(ms / 1000) * 1000;
 }
 
-/** Той самий настінний час у Києві через 7 днів (переходи на літній і зимовий час — без зсуву години). */
-export function nextWeekKyiv(at: Date): Date {
+const WALL = /^([01]\d|2[0-3]):([0-5]\d)$/;
+
+/** Настінний час у Києві для моменту at — «HH:MM» (56: година серії, що переживає весняну «дірку»). */
+export function kyivWallTime(at: Date): string {
+  const wall = new Date(wallMs(at.getTime()));
+  return `${String(wall.getUTCHours()).padStart(2, '0')}:${String(wall.getUTCMinutes()).padStart(2, '0')}`;
+}
+
+/**
+ * Той самий настінний час у Києві через 7 днів (переходи на літній і зимовий час — без зсуву години).
+ * wall («HH:MM») — година серії: якщо at зсунуло весняною «діркою» (03:30 → 04:30), наступний тиждень повертається до wall.
+ */
+export function nextWeekKyiv(at: Date, wall?: string | null): Date {
   const ms = at.getTime();
-  const wall = new Date(wallMs(ms) + (ms - Math.floor(ms / 1000) * 1000));
-  const guess = Date.UTC(wall.getUTCFullYear(), wall.getUTCMonth(), wall.getUTCDate() + 7, wall.getUTCHours(), wall.getUTCMinutes(), wall.getUTCSeconds(), wall.getUTCMilliseconds());
+  const here = new Date(wallMs(ms) + (ms - Math.floor(ms / 1000) * 1000));
+  const fixed = wall == null ? null : WALL.exec(wall);
+  const hours = fixed === null ? here.getUTCHours() : Number(fixed[1]);
+  const minutes = fixed === null ? here.getUTCMinutes() : Number(fixed[2]);
+  const guess = Date.UTC(here.getUTCFullYear(), here.getUTCMonth(), here.getUTCDate() + 7, hours, minutes, here.getUTCSeconds(), here.getUTCMilliseconds());
   // Два проходи, як localInputToIso: зсув у самій точці може відрізнятись від зсуву в здогадці біля переходу.
   const first = guess - offsetMs(guess);
   return new Date(guess - offsetMs(first));

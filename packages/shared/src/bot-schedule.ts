@@ -19,7 +19,7 @@ export const BOT_PLAN_HISTORY = 20;
 
 export const BOT_PLAN_STATUSES = ['scheduled', 'opened', 'played', 'nobody', 'cancelled', 'failed'] as const;
 export type BotPlanStatus = (typeof BOT_PLAN_STATUSES)[number];
-export const BOT_PLAN_REASONS = ['server_down', 'quiz_missing', 'autopilot_blocked', 'server_busy', 'bot_rooms_full', 'bot_unavailable', 'room_closed', 'start_failed'] as const;
+export const BOT_PLAN_REASONS = ['server_down', 'quiz_missing', 'autopilot_blocked', 'server_busy', 'bot_rooms_full', 'bot_unavailable', 'room_closed', 'not_started', 'start_failed'] as const;
 export type BotPlanReason = (typeof BOT_PLAN_REASONS)[number];
 
 export const botPlanRecipientsSchema = z.discriminatedUnion('kind', [

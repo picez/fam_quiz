@@ -914,7 +914,7 @@ describe('bot plan (56)', () => {
       .insert(botPlan)
       .values({ quizId: q.id, title: 'Q', startsAt: T, recipients: 'group', groupId: g.id, createdBy: 'a', createdAt: T, updatedAt: T })
       .returning();
-    expect(row).toMatchObject({ status: 'scheduled', people: [], weekly: false, autoStartMin: null, reason: null, remindedAt: null, previousId: null });
+    expect(row).toMatchObject({ status: 'scheduled', people: [], weekly: false, autoStartMin: null, reason: null, remindedAt: null, previousId: null, wallTime: null });
 
     await db.delete(quiz).where(eq(quiz.id, q.id));
     await db.delete(familyGroup).where(eq(familyGroup.id, g.id));

@@ -62,7 +62,7 @@ export async function registerAdminBotRoutes(app: FastifyInstance, deps: AdminDe
       quizzes: await botQuizzes(db),
       rooms: rooms.map((item) => item.view),
       roomsMax: BOT_ROOMS_MAX,
-      schedule: { plans: await listPlans(db, now()), groups: await botGroups(db), max: BOT_PLANS_MAX },
+      schedule: { plans: await listPlans(db), groups: await botGroups(db), max: BOT_PLANS_MAX },
     };
   });
 

@@ -66,11 +66,11 @@ describe('bot plan store (56)', () => {
     expect(made).toMatchObject({ ok: true, plan: { quizId, title: TITLE, status: 'scheduled', autoStartMin: 10, weekly: true, reason: null, code: null } });
     if (!made.ok) throw new Error('not made');
     expect(made.plan.startsAt).toBe(at(DAY).toISOString());
-    const listed = await listPlans(db, NOW);
+    const listed = await listPlans(db);
     expect(listed).toEqual([made.plan]);
     expect(listed[0]!.to).toEqual({ kind: 'none' });
     const [row] = await db.select().from(botPlan);
-    expect(row).toMatchObject({ createdBy: 'adm', recipients: 'none', people: [], groupId: null, remindedAt: null });
+    expect(row).toMatchObject({ createdBy: 'adm', recipients: 'none', people: [], groupId: null, remindedAt: null, wallTime: '12:00' });
     expect(await logOf('bot_plan_create')).toEqual([{ adminId: 'adm', targetUserId: BOT_USER_ID, details: { title: TITLE, when: at(DAY).toISOString() } }]);
   });
 
@@ -131,6 +131,7 @@ describe('bot plan store (56)', () => {
     const moved = await updatePlan(db, 'adm', id, input({ startsAt: at(2 * HOUR).toISOString(), recipients: { kind: 'all' } }), NOW);
     expect(moved).toMatchObject({ ok: true, plan: { id, startsAt: at(2 * HOUR).toISOString(), to: { kind: 'all' } } });
     expect((await db.select().from(botPlan))[0]!.remindedAt).toBeNull();
+    expect((await db.select().from(botPlan))[0]!.wallTime).toBe('14:00');
     expect((await logOf('bot_plan_update')).map((row) => row.details)).toEqual([
       { title: TITLE, when: at(HOUR).toISOString() },
       { title: TITLE, when: at(2 * HOUR).toISOString() },
@@ -217,7 +218,7 @@ describe('bot plan store (56)', () => {
     const kinds = ['played', 'nobody', 'failed', 'cancelled'] as const;
     await db.insert(botPlan).values(Array.from({ length: 25 }, (_, i) => finishedRow(i, kinds[i % 4]!)));
 
-    const listed = await listPlans(db, NOW);
+    const listed = await listPlans(db);
     expect(listed.map((p) => p.id).slice(0, 3)).toEqual([sooner.plan.id, later.plan.id, opened.plan.id]);
     expect(listed).toHaveLength(3 + 20);
     expect(listed.slice(3).map((p) => p.title)).toEqual(Array.from({ length: 20 }, (_, i) => `Минуле ${i}`));
@@ -229,7 +230,7 @@ describe('bot plan store (56)', () => {
 
     expect(await botGroups(db)).toEqual([{ id: group.id, name: 'Сусіди 56', emoji: '🌻', members: 2 }]);
     await deleteGroup(db, group.id);
-    expect((await listPlans(db, NOW))[1]!.to).toEqual({ kind: 'group', groupId: '', name: null });
+    expect((await listPlans(db))[1]!.to).toEqual({ kind: 'group', groupId: '', name: null });
     expect(await botGroups(db)).toEqual([]);
   });
 });

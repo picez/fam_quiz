@@ -14,6 +14,7 @@ import { logAction } from './bans';
 import type { Db } from './db/client';
 import { botPlan, familyGroup, groupMember, profile, pushSubscription, user } from './db/schema';
 import { notHidden } from './feed-store';
+import { kyivWallTime } from './kyiv-time';
 import { getQuiz } from './quizzes';
 
 type Tx = Parameters<Parameters<Db['transaction']>[0]>[0];
@@ -35,6 +36,7 @@ interface Fields {
   people: string[];
   autoStartMin: number | null;
   weekly: boolean;
+  wallTime: string;
 }
 
 /** Перевірки вводу: момент, вікторина бота, наявна група, видимі люди. */
@@ -66,6 +68,7 @@ async function validate(db: Db | Tx, input: BotPlanInput, now: Date): Promise<{ 
       people: to.kind === 'people' ? to.userIds : [],
       autoStartMin: input.autoStartMin,
       weekly: input.weekly,
+      wallTime: kyivWallTime(startsAt),
     },
   };
 }
@@ -105,7 +108,7 @@ async function views(db: Db | Tx, rows: BotPlanRow[]): Promise<AdminBotPlan[]> {
 }
 
 /** Спершу всі scheduled/opened від найближчого, далі до BOT_PLAN_HISTORY завершених від найновішого. */
-export async function listPlans(db: Db, _now: Date): Promise<AdminBotPlan[]> {
+export async function listPlans(db: Db): Promise<AdminBotPlan[]> {
   const active = await db.select().from(botPlan).where(inArray(botPlan.status, [...ACTIVE])).orderBy(asc(botPlan.startsAt), asc(botPlan.id));
   const finished = await db
     .select()

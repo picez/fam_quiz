@@ -345,6 +345,96 @@ describe('bot schedule (56)', () => {
     expect((await logOf('bot_plan_fail')).map((r) => r.details)).toEqual([{ title: TITLE, reason: 'room_closed' }]);
   });
 
+  it('a failed claim ends the room it opened, and the next tick opens exactly one', async () => {
+    const id = await plan();
+    const spy = vi.spyOn(db, 'transaction').mockRejectedValueOnce(new Error('db down'));
+    const made = vi.spyOn(manager, 'createBotRoom');
+    const schedule = service();
+    try {
+      expect(await run(schedule, T)).toMatchObject({ opened: 0 });
+    } finally {
+      spy.mockRestore();
+    }
+    expect(made).toHaveBeenCalledTimes(1);
+    expect(manager.botRooms().filter((room) => room.state.phase === 'lobby')).toEqual([]);
+    expect((await row(id)).status).toBe('scheduled');
+    expect(pushesWithCode()).toEqual([]);
+    expect(await run(schedule, at(MIN))).toMatchObject({ opened: 1 });
+    const opened = await row(id);
+    expect(manager.botRooms().filter((room) => room.state.phase === 'lobby').map((room) => room.id)).toEqual([opened.roomId]);
+  });
+
+  it('a weekly plan whose quiz is gone fails without a next plan', async () => {
+    const gone = await createQuiz(db, BOT_USER_ID, { ...peaks(), title: 'Зникне щотижня 56' });
+    const id = await plan({ quizId: gone, weekly: true });
+    await db.delete(quizTable).where(eq(quizTable.id, gone));
+    await run(service(), T);
+    expect(await row(id)).toMatchObject({ status: 'failed', reason: 'quiz_missing' });
+    expect(await db.select().from(botPlan).where(eq(botPlan.previousId, id))).toEqual([]);
+  });
+
+  it('a weekly series keeps its Kyiv wall time after the spring gap', async () => {
+    // 21.03.2027 03:30 у Києві (+2): наступні — 28.03 (03:30 немає → 04:30) і 04.04 знову о 03:30.
+    const start = new Date('2027-03-21T01:30:00.000Z');
+    // Створення — не далі 60 днів наперед: план «створено» за день до старту.
+    const made = await createPlan(db, 'adm', input({ weekly: true, startsAt: start.toISOString() }), new Date(start.getTime() - DAY));
+    if (!made.ok) throw new Error(`plan not made: ${made.error}`);
+    const id = made.plan.id;
+    expect((await row(id)).wallTime).toBe('03:30');
+    await run(service(), start);
+    const [second] = await db.select().from(botPlan).where(eq(botPlan.previousId, id));
+    expect(second!.startsAt.toISOString()).toBe('2027-03-28T01:30:00.000Z');
+    expect(second!.wallTime).toBe('03:30');
+    await run(service(), second!.startsAt);
+    const [third] = await db.select().from(botPlan).where(eq(botPlan.previousId, second!.id));
+    expect(third!.startsAt.toISOString()).toBe('2027-04-04T00:30:00.000Z');
+  });
+
+  it('without auto start a lobby nobody started and that closed itself is not_started', async () => {
+    const id = await plan();
+    const schedule = service();
+    await run(schedule, T);
+    const code = (await row(id)).roomCode!;
+    const joined = manager.join(code, 'Оля');
+    if (!joined.ok) throw new Error('not joined');
+    manager.connect(manager.get(code)!, { role: 'player', playerId: joined.playerId });
+    await run(schedule, at(30 * MIN));
+    expect((await row(id)).status).toBe('opened');
+    // Лобі вичерпало час (LOBBY_TTL) — кімната зникла, гри не почали.
+    expect(manager.botAct(code, 'end')).toEqual({ ok: true });
+    await run(schedule, at(31 * MIN));
+    expect(await row(id)).toMatchObject({ status: 'failed', reason: 'not_started' });
+    expect((await logOf('bot_plan_fail')).map((r) => r.details)).toEqual([{ title: TITLE, reason: 'not_started' }]);
+  });
+
+  it('nobody came: if writing the result fails, the room stays and the next tick records nobody', async () => {
+    const id = await plan({ autoStartMin: 10 });
+    const schedule = service();
+    await run(schedule, T);
+    const code = (await row(id)).roomCode!;
+    const spy = vi.spyOn(db, 'transaction').mockRejectedValueOnce(new Error('db down'));
+    try {
+      await run(schedule, at(10 * MIN));
+    } finally {
+      spy.mockRestore();
+    }
+    expect((await row(id)).status).toBe('opened');
+    expect(manager.get(code)).toBeDefined();
+    await run(schedule, at(11 * MIN));
+    expect((await row(id)).status).toBe('nobody');
+    expect(manager.get(code)).toBeUndefined();
+  });
+
+  it('a just-opened room missing here and not yet in live_room is not closed during the lease', async () => {
+    const id = await plan({ autoStartMin: 10 });
+    await run(service(), T);
+    const elsewhere = () => service({ manager: new RoomManager(new FakeScheduler(), () => 0.5, { pacing: false }) });
+    await run(elsewhere(), new Date(T.getTime() + 10_000));
+    expect((await row(id)).status).toBe('opened');
+    await run(elsewhere(), at(MIN));
+    expect(await row(id)).toMatchObject({ status: 'failed', reason: 'room_closed' });
+  });
+
   it('start() ticks now and every minute until stop()', async () => {
     const scheduler = new FakeScheduler();
     scheduler.advance(T.getTime() - scheduler.now());
