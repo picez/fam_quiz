@@ -9,6 +9,7 @@ import { compareText } from '../locales/grammar';
 import { PairList } from '../screens/MatchView';
 import { BuffBadge, SpareMark } from '../screens/Buffs';
 import { PinBoard, type PinBoardMark } from '../screens/PinBoard';
+import { truthCorrected } from '../screens/TruthView';
 import { WallReveal } from '../screens/WallReveal';
 import { PollBars } from '../screens/PollBars';
 import { BluffBoard } from '../screens/BluffBoard';
@@ -261,8 +262,9 @@ export function ThinkHistory({ think }: { think: NonNullable<GameQuestionResult[
   );
 }
 
-/** «Правда про гравця»: хто написав факт і скільки балів отримав за тих, хто не вгадав. */
-export function truthLine(info: { author: string; points: number }): string {
+/** «Правда про гравця»: хто написав факт і скільки балів отримав за тих, хто не вгадав; вигадка ведучого (52) — без автора. */
+export function truthLine(info: { author: string; points: number; fake?: true }): string {
+  if (info.fake === true) return t('truthFakeLabel');
   return t('truthHistoryAuthor', { nickname: info.author, points: signed(info.points) });
 }
 
@@ -579,7 +581,7 @@ export function GameHistory() {
                             <summary>{t('responsesTitle', { count: question.responses.length })}</summary>
                             <ul>
                               {/* «Правда про гравця» (28b): автор не відповідав — його рядок з позначкою й часткою, без відповіді. */}
-                              {question.truth !== undefined && (
+                              {question.truth !== undefined && question.truth.fake !== true && (
                                 <li className="truth-author-row">
                                   <span className="responses-who">
                                     <span className="responses-name">{question.truth.author}</span>
@@ -615,7 +617,7 @@ export function GameHistory() {
                                     <span className="responses-answer">
                                       {response.answer?.type === 'wordcloud' && response.spare === null
                                         ? cloudAnswerText(response.answer.words, question.cloudHidden)
-                                        : answerText(response.answer, response.spare ?? question.question)}
+                                        : answerText(response.answer, response.spare ?? truthCorrected(question.question, question.truth !== undefined))}
                                     </span>
                                   )}
                                   {/* Головоломки (28d): фінальна сітка компактно, ключове слово учасника й «Готово». */}

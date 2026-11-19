@@ -1216,7 +1216,11 @@ export function cleaned(quiz: Quiz): Quiz {
     description: quiz.description.trim(),
     rounds: quiz.rounds.map((round) => {
       const title = round.title.trim();
-      if (round.type === 'truth') return { ...round, title };
+      if (round.type === 'truth') {
+        const { fakes, ...rest } = round;
+        const kept = (fakes ?? []).map((fake) => fake.trim()).filter((fake) => fake !== '');
+        return { ...rest, title, ...(kept.length === 0 ? {} : { fakes: kept }) };
+      }
       if (round.type === 'quest') {
         // Код нормалізується, порядок із чужою довжиною скидається; решта — як у класиці.
         const { code, order } = withQuestCode(round, round.code);

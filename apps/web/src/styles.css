@@ -19002,6 +19002,81 @@ button.letterwords-tile:focus-visible {
   color: var(--amber);
 }
 
+/* Вигадані факти ведучого (52): текст на всю ширину рядка, позначки й кнопки — під ним, з переносом на 360 px. */
+.truth-fakes {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-width: 0;
+  /* Липка смуга «Почати гру» не накриває панель, коли до неї прокручують. */
+  scroll-margin-block-end: 6rem;
+}
+
+.truth-fakes h2 label {
+  cursor: pointer;
+}
+
+.truth-fakes .truth-text {
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 3.5rem;
+  resize: vertical;
+  padding: 0.5rem 0.75rem;
+  border: 2px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--paper);
+  font: inherit;
+  overflow-wrap: anywhere;
+}
+
+.truth-fakes-list .truth-fake {
+  flex-wrap: wrap;
+  row-gap: 0.25rem;
+  min-width: 0;
+}
+
+.truth-fakes-list .truth-fact-text,
+.truth-fake-edit {
+  flex: 1 1 100%;
+  min-width: 0;
+}
+
+.truth-fake-edit {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.375rem;
+}
+
+.truth-fake-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+  margin-inline-start: auto;
+}
+
+.truth-fakes-over {
+  color: var(--amber);
+}
+
+.truth-fakes-over:empty {
+  display: none;
+}
+
+.tag.truth-fake-mark {
+  border-color: var(--amber);
+  color: var(--amber);
+}
+
+.truth-recap-card.is-fake {
+  border-style: dashed;
+}
+
+.truth-reveal .truth-author.is-fake {
+  color: var(--amber);
+}
+
 /* Телефон: імена в одну колонку на всю ширину; довгі нікнейми переносяться, а не розпирають екран. */
 .truth-names {
   display: flex;
@@ -19382,6 +19457,12 @@ button.letterwords-tile:focus-visible {
 
 .truth-recap.is-big.is-many .truth-recap-author {
   font-size: clamp(1.125rem, 1.7vw, 1.625rem);
+}
+
+/* Вигадка ведучого (52): підпис бурштиновий і в малому, і у великому підсумку (після правила кольору автора). */
+.truth-recap-card.is-fake .truth-recap-author,
+.truth-recap.is-big .truth-recap-card.is-fake .truth-recap-author {
+  color: var(--amber);
 }
 
 .truth-recap.is-big.is-many .truth-recap-right {
@@ -24211,7 +24292,8 @@ input.sudoku-editor-cell:focus-visible {
 /* ---------- «Думай інакше» (35): редактор та історія ---------- */
 
 .think-settings,
-.think-words-editor {
+.think-words-editor,
+.truth-presets {
   border: 0;
   margin: 0 0 0.75rem;
   padding: 0;
@@ -24219,10 +24301,27 @@ input.sudoku-editor-cell:focus-visible {
 }
 
 .think-settings legend,
-.think-words-editor legend {
+.think-words-editor legend,
+.truth-presets legend {
   max-width: 100%;
   padding: 0;
   margin-bottom: 0.5rem;
+}
+
+/* Заготовлені вигадки «Правди про гравця» (52). */
+.truth-presets {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.truth-presets .btn {
+  align-self: flex-start;
+}
+
+/* Заголовок групи — як підписи інших полів редактора. */
+.truth-presets legend {
+  font-weight: 600;
 }
 
 .think-word-row {

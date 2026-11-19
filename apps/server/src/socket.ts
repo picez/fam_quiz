@@ -42,6 +42,7 @@ import {
   undebuffSchema,
   teamPickSchema,
   truthFactSchema,
+  truthFakeSchema,
   truthHideSchema,
   thinkWordsEventSchema,
   thinkVoteSchema,
@@ -1080,6 +1081,12 @@ export function attachSockets(
       if (!hostSide) return FORBIDDEN;
       const payload = truthHideSchema.safeParse(payloadOf(args));
       return payload.success ? run({ type: 'truth-hide', ...payload.data }) : INVALID;
+    });
+
+    on('host:truth-fake', (args) => {
+      if (!hostSide) return FORBIDDEN;
+      const payload = truthFakeSchema.safeParse(payloadOf(args));
+      return payload.success ? run({ type: 'truth-fake', ...payload.data }) : INVALID;
     });
 
     // «Думай інакше» (35): слова ведучого йдуть лише в його зріз; ack — лише ok чи помилка.

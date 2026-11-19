@@ -202,7 +202,7 @@ import { BETS_OPEN_PHASES, betLimit, betsIndex, betsPlaying, stakedPlay, wagerLi
 import { auctionLeader, auctionNextNow, auctionRoundOf } from './auction';
 import { questAfter, questOpened, questRoundOf, questSolved, questWindowOpen, type QuestTry } from './quest';
 import { thinkBallot, thinkHit, thinkLivesAfter, thinkOffOf, thinkPlaces, thinkPlayOf, thinkRoundOf, thinkRoundPlays, thinkVerdicts, thinkWatches } from './think';
-import { inTruthDeck, nextTruthQuestion, truthCount, truthGuessers, truthHeld, truthOpen, truthPlayOf, truthRoundOf, truthSkipped } from './truth';
+import { inTruthDeck, nextTruthQuestion, truthCount, truthFaked, truthRealCount, truthGuessers, truthHeld, truthOpen, truthPlayOf, truthRoundOf, truthSkipped } from './truth';
 import { presentPlayers } from './present';
 import { appealView, playerAppeal } from './appeal';
 import { undoPanel } from './undo';
@@ -1282,14 +1282,17 @@ function truthIndex(state: GameState): number | null {
 function truthCard(state: GameState, index: number, play: Play & { truth: TruthPlay }): TruthCard {
   const options = play.question.type === 'single' ? play.question.options : [];
   const nameOf = (id: string) => options.find((o) => o.id === id)?.text ?? '';
+  // Вигадка ведучого (52): автора-людини немає, балів автора теж; вибір «Вигадка» — текст варіанта (веб перекладає за pickedId).
+  const fake = play.truth.fake === true;
   return {
-    author: { id: play.truth.authorId, nickname: nameOf(play.truth.authorId) },
-    points: recordOf(state, index, play.truth.actorId)?.points ?? 0,
+    author: { id: play.truth.authorId, nickname: fake ? '' : nameOf(play.truth.authorId) },
+    points: fake ? 0 : (recordOf(state, index, play.truth.actorId)?.points ?? 0),
     picks: truthGuessers(state, play).map((id) => {
       const record = recordOf(state, index, id);
       const pickedId = record?.answer?.type === 'single' ? record.answer.optionId : null;
       return { id, nickname: state.players.find((p) => p.id === id)?.nickname ?? '', pickedId, picked: pickedId === null ? null : nameOf(pickedId), correct: record?.grade === 'correct' };
     }),
+    ...(fake ? { fake: true as const } : {}),
   };
 }
 
@@ -1337,6 +1340,7 @@ function truthInfo(state: GameState, forPublic = false): TruthInfo | undefined {
     ...(held ? { held: true as const } : {}),
     ...(held && state.phase === 'reveal' ? { sealed: true as const } : {}),
     ...optional('recap', recap),
+    ...(truthFaked(state) ? { faked: true as const } : {}),
   };
 }
 
@@ -1400,11 +1404,21 @@ function hostTruth(state: GameState): HostTruth | undefined {
     ];
   });
   const open = truthPlayOf(state);
-  const authorId = open !== null && (state.phase === 'question' || state.phase === 'locked') ? open.truth.authorId : null;
+  const current = open !== null && (state.phase === 'question' || state.phase === 'locked') ? open.truth : null;
+  const authorId = current?.authorId ?? null;
   // Автора вилучили на відкритому запитанні — нік зі знімка варіантів.
   const options = open?.question.type === 'single' ? open.question.options : [];
-  const nickname = authorId === null ? undefined : (truthPeople(state).find((p) => p.id === authorId)?.nickname ?? options.find((o) => o.id === authorId)?.text);
-  return { ...info, facts, author: authorId === null ? null : { id: authorId, nickname: nickname ?? '' } };
+  const nickname = authorId === null || current?.fake === true ? undefined : (truthPeople(state).find((p) => p.id === authorId)?.nickname ?? options.find((o) => o.id === authorId)?.text);
+  // Вигадки ведучого (52): до роздачі зіграються перші min(вигадок, нехованих справжніх фактів); після — ті, що в колоді.
+  const real = truth.deck === undefined ? truthRealCount(state) : 0;
+  const fakes = (truth.fakes ?? []).map((f, i) => ({
+    id: f.id,
+    text: f.text,
+    preset: f.preset === true,
+    played: state.plays.some((play) => play.truth?.authorId === f.id),
+    inDeck: truth.deck === undefined ? i < real : truth.deck.includes(f.id),
+  }));
+  return { ...info, facts, fakes, author: authorId === null ? null : { id: authorId, nickname: nickname ?? '', ...(current?.fake === true ? { fake: true as const } : {}) } };
 }
 
 /** Людині про себе: свій факт, чи можна писати, і (question, locked) чи це її факт — у командній грі факт її команди. */
@@ -3261,6 +3275,8 @@ function base(state: GameState, forHost: boolean) {
   const remainingMs = state.heldAt !== null ? remainingOf(state, state.heldAt) : state.remainingMs;
   const round = currentRound(state);
   const play = state.plays[state.questionIndex];
+  // «Правда про гравця» (52): на вигадці вгадують усі, на факті — усі, крім автора; сцені й телефонам числа видали б вигадку.
+  const truthMasked = !forHost && truthFaked(state) && truthPlayOf(state) !== null && (state.phase === 'question' || state.phase === 'locked');
   return {
     autopilot: state.autopilot !== undefined,
     facts: sharedFacts(state),
@@ -3284,15 +3300,16 @@ function base(state: GameState, forHost: boolean) {
     held,
     // Командна гра: на опитуванні й «хмарі» відповідають люди — «Відповіли N з M» рахує їх; поза запитанням («Місце N з M») — команди.
     // «Ставки» (27a): на відкритому запитанні «Відповіли N з M» (question, locked) рахує лише тих, хто грає; «Місце N з M» на reveal — усіх.
-    playerCount:
-      unscoredNow(state) && ANSWERING.includes(state.phase)
+    playerCount: truthMasked
+      ? 0
+      : unscoredNow(state) && ANSWERING.includes(state.phase)
         ? voterList(state).length
         : truthPlayOf(state) !== null && (state.phase === 'question' || state.phase === 'locked')
           ? truthGuessers(state).length
           : drawingOf(state) !== null && (state.phase === 'question' || state.phase === 'locked')
             ? drawingCould(state, state.plays[state.questionIndex]).length
             : (answeringBets(state)?.length ?? state.players.length),
-    answeredCount: answeredCount(state),
+    answeredCount: truthMasked ? 0 : answeredCount(state),
     blitz: blitzInfo(state, forHost),
     board: boardInfo(state, forHost),
     spotlight: spotlightOf(state, forHost),

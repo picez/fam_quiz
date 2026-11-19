@@ -127,6 +127,7 @@ const LIMIT_KEYS = [
   'spyHint',
   'thinkVoteTime',
   'thinkWord',
+  'truthPresetFakes',
   'wallGroupName',
   'wallTile',
   'wipeoutDecideSeconds',

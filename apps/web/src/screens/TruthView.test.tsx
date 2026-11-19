@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { emptyBrief, type HostTruth, type PlayerTruth, type PublicQuestion, type StageView, type TruthInfo, type TruthRecap } from '@quiz/shared';
 import type { Send } from '../live/types';
 import { t } from '../i18n';
-import { HostTruthFacts, TruthFactForm, TruthHeldPick, TruthOwn, TruthPick, TruthRecapFold, TruthRecapView, TruthReveal, TruthSkipped, TruthStage } from './TruthView';
+import { HostTruthFacts, HostTruthFakes, TruthFactForm, TruthHeldPick, TruthOwn, TruthPick, TruthRecapFold, TruthRecapView, TruthReveal, TruthSkipped, TruthStage, truthChoiceText } from './TruthView';
 
 afterEach(cleanup);
 
@@ -18,6 +18,7 @@ const hostTruth = (over: Partial<HostTruth> = {}): HostTruth => ({
     { id: 'p1', nickname: 'Олена', text: 'Я стрибала з парашутом', hidden: false, played: false, revised: false, inDeck: true },
     { id: 'p2', nickname: 'Тарас', text: 'Маю трьох котів', hidden: false, played: false, revised: false, inDeck: true },
   ],
+  fakes: [],
   author: null,
   ...over,
 });
@@ -152,7 +153,94 @@ describe('HostTruthFacts', () => {
   });
 });
 
+const fake = (over: Partial<HostTruth['fakes'][number]> = {}): HostTruth['fakes'][number] => ({ id: 'fake-1', text: 'Я вмію жонглювати', preset: false, played: false, inDeck: true, ...over });
+
+describe('HostTruthFakes (52)', () => {
+  it('the host adds a fake', async () => {
+    const send = vi.fn<Send>(async () => ({ ok: true }));
+    render(<HostTruthFakes truth={hostTruth()} send={send} />);
+    expect(screen.getByText(t('truthFakesTitle'))).toBeTruthy();
+    expect(screen.getByText(t('truthFakesHint'))).toBeTruthy();
+    const field = screen.getByLabelText(t('truthFakesTitle')) as HTMLTextAreaElement;
+    expect(field.maxLength).toBe(200);
+    fireEvent.change(field, { target: { value: 'Я тричі бачила північне сяйво' } });
+    expect(screen.getByText('29 / 200')).toBeTruthy();
+    const add = screen.getByRole('button', { name: t('truthFakeAdd') });
+    fireEvent.click(add);
+    fireEvent.click(add);
+    await waitFor(() => expect(send).toHaveBeenCalledTimes(1));
+    expect(send).toHaveBeenCalledWith('host:truth-fake', { id: null, text: 'Я тричі бачила північне сяйво' });
+    await waitFor(() => expect(field.value).toBe(''));
+  });
+
+  it('edits and removes', async () => {
+    const send = vi.fn<Send>(async () => ({ ok: true }));
+    render(<HostTruthFakes truth={hostTruth({ fakes: [fake({ preset: true }), fake({ id: 'fake-2', text: 'Я пекла хліб', inDeck: false })] })} send={send} />);
+    expect(screen.getByText('Я вмію жонглювати')).toBeTruthy();
+    expect(screen.getAllByText(t('truthFakePreset'))).toHaveLength(1);
+    expect(screen.getAllByText(t('truthFakeSkip'))).toHaveLength(1);
+    fireEvent.click(screen.getAllByRole('button', { name: t('truthFakeEdit') })[0]!);
+    const edit = screen.getByDisplayValue('Я вмію жонглювати') as HTMLTextAreaElement;
+    expect(edit.maxLength).toBe(200);
+    fireEvent.change(edit, { target: { value: 'Я вмію жонглювати п’ятьма м’ячами' } });
+    fireEvent.click(screen.getByRole('button', { name: t('truthFactSave') }));
+    await waitFor(() => expect(send).toHaveBeenCalledWith('host:truth-fake', { id: 'fake-1', text: 'Я вмію жонглювати п’ятьма м’ячами' }));
+    fireEvent.click(screen.getAllByRole('button', { name: t('truthFakeRemove') })[0]!);
+    await waitFor(() => expect(send).toHaveBeenCalledWith('host:truth-fake', { id: 'fake-1', text: '' }));
+  });
+
+  it('more fakes than real facts — only the first ones play', () => {
+    const facts = hostTruth().facts.map((fact, i) => ({ ...fact, hidden: i === 1 }));
+    const { rerender } = render(<HostTruthFakes truth={hostTruth({ facts, fakes: [fake(), fake({ id: 'fake-2', inDeck: false })] })} send={vi.fn()} />);
+    expect(screen.getByRole('status').textContent).toBe('Вигадок більше, ніж фактів гравців: зіграються лише перші 1.');
+    rerender(<HostTruthFakes truth={hostTruth({ fakes: [fake()] })} send={vi.fn()} />);
+    expect(screen.queryByText(/Вигадок більше/)).toBeNull();
+  });
+
+  it('no player facts yet — fakes will not play and the round is skipped, not «the first 0»', () => {
+    const facts = hostTruth().facts.map((fact) => ({ ...fact, hidden: true }));
+    const { rerender } = render(<HostTruthFakes truth={hostTruth({ facts, fakes: [fake({ inDeck: false })] })} send={vi.fn()} />);
+    expect(screen.getByRole('status').textContent).toBe('Фактів гравців ще немає: без них вигадки не зіграються, а раунд буде пропущено.');
+    rerender(<HostTruthFakes truth={hostTruth({ facts: [], fakes: [fake({ inDeck: false })] })} send={vi.fn()} />);
+    expect(screen.getByRole('status').textContent).toBe(t('truthFakesNoFacts'));
+    rerender(<HostTruthFakes truth={hostTruth({ facts: [], fakes: [] })} send={vi.fn()} />);
+    expect(screen.getByRole('status').textContent).toBe('');
+  });
+
+  it("reports the server's refusal", async () => {
+    const onError = vi.fn();
+    render(<HostTruthFakes truth={hostTruth()} send={vi.fn<Send>(async () => ({ ok: false, error: 'truth_fakes_full' }))} onError={onError} />);
+    fireEvent.change(screen.getByLabelText(t('truthFakesTitle')), { target: { value: 'Вигадка' } });
+    fireEvent.click(screen.getByRole('button', { name: t('truthFakeAdd') }));
+    await waitFor(() => expect(onError).toHaveBeenCalledWith(t('err_truth_fakes_full')));
+  });
+
+  it('nothing once facts are closed', () => {
+    const { container } = render(<HostTruthFakes truth={hostTruth({ open: false, fakes: [fake()] })} send={vi.fn()} />);
+    expect(container.textContent).toBe('');
+  });
+});
+
+describe('truthChoiceText (52)', () => {
+  it('the «made up» option reads by its id; a name stays as it is', () => {
+    expect(truthChoiceText({ id: 'fake', text: 'raw' })).toBe(t('truthFakeOption'));
+    expect(truthChoiceText({ id: 'p1', text: 'Олена' })).toBe('Олена');
+  });
+});
+
+const faked: PublicQuestion = { ...question, choices: [...names, { id: 'fake', text: 'Вигадка' }] };
+
 describe('TruthPick', () => {
+  it('«made up» is one more name: the same button, sent by its id (52)', async () => {
+    const send = vi.fn<Send>(async () => ({ ok: true }));
+    render(<TruthPick question={faked} disabled={false} send={send} />);
+    const made = screen.getByRole('button', { name: t('truthFakeOption') });
+    expect(made.className).toBe(screen.getByRole('button', { name: 'Тарас' }).className);
+    expect(made.className).toBe('btn truth-name');
+    fireEvent.click(made);
+    await waitFor(() => expect(send).toHaveBeenCalledWith('player:answer', { type: 'single', optionId: 'fake' }));
+  });
+
   it('a guess sends the name once', async () => {
     const send = vi.fn<Send>(async () => ({ ok: true }));
     render(<TruthPick question={question} disabled={false} send={send} />);
@@ -235,6 +323,13 @@ describe('TruthStage', () => {
     expect(screen.getByText('Факт 1 з 3')).toBeTruthy();
     expect(screen.queryByText(/Відповіли/)).toBeNull();
   });
+
+  it('a round with host fakes shows no answered counter (52)', () => {
+    const { container } = render(<TruthStage view={stage({ playerCount: 0, answeredCount: 0, question: faked, truth: info({ open: false, count: 3, index: 0, faked: true }) })} offsetMs={0} />);
+    expect(screen.queryByText(/Відповіли/)).toBeNull();
+    expect(screen.getByText(t('truthFakeOption'))).toBeTruthy();
+    expect(container.textContent).not.toContain(t('truthFakeLabel'));
+  });
 });
 
 describe('TruthReveal', () => {
@@ -265,6 +360,24 @@ describe('TruthReveal', () => {
     expect(container.querySelector('.truth-reveal')?.className).toBe('truth-reveal is-big');
     rerender(<TruthReveal truth={truthOf(21)} />);
     expect(container.querySelector('.truth-reveal')?.className).toBe('truth-reveal');
+  });
+
+  it('a host fake: made up by the host, no author line; a «made up» pick reads in the language (52)', () => {
+    const reveal: TruthInfo['reveal'] = {
+      author: { id: 'fake-1', nickname: '' },
+      points: 0,
+      fake: true,
+      picks: [
+        { id: 'p2', nickname: 'Оля', pickedId: 'fake', picked: 'Вигадка', correct: true },
+        { id: 'p3', nickname: 'Хосе', pickedId: 'p1', picked: 'Олена', correct: false },
+      ],
+    };
+    render(<TruthReveal truth={info({ open: false, count: 3, index: 0, reveal, faked: true })} />);
+    expect(screen.getByText(t('truthFakeIs'))).toBeTruthy();
+    expect(screen.queryByText(/Автор:/)).toBeNull();
+    expect(screen.queryByText(/Це написав/)).toBeNull();
+    expect(screen.getByText('Оля → Вигадка ✓')).toBeTruthy();
+    expect(screen.getByText('Хосе → Олена ✗')).toBeTruthy();
   });
 
   it('nothing before the reveal', () => {
@@ -372,6 +485,30 @@ describe('the truth round recap', () => {
     expect(container.querySelector('.truth-recap')?.className).toBe('truth-recap is-big cols-4 is-many');
     expect(screen.getAllByText(/Вгадали: 7 з 8/)).toHaveLength(12);
     expect(screen.getByText(t('truthRecapEarly'))).toBeTruthy();
+  });
+
+  it('a host fake in the recap: made up by the host, no author points (52)', () => {
+    const withFake: TruthRecap = {
+      early: false,
+      facts: [
+        recap.facts[0]!,
+        { text: 'Я вмію жонглювати', author: { id: 'fake-1', nickname: '' }, points: 0, fake: true, picks: [{ id: 'p2', nickname: 'Тарас', pickedId: 'fake', picked: 'Вигадка', correct: true }, { id: 'p3', nickname: 'Хосе', pickedId: 'p1', picked: 'Олена', correct: false }] },
+      ],
+    };
+    const { container } = render(<TruthRecapView recap={withFake} mine={{ id: 'p2', own: (id) => id === 'p2' }} />);
+    const cards = [...container.querySelectorAll('.truth-recap-card')];
+    expect(cards[1]!.className).toBe('truth-recap-card is-fake');
+    // Одне слово «Вигадка», як ім'я: не переноситься на сцені жодною мовою.
+    expect(cards[1]!.querySelector('.truth-recap-author')?.textContent).toBe(t('truthFakeOption'));
+    expect(cards[1]!.textContent).not.toContain(t('truthFakeLabel'));
+    expect(cards[1]!.textContent).not.toContain('Автор:');
+    expect(cards[1]!.textContent).toContain('Ваш вибір: Вигадка ✓');
+    expect(screen.getByText('Ви вгадали 2 з 2')).toBeTruthy();
+  });
+
+  it('the held phone pick of «made up» reads in the language (52)', () => {
+    render(<TruthHeldPick question={faked} answer={{ type: 'single', optionId: 'fake' }} />);
+    expect(screen.getByText('Ваш вибір: Вигадка')).toBeTruthy();
   });
 
   it('round end folds the recap away', () => {

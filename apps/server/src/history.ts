@@ -146,6 +146,7 @@ function bluffResult(ref: PlayRef | undefined, nicknames: Map<string, string>): 
 
 /** «Правда про гравця» (28b): нікнейм автора й бали його учасника (рядок частки; немає — 0). */
 function truthResult(truth: NonNullable<PlayRef['truth']>, given: { participantId: string; attempt: number; points: number }[]): GameQuestionResult['truth'] {
+  if (truth.fake === true) return { author: '', points: 0, fake: true };
   const share = given.find((a) => a.participantId === truth.actor && a.attempt === PENALTY_ATTEMPT);
   return { author: truth.authorName, points: share?.points ?? 0 };
 }

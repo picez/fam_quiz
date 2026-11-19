@@ -66,7 +66,7 @@ export function roundAchievements(game: AchievementGame, who: AchievementWho): S
   if (mine.some((r) => auction.has(r.questionIndex) && (r.wager ?? 0) > 0 && r.accepted)) got.add('sold');
 
   // «Знаю вас як облуплених»: усі чужі факти «Правди про гравця» (щонайменше 3) — прийнята перша спроба.
-  const others = game.questions.filter((q) => q.ref.truth !== undefined && q.ref.truth.actor !== who.participantId);
+  const others = game.questions.filter((q) => q.ref.truth !== undefined && q.ref.truth.fake !== true && q.ref.truth.actor !== who.participantId);
   if (others.length >= L.truthQuestions && others.every((q) => acceptedOn(q.index, true))) got.add('mind_reader');
 
   // «Темна конячка»: свій факт (автор — людина), щонайменше 3 перші спроби інших учасників, жодна не прийнята.

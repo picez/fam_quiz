@@ -2355,6 +2355,17 @@ describe('truth round (28b)', () => {
     expect(quizSchema.safeParse(quizOf([round('r', [single])])).success).toBe(true);
   });
 
+  it('a truth round takes up to five preset fakes (52)', () => {
+    expect(issues(quizOf([truthRound({ fakes: ['Я вмію жонглювати п’ятьма м’ячами', 'Я тричі бачила північне сяйво'] })]))).toEqual([]);
+    expect(issues(quizOf([truthRound()]))).toEqual([]);
+    expect(issues(quizOf([truthRound({ fakes: ['а', 'б', 'в', 'г', 'ґ', 'д'] })]))).not.toEqual([]);
+    expect(issues(quizOf([truthRound({ fakes: ['   '] })]))).not.toEqual([]);
+    expect(issues(quizOf([truthRound({ fakes: ['а'.repeat(LIMITS.truthText + 1)] })]))).not.toEqual([]);
+    expect(issues(quizOf([truthRound({ fakes: ['а'.repeat(LIMITS.truthText)] })]))).toEqual([]);
+    expect(LIMITS.truthPresetFakes).toBe(5);
+    expect(LIMITS.truthFakes).toBe(10);
+  });
+
   it('roundBrief(truth) carries the price and the timer; others have none', () => {
     expect(emptyBrief('truth').truth).toBeNull();
     const parsed = quizSchema.parse(quizOf([truthRound(), round('r', [{ ...single, id: 'other' }])]));

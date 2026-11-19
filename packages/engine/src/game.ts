@@ -53,6 +53,8 @@ import {
   isPuzzle,
   UNGRADED_TYPES,
   shuffle,
+  TRUTH_FAKE_PREFIX,
+  truthText,
   type Rng,
 } from '@quiz/shared';
 // adjust.ts, buffs.ts, debuffs.ts і duel.ts імпортують цей файл, а цей файл — їх; звертання лише під час виклику функцій.
@@ -774,8 +776,17 @@ export interface DrawTurns {
 export interface TruthState {
   /** Факти за id людини (соло — гравець, командна гра — учасник). Немає ключа — факту немає. */
   facts: Record<string, TruthFact>;
-  /** Автори в порядку запитань, роздано на старті раунду (rng кімнати); немає ключа — ще не роздано (факти приймаються). */
+  /** Автори в порядку запитань, роздано на старті раунду (rng кімнати); немає ключа — ще не роздано (факти приймаються). Записи fake-N — вигадки ведучого (52). */
   deck?: string[];
+  /** Вигадки ведучого (52) у порядку додавання: заготовлені в редакторі (скопійовані в createGame) перші; немає ключа — вигадок немає (і в знімках до 52). */
+  fakes?: TruthFake[];
+}
+
+/** Вигадка ведучого (52): id fake-N, текст (пробіли зведено); preset — з редактора й ще не змінена в лобі. */
+export interface TruthFake {
+  id: string;
+  text: string;
+  preset?: true;
 }
 
 /** Факт людини про себе: текст (пробіли зведено), чи сховав ведучий, мить останньої зміни тексту (час сервера). */
@@ -797,6 +808,11 @@ export interface TruthPlay {
   guessers: string[];
   /** Хто з guessers вгадав; ключ з'являється на закритті (withTruthPoints) — тоді guessers і right сталі, вилучення частки не міняє. */
   right?: string[];
+  /**
+   * Вигадка ведучого (52): authorId і actorId — fake-N (не гравець), guessers — усі присутні; частки немає нікому.
+   * Ключ лише тоді.
+   */
+  fake?: true;
 }
 
 /** Фінал поточного раунду; null поза раундом фіналу. */
@@ -1128,6 +1144,11 @@ export const fail = (error: ErrorCode): Result => ({ ok: false, error });
 
 export function createGame(quiz: Quiz, options: GameOptions = {}): GameState {
   const teams = quiz.settings.teams;
+  const truthRound = quiz.rounds.find((r) => r.type === 'truth');
+  const presetFakes = truthRound?.type === 'truth' ? (truthRound.fakes ?? []) : [];
+  // Заготовлені вигадки (52) — у лобі з позначкою preset; без них поля fakes немає зовсім.
+  const fakes = presetFakes.map((text, i) => ({ id: `${TRUTH_FAKE_PREFIX}${i + 1}`, text: truthText(text), preset: true as const }));
+  const truth = { facts: {}, ...(fakes.length > 0 ? { fakes } : {}) };
   return {
     quiz,
     phase: 'lobby',
@@ -1169,7 +1190,8 @@ export function createGame(quiz: Quiz, options: GameOptions = {}): GameState {
           },
         }),
     // «Правда про гравця» (28b): факти приймаються з лобі.
-    ...(quiz.rounds.some((r) => r.type === 'truth') ? { truth: { facts: {} } } : {}),
+    // Заготовлені вигадки (52) копіюються з (єдиного) раунду truth.
+    ...(truthRound === undefined ? {} : { truth }),
   };
 }
 

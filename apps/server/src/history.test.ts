@@ -817,6 +817,30 @@ describe('host history: answers', () => {
     await field.local.app.close();
   });
 
+  it('a fake in the record is «made up by the host»', async () => {
+    const quiz = makeRoundsQuiz([truthRound('r1', { points: 200 }), classicRound('r2', [single])]);
+    const played = await start(quiz);
+    const olena = await played.enter('Олена');
+    await played.enter('Тарас');
+    await played.enter('Віра');
+    const { manager } = played.local;
+    expect(manager.truth(played.room, olena, 'Я стрибала з парашутом')).toEqual({ ok: true });
+    expect(manager.host(played.room, { type: 'truth-fake', id: null, text: 'Я вмію жонглювати' })).toEqual({ ok: true });
+    expect(manager.host(played.room, { type: 'start' })).toEqual({ ok: true });
+    expect(manager.host(played.room, { type: 'next' })).toEqual({ ok: true });
+    // обидва запитання раунду: нікого не питаємо, кожне — до розкриття й далі
+    for (let i = 0; i < 4; i++) {
+      manager.host(played.room, { type: 'lock' });
+      manager.host(played.room, { type: 'next' });
+    }
+    const result = (await played.detail()) as unknown as { questions: { text: string; truth?: unknown }[] };
+    const truths = result.questions.map((q) => q.truth);
+    expect(truths).toContainEqual({ author: '', points: 0, fake: true });
+    expect(truths).toContainEqual({ author: 'Олена', points: expect.any(Number) });
+    expect(JSON.stringify(truths.filter((x) => (x as { author: string }).author === 'Олена'))).not.toContain('fake');
+    await played.local.app.close();
+  });
+
   it('truth questions come from the game, not the quiz', async () => {
     const quiz = makeRoundsQuiz([truthRound('r1', { points: 200 }), classicRound('r2', [single])]);
     const played = await start(quiz);

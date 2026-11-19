@@ -1331,6 +1331,9 @@ export interface TruthInfo {
    * а також round_end і finished раунду truth; early — раунд скінчено раніше, ніж зіграно всі факти колоди. Інакше ключа немає.
    */
   recap?: TruthRecap;
+  /** У роздачі є вигадки ведучого (у кожному запитанні є варіант «Вигадка»); ключ лише тоді. Не каже, яке запитання — вигадка.
+   * (Зветься faked, бо HostTruth.fakes — список вигадок ведучого.) */
+  faked?: true;
 }
 
 /** Розкриття одного факту «Правди про гравця». */
@@ -1339,6 +1342,8 @@ export interface TruthCard {
   /** Бали автора (запис actorId); 0 — нікого не обдурив. */
   points: number;
   picks: { id: string; nickname: string; pickedId: string | null; picked: string | null; correct: boolean }[];
+  /** Вигадка ведучого (52): тоді author — { id: 'fake-N', nickname: '' }, points — 0. Ключ лише тоді. */
+  fake?: true;
 }
 
 /** Підсумок раунду truth: факт (текст) і його розкриття. */
@@ -1352,8 +1357,13 @@ export interface HostTruth extends TruthInfo {
   /** Факти тих, хто в грі, у порядку приходу людей: сховано, чи запитання вже відкрито, чи текст змінено після дії ведучого;
    * inDeck — факт іде в колоду (до роздачі — завжди; після — лише роздані, решта вже не зіграється). */
   facts: { id: string; nickname: string; text: string; hidden: boolean; played: boolean; revised: boolean; inDeck: boolean }[];
-  /** question/locked: автор поточного запитання; інакше null. */
-  author: { id: string; nickname: string } | null;
+  /**
+   * Вигадки ведучого (52) у порядку додавання (заготовлені перші); preset — з редактора, played — запитання вже відкрито;
+   * inDeck — до роздачі: зіграється (серед перших min(вигадок, нехованих справжніх)); після — є в колоді.
+   */
+  fakes: { id: string; text: string; preset: boolean; played: boolean; inDeck: boolean }[];
+  /** question/locked: автор поточного запитання (fake — вигадка ведучого, nickname ''); інакше null. */
+  author: { id: string; nickname: string; fake?: true } | null;
 }
 
 /** Власний факт людини. */

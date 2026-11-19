@@ -1,5 +1,5 @@
 import { useId, useRef, useState } from 'react';
-import { LIMITS, truthText, type Answer, type HostTruth, type PlayerTruth, type PublicQuestion, type StageView, type TruthInfo, type TruthRecap } from '@quiz/shared';
+import { LIMITS, TRUTH_FAKE_OPTION, truthText, type Answer, type HostTruth, type PlayerTruth, type PublicQuestion, type Question, type StageView, type TruthInfo, type TruthRecap } from '@quiz/shared';
 import { questionClass, signed } from '../format';
 import { errorText, t } from '../i18n';
 import { Timer, timerStatus } from '../live/Timer';
@@ -138,6 +138,137 @@ export function HostTruthFacts({ truth, send, onError }: { truth: HostTruth; sen
   );
 }
 
+/** Текст варіанта truth (52): «Вигадка» — за id, мовою інтерфейсу (стан несе текст українською); ім'я — як є. */
+export function truthChoiceText(choice: { id: string; text: string }): string {
+  return choice.id === TRUTH_FAKE_OPTION ? t('truthFakeOption') : choice.text;
+}
+
+/** Правильна відповідь truth-питання (52) з «Вигадкою» мовою інтерфейсу (у стані — українською): для рядків відповідей ведучого й історії. Інші питання — як є. */
+export function truthCorrected<Q extends Question | null>(question: Q, truth: boolean): Q {
+  if (!truth || question === null || question.type !== 'single') return question;
+  return { ...question, options: question.options.map((option) => ({ ...option, text: truthChoiceText(option) })) };
+}
+
+/** Вибір у розкритті чи підсумку: «Вигадка» — за pickedId, решта — як прийшло. */
+const pickedText = (pick: { pickedId: string | null; picked: string | null }): string => (pick.pickedId === TRUTH_FAKE_OPTION ? t('truthFakeOption') : (pick.picked ?? ''));
+
+/**
+ * Пульт у лобі (52): вигадані факти ведучого — список (текст, «з редактора», «не зіграється»; «Змінити» → поле й «Зберегти»; «Прибрати»),
+ * поле нової вигадки з лічильником і «Додати вигаданий факт» (host:truth-fake). Факти закрито — нічого.
+ */
+export function HostTruthFakes({ truth, send, onError }: { truth: HostTruth; send: Send; onError?: (text: string | null) => void }) {
+  const id = useId();
+  const [value, setValue] = useState('');
+  const [editing, setEditing] = useState<{ id: string; text: string } | null>(null);
+  const busy = useRef(false);
+  if (!truth.open) return null;
+  const run = (payload: { id: string | null; text: string }, done: () => void) => {
+    if (busy.current) return;
+    busy.current = true;
+    void send('host:truth-fake', payload)
+      .then((result) => {
+        onError?.(result.ok ? null : errorText(result.error));
+        if (result.ok) done();
+      })
+      .catch(() => onError?.(errorText('network')))
+      .finally(() => {
+        busy.current = false;
+      });
+  };
+  const add = () => {
+    const text = truthText(value);
+    if (text === '') return;
+    run({ id: null, text }, () => setValue(''));
+  };
+  const visible = truth.facts.filter((fact) => !fact.hidden).length;
+  const over = truth.fakes.length > visible;
+  // Без жодного факту гравця раунд пропуститься — «лише перші 0» тут нічого не пояснює.
+  const warning = !over ? null : visible === 0 ? t('truthFakesNoFacts') : t('truthFakesOver', { count: visible });
+  return (
+    <section className="panel truth-host truth-fakes">
+      <h2>
+        <label htmlFor={id}>{t('truthFakesTitle')}</label>
+      </h2>
+      <p className="meta">{t('truthFakesHint')}</p>
+      {truth.fakes.length > 0 && (
+        <ul className="rows truth-fakes-list">
+          {truth.fakes.map((fake) => {
+            const open = editing?.id === fake.id;
+            return (
+              <li key={fake.id} className="truth-fake">
+                {open ? (
+                  <FakeEdit
+                    text={editing.text}
+                    onChange={(text) => setEditing({ id: fake.id, text })}
+                    onSave={() => {
+                      const text = truthText(editing.text);
+                      if (text === '') return;
+                      run({ id: fake.id, text }, () => setEditing(null));
+                    }}
+                  />
+                ) : (
+                  <span className="truth-fact-text" dir="auto">
+                    {fake.text}
+                  </span>
+                )}
+                {fake.preset && <span className="tag">{t('truthFakePreset')}</span>}
+                {!fake.inDeck && <span className="tag is-wrong">{t('truthFakeSkip')}</span>}
+                <span className="truth-fake-actions">
+                  {!open && (
+                    <button type="button" className="btn btn-small" onClick={() => setEditing({ id: fake.id, text: fake.text })}>
+                      {t('truthFakeEdit')}
+                    </button>
+                  )}
+                  <button type="button" className="btn btn-small" onClick={() => run({ id: fake.id, text: '' }, () => (open ? setEditing(null) : undefined))}>
+                    {t('truthFakeRemove')}
+                  </button>
+                </span>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+      <p className="meta truth-fakes-over" role="status">
+        {warning}
+      </p>
+      <textarea
+        id={id}
+        className="truth-text"
+        dir="auto"
+        rows={2}
+        maxLength={LIMITS.truthText}
+        placeholder={t('truthFakePlaceholder')}
+        value={value}
+        onChange={(event) => setValue(event.target.value.slice(0, LIMITS.truthText))}
+      />
+      <div className="truth-form-row">
+        <span className="meta truth-count" dir="ltr">
+          {t('truthFactCount', { count: value.length })}
+        </span>
+        <button type="button" className="btn btn-small" disabled={truthText(value) === ''} onClick={add}>
+          {t('truthFakeAdd')}
+        </button>
+      </div>
+    </section>
+  );
+}
+
+/** Поле зміни вигадки на пульті: текст (до 200 символів) і «Зберегти». */
+function FakeEdit({ text, onChange, onSave }: { text: string; onChange: (text: string) => void; onSave: () => void }) {
+  const id = useId();
+  return (
+    <span className="truth-fake-edit">
+      <label className="sr-only" htmlFor={id}>
+        {t('truthFakeEdit')}
+      </label>
+      <textarea id={id} className="truth-text" dir="auto" rows={2} maxLength={LIMITS.truthText} value={text} onChange={(event) => onChange(event.target.value.slice(0, LIMITS.truthText))} />
+      <button type="button" className="btn btn-small" disabled={truthText(text) === ''} onClick={onSave}>
+        {t('truthFactSave')}
+      </button>
+    </span>
+  );
+}
+
 /** Імена для читання (товариш, що не відповідає): позначене чернеткою — пунктиром; порядок — як у варіантах. */
 export function TruthNames({ question, draft, mark }: { question: PublicQuestion; draft: Answer | null; mark: string }) {
   const marked = draft?.type === 'single' ? draft.optionId : null;
@@ -145,7 +276,7 @@ export function TruthNames({ question, draft, mark }: { question: PublicQuestion
     <ul className="truth-names is-readonly">
       {question.choices.map((choice) => (
         <li key={choice.id} className={choice.id === marked ? 'truth-name is-draft' : 'truth-name'} dir="auto">
-          {choice.text}
+          {truthChoiceText(choice)}
           {choice.id === marked && <span className="draft-mark">{mark}</span>}
         </li>
       ))}
@@ -192,7 +323,7 @@ export function TruthPick({ question, disabled, send, held = false }: { question
               disabled={disabled || picked !== null}
               onClick={() => pick(choice.id)}
             >
-              {choice.text}
+              {truthChoiceText(choice)}
             </button>
           </li>
         ))}
@@ -236,7 +367,7 @@ export function TruthStage({ view, offsetMs }: { view: StageView; offsetMs: numb
       <header className="bar">
         <span>{t('truthOf', { index: truth.index + 1, total: truth.count })}</span>
         {/* На reveal playerCount — усі гравці (для «Місце N з M»), а не ті, хто вгадує: лічильник лише поки запитання йде. */}
-        {view.phase !== 'reveal' && <span>{t('answeredOf', { answered: view.answeredCount, total: view.playerCount })}</span>}
+        {view.phase !== 'reveal' && truth.faked !== true && <span>{t('answeredOf', { answered: view.answeredCount, total: view.playerCount })}</span>}
       </header>
       {/* Командна гра не в режимі captain: хто відповідає за кожну команду — за всі однаково (капітан), команда автора не випадає. */}
       <StageAnswerers view={view} />
@@ -269,7 +400,7 @@ export function TruthStage({ view, offsetMs }: { view: StageView; offsetMs: numb
         <ul className={question.choices.length > MANY_TRUTH_NAMES ? 'truth-stage-names is-many' : 'truth-stage-names'}>
           {question.choices.map((choice) => (
             <li key={choice.id} dir="auto">
-              {choice.text}
+              {truthChoiceText(choice)}
             </li>
           ))}
         </ul>
@@ -284,15 +415,22 @@ export function TruthReveal({ truth, big = false }: { truth: TruthInfo; big?: bo
   if (reveal === null) return null;
   return (
     <section className={['truth-reveal', big ? 'is-big' : '', big && reveal.picks.length > MANY_TRUTH_NAMES ? 'is-many' : ''].filter(Boolean).join(' ')}>
-      <p className="truth-author" dir="auto">
-        {t('truthAuthorIs', { nickname: reveal.author.nickname })}
-      </p>
-      <p className={reveal.points > 0 ? 'lead truth-author-points is-up' : 'lead truth-author-points'}>{t('truthAuthorPoints', { points: signed(reveal.points) })}</p>
+      {reveal.fake === true ? (
+        // Вигадка ведучого (52): автора й його балів немає.
+        <p className="truth-author is-fake">{t('truthFakeIs')}</p>
+      ) : (
+        <>
+          <p className="truth-author" dir="auto">
+            {t('truthAuthorIs', { nickname: reveal.author.nickname })}
+          </p>
+          <p className={reveal.points > 0 ? 'lead truth-author-points is-up' : 'lead truth-author-points'}>{t('truthAuthorPoints', { points: signed(reveal.points) })}</p>
+        </>
+      )}
       {reveal.picks.length > 0 && (
         <ul className="truth-picks">
           {reveal.picks.map((pick) => (
             <li key={pick.id} className={pick.picked === null ? 'truth-pick-row' : pick.correct ? 'truth-pick-row is-correct' : 'truth-pick-row is-wrong'} dir="auto">
-              {pick.picked === null ? t('truthNoPick', { nickname: pick.nickname }) : `${t('truthPicked', { nickname: pick.nickname, picked: pick.picked })} ${pick.correct ? '✓' : '✗'}`}
+              {pick.picked === null ? t('truthNoPick', { nickname: pick.nickname }) : `${t('truthPicked', { nickname: pick.nickname, picked: pickedText(pick) })} ${pick.correct ? '✓' : '✗'}`}
             </li>
           ))}
         </ul>
@@ -334,12 +472,12 @@ export function TruthRecapView({ recap, big = false, mine, title = true }: { rec
           const own = mine?.own(fact.author.id) === true;
           const pick = mine === undefined ? undefined : fact.picks.find((p) => p.id === mine.id);
           return (
-            <li key={index} className={own ? 'truth-recap-card is-own' : 'truth-recap-card'}>
+            <li key={index} className={fact.fake === true ? 'truth-recap-card is-fake' : own ? 'truth-recap-card is-own' : 'truth-recap-card'}>
               <p className="truth-recap-fact" dir="auto">
                 {fact.text}
               </p>
               <p className="truth-recap-author" dir="auto">
-                {fact.author.nickname}
+                {fact.fake === true ? t('truthFakeOption') : fact.author.nickname}
               </p>
               <p className="meta truth-recap-right" dir="auto">
                 {right.length === 0
@@ -347,14 +485,14 @@ export function TruthRecapView({ recap, big = false, mine, title = true }: { rec
                   : right.length > MANY_RECAP_NAMES
                     ? t('truthRecapRightCount', { count: right.length, total: fact.picks.length })
                     : t('truthRecapRight', { names: right.map((p) => p.nickname).join(', ') })}
-                {fact.points > 0 && <span className="truth-recap-points">{t('truthAuthorPoints', { points: signed(fact.points) })}</span>}
+                {fact.fake !== true && fact.points > 0 && <span className="truth-recap-points">{t('truthAuthorPoints', { points: signed(fact.points) })}</span>}
               </p>
               {own ? (
                 <p className="truth-recap-mine is-own">{t(team ? 'truthRecapOwnTeam' : 'truthRecapOwn')}</p>
               ) : (
                 pick !== undefined && (
                   <p className={pick.picked === null ? 'truth-recap-mine' : pick.correct ? 'truth-recap-mine is-correct' : 'truth-recap-mine is-wrong'} dir="auto">
-                    {pick.picked === null ? t(team ? 'truthTeamSkipped' : 'truthYouSkipped') : `${t(team ? 'truthTeamPick' : 'truthYourPick', { nickname: pick.picked })} ${pick.correct ? '✓' : '✗'}`}
+                    {pick.picked === null ? t(team ? 'truthTeamSkipped' : 'truthYouSkipped') : `${t(team ? 'truthTeamPick' : 'truthYourPick', { nickname: pickedText(pick) })} ${pick.correct ? '✓' : '✗'}`}
                   </p>
                 )
               )}
@@ -380,7 +518,8 @@ export function TruthRecapFold({ recap, mine, open }: { recap: TruthRecap; mine?
 
 /** Телефон на locked раунду, чий підсумок попереду: свій вибір (у командах — вибір команди; без вердикту) і «автора назвемо наприкінці раунду». */
 export function TruthHeldPick({ question, answer, team = false }: { question: PublicQuestion; answer: Answer | null; team?: boolean }) {
-  const picked = answer?.type === 'single' ? (question.choices.find((choice) => choice.id === answer.optionId)?.text ?? null) : null;
+  const choice = answer?.type === 'single' ? question.choices.find((option) => option.id === answer.optionId) : undefined;
+  const picked = choice === undefined ? null : truthChoiceText(choice);
   return (
     <section className="sent truth-held">
       <h2 dir="auto">{picked === null ? t(team ? 'truthTeamSkipped' : 'truthYouSkipped') : t(team ? 'truthTeamPick' : 'truthYourPick', { nickname: picked })}</h2>

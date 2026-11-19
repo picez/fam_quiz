@@ -25,6 +25,9 @@ export const LIMITS = {
   answerText: 200,
   /** «Правда про гравця» (28b): довжина факту про себе. */
   truthText: 200,
+  /** «Правда про гравця» (52): заготовлених вигадок у редакторі; вигадок у грі разом із доданими в лобі (захист від спаму). */
+  truthPresetFakes: 5,
+  truthFakes: 10,
   /** «Малюнок» (28c): типовий час (с) і ціна, штрихів у малюнку, точок в одному штриху й в усьому малюнку, точок в одній події, символів у полі вгадування. */
   defaultDrawingTime: 60,
   defaultDrawingPoints: 100,
@@ -1418,6 +1421,8 @@ export const truthRoundSchema = z.object({
   description: z.string().trim().max(LIMITS.roundDescription).refine(isStorable, UNSTORABLE).optional(),
   points: z.number().int().min(0).max(LIMITS.maxPoints),
   timeLimit: z.number().int().min(LIMITS.minTime).max(LIMITS.maxTime),
+  /** Заготовлені вигадки ведучого (41c); у грі копіюються в state.truth.fakes. */
+  fakes: z.array(z.string().trim().min(1).max(LIMITS.truthText).refine(isStorable, UNSTORABLE)).max(LIMITS.truthPresetFakes).optional(),
 });
 
 export type TruthRound = z.infer<typeof truthRoundSchema>;

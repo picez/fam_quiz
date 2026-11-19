@@ -1131,6 +1131,16 @@ describe('host presence', () => {
     expect(mine.truth?.count).toBe(0);
   });
 
+  it('host:truth-fake: only the host, a bad payload is invalid', async () => {
+    const created = (await startGame(ctx.app, makeRoundsQuiz([classicRound('r1', [single]), truthRound('r2')]))).game;
+    const { host, olena } = await lobby(created);
+    for (const payload of [{ text: 'Я вмію жонглювати' }, { id: null }, { id: null, text: 5 }, { id: 7, text: 'x' }, undefined]) {
+      expect(await send(host, 'host:truth-fake', payload)).toEqual({ ok: false, error: 'invalid_payload' });
+    }
+    expect(await send(olena, 'host:truth-fake', { id: null, text: 'Я вмію жонглювати' })).toEqual({ ok: false, error: 'forbidden' });
+    expect(await send(host, 'host:truth-fake', { id: null, text: 'Я вмію жонглювати' })).toEqual({ ok: true });
+  });
+
   it('host:think-words sets the words; players cannot', async () => {
     const red = { word: 'червоний', synonyms: ['багряний'] };
     const quiz = makeRoundsQuiz([thinkRound('r1', [think('t1'), think('t2', [red]), think('t3', [red])]), classicRound('r2', [single])]);
@@ -2772,6 +2782,11 @@ describe('autopilot sockets (11g)', () => {
     const view = await until(author, (v) => v.truth?.count === 2);
     // автор кімнати теж вгадує: чужого факту не бачить
     expect(JSON.stringify(view)).not.toContain('сяйво');
+  });
+
+  it('host:truth-fake: nobody in a game without a host can add a fake', async () => {
+    const { author, taras } = await autopilotRoom(makeRoundsQuiz([classicRound('r1', [single]), truthRound('r2')]));
+    for (const who of [author, taras]) expect(await send(who, 'host:truth-fake', { id: null, text: 'Я вмію жонглювати' })).toEqual({ ok: false, error: 'not_allowed' });
   });
 
   it('lets the author kick another player but not themselves', async () => {
