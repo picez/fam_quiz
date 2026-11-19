@@ -3798,6 +3798,11 @@ button.match-item {
   border-color: var(--accent);
 }
 
+/* «Приєднатися» — непрозоре обличчя, як у «Створити гру»: місяць героя (z-index −1) не просвічує крізь рамку й підпис. */
+.home-action:not(.btn-primary) {
+  background: var(--surface);
+}
+
 /* Картка «Продовжити гру» / «Найближча подія» між кнопками й плитками. */
 .next-up {
   gap: 0.5rem;
@@ -17298,7 +17303,10 @@ button.wall-tile:disabled {
   margin: 0 0 0.25rem;
 }
 
+/* Вісь часу завжди «старіші ліворуч»; без ltr арабський документ перевертає text-anchor, і підписи виходять за рамку. */
 .day-bars svg {
+  direction: ltr;
+  unicode-bidi: isolate;
   display: block;
   width: 100%;
   height: auto;
@@ -27227,6 +27235,7 @@ a.library-card:focus-visible {
 
 /* 53: оголошення адміна — банер (вид і попередній перегляд) та вкладка «Оголошення». */
 .announce-banner {
+  position: relative;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -27234,6 +27243,8 @@ a.library-card:focus-visible {
   box-sizing: border-box;
   max-width: 100%;
   padding: 0.6rem 0.9rem;
+  /* Місце під × у куті (логічна сторона: у RTL — ліворуч). */
+  padding-inline-end: 3.25rem;
   border: 2px solid var(--line);
   border-radius: var(--radius);
   background: var(--surface);
@@ -27253,13 +27264,30 @@ a.library-card:focus-visible {
   text-decoration: underline;
 }
 
+/* × приколотий у верхній кут і не переноситься окремим рядком під текст на 360 px. */
 .announce-banner .announce-close {
-  flex: none;
+  position: absolute;
+  inset-block-start: 0.25rem;
+  inset-inline-end: 0.25rem;
   min-width: 2.75rem;
   min-height: 2.75rem;
   padding: 0;
+  border: 0;
+  border-radius: var(--radius);
+  background: transparent;
+  color: inherit;
   font-size: 1.5rem;
   line-height: 1;
+  cursor: pointer;
+}
+
+.announce-banner .announce-close:hover {
+  background: var(--line);
+}
+
+.announce-banner .announce-close:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 .admin-announce {

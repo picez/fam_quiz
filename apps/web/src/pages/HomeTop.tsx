@@ -4,7 +4,7 @@ import type { CalendarEvent, GameSummary } from '@quiz/shared';
 import { getCalendar, listGames } from '../api';
 import { dayHeading, timeText, viewerZone } from '../calendar/calendar-time';
 import { formatDate } from '../format';
-import { findRunningGame, useContinueSaved } from '../host-game';
+import { sharedRunningGame, useContinueSaved } from '../host-game';
 import { pickNextUp, type NextUp, type RunningGame } from '../home-next';
 import { errorText, t } from '../i18n';
 
@@ -36,7 +36,8 @@ export function useNextUp(signedIn: boolean): NextUp | null {
   useEffect(() => {
     let current = true;
     setNext(null);
-    const running: Promise<RunningGame | null> = findRunningGame().catch(() => null);
+    // Спільна на кілька секунд: гостьова картка й картка після входу не питають двічі.
+    const running: Promise<RunningGame | null> = sharedRunningGame();
     const games: Promise<GameSummary[] | null> = signedIn ? listGames().then((result) => (result.ok ? result.data : null), () => null) : Promise.resolve(null);
     const events: Promise<CalendarEvent[] | null> = signedIn ? getCalendar().then((result) => (result.ok ? result.events : null), () => null) : Promise.resolve(null);
     void Promise.all([running, games, events]).then(([game, saved, calendar]) => {

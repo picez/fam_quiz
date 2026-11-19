@@ -7,6 +7,7 @@ import { checkCode, continueGame, getCalendar, getFeedBadge, getMyInvites, listG
 import { saveHost, saveLastGame, savePlayer } from '../storage';
 import { dayHeading, timeText, viewerZone } from '../calendar/calendar-time';
 import type { CalendarEvent, GameSummary } from '@quiz/shared';
+import { forgetRunningGame } from '../host-game';
 import { ACCOUNT_WAIT_MS, Home } from './Home';
 
 vi.mock('../api', () => ({ checkCode: vi.fn(), me: vi.fn(), getMyInvites: vi.fn(), getGroupInvites: vi.fn(async () => ({ ok: true, data: [] })), getFeedBadge: vi.fn(), createGame: vi.fn(), createQuiz: vi.fn(), listLobbies: vi.fn(), listGames: vi.fn(), getCalendar: vi.fn(), continueGame: vi.fn() }));
@@ -23,6 +24,7 @@ beforeEach(() => {
   vi.mocked(getCalendar).mockReset().mockResolvedValue({ ok: true, events: [], asOf: new Date().toISOString() });
   vi.mocked(continueGame).mockReset();
   vi.mocked(checkCode).mockReset();
+  forgetRunningGame();
 });
 afterEach(cleanup);
 
@@ -341,6 +343,31 @@ describe('Home for a signed-in person', () => {
     expect(listGames).toHaveBeenCalled();
     expect(document.querySelector('.next-up')).toBeNull();
     expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  it('sign-in that resolves after the guest wait asks for the running game only once', async () => {
+    vi.useFakeTimers();
+    try {
+      saveHost('654321', { hostToken: 'h', stageToken: 's' });
+      saveLastGame('654321');
+      vi.mocked(checkCode).mockResolvedValue({ ok: true, phase: 'question', title: 'Географія', locked: false, late: false });
+      let signIn: (value: Awaited<ReturnType<typeof me>>) => void = () => {};
+      vi.mocked(me).mockReturnValue(new Promise((resolve) => (signIn = resolve)));
+      routes('/');
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(ACCOUNT_WAIT_MS);
+      });
+      expect(checkCode).toHaveBeenCalledTimes(1);
+      await act(async () => {
+        signIn(OLENA);
+        await vi.advanceTimersByTimeAsync(0);
+      });
+      expect(screen.getByRole('navigation', { name: 'Стартове меню' })).toBeTruthy();
+      expect(screen.getByRole('link', { name: 'Повернутися' }).getAttribute('href')).toBe('/host/654321');
+      expect(checkCode).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('a guest never asks for saved games or the calendar', async () => {

@@ -70,6 +70,28 @@ export async function findRunningGame(): Promise<RunningGame | null> {
   return null;
 }
 
+/** Скільки спільна відповідь findRunningGame лишається свіжою: два монтування головної поспіль (гість → акаунт) питають раз. */
+const RUNNING_MEMO_MS = 5_000;
+let runningMemo: { code: string | null; at: number; promise: Promise<RunningGame | null> } | null = null;
+
+/**
+ * findRunningGame з пам'яттю на кілька секунд за кодом останньої гри: картка головної гостя й та сама картка
+ * після входу (вхід розв'язався після 4 с очікування) ділять один checkCode. Інший код чи стара відповідь — питає знову.
+ */
+export function sharedRunningGame(): Promise<RunningGame | null> {
+  const code = loadLastGame();
+  const now = Date.now();
+  if (runningMemo !== null && runningMemo.code === code && now - runningMemo.at < RUNNING_MEMO_MS) return runningMemo.promise;
+  const promise = findRunningGame().catch(() => null);
+  runningMemo = { code, at: now, promise };
+  return promise;
+}
+
+/** Для тестів: забути спільну відповідь. */
+export function forgetRunningGame(): void {
+  runningMemo = null;
+}
+
 /** findRunningGame як стан компонента; enabled = false — нічого не питає. */
 export function useRunningGame(enabled: boolean): RunningGame | null {
   const [running, setRunning] = useState<RunningGame | null>(null);

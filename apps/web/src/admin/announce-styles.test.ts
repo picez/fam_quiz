@@ -21,3 +21,23 @@ describe('announcement form styles (53)', () => {
     for (const part of ['border: 2px solid var(--line)', 'background: var(--surface)', 'color: var(--paper)', 'min-height: 3.25rem']) expect(block).toContain(part);
   });
 });
+
+describe('53 fix wave styles', () => {
+  it('chart labels stay inside the frame in Arabic: the chart svg is always left-to-right', () => {
+    expect(rule('.day-bars svg {')).toContain('direction: ltr');
+  });
+
+  it('the «Приєднатися» button has an opaque face, so the moon behind the hero does not show through', () => {
+    expect(rule('.home-action:not(.btn-primary) {')).toContain('background: var(--surface)');
+  });
+
+  it('the banner × sits in the top corner (logical sides, so RTL mirrors it) with room reserved for it', () => {
+    const banner = rule('.announce-banner {');
+    expect(banner).toContain('position: relative');
+    expect(banner).toContain('padding-inline-end: 3.25rem');
+    const close = rule('.announce-banner .announce-close {');
+    for (const part of ['position: absolute', 'inset-block-start: 0.25rem', 'inset-inline-end: 0.25rem', 'border: 0', 'background: transparent', 'color: inherit', 'cursor: pointer']) expect(close).toContain(part);
+    expect(rule('.announce-banner .announce-close:hover {')).toContain('background: var(--line)');
+    expect(rule('.announce-banner .announce-close:focus-visible {')).toContain('var(--accent)');
+  });
+});
