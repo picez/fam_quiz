@@ -197,7 +197,11 @@ export function ThinkVoteBallot({
       </section>
     );
   }
-  const toggle = (key: string) => setPicked((now) => (now.includes(key) ? now.filter((k) => k !== key) : [...now, key]));
+  // Зміна після «Готово» ще не надіслана: «Голос враховано» ховається до наступного «Готово».
+  const toggle = (key: string) => {
+    setPicked((now) => (now.includes(key) ? now.filter((k) => k !== key) : [...now, key]));
+    setSent(false);
+  };
   const submit = () => {
     if (busy.current) return;
     busy.current = true;
@@ -395,7 +399,8 @@ export function HostThinkAnswers({ think, phase, send, onError }: { think: HostT
             <span className="think-answer-word" dir="auto">
               {row.answer === null || row.answer === '' ? t('thinkHostNoAnswer') : row.answer}
             </span>
-            {judged && row.hit !== null && <span className={row.hit ? 'tag is-wrong' : 'tag is-correct'}>{t(row.hit ? 'thinkHostHit' : 'thinkHostSafe')}</span>}
+            {/* «в безпеці» поруч із «не на тему» суперечить: позначене не на тему — без нього (збіг лишається: і так одне життя). */}
+            {judged && row.hit !== null && (row.hit || row.off === null) && <span className={row.hit ? 'tag is-wrong' : 'tag is-correct'}>{t(row.hit ? 'thinkHostHit' : 'thinkHostSafe')}</span>}
             {row.overridden && <span className="tag">{t('thinkHostOverridden')}</span>}
             <ThinkOffTag off={row.off} />
             {phase === 'reveal' && row.hit !== null && (

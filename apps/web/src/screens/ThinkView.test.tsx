@@ -306,6 +306,8 @@ describe('51: off-topic', () => {
     expect(await screen.findByText(t('thinkVoteSent'))).toBeTruthy();
     // Перемикачі лишаються: повторне «Готово» замінює голос.
     fireEvent.click(screen.getByRole('button', { name: 'Синій' }));
+    // Змінені позначки ще не враховано, доки не натиснуто «Готово» знову.
+    expect(screen.queryByText(t('thinkVoteSent'))).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: t('thinkVoteDone') }));
     await waitFor(() => expect(send).toHaveBeenLastCalledWith('player:think-vote', { keys: ['банан', 'синій'] }));
   });
@@ -396,7 +398,7 @@ describe('51: off-topic', () => {
     ];
     const { rerender } = render(<HostThinkAnswers think={host({ answers })} phase="question" send={send} />);
     expect(screen.queryByRole('button', { name: `${t('thinkHostMarkOff')}: Олена` })).toBeNull();
-    rerender(<HostThinkAnswers think={host({ answers })} phase="reveal" send={send} />);
+    rerender(<HostThinkAnswers think={host({ answers, draft: [{ word: 'червоний', synonyms: [] }] })} phase="reveal" send={send} />);
     const mark = screen.getByRole('button', { name: `${t('thinkHostMarkOff')}: Олена` });
     // Назва сама каже стан («Не на тему» / «Зняти…»): без aria-pressed, щоб зчитувач не чув «Зняти…, натиснуто».
     expect(mark.hasAttribute('aria-pressed')).toBe(false);
@@ -406,6 +408,9 @@ describe('51: off-topic', () => {
     fireEvent.click(unmark);
     await waitFor(() => expect(send).toHaveBeenCalledWith('host:think-off', { playerId: 'p2', off: false }));
     expect(screen.getByText('Стіл').closest('li')!.querySelector('.think-off')?.textContent).toBe(t('thinkOffTag'));
+    // «не на тему» і «в безпеці» не стоять поруч; рядок без позначки — «в безпеці».
+    expect(screen.getByText('Стіл').closest('li')!.textContent).not.toContain(t('thinkHostSafe'));
+    expect(screen.getByText('банан').closest('li')!.textContent).toContain(t('thinkHostSafe'));
     // Порожня відповідь — без кнопки «не на тему».
     expect(screen.queryByRole('button', { name: `${t('thinkHostMarkOff')}: Іра` })).toBeNull();
   });
