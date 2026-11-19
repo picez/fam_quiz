@@ -124,6 +124,7 @@ import {
   QUESTION_TYPES as ALL_QUESTION_TYPES,
   QUEST_TYPES,
   overshootOn,
+  wordIn,
 } from './index';
 
 const single = {
@@ -4009,20 +4010,44 @@ describe('plan 38: spy question', () => {
     return parsed.success ? [] : parsed.error.issues.map((i) => i.message);
   };
   const spyQ = (patch: object = {}) => ({ id: 'sp', type: 'spy', text: 'Напишіть одне слово-асоціацію до свого слова', imageUrl: null, video: null,
-    accepted: ['кава'], spyWord: 'чай', timeLimit: 40, voteTime: 30, points: 1000, ...patch });
+    accepted: ['кава'], timeLimit: 40, voteTime: 30, points: 1000, ...patch });
   const IMG = '/uploads/' + 'c'.repeat(32) + '.jpg';
 
   it('accepts a spy', () => {
-    expect(questionSchema.parse(spyQ())).toMatchObject({ type: 'spy', spyWord: 'чай', voteTime: 30 });
+    expect(questionSchema.parse(spyQ())).toMatchObject({ type: 'spy', voteTime: 30 });
     expect(valid(questionSchema, spyQ({ imageUrl: IMG }))).toBe(true);
     expect(valid(questionSchema, spyQ({ accepted: ['кава', 'кофе'] }))).toBe(true);
   });
 
-  it('refuses a broken spy', () => {
-    expect(qIssues(spyQ({ spyWord: 'Кава' }))).toContain('spy_same');
-    expect(qIssues(spyQ({ accepted: ['кава', 'кофе'], spyWord: 'КОФЕ' }))).toContain('spy_same');
+  it('accepts a spy without a spy word', () => {
+    expect(questionSchema.parse(spyQ())).not.toHaveProperty('spyWord');
+    expect(questionSchema.parse(spyQ({ spyHint: "Що п'ють зранку з молоком?" }))).toMatchObject({ spyHint: "Що п'ють зранку з молоком?" });
+    expect(LIMITS.spyHint).toBe(120);
+    expect(valid(questionSchema, spyQ({ spyHint: 'я'.repeat(120) }))).toBe(true);
+    expect(valid(questionSchema, spyQ({ spyHint: 'я'.repeat(121) }))).toBe(false);
+    expect(valid(questionSchema, spyQ({ spyHint: '   ' }))).toBe(false);
+  });
+
+  it('still accepts an old spy with a spy word', () => {
+    expect(questionSchema.parse(spyQ({ spyWord: 'чай' }))).toMatchObject({ spyWord: 'чай' });
+    expect(qIssues(spyQ({ spyWord: 'Кава' }))).toEqual([]);
+    expect(qIssues(spyQ({ accepted: ['кава', 'кофе'], spyWord: 'КОФЕ' }))).toEqual([]);
+  });
+
+  it('spy_leak only for the common word', () => {
     expect(qIssues(spyQ({ text: "Що ви п'єте: кава?" }))).toContain('spy_leak');
-    expect(qIssues(spyQ({ text: 'Що ви п\'єте: чай?' }))).toContain('spy_leak');
+    expect(qIssues(spyQ({ text: "Що ви п'єте: чай?", spyWord: 'чай' }))).not.toContain('spy_leak');
+    expect(qIssues(spyQ({ spyHint: 'кава з молоком' }))).toEqual([]);
+  });
+
+  it('wordIn finds a whole word', () => {
+    expect(wordIn("Що ви п'єте: кава?", 'Кава')).toBe(true);
+    expect(wordIn('Кавалер прийшов', 'кава')).toBe(false);
+    expect(wordIn('будь-що', '')).toBe(false);
+  });
+
+  it('refuses a broken spy', () => {
+    expect(qIssues(spyQ({ text: "Що ви п'єте: кава?" }))).toContain('spy_leak');
     expect(qIssues(spyQ({ text: 'Кавалер і дама: напишіть слово' }))).not.toContain('spy_leak');
     expect(qIssues(spyQ({ imageUrl: IMG, reveal: 'blur' }))).toContain('spy_reveal');
     expect(qIssues(spyQ({ hint: 'Подумайте' }))).toContain('spy_hint');

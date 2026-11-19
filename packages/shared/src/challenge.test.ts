@@ -47,7 +47,7 @@ const poll = (id: string) =>
   });
 const wordcloud = (id: string) => base(id, { type: 'wordcloud', words: 3, points: 0 });
 const thinkalike = (id: string) => base(id, { type: 'thinkalike', text: 'Назви місто' });
-const spy = (id: string) => base(id, { type: 'spy', accepted: ['Дніпро'], spyWord: 'Дністер', voteTime: 25 });
+const spy = (id: string) => base(id, { type: 'spy', accepted: ['Дніпро'], spyHint: 'Найдовша річка країни', voteTime: 25 });
 const bluff = (id: string) => base(id, { type: 'bluff', accepted: ['Дніпро'], lies: ['Сян', 'Буг'], choiceTime: 25 });
 const drawing = (id: string) => base(id, { type: 'drawing', accepted: ['Річка'] });
 const surveyRows = (n: number) =>
