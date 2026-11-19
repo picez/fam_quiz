@@ -1385,9 +1385,12 @@ const CROSSWORD_PROBLEMS = {
   crossword_key_letters: 'problemCrosswordKeyLetters',
 } as const satisfies Record<string, TextKey>;
 
-/** Текст видно всім: загальне слово цілим словом не має в ньому траплятися (те саме правило, що spy_leak схеми). */
+/**
+ * Текст видно всім: жодне написання загального слова не має траплятися в ньому цілим словом.
+ * Строгіше за spy_leak схеми (там лише перше написання): збережені вікторини перечитуються схемою, тож тісніша схема зламала б їх.
+ */
 function spyLeaks(question: Extract<Question, { type: 'spy' }>): boolean {
-  return wordIn(question.text, question.accepted[0] ?? '');
+  return question.accepted.some((word) => wordIn(question.text, word));
 }
 
 /** Попередження (не блокує): підказка шпигуну містить саме загальне слово чи одне з його написань. */

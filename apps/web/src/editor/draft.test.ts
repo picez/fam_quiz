@@ -3866,6 +3866,8 @@ describe('spy: common word and hint (50)', () => {
     expect(keyOf(spyQuestion({ accepted: ['Кава'], spyHint: 'кава з молоком' }))).toEqual([]);
     expect(keyOf(spyQuestion({ accepted: ['Кава'], text: 'Що ви п’єте: кава' }))).toEqual([t('problemSpyLeak', { index: 1 })]);
     expect(keyOf(spyQuestion({ accepted: ['Кава'], text: 'Що ви п’єте: чай', spyWord: 'чай' }))).toEqual([]);
+    // Будь-яке прийняте написання в тексті — теж витік (схема перевіряє лише перше, щоб збережені вікторини лишалися придатними).
+    expect(keyOf(spyQuestion({ accepted: ['лінійка', 'лінійку'], text: 'Що ви берете: лінійку' }))).toEqual([t('problemSpyLeak', { index: 1 })]);
   });
 
   it('spyHintLeaks finds the whole common word only', () => {

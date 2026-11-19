@@ -53,6 +53,25 @@ describe('SpyEditor', () => {
     expect(screen.getByRole('status').textContent).toBe('');
   });
 
+  it('the hint field and the warning use the editor styles', () => {
+    render(<SpyEditor question={spy({ accepted: ['кава'], spyHint: 'кава', spyWord: 'чай' })} onChange={vi.fn()} />);
+    const hintLabel = screen.getByLabelText(t('spyHintField')).closest('label')!;
+    expect(hintLabel.className).toBe('field compact');
+    expect(hintLabel.querySelector('span')?.textContent).toBe(t('spyHintField'));
+    expect(screen.getByRole('status').className).toContain('powers-warn');
+    expect(screen.getByRole('status').className).toContain('spy-hint-warning');
+    expect(screen.getByRole('button', { name: t('spyLegacyDrop') }).className).toContain('btn btn-small');
+    expect(screen.getByText(legacy('чай')).closest('div')!.className).not.toContain('meta');
+  });
+
+  it('the legacy buttons are editor buttons in a wrapping row', () => {
+    render(<SpyEditor question={spy({ accepted: ['кава'], spyWord: 'чай' })} onChange={vi.fn()} />);
+    const toHint = screen.getByRole('button', { name: t('spyLegacyToHint') });
+    expect(toHint.className).toBe('btn btn-small');
+    expect(toHint.parentElement!.className).toBe('spy-legacy-actions');
+    expect(toHint.parentElement).toBe(screen.getByRole('button', { name: t('spyLegacyDrop') }).parentElement);
+  });
+
   it('an old spy word is offered as the hint', () => {
     const onChange = vi.fn();
     const { rerender } = render(<SpyEditor question={spy({ accepted: ['кава'], spyWord: 'чай' })} onChange={onChange} />);

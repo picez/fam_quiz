@@ -40,10 +40,9 @@ export function SpyEditor({ question, onChange }: { question: Spy; onChange: (q:
       </div>
       <p className="meta">{t('spyPlayersWordHint')}</p>
 
-      <div className="field compact">
-        <label htmlFor={hintId}>{t('spyHintField')}</label>
+      <label className="field compact">
+        <span>{t('spyHintField')}</span>
         <input
-          id={hintId}
           value={hint}
           maxLength={LIMITS.spyHint}
           aria-describedby={`${hintId}-meta`}
@@ -52,25 +51,27 @@ export function SpyEditor({ question, onChange }: { question: Spy; onChange: (q:
             onChange(event.target.value === '' ? rest : { ...rest, spyHint: event.target.value });
           }}
         />
-      </div>
+      </label>
       <p className="meta" id={`${hintId}-meta`}>
         {t('spyHintFieldHint')} {hint.length}/{LIMITS.spyHint}
       </p>
-      <p className="meta" role="status" aria-live="polite">
+      <p className="meta powers-warn spy-hint-warning" role="status" aria-live="polite">
         {spyHintLeaks(question) ? t('spyHintLeak') : ''}
       </p>
 
       {spyWord !== undefined && spyWord.trim() !== '' && (
-        <div className="meta">
-          <p>{t('spyLegacyWord', { word: spyWord })}</p>
-          {hint === '' && (
-            <button type="button" className="ghost" onClick={() => onChange({ ...withoutOld, spyHint: spyWord.trim().slice(0, LIMITS.spyHint) })}>
-              {t('spyLegacyToHint')}
+        <div className="spy-legacy">
+          <p className="meta">{t('spyLegacyWord', { word: spyWord })}</p>
+          <div className="spy-legacy-actions">
+            {hint === '' && (
+              <button type="button" className="btn btn-small" onClick={() => onChange({ ...withoutOld, spyHint: spyWord.trim().slice(0, LIMITS.spyHint) })}>
+                {t('spyLegacyToHint')}
+              </button>
+            )}
+            <button type="button" className="btn btn-small btn-danger" onClick={() => onChange(withoutOld)}>
+              {t('spyLegacyDrop')}
             </button>
-          )}{' '}
-          <button type="button" className="ghost" onClick={() => onChange(withoutOld)}>
-            {t('spyLegacyDrop')}
-          </button>
+          </div>
         </div>
       )}
 
