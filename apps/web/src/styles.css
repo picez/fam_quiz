@@ -24319,6 +24319,11 @@ input.sudoku-editor-cell:focus-visible {
   align-self: flex-start;
 }
 
+/* Заголовок групи — як підписи інших полів редактора. */
+.truth-presets legend {
+  font-weight: 600;
+}
+
 .think-word-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1.5fr) auto;

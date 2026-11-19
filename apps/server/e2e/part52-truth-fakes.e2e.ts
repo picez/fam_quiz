@@ -89,10 +89,10 @@ async function presetEditor52() {
   await click(host, 'Додати вигадку');
   await field(host, 'Вигадка 1').fill(SIGHT);
   expect(await field(host, 'Вигадка 2').inputValue()).toBe('');
-  expect(await host.locator('fieldset.field input[type="text"]').count(), 'two preset fields').toBe(2);
+  expect(await host.locator('fieldset.truth-presets textarea[rows="2"]').count(), 'two two-line preset fields').toBe(2);
   // Вузький екран: поля й кнопки заготовлених вигадок у видимій області.
   await host.setViewportSize({ width: 360, height: 740 });
-  await host.locator('fieldset.field', { has: host.getByText('Заготовлені вигадки (необов’язково)', exact) }).scrollIntoViewIfNeeded();
+  await host.locator('fieldset.truth-presets').scrollIntoViewIfNeeded();
   await expectNoSideScroll(host, 'truth52-editor-360-full');
   await viewportShot(host, 'truth52-editor-360');
   await host.setViewportSize({ width: 1280, height: 900 });
@@ -190,7 +190,11 @@ async function lobbyFakes52() {
   expect(await bodyText(stage)).toContain('Фактів: 3');
   expect([...frames.values(), stageFrames].map((list) => list.join(NL)).join(NL), 'a fake text sent in the lobby').not.toMatch(/сяйво|жонглювати/);
   await host.setViewportSize({ width: 360, height: 800 });
-  await panel.scrollIntoViewIfNeeded();
+  // Низ панелі з «Додати вигаданий факт» — над липкою смугою «Почати гру» (scroll-margin-block-end панелі).
+  await panel.evaluate((node) => node.scrollIntoView({ block: 'end' }));
+  const addBox = await host.getByRole('button', { name: 'Додати вигаданий факт', ...exact }).boundingBox();
+  const barBox = await host.locator('footer.actions').last().boundingBox();
+  expect(addBox !== null && barBox !== null && addBox.y + addBox.height <= barBox.y, '«Додати вигаданий факт» above the sticky bar').toBe(true);
   await expectNoSideScroll(host, 'truth52-host-lobby-full');
   await viewportShot(host, 'truth52-host-lobby');
   await host.setViewportSize({ width: 1280, height: 900 });
@@ -208,8 +212,8 @@ async function lobbyFakes52() {
   await scores({ Оля: '100', Петро: '100', Марко: '100', Ната: '100' });
   await step27a(host, 'Далі');
   await step27a(host, 'Наступний раунд');
-  // Заставка рахує лише справжні факти (вигадок не видає); у колоді буде п'ять запитань.
-  await stage.locator('.round-facts').getByText('3 запитання · 30 с на кожне', exact).waitFor();
+  // Заставка рахує й вигадки, що зіграються (три факти + дві вигадки), — як «Факт 1 з 5»; котре вигадка, не видає.
+  await stage.locator('.round-facts').getByText('5 запитань · 30 с на кожне', exact).waitFor();
   await step27a(host, 'Почати раунд');
 
   // ── Раунд: п'ять запитань; яка вигадка — лише на пульті. ──
@@ -284,7 +288,7 @@ async function lobbyFakes52() {
     for (const [name, pick] of wanted) await pickName28b(phones.get(name)!, pick);
     recap.push(
       fake
-        ? `${factText}Вигадка ведучого${wanted.some(([, p]) => p === 'Вигадка') ? 'Вгадали: Ната' : 'Ніхто не вгадав'}`
+        ? `${factText}Вигадка${wanted.some(([, p]) => p === 'Вигадка') ? 'Вгадали: Ната' : 'Ніхто не вгадав'}`
         : `${factText}${author}${author === 'Марко' || author === 'Оля' ? 'Вгадали: Петро' : 'Ніхто не вгадав'}Автор: +${author === 'Петро' ? 300 : 200}`,
     );
     if (k < 4) {
@@ -308,16 +312,16 @@ async function lobbyFakes52() {
   expect(fakeCount).toBe(2);
   expect(seenReal.sort()).toEqual(['Марко', 'Оля', 'Петро']);
 
-  // ── Підсумок раунду: картки «Вигадка ведучого», бали. ──
+  // ── Підсумок раунду: картки «Вигадка» (одним словом, як ім'я), бали. ──
   await expect.poll(() => stage.locator('.truth-recap-card').count(), POLL).toBe(5);
   expect(await stage.locator('.truth-recap-card').allTextContents()).toEqual(recap);
   expect(await stage.locator('.truth-recap-card.is-fake').count()).toBe(2);
-  expect(await stage.locator('.truth-recap-card.is-fake').getByText('Вигадка ведучого', exact).count()).toBe(2);
+  expect(await stage.locator('.truth-recap-card.is-fake .truth-recap-author').getByText('Вигадка', exact).count()).toBe(2);
   expect(await stage.locator('.truth-recap-card.is-fake').getByText(/Автор:/).count(), 'author points on a fake').toBe(0);
   await expect.poll(() => nata.locator('.truth-recap-card').count(), POLL).toBe(5);
   await nata.locator('.truth-recap-mine.is-correct').getByText('Ваш вибір: Вигадка ✓', exact).waitFor();
   await nata.locator('.truth-recap-score').getByText('Ви вгадали 1 з 5', exact).waitFor();
-  await petro.locator('.truth-recap-card.is-fake').first().getByText('Вигадка ведучого', exact).waitFor();
+  await petro.locator('.truth-recap-card.is-fake .truth-recap-author').first().getByText('Вигадка', exact).waitFor();
   // Оля на картці Марка обрала «Вигадка»: ✗, а Марко отримав частку й за цей вибір (200 з 300).
   await olya.locator('.truth-recap-mine.is-wrong').getByText('Ваш вибір: Вигадка ✗', exact).waitFor();
   await expect.poll(() => host.locator('.truth-recap-card').count(), POLL).toBe(5);
@@ -391,9 +395,9 @@ async function autopilotFakes52(sockets: Socket[]) {
       await pickName28b(petro, 'Вигадка');
     }
   }
-  // Підсумок: «Вигадка ведучого», вигадка — ціна (+300 кожному), справжні факти — частка автора (+300): по 600.
+  // Підсумок: «Вигадка», вигадка — ціна (+300 кожному), справжні факти — частка автора (+300): по 600.
   await petro.locator('.truth-recap-card.is-fake').first().waitFor({ timeout: 90_000 });
-  await petro.locator('.truth-recap-card.is-fake').getByText('Вигадка ведучого', exact).waitFor();
+  await petro.locator('.truth-recap-card.is-fake .truth-recap-author').getByText('Вигадка', exact).waitFor();
   expect(await petro.locator('.truth-recap-card.is-fake').locator('.truth-recap-fact').textContent()).toBe(SIGHT);
   expect(await petro.locator('.truth-recap-card').count()).toBe(4);
   await expect.poll(() => phoneScore27a(petro).textContent(), POLL).toBe('600');
