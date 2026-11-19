@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
-import { cleanup, render, screen } from '@testing-library/react';
+import { act, cleanup, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { Timer, timerStatus } from './Timer';
+import { Timer, timerFace, timerStatus } from './Timer';
 
 afterEach(() => {
   cleanup();
@@ -79,5 +79,49 @@ describe('Timer', () => {
     render(<Timer view={{ endsAt: null, remainingMs: 40_000 }} offsetMs={0} total={50_000} leadMs={30_000} status="paused" />);
     expect(screen.getByText('Пауза')).toBeTruthy();
     expect(screen.queryByText('🎵 Слухайте')).toBeNull();
+  });
+});
+
+describe('timerFace', () => {
+  const input = (over: Partial<Parameters<typeof timerFace>[0]> = {}) => ({
+    view: { endsAt: null, remainingMs: 45_000 },
+    offsetMs: 0,
+    total: 60_000,
+    status: null,
+    leadMs: 0,
+    ...over,
+  });
+
+  it('counts the seconds, the bar and the full time like the board', () => {
+    expect(timerFace(input(), 0)).toEqual({ seconds: 45, pct: 75, status: null, totalText: '/ 60 с', ending: false });
+    expect(timerFace(input({ total: null }), 0)).toMatchObject({ seconds: 45, pct: null, totalText: '' });
+    expect(timerFace(input({ view: { endsAt: null, remainingMs: null } }), 0)).toBeNull();
+  });
+
+  it('uses the server clock offset', () => {
+    expect(timerFace(input({ view: { endsAt: 100_000, remainingMs: null }, offsetMs: 5_000 }), 85_000)?.seconds).toBe(10);
+  });
+
+  it('a playing fragment holds the board on the full time and says listen', () => {
+    const face = timerFace(input({ view: { endsAt: 40_000, remainingMs: null }, total: 40_000, leadMs: 10_000 }), 0);
+    expect(face).toMatchObject({ seconds: 30, status: 'listening', ending: false });
+  });
+
+  it('the last five seconds only while the clock runs and nothing holds it', () => {
+    expect(timerFace(input({ view: { endsAt: 5_000, remainingMs: null } }), 0)?.ending).toBe(true);
+    expect(timerFace(input({ view: { endsAt: 6_000, remainingMs: null } }), 0)?.ending).toBe(false);
+    expect(timerFace(input({ view: { endsAt: null, remainingMs: 3_000 }, status: 'paused' }), 0)?.ending).toBe(false);
+    expect(timerFace(input({ view: { endsAt: null, remainingMs: 3_000 }, status: 'held' }), 0)?.ending).toBe(false);
+  });
+
+  it('Timer marks the root in the last five seconds', () => {
+    vi.useFakeTimers();
+    render(<Timer view={{ endsAt: Date.now() + 4_500, remainingMs: null }} offsetMs={0} total={30_000} />);
+    expect(screen.getByRole('timer').classList.contains('is-ending')).toBe(true);
+    cleanup();
+    render(<Timer view={{ endsAt: Date.now() + 9_000, remainingMs: null }} offsetMs={0} total={30_000} />);
+    expect(screen.getByRole('timer').classList.contains('is-ending')).toBe(false);
+    act(() => vi.advanceTimersByTime(4_200));
+    expect(screen.getByRole('timer').classList.contains('is-ending')).toBe(true);
   });
 });

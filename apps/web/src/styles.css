@@ -1158,6 +1158,18 @@ button.choice {
   line-height: 1.2;
 }
 
+/* Останні 5 с (55): лише на телефоні й пульті, поки годинник іде. Сцена — без змін. */
+.app.player .timer.is-ending .flap,
+.app.host .timer.is-ending .flap {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+.app.player .timer.is-ending .timer-bar > span,
+.app.host .timer.is-ending .timer-bar > span {
+  background: var(--accent);
+}
+
 .round-facts {
   color: var(--amber);
   font-family: var(--display);

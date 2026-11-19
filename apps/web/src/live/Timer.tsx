@@ -21,6 +21,47 @@ interface Props {
   leadMs?: number;
 }
 
+/** Останні секунди, коли табло й смужка вгорі горять кольором акценту. */
+export const TIMER_ENDING_S = 5;
+
+export interface TimerInput {
+  view: { endsAt: number | null; remainingMs: number | null };
+  offsetMs: number;
+  total: number | null;
+  status: TimerStatus;
+  leadMs: number;
+}
+
+export interface TimerFace {
+  seconds: number;
+  /** Ширина смужки, %; null — повного часу немає, смужки теж. */
+  pct: number | null;
+  /** Уже з «Слухайте»: пауза й утримання важливіші. */
+  status: TimerStatus;
+  /** «/ 30 с» або ''. */
+  totalText: string;
+  /** Останні TIMER_ENDING_S с, поки годинник іде й ніщо його не тримає. */
+  ending: boolean;
+}
+
+/** Що показує табло в мить nowMs (час пристрою); null — годинника немає. */
+export function timerFace(input: TimerInput, nowMs: number): TimerFace | null {
+  const { view, offsetMs, total, status: given, leadMs } = input;
+  const left = secondsLeft(view, offsetMs, nowMs);
+  if (left === null) return null;
+  // Повний час запитання без фрагмента, що ще грає: відлік іде саме від нього.
+  const whole = total === null ? null : total - leadMs;
+  const listening = whole !== null && leadMs > 0 && left * 1000 > whole;
+  // Не більше за повний час: «31 / 30 с» не буває.
+  const seconds = whole === null ? left : Math.min(left, Math.ceil(whole / 1000));
+  const pct = whole === null ? null : whole <= 0 ? 0 : Math.min(100, Math.max(0, ((seconds * 1000) / whole) * 100));
+  const totalText = whole === null ? '' : t('timerOf', { seconds: Math.round(whole / 1000) });
+  // Пауза й утримання важливіші за «Слухайте».
+  const status: TimerStatus = given ?? (listening ? 'listening' : null);
+  const ending = view.remainingMs === null && view.endsAt !== null && status === null && seconds <= TIMER_ENDING_S;
+  return { seconds, pct, status, totalText, ending };
+}
+
 /** Табло відліку: кожна цифра на окремій пластині. */
 export function Timer({ view, offsetMs, total = null, status: given = null, leadMs = 0 }: Props) {
   // Стан лише будить перемальовування; час читається під час кожного рендера,
@@ -34,19 +75,11 @@ export function Timer({ view, offsetMs, total = null, status: given = null, lead
     return () => clearInterval(id);
   }, [running, view.endsAt]);
 
-  const left = secondsLeft(view, offsetMs, Date.now());
-  if (left === null) return null;
-  // Повний час запитання без фрагмента, що ще грає: відлік іде саме від нього.
-  const whole = total === null ? null : total - leadMs;
-  const listening = whole !== null && leadMs > 0 && left * 1000 > whole;
-  // Не більше за повний час: «31 / 30 с» не буває.
-  const seconds = whole === null ? left : Math.min(left, Math.ceil(whole / 1000));
-  const pct = whole === null || whole <= 0 ? 0 : Math.min(100, Math.max(0, ((seconds * 1000) / whole) * 100));
-  const totalText = whole === null ? '' : t('timerOf', { seconds: Math.round(whole / 1000) });
-  // Пауза й утримання важливіші за «Слухайте».
-  const status: TimerStatus = given ?? (listening ? 'listening' : null);
+  const face = timerFace({ view, offsetMs, total, status: given, leadMs }, Date.now());
+  if (face === null) return null;
+  const { seconds, pct, status, totalText } = face;
   return (
-    <div className="timer" dir="ltr" role="timer" aria-label={String(seconds)}>
+    <div className={face.ending ? 'timer is-ending' : 'timer'} dir="ltr" role="timer" aria-label={String(seconds)}>
       <span className="timer-flaps">
         {String(seconds)
           .padStart(2, '0')
@@ -68,7 +101,7 @@ export function Timer({ view, offsetMs, total = null, status: given = null, lead
           )}
         </span>
       )}
-      {total !== null && (
+      {pct !== null && (
         <span className="timer-bar" aria-hidden="true">
           <span style={{ width: `${pct}%` }} />
         </span>
