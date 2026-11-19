@@ -140,6 +140,32 @@ describe('think off-topic by the host (51)', () => {
     expect(rowOf()).toMatchObject({ lives: 2, lost: false, off: null });
     expect(phoneThink(manager, room, olena.identity)).toMatchObject({ lives: 2, off: null });
   });
+
+  it('off-topic marks share the host think rate window', () => {
+    const { manager, room, people, scheduler } = hosted();
+    const [olena, taras] = people;
+    expect(manager.host(room, { type: 'think-words', words: [red] })).toEqual({ ok: true });
+    expect(manager.answer(room, olena.playerId, say('зелений'))).toEqual({ ok: true });
+    expect(manager.answer(room, taras.playerId, say('синій'))).toEqual({ ok: true });
+    expect(manager.host(room, { type: 'lock' })).toEqual({ ok: true });
+    expect(manager.host(room, { type: 'next' })).toEqual({ ok: true });
+    expect(room.state.phase).toBe('reveal');
+    scheduler.advance(1000);
+    for (let i = 0; i < THINK_WORDS_PER_SECOND; i++) expect(manager.host(room, { type: 'think-off', playerId: olena.playerId, off: i % 2 === 0 })).toEqual({ ok: true });
+    expect(manager.host(room, { type: 'think-off', playerId: taras.playerId, off: true })).toEqual({ ok: false, error: 'too_soon' });
+    expect(manager.host(room, { type: 'think-words', words: [red] })).toEqual({ ok: false, error: 'too_soon' });
+    scheduler.advance(1000);
+    expect(manager.host(room, { type: 'think-off', playerId: taras.playerId, off: true })).toEqual({ ok: true });
+  });
+
+  it('nobody marks off-topic by hand in an autopilot room', () => {
+    const manager = new RoomManager(new FakeScheduler(), () => 0.5);
+    const created = manager.createAutopilot(thinkQuiz([red]), 'u1', 'q1', 'Марта');
+    if (!created.ok) throw new Error(created.error);
+    const other = enter(manager, created.room, 'Тарас');
+    expect(manager.author(created.room, created.playerId, { type: 'think-off', playerId: other.playerId, off: true })).toEqual({ ok: false, error: 'not_allowed' });
+    expect(manager.host(created.room, { type: 'think-off', playerId: other.playerId, off: true })).toEqual({ ok: false, error: 'forbidden' });
+  });
 });
 
 /** Кімната-автопілот: автор Марта дивиться, names грають; сцена на зв'язку. */
