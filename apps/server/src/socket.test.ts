@@ -1156,6 +1156,22 @@ describe('host presence', () => {
     if (mine.role === 'player') expect(mine.me.result).toBeNull();
   });
 
+  it('player:think-vote and host:think-off validate their payloads and roles (51)', async () => {
+    const red = { word: 'червоний', synonyms: [] };
+    const quiz = makeRoundsQuiz([thinkRound('r1', [think('t1', [red]), think('t2', [red]), think('t3', [red])]), classicRound('r2', [single])]);
+    const { host, olena, olenaJoin } = await lobby((await startGame(ctx.app, quiz)).game);
+    expect(await send(host, 'host:start')).toEqual({ ok: true });
+    expect(await send(host, 'host:next')).toEqual({ ok: true });
+    await until(olena, (view) => view.phase === 'question');
+    for (const payload of [undefined, {}, { keys: 'банан' }, { keys: [''] }]) expect(await send(olena, 'player:think-vote', payload)).toEqual({ ok: false, error: 'invalid_payload' });
+    expect(await send(host, 'player:think-vote', { keys: [] })).toEqual({ ok: false, error: 'forbidden' });
+    // Без етапу голосування (гра з ведучим) — wrong_phase.
+    expect(await send(olena, 'player:think-vote', { keys: [] })).toEqual({ ok: false, error: 'wrong_phase' });
+    expect(await send(olena, 'host:think-off', { playerId: olenaJoin.playerId, off: true })).toEqual({ ok: false, error: 'forbidden' });
+    for (const payload of [undefined, { playerId: olenaJoin.playerId }, { off: true }, { playerId: '', off: true }]) expect(await send(host, 'host:think-off', payload)).toEqual({ ok: false, error: 'invalid_payload' });
+    expect(await send(host, 'host:think-off', { playerId: olenaJoin.playerId, off: true })).toEqual({ ok: false, error: 'wrong_phase' });
+  });
+
   it('host:alike-split and host:alike-join edit the groups on reveal; players cannot', async () => {
     const { host, stage, olena, taras, olenaJoin, tarasJoin } = await lobby((await startGame(ctx.app, alikeQuiz())).game);
     expect(await send(host, 'host:start')).toEqual({ ok: true });

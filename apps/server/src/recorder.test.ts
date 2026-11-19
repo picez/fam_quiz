@@ -310,6 +310,25 @@ describe('recorder', () => {
     expect(ctx.errors).toEqual([]);
   });
 
+  it('a think question records the host off-topic marks (51)', async () => {
+    const red = { word: 'червоний', synonyms: [] };
+    const quiz = makeRoundsQuiz([thinkRound('r1', [think('t1', [red]), think('t2', [red]), think('t3', [red])]), classicRound('r2', [single])]);
+    const ctx = await setup(undefined, 5000, 30, quiz);
+    ctx.host('start');
+    ctx.host('next');
+    expect(ctx.manager.answer(ctx.room, ctx.olena, { type: 'think', value: 'ксилофон' })).toEqual({ ok: true });
+    expect(ctx.manager.answer(ctx.room, ctx.taras, { type: 'think', value: 'банан' })).toEqual({ ok: true });
+    ctx.host('lock');
+    ctx.host('next');
+    expect(ctx.manager.host(ctx.room, { type: 'think-off', playerId: ctx.taras, off: true })).toEqual({ ok: true });
+    ctx.host('next');
+    const { games } = await ctx.saved();
+    expect(games[0].plays[0].think).toEqual({ words: [red], lives: { [ctx.olena]: 3, [ctx.taras]: 3 }, revealed: true, hit: [], off: { [ctx.taras]: 'host' } });
+    // Без позначок ключа off немає (стара гра й гра без «не на тему» однакові).
+    expect(games[0].plays[0].think).not.toHaveProperty('manual');
+    expect(ctx.errors).toEqual([]);
+  });
+
   it('a letter words question keeps the dealt letters and the longest possible words in the play journal', async () => {
     const ctx = await setup(undefined, 5000, 30, makeQuiz([letterwordsRandom], { speedBonus: false }));
     ctx.host('start');

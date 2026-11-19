@@ -438,9 +438,10 @@ function thinkResult(
     const payload = given.find((a) => a.participantId === participantId)?.payload;
     const answer = payload?.type === 'think' ? payload.value : '';
     const verdict = answer === '' ? 'empty' : think.hit.includes(participantId) ? 'hit' : 'safe';
-    const lost = think.revealed && verdict !== 'safe';
+    const off = Object.hasOwn(think.off ?? {}, participantId) ? think.off?.[participantId] : undefined;
+    const lost = think.revealed && (verdict !== 'safe' || off !== undefined);
     lives[nickname] = lost ? before - 1 : before;
-    rows.push({ nickname, answer, verdict, lost, ...((think.manual ?? []).includes(participantId) ? { manual: true as const } : {}) });
+    rows.push({ nickname, answer, verdict, lost, ...((think.manual ?? []).includes(participantId) ? { manual: true as const } : {}), ...(off === undefined ? {} : { off }) });
   }
   return { words: think.words, lives, rows, ...(think.places === undefined ? {} : { places: think.places }) };
 }

@@ -138,6 +138,8 @@ import {
   submitTruth,
   hideTruth,
   setThinkWords,
+  voteThinkOff,
+  markThinkOff,
   alikeJoin,
   alikeSplit,
   lettersDue,
@@ -190,6 +192,8 @@ export const LOBBY_TTL_MS = 2 * 60 * 60_000;
 export const TRUTH_PER_SECOND = 2;
 /** «Думай інакше» (35): понад стільки замін слів ведучого за секунду — too_soon. */
 export const THINK_WORDS_PER_SECOND = 4;
+/** «Думай інакше» (51): понад стільки голосів «не на тему» за секунду від людини — too_soon. */
+export const THINK_VOTES_PER_SECOND = 4;
 /** Ключ вікна частоти ведучого (у ведучого немає id гравця). */
 const HOST_RATE_ID = 'host';
 /** Через скільки після першого збою таймера кроку (дедлайн, автопілот) кімната пробує ще раз (30a); далі пауза подвоюється. */
@@ -435,6 +439,7 @@ export type HostAction =
   | { type: 'truth-hide'; playerId: string; hidden: boolean }
   /** «Думай інакше» (35): замінити слова ведучого поточного запитання. Лише ведучий: автор кімнати-автопілота — not_allowed. Слова не йдуть ні в події, ні в логи. */
   | { type: 'think-words'; words: ThinkWord[] }
+  | { type: 'think-off'; playerId: string; off: boolean }
   /** «Думай як усі» (37e): ведучий об'єднує групи слів чи виносить гравця окремо на reveal. Автор кімнати-автопілота — not_allowed. */
   | { type: 'alike-join'; from: string; to: string }
   | { type: 'alike-split'; playerId: string };
@@ -458,7 +463,7 @@ const FORBIDDEN: AckResult = { ok: false, error: 'forbidden' };
 const NOT_ALLOWED: AckResult = { ok: false, error: 'not_allowed' };
 
 /** Види вікон частоти (30a): кожен вид — своє вікно на людину, зі своєю межею (RATE_LIMITS). */
-export type RateKind = 'draft' | 'react' | 'away' | 'appeal' | 'pick' | 'like' | 'list' | 'moreLess' | 'truth' | 'draw' | 'drawGuess' | 'puzzle' | 'jigsaw' | 'spotdiff' | 'memory' | 'think';
+export type RateKind = 'draft' | 'react' | 'away' | 'appeal' | 'pick' | 'like' | 'list' | 'moreLess' | 'truth' | 'draw' | 'drawGuess' | 'puzzle' | 'jigsaw' | 'spotdiff' | 'memory' | 'think' | 'thinkVote';
 /** Вікно частоти: початок і кількість прийнятих подій у ньому. */
 export interface RateWindow {
   from: number;
@@ -487,10 +492,11 @@ const RATE_LIMITS: Record<RateKind, { max: number; windowMs: number }> = {
   spotdiff: { max: SPOTDIFF_TAPS_PER_SECOND, windowMs: 1000 },
   memory: { max: MEMORY_FLIPS_PER_SECOND, windowMs: 1000 },
   think: { max: THINK_WORDS_PER_SECOND, windowMs: 1000 },
+  thinkVote: { max: THINK_VOTES_PER_SECOND, windowMs: 1000 },
 };
 
 /** Вікна, що зникають разом із вилученим гравцем (як і до 30a: лайки, реакції й слова лишаються до кінця вікна). */
-const CLEARED_ON_REMOVE: readonly RateKind[] = ['draft', 'away', 'appeal', 'pick', 'moreLess', 'truth', 'draw', 'drawGuess', 'puzzle', 'jigsaw', 'spotdiff', 'memory'];
+const CLEARED_ON_REMOVE: readonly RateKind[] = ['draft', 'away', 'appeal', 'pick', 'moreLess', 'truth', 'draw', 'drawGuess', 'puzzle', 'jigsaw', 'spotdiff', 'memory', 'thinkVote'];
 
 /** Вікна кімнати одного виду (створюються за першої потреби). */
 export function rateOf(room: Room, kind: RateKind): Map<string, RateWindow> {
@@ -2191,6 +2197,15 @@ export class RoomManager {
     return this.apply(room, voteSpy(room.state, who.id, target, this.now()));
   }
 
+  /** «Думай інакше» (51): голос «не на тему» — за команду голосує той, хто відповідає (answererOf); частота — на людину. */
+  thinkVote(room: Room, playerId: string, keys: string[]): AckResult {
+    if (!this.alive(room)) return this.gone();
+    const who = this.act(room, playerId, 'answerer');
+    if (!who.ok) return who;
+    if (!rateAllowed(room, 'thinkVote', playerId, this.now())) return { ok: false, error: 'too_soon' };
+    return this.apply(room, voteThinkOff(room.state, who.id, keys, this.now()));
+  }
+
   spyGuess(room: Room, playerId: string, text: string): AckResult {
     if (!this.alive(room)) return this.gone();
     const who = this.act(room, playerId, 'answerer');
@@ -2521,6 +2536,11 @@ export class RoomManager {
         const now = this.now();
         if (!rateAllowed(room, 'think', HOST_RATE_ID, now)) return { ok: false, error: 'too_soon' };
         return this.apply(room, setThinkWords(state, action.words));
+      }
+      case 'think-off': {
+        const now = this.now();
+        if (!rateAllowed(room, 'think', HOST_RATE_ID, now)) return { ok: false, error: 'too_soon' };
+        return this.apply(room, markThinkOff(state, action.playerId, action.off));
       }
       case 'alike-join':
         return this.apply(room, alikeJoin(state, action.from, action.to));

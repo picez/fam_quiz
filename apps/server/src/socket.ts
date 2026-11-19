@@ -44,6 +44,8 @@ import {
   truthFactSchema,
   truthHideSchema,
   thinkWordsEventSchema,
+  thinkVoteSchema,
+  thinkOffSchema,
   alikeJoinSchema,
   alikeSplitSchema,
   duelistSchema,
@@ -711,6 +713,12 @@ export function attachSockets(
       return payload.success ? manager.spyVote(room, identity.playerId, payload.data.playerId) : INVALID;
     });
 
+    on('player:think-vote', (args) => {
+      if (identity.role !== 'player' || identity.playerId === null) return FORBIDDEN;
+      const payload = thinkVoteSchema.safeParse(payloadOf(args));
+      return payload.success ? manager.thinkVote(room, identity.playerId, payload.data.keys) : INVALID;
+    });
+
     on('player:spy-guess', (args) => {
       if (identity.role !== 'player' || identity.playerId === null) return FORBIDDEN;
       const payload = spyTextSchema.safeParse(payloadOf(args));
@@ -1079,6 +1087,13 @@ export function attachSockets(
       if (!hostSide) return FORBIDDEN;
       const payload = thinkWordsEventSchema.safeParse(payloadOf(args));
       return payload.success ? run({ type: 'think-words', words: payload.data.words }) : INVALID;
+    });
+
+    // «Думай інакше» (51): ведучий позначає чи знімає «не на тему» на reveal.
+    on('host:think-off', (args) => {
+      if (!hostSide) return FORBIDDEN;
+      const payload = thinkOffSchema.safeParse(payloadOf(args));
+      return payload.success ? run({ type: 'think-off', ...payload.data }) : INVALID;
     });
 
     // «Думай як усі» (37e): правки груп на reveal; ack — лише ok чи помилка.
