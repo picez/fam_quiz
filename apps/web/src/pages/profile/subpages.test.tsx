@@ -19,6 +19,7 @@ vi.mock('../../push/push-client', () => ({
 
 vi.mock('../../api', () => ({
   me: vi.fn(),
+  getAnnouncement: async () => ({ ok: false, error: 'offline' }),
   getMyProfile: vi.fn(),
   saveMyProfile: vi.fn(),
   findProfile: vi.fn(),
