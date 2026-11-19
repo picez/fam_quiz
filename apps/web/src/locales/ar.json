@@ -5098,6 +5098,7 @@
   "adminBotMineEmpty": "ليس لديك مسابقات بعد.",
   "adminBotSize": "{rounds} · {questions}",
   "err_bot_rooms_full": "لدى البوت ثلاث غرف بالفعل. أنهِ واحدة لتشغيل أخرى.",
+  "err_bot_unavailable": "حساب البوت غير متاح: بريده الإلكتروني يستخدمه مستخدم آخر.",
   "adminBotRounds_zero": "{count} جولة",
   "adminBotRounds_one": "جولة واحدة",
   "adminBotRounds_two": "جولتان",

@@ -4898,6 +4898,7 @@
   "adminBotMineEmpty": "Nie masz jeszcze quizów.",
   "adminBotSize": "{rounds} · {questions}",
   "err_bot_rooms_full": "Bot ma już trzy pokoje. Zakończ jeden, aby uruchomić nowy.",
+  "err_bot_unavailable": "Konto bota jest niedostępne: jego adres e-mail należy do innego użytkownika.",
   "adminBotRounds_one": "{count} runda",
   "adminBotRounds_few": "{count} rundy",
   "adminBotRounds_many": "{count} rund",

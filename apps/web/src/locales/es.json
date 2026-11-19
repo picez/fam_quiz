@@ -4876,6 +4876,7 @@
   "adminBotMineEmpty": "Aún no tienes cuestionarios.",
   "adminBotSize": "{rounds} · {questions}",
   "err_bot_rooms_full": "El bot ya tiene tres salas. Termina una para lanzar otra.",
+  "err_bot_unavailable": "La cuenta del bot no está disponible: su correo lo usa otro usuario.",
   "adminBotRounds_one": "{count} ronda",
   "adminBotRounds_many": "{count} de rondas",
   "adminBotRounds_other": "{count} rondas",

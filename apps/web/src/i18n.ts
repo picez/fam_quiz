@@ -4940,6 +4940,7 @@ const uk = {
   adminBotMineEmpty: 'У тебе ще немає вікторин.',
   adminBotSize: '{rounds} · {questions}',
   err_bot_rooms_full: 'У бота вже три кімнати. Заверши одну, щоб запустити нову.',
+  err_bot_unavailable: 'Акаунт бота недоступний: його пошту займає інший користувач.',
   adminBotRounds_one: '{count} раунд',
   adminBotRounds_few: '{count} раунди',
   adminBotRounds_many: '{count} раундів',

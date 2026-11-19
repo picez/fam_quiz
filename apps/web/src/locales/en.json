@@ -4802,6 +4802,7 @@
   "adminBotMineEmpty": "You have no quizzes yet.",
   "adminBotSize": "{rounds} · {questions}",
   "err_bot_rooms_full": "The bot already has three rooms. End one to start a new one.",
+  "err_bot_unavailable": "The bot account is unavailable: its email belongs to another user.",
   "adminBotRounds_one": "{count} round",
   "adminBotRounds_other": "{count} rounds",
   "adminLog_bot_game_start": "{admin} started a bot game “{title}” (code {code})",

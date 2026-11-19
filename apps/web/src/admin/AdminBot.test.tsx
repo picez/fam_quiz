@@ -3,7 +3,7 @@ import type { AdminBot as AdminBotData, AdminBotQuiz, AdminBotRoom } from '@quiz
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { errorText } from '../i18n';
+import { errorText, t } from '../i18n';
 import { AdminBot } from './AdminBot';
 
 const QUIZ_ID = '11111111-1111-4111-8111-111111111111';
@@ -171,5 +171,74 @@ describe('AdminBot', () => {
     replies['GET /api/admin/bot'] = { status: 404, body: { error: 'not_found' } };
     open();
     expect(await screen.findByText('головна')).toBeTruthy();
+  });
+
+  it('a room that already closed shows an error and reloads, the admin stays', async () => {
+    replies['GET /api/admin/bot'] = { status: 200, body: bot({ rooms: [room({ status: 'playing' })] }) };
+    replies['POST /api/admin/bot/rooms/123456/pause'] = { status: 404, body: { error: 'not_found' } };
+    open();
+    await screen.findByText('Код 123456');
+    fireEvent.click(within(card('123456')).getByRole('button', { name: 'Пауза' }));
+    expect((await screen.findByRole('alert')).textContent).toBe(t('err_game_not_found'));
+    await waitFor(() => expect(sent('GET', '/api/admin/bot')).toHaveLength(2));
+    expect(screen.queryByText('головна')).toBeNull();
+  });
+
+  it('a bot quiz deleted elsewhere shows an error and reloads, the admin stays', async () => {
+    replies[`POST /api/admin/bot/quizzes/${QUIZ_ID}/games`] = { status: 404, body: { error: 'not_found' } };
+    replies[`DELETE /api/admin/bot/quizzes/${QUIZ_ID}`] = { status: 404, body: { error: 'not_found' } };
+    open();
+    fireEvent.click(await screen.findByRole('button', { name: 'Запустити гру' }));
+    expect((await screen.findByRole('alert')).textContent).toBe(t('err_quiz_not_found'));
+    await waitFor(() => expect(sent('GET', '/api/admin/bot')).toHaveLength(2));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Видалити' }).hasAttribute('disabled')).toBe(false));
+    fireEvent.click(screen.getByRole('button', { name: 'Видалити' }));
+    await waitFor(() => expect(sent('GET', '/api/admin/bot')).toHaveLength(3));
+    expect(screen.getByRole('alert').textContent).toBe(t('err_quiz_not_found'));
+    expect(screen.queryByText('головна')).toBeNull();
+  });
+
+  it('an own quiz deleted in another tab shows an error and reloads both lists', async () => {
+    replies['GET /api/quizzes'] = { status: 200, body: [{ id: OWN_ID, title: 'Карпати', description: '', questionCount: 5, truth: false, updatedAt: '2026-11-17T10:00:00.000Z' }] };
+    replies['POST /api/admin/bot/copies'] = { status: 404, body: { error: 'not_found' } };
+    open();
+    const own = (await screen.findByRole('heading', { name: 'Карпати' })).closest('li') as HTMLElement;
+    fireEvent.click(within(own).getByRole('button', { name: 'Передати боту копію' }));
+    expect((await screen.findByRole('alert')).textContent).toBe(t('err_quiz_not_found'));
+    await waitFor(() => expect(sent('GET', '/api/quizzes')).toHaveLength(2));
+    expect(screen.queryByText('головна')).toBeNull();
+  });
+
+  it('a lost admin right still goes home after an action', async () => {
+    let admin = true;
+    replies['GET /api/admin/bot'] = () => (admin ? { status: 200, body: bot({ rooms: [room({ status: 'playing' })] }) } : { status: 404, body: { error: 'not_found' } });
+    replies['POST /api/admin/bot/rooms/123456/pause'] = () => {
+      admin = false;
+      return { status: 404, body: { error: 'not_found' } };
+    };
+    open();
+    await screen.findByText('Код 123456');
+    fireEvent.click(within(card('123456')).getByRole('button', { name: 'Пауза' }));
+    expect(await screen.findByText('головна')).toBeTruthy();
+  });
+
+  it('only start is the main button; pause and resume are plain, end is the danger one', async () => {
+    replies['GET /api/admin/bot'] = { status: 200, body: bot({ rooms: [room(), room({ code: '222222', status: 'playing' }), room({ code: '333333', status: 'paused' })] }) };
+    open();
+    await screen.findByText('Код 123456');
+    expect(within(card('123456')).getByRole('button', { name: 'Почати гру' }).className).toBe('btn btn-primary');
+    expect(within(card('222222')).getByRole('button', { name: 'Пауза' }).className).toBe('btn');
+    expect(within(card('333333')).getByRole('button', { name: 'Продовжити' }).className).toBe('btn');
+    expect(within(card('333333')).getByRole('button', { name: 'Завершити гру' }).className).toBe('btn btn-danger');
+  });
+
+  it('a bot_unavailable error has its own text', async () => {
+    replies['POST /api/admin/bot/copies'] = { status: 409, body: { error: 'bot_unavailable' } };
+    replies['GET /api/quizzes'] = { status: 200, body: [{ id: OWN_ID, title: 'Карпати', description: '', questionCount: 5, truth: false, updatedAt: '2026-11-17T10:00:00.000Z' }] };
+    open();
+    const own = (await screen.findByRole('heading', { name: 'Карпати' })).closest('li') as HTMLElement;
+    fireEvent.click(within(own).getByRole('button', { name: 'Передати боту копію' }));
+    expect((await screen.findByRole('alert')).textContent).toBe('Акаунт бота недоступний: його пошту займає інший користувач.');
+    expect(errorText('bot_unavailable')).not.toBe(t('err_unknown'));
   });
 });

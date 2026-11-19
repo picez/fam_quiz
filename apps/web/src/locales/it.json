@@ -4876,6 +4876,7 @@
   "adminBotMineEmpty": "Non hai ancora quiz.",
   "adminBotSize": "{rounds} · {questions}",
   "err_bot_rooms_full": "Il bot ha già tre stanze. Terminane una per avviarne un’altra.",
+  "err_bot_unavailable": "L’account del bot non è disponibile: la sua email appartiene a un altro utente.",
   "adminBotRounds_one": "{count} round",
   "adminBotRounds_many": "{count} di round",
   "adminBotRounds_other": "{count} round",

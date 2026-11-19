@@ -61,37 +61,37 @@ export function AdminBot(): JSX.Element {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [home, setHome] = useState(false);
   const { reload } = state;
 
-  /** Одна дія за раз; 404 — адмінки для цього акаунта вже немає, додому. Після будь-якої відповіді список перечитується. */
-  const run = async <T,>(send: () => Promise<ApiResult<T>>, done: (result: { ok: true } & T) => string | null) => {
+  /**
+   * Одна дія за раз; після будь-якої відповіді списки перечитуються. 404 дії — це кімната, що вже закрилась,
+   * чи вікторина, яку вже видалили: показуємо gone. Якщо ж адмінки для акаунта більше немає, 404 повторного
+   * читання списку бота (useAdminData) веде додому.
+   */
+  const run = async <T,>(send: () => Promise<ApiResult<T>>, gone: TextKey, done: (result: { ok: true } & T) => string | null) => {
     setBusy(true);
     setError(null);
     setNotice(null);
     const result = await send();
     setBusy(false);
-    if (!result.ok && result.error === 'not_found') {
-      setHome(true);
-      return;
-    }
     if (result.ok) setNotice(done(result));
-    else setError(errorText(result.error));
+    else setError(result.error === 'not_found' ? t(gone) : errorText(result.error));
     reload();
+    if (!result.ok && result.error === 'not_found') mine.reload();
   };
 
   const act = (room: AdminBotRoom, action: BotAction) => {
     if (action === 'end' && !window.confirm(t('adminBotEndConfirm', { code: room.code, title: room.title }))) return;
-    void run(() => botRoomAct(room.code, action), () => null);
+    void run(() => botRoomAct(room.code, action), 'err_game_not_found', () => null);
   };
-  const launch = (quiz: AdminBotQuiz) => void run(() => startBotGame(quiz.id), (result) => t('adminBotLaunched', { code: result.code }));
+  const launch = (quiz: AdminBotQuiz) => void run(() => startBotGame(quiz.id), 'err_quiz_not_found', (result) => t('adminBotLaunched', { code: result.code }));
   const remove = (quiz: AdminBotQuiz) => {
     if (!window.confirm(t('adminBotDeleteConfirm', { title: quiz.title }))) return;
-    void run(() => deleteBotQuiz(quiz.id), () => null);
+    void run(() => deleteBotQuiz(quiz.id), 'err_quiz_not_found', () => null);
   };
-  const copy = (quiz: QuizSummary) => void run(() => copyToBot(quiz.id), () => t('adminBotCopied', { title: quiz.title }));
+  const copy = (quiz: QuizSummary) => void run(() => copyToBot(quiz.id), 'err_quiz_not_found', () => t('adminBotCopied', { title: quiz.title }));
 
-  if (home || state.status === 'home') return <Navigate to="/" replace />;
+  if (state.status === 'home') return <Navigate to="/" replace />;
   return (
     <div className="admin-bot">
       {state.status === 'ready' && (
@@ -156,7 +156,7 @@ export function AdminBot(): JSX.Element {
                         </Link>
                       )}
                       {ROOM_ACTIONS[room.status].map(({ action, key }) => (
-                        <button key={action} type="button" className={action === 'end' ? 'btn btn-danger' : 'btn btn-primary'} disabled={busy} onClick={() => act(room, action)}>
+                        <button key={action} type="button" className={action === 'end' ? 'btn btn-danger' : action === 'start' ? 'btn btn-primary' : 'btn'} disabled={busy} onClick={() => act(room, action)}>
                           {t(key)}
                         </button>
                       ))}

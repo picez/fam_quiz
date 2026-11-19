@@ -4802,6 +4802,7 @@
   "adminBotMineEmpty": "Du hast noch keine Quizze.",
   "adminBotSize": "{rounds} · {questions}",
   "err_bot_rooms_full": "Der Bot hat schon drei Räume. Beende einen, um einen neuen zu starten.",
+  "err_bot_unavailable": "Das Bot-Konto ist nicht verfügbar: Seine E-Mail gehört einem anderen Nutzer.",
   "adminBotRounds_one": "{count} Runde",
   "adminBotRounds_other": "{count} Runden",
   "adminLog_bot_game_start": "{admin} hat ein Bot-Spiel „{title}“ gestartet (Code {code})",
