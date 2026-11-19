@@ -10,7 +10,7 @@ import { HostQuestPanel } from './QuestView';
 import { HostThinkAnswers, HostThinkWords, ThinkPlaces } from './ThinkView';
 import { AlikeGroups } from './AlikeView';
 import { OvershootRows } from './OvershootRows';
-import { HostTruthFacts, HostTruthFakes, TruthRecapFold, TruthRecapView, truthChoiceText } from './TruthView';
+import { HostTruthFacts, HostTruthFakes, TruthRecapFold, TruthRecapView, truthChoiceText, truthCorrected } from './TruthView';
 import { paceAttrs, usePace } from '../pace';
 import { useQuizTitle } from './MyPrize';
 import { ResultImageButton } from '../result-image/ResultImage';
@@ -533,7 +533,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
   const truthAuthorId = view.truth?.author?.id ?? view.truth?.reveal?.author.id ?? null;
   const truthActor = truthAuthorId === null ? null : view.teams === null ? truthAuthorId : (view.teams.teams.find((team) => team.members.some((member) => member.id === truthAuthorId))?.id ?? null);
   // Варіант «Вигадка» (52) у рядках відповідей — мовою інтерфейсу, за id.
-  const truthCorrect = correct?.type === 'single' && view.truth?.index != null ? { ...correct, options: correct.options.map((option) => ({ ...option, text: truthChoiceText(option) })) } : correct;
+  const truthCorrect = truthCorrected(correct, view.truth?.index != null);
   // Пульт фактів: у лобі, поки факти приймаються, і в самому раунді (сховати ще не відкритий).
   const truthFacts = view.truth !== undefined && phase !== 'finished' && (view.truth.open || (round?.type === 'truth' && phase !== 'round_end'));
   const teamStartable = view.teams === null || teamsStartable(view.teams);

@@ -197,6 +197,16 @@ describe('HostTruthFakes (52)', () => {
     expect(screen.queryByText(/Вигадок більше/)).toBeNull();
   });
 
+  it('no player facts yet — fakes will not play and the round is skipped, not «the first 0»', () => {
+    const facts = hostTruth().facts.map((fact) => ({ ...fact, hidden: true }));
+    const { rerender } = render(<HostTruthFakes truth={hostTruth({ facts, fakes: [fake({ inDeck: false })] })} send={vi.fn()} />);
+    expect(screen.getByRole('status').textContent).toBe('Фактів гравців ще немає: без них вигадки не зіграються, а раунд буде пропущено.');
+    rerender(<HostTruthFakes truth={hostTruth({ facts: [], fakes: [fake({ inDeck: false })] })} send={vi.fn()} />);
+    expect(screen.getByRole('status').textContent).toBe(t('truthFakesNoFacts'));
+    rerender(<HostTruthFakes truth={hostTruth({ facts: [], fakes: [] })} send={vi.fn()} />);
+    expect(screen.getByRole('status').textContent).toBe('');
+  });
+
   it("reports the server's refusal", async () => {
     const onError = vi.fn();
     render(<HostTruthFakes truth={hostTruth()} send={vi.fn<Send>(async () => ({ ok: false, error: 'truth_fakes_full' }))} onError={onError} />);
@@ -488,7 +498,9 @@ describe('the truth round recap', () => {
     const { container } = render(<TruthRecapView recap={withFake} mine={{ id: 'p2', own: (id) => id === 'p2' }} />);
     const cards = [...container.querySelectorAll('.truth-recap-card')];
     expect(cards[1]!.className).toBe('truth-recap-card is-fake');
-    expect(cards[1]!.querySelector('.truth-recap-author')?.textContent).toBe(t('truthFakeLabel'));
+    // Одне слово «Вигадка», як ім'я: не переноситься на сцені жодною мовою.
+    expect(cards[1]!.querySelector('.truth-recap-author')?.textContent).toBe(t('truthFakeOption'));
+    expect(cards[1]!.textContent).not.toContain(t('truthFakeLabel'));
     expect(cards[1]!.textContent).not.toContain('Автор:');
     expect(cards[1]!.textContent).toContain('Ваш вибір: Вигадка ✓');
     expect(screen.getByText('Ви вгадали 2 з 2')).toBeTruthy();

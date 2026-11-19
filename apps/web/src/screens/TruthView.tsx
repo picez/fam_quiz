@@ -1,5 +1,5 @@
 import { useId, useRef, useState } from 'react';
-import { LIMITS, TRUTH_FAKE_OPTION, truthText, type Answer, type HostTruth, type PlayerTruth, type PublicQuestion, type StageView, type TruthInfo, type TruthRecap } from '@quiz/shared';
+import { LIMITS, TRUTH_FAKE_OPTION, truthText, type Answer, type HostTruth, type PlayerTruth, type PublicQuestion, type Question, type StageView, type TruthInfo, type TruthRecap } from '@quiz/shared';
 import { questionClass, signed } from '../format';
 import { errorText, t } from '../i18n';
 import { Timer, timerStatus } from '../live/Timer';
@@ -143,6 +143,12 @@ export function truthChoiceText(choice: { id: string; text: string }): string {
   return choice.id === TRUTH_FAKE_OPTION ? t('truthFakeOption') : choice.text;
 }
 
+/** Правильна відповідь truth-питання (52) з «Вигадкою» мовою інтерфейсу (у стані — українською): для рядків відповідей ведучого й історії. Інші питання — як є. */
+export function truthCorrected<Q extends Question | null>(question: Q, truth: boolean): Q {
+  if (!truth || question === null || question.type !== 'single') return question;
+  return { ...question, options: question.options.map((option) => ({ ...option, text: truthChoiceText(option) })) };
+}
+
 /** Вибір у розкритті чи підсумку: «Вигадка» — за pickedId, решта — як прийшло. */
 const pickedText = (pick: { pickedId: string | null; picked: string | null }): string => (pick.pickedId === TRUTH_FAKE_OPTION ? t('truthFakeOption') : (pick.picked ?? ''));
 
@@ -176,6 +182,8 @@ export function HostTruthFakes({ truth, send, onError }: { truth: HostTruth; sen
   };
   const visible = truth.facts.filter((fact) => !fact.hidden).length;
   const over = truth.fakes.length > visible;
+  // Без жодного факту гравця раунд пропуститься — «лише перші 0» тут нічого не пояснює.
+  const warning = !over ? null : visible === 0 ? t('truthFakesNoFacts') : t('truthFakesOver', { count: visible });
   return (
     <section className="panel truth-host truth-fakes">
       <h2>
@@ -221,7 +229,7 @@ export function HostTruthFakes({ truth, send, onError }: { truth: HostTruth; sen
         </ul>
       )}
       <p className="meta truth-fakes-over" role="status">
-        {over ? t('truthFakesOver', { count: visible }) : null}
+        {warning}
       </p>
       <textarea
         id={id}
@@ -469,7 +477,7 @@ export function TruthRecapView({ recap, big = false, mine, title = true }: { rec
                 {fact.text}
               </p>
               <p className="truth-recap-author" dir="auto">
-                {fact.fake === true ? t('truthFakeLabel') : fact.author.nickname}
+                {fact.fake === true ? t('truthFakeOption') : fact.author.nickname}
               </p>
               <p className="meta truth-recap-right" dir="auto">
                 {right.length === 0

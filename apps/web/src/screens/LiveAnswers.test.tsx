@@ -2,7 +2,7 @@
 import { act, cleanup, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { DEBUFF_KINDS, type HostLive, type HostView, type LiveDraft, type LiveRow, type Question, type SortTilt } from '@quiz/shared';
-import { t } from '../i18n';
+import { activateLocaleForTests, t } from '../i18n';
 import { LiveAnswers } from './LiveAnswers';
 
 afterEach(cleanup);
@@ -719,5 +719,19 @@ describe('LiveAnswers: thinkalike and no overshoot (37)', () => {
     cleanup();
     show([row({ answered: true, answer: { type: 'thinkalike', value: 'яблуко' }, verdict: 'correct' })], base({ correct: alike, phase: 'reveal' }));
     expect(screen.getByText(t('liveVerdict_correct'))).toBeTruthy();
+  });
+});
+
+describe('LiveAnswers: truth «made up» in the interface language (52)', () => {
+  const truthQ = { id: 'q6', type: 'single', text: 'Хто це?', imageUrl: null, video: null, timeLimit: 30, points: 300, options: [{ id: 'p1', text: 'Олена' }, { id: 'fake', text: 'Вигадка' }], correctId: 'fake' } as unknown as Question;
+  afterEach(() => activateLocaleForTests('uk'));
+
+  it('a pick of «made up» reads by its id, not the stored uk text', () => {
+    activateLocaleForTests('en', { ui: { truthFakeOption: 'Made up' } });
+    const view = base({ correct: truthQ, phase: 'reveal', question: { choices: [{ id: 'p1', text: 'Олена' }, { id: 'fake', text: 'Вигадка' }] } as never, truth: { index: 0 } as never });
+    show([row({ answered: true, answer: { type: 'single', optionId: 'fake' }, verdict: 'correct' }), row({ id: 'p2', nickname: 'Тарас', answered: true, answer: { type: 'single', optionId: 'p1' }, verdict: 'wrong' })], view);
+    expect(screen.getByText('Made up')).toBeTruthy();
+    expect(screen.queryByText('Вигадка')).toBeNull();
+    expect(screen.getByText('Олена')).toBeTruthy();
   });
 });

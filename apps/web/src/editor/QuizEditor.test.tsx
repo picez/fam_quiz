@@ -3513,7 +3513,8 @@ describe('RoundSettings: truth preset fakes (52)', () => {
     const onChange = vi.fn();
     render(<RoundSettings round={base} index={1} onChange={onChange} open />);
     expect(screen.getByText(t('truthPresetLabel'))).toBeTruthy();
-    expect(screen.getByText(t('truthPresetHint'))).toBeTruthy();
+    expect(screen.getByText(t('truthPresetHint', { count: LIMITS.truthPresetFakes }))).toBeTruthy();
+    expect(t('truthPresetHint', { count: 3 })).toContain('3');
     fireEvent.click(screen.getByRole('button', { name: t('truthPresetAdd') }));
     expect(onChange).toHaveBeenCalledWith({ ...base, fakes: [''] });
   });
@@ -3523,6 +3524,11 @@ describe('RoundSettings: truth preset fakes (52)', () => {
     const round = { ...base, fakes: ['', 'Другий'] };
     render(<RoundSettings round={round} index={1} onChange={onChange} open />);
     expect(fakesField(1).getAttribute('maxLength')).toBe('200');
+    // Довгий факт видно повністю: двохрядкове поле, а не однорядковий input; група без рамки браузерного fieldset.
+    expect(fakesField(1).tagName).toBe('TEXTAREA');
+    expect(fakesField(1).getAttribute('rows')).toBe('2');
+    expect(fakesField(1).getAttribute('dir')).toBe('auto');
+    expect(fakesField(1).closest('fieldset')!.className).toBe('truth-presets');
     fireEvent.change(fakesField(1), { target: { value: 'Я тричі бачила північне сяйво' } });
     expect(onChange).toHaveBeenCalledWith({ ...base, fakes: ['Я тричі бачила північне сяйво', 'Другий'] });
     expect(screen.getByText(t('truthFactCount', { count: 6 }))).toBeTruthy();

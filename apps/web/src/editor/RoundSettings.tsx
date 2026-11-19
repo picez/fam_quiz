@@ -39,16 +39,16 @@ function TruthPresetFakes({ round, onChange }: { round: TruthRound; onChange: (n
     onChange(next.length === 0 ? rest : { ...rest, fakes: next });
   };
   return (
-    <fieldset className="field">
+    <fieldset className="truth-presets">
       <legend>{t('truthPresetLabel')}</legend>
-      <p className="meta">{t('truthPresetHint')}</p>
+      <p className="meta">{t('truthPresetHint', { count: LIMITS.truthPresetFakes })}</p>
       {fakes.map((fake, index) => {
         const id = `${baseId}-${index}`;
         const name = `${t('truthFakeOption')} ${index + 1}`;
         return (
           <div className="field compact" key={index}>
             <label htmlFor={id}>{name}</label>
-            <input id={id} type="text" maxLength={LIMITS.truthText} value={fake} onChange={(event) => write(fakes.map((f, i) => (i === index ? event.target.value : f)))} />
+            <textarea id={id} rows={2} dir="auto" maxLength={LIMITS.truthText} value={fake} onChange={(event) => write(fakes.map((f, i) => (i === index ? event.target.value : f)))} />
             <span className="meta">{t('truthFactCount', { count: fake.length })}</span>
             <button type="button" className="btn btn-small" aria-label={`${t('truthFakeRemove')}: ${name}`} onClick={() => write(fakes.filter((_, i) => i !== index))}>
               {t('truthFakeRemove')}

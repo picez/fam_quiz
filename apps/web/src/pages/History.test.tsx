@@ -6,7 +6,7 @@ import { forgetAccount } from '../useAccount';
 import type { GameDetail, GameSummary, Question } from '@quiz/shared';
 import { continueGame, deleteSavedGame, getGame, listGames, me } from '../api';
 import { loadAuthor, loadHost, loadLastGame, loadPlayer, saveAuthor, saveHost, saveLastGame } from '../storage';
-import { t } from '../i18n';
+import { activateLocaleForTests, t } from '../i18n';
 import { GameHistory } from './GameHistory';
 import { History } from './History';
 import { renderResultImage } from '../result-image/render';
@@ -293,6 +293,31 @@ describe('GameHistory', () => {
     expect(container.querySelectorAll('.responses li')).toHaveLength(1);
     expect(container.querySelector('.truth-history')?.textContent).toBe(t('truthFakeLabel'));
     expect(screen.queryByText(t('truthHistoryAuthorRow'))).toBeNull();
+    // Відповідь «Вигадка» — мовою інтерфейсу (у збереженому питанні текст варіанта український).
+    expect(container.querySelector('.responses-answer')?.textContent).toBe(t('truthFakeOption'));
+  });
+
+  it('a «made up» answer reads in the interface language, not the stored uk text (52)', async () => {
+    activateLocaleForTests('en', { ui: { truthFakeOption: 'Made up' } });
+    try {
+      const fake: Question = { ...singleQ, id: 'truth-0', text: 'Я вмію жонглювати', options: [{ id: 'p1', text: 'Олена' }, { id: 'fake', text: 'Вигадка' }], correctId: 'fake' };
+      const responses = [
+        { nickname: 'Тарас', answer: { type: 'single' as const, optionId: 'fake' }, accepted: true, buff: null, spare: null, awayMs: null, appeal: null },
+        { nickname: 'Хосе', answer: { type: 'single' as const, optionId: 'p1' }, accepted: false, buff: null, spare: null, awayMs: null, appeal: null },
+      ];
+      const fakeGame: GameDetail = {
+        ...detail,
+        rounds: [{ title: '', type: 'truth' }],
+        questions: [{ index: 0, roundIndex: 0, text: fake.text, type: 'single', answered: 2, accepted: 1, cell: null, question: fake, responses, final: null, bets: false, auction: false, truth: { author: '', points: 0, fake: true } }],
+      };
+      vi.mocked(getGame).mockResolvedValue({ ok: true, data: fakeGame });
+      const { container } = open('/history/g1');
+      await screen.findByText('Я вмію жонглювати');
+      const answers = [...container.querySelectorAll('.responses-answer')].map((node) => node.textContent);
+      expect(answers).toEqual(['Made up', 'Олена']);
+    } finally {
+      activateLocaleForTests('uk');
+    }
   });
 
   it('marks the details of a game a bot ran, beside the team mark', async () => {

@@ -9,6 +9,7 @@ import { compareText } from '../locales/grammar';
 import { PairList } from '../screens/MatchView';
 import { BuffBadge, SpareMark } from '../screens/Buffs';
 import { PinBoard, type PinBoardMark } from '../screens/PinBoard';
+import { truthCorrected } from '../screens/TruthView';
 import { WallReveal } from '../screens/WallReveal';
 import { PollBars } from '../screens/PollBars';
 import { BluffBoard } from '../screens/BluffBoard';
@@ -616,7 +617,7 @@ export function GameHistory() {
                                     <span className="responses-answer">
                                       {response.answer?.type === 'wordcloud' && response.spare === null
                                         ? cloudAnswerText(response.answer.words, question.cloudHidden)
-                                        : answerText(response.answer, response.spare ?? question.question)}
+                                        : answerText(response.answer, response.spare ?? truthCorrected(question.question, question.truth !== undefined))}
                                     </span>
                                   )}
                                   {/* Головоломки (28d): фінальна сітка компактно, ключове слово учасника й «Готово». */}

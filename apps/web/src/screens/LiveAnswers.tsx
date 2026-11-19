@@ -8,6 +8,7 @@ import { HelpButton } from '../help/HelpButton';
 import { draftMeta, draftText } from '../live-drafts';
 import { BuffBadge, SpareMark } from './Buffs';
 import { PinBoard } from './PinBoard';
+import { truthCorrected } from './TruthView';
 
 interface Props {
   view: HostView;
@@ -275,7 +276,7 @@ function Row({ row, view, tilts, drafts, now }: { row: LiveRow } & RowContext) {
       {row.buff !== null && <BuffBadge kind={row.buff} />}
       {row.spare !== null && <SpareMark spare={row.spare} />}
       {/* Поступ (ланцюжок, стіна) лишається поруч із чернеткою; без поступу чернетка стоїть замість «—». */}
-      {(draft === undefined || started(row)) && <span className="live-answer" dir="auto">{liveAnswerText(row, view.correct, choices, towardOf(row, view, tilts))}</span>}
+      {(draft === undefined || started(row)) && <span className="live-answer" dir="auto">{liveAnswerText(row, truthCorrected(view.correct, view.truth?.index != null), choices, towardOf(row, view, tilts))}</span>}
       {draft !== undefined && <DraftLine row={row} view={view} draft={draft} now={now} />}
       {row.clue !== null && <span className="meta">{t('clueAt', { n: row.clue })}</span>}
       {row.timeMs !== null && <span className="meta live-time">{t('blitzRowTime', { time: secondsText(row.timeMs) })}</span>}
