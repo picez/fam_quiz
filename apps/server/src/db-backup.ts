@@ -84,6 +84,12 @@ function backupsNewestFirst(objects: StoredObject[]): string[] {
     .reverse();
 }
 
+/** Найновіша копія (чужі ключі під префіксом ігноруються); null, коли копій немає. */
+export function latestBackup(objects: StoredObject[]): StoredObject | null {
+  const newest = backupsNewestFirst(objects)[0];
+  return objects.find((object) => object.key === newest) ?? null;
+}
+
 /** Чи пора знімати копію: копій немає або найновішій щонайменше тиждень. */
 export function isBackupDue(objects: StoredObject[], now: Date): boolean {
   const newest = backupsNewestFirst(objects)[0];

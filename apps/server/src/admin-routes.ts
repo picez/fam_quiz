@@ -1,8 +1,9 @@
-import { adminListQuerySchema, adminProfileActionSchema, adminQuizActionSchema, banSchema } from '@quiz/shared';
+import { ADMIN_CACHE_MS, adminListQuerySchema, adminProfileActionSchema, adminQuizActionSchema, banSchema, type AdminBackupInfo, type AdminHealth } from '@quiz/shared';
 import { eq } from 'drizzle-orm';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { CurrentUser } from './account-routes';
 import { isAdmin } from './admin';
+import { adminCharts } from './admin-charts';
 import { liveRooms } from './admin-live';
 import { adminLog, adminQuiz, adminQuizzes, adminStats, adminUser, adminUsers } from './admin-store';
 import { banUser, logAction, unbanUser } from './bans';
@@ -11,13 +12,19 @@ import { prize } from './db/schema';
 import { actOnProfile, actOnQuiz, reportQueue, reportedQuiz } from './report-store';
 import { deleteAward, deletePrize } from './prizes';
 import { deleteQuestionAsAdmin, deleteQuiz } from './quizzes';
+import { latestBackup, parseBackupKey } from './db-backup';
+import { reportError } from './log';
 import type { RoomManager } from './rooms/manager';
+import type { StoredObject } from './storage/r2-objects';
+import { ttlCache } from './ttl-cache';
 
 export interface AdminDeps {
   db: Db;
   manager: RoomManager;
   adminEmails: ReadonlySet<string>;
   currentUser: (request: FastifyRequest) => Promise<CurrentUser | null>;
+  /** Список копій бази (53); без нього блок «Стан» каже, що сховища немає. */
+  backupList?: () => Promise<StoredObject[]>;
   now?: () => Date;
 }
 
@@ -76,6 +83,35 @@ export async function registerAdminRoutes(app: FastifyInstance, deps: AdminDeps)
   });
   const read = limited('admin-read', 120);
   const write = limited('admin-write', 30);
+
+  // Графіки й список копій — раз на 10 хвилин на всіх адмінів (53).
+  const cacheClock = () => now().getTime();
+  const charts = ttlCache(() => adminCharts(db, now()), ADMIN_CACHE_MS, cacheClock);
+  const backups = ttlCache(async (): Promise<AdminBackupInfo> => {
+    if (deps.backupList === undefined) return { state: 'off' };
+    try {
+      const newest = latestBackup(await deps.backupList());
+      if (newest === null) return { state: 'none' };
+      return { state: 'ok', at: parseBackupKey(newest.key)!.at.toISOString(), bytes: newest.size };
+    } catch (error) {
+      reportError(error, { where: 'admin-health' });
+      return { state: 'error' };
+    }
+  }, ADMIN_CACHE_MS, cacheClock);
+
+  app.get('/api/admin/charts', read, async () => charts.get());
+
+  app.get('/api/admin/health', read, async (): Promise<AdminHealth> => {
+    const usage = process.memoryUsage();
+    return {
+      backup: await backups.get(),
+      uptimeSec: Math.floor(process.uptime()),
+      memory: { rss: usage.rss, heapUsed: usage.heapUsed },
+      rooms: manager.rooms().filter((room) => room.state.phase !== 'finished').length,
+      connections: manager.connectionCount(),
+      checkedAt: now().toISOString(),
+    };
+  });
 
   app.get('/api/admin/stats', read, async () => {
     const live = manager.rooms().filter((room) => room.state.phase !== 'finished').length;

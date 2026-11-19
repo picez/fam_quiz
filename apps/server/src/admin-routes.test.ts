@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { blitzRound, bool, classicRound, makeQuiz, makeRoundsQuiz, multi, numeric, order, single, text, withId } from '@quiz/engine/testing';
-import type { AdminList, AdminLiveList, AdminLogEntry, AdminReportItem, LibraryPage, AdminQuizView, AdminStats, AdminUserDetail, CalendarEvent, PrizeContent, PrizeItem, PrizePlacesInfo, Question } from '@quiz/shared';
+import type { AdminCharts, AdminHealth, AdminList, AdminLiveList, AdminLogEntry, AdminReportItem, LibraryPage, AdminQuizView, AdminStats, AdminUserDetail, CalendarEvent, PrizeContent, PrizeItem, PrizePlacesInfo, Question } from '@quiz/shared';
 import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import * as adminModule from './admin';
@@ -103,6 +103,8 @@ describe('hiding the admin panel (Review Focus 3)', () => {
     ['GET', '/api/admin/log?page=1'],
     ['GET', '/api/admin/live'],
     ['POST', '/api/admin/live/123456/close'],
+    ['GET', '/api/admin/charts'],
+    ['GET', '/api/admin/health'],
   ];
 
   it('answers anyone but an admin exactly like an unknown route', async () => {
@@ -504,6 +506,44 @@ describe('live games (39-A1)', () => {
       await other.app.close();
     }
     expect((await lastLog()).id).toBe(before.id);
+  });
+});
+
+describe('charts and health (39-A3)', () => {
+  it('gives 30 days and caches them for 10 minutes', async () => {
+    const first = (await call('GET', '/api/admin/charts', a.cookie)).json() as AdminCharts;
+    expect(first.days).toHaveLength(30);
+    expect(first.days.at(-1)!.day).toBe(new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Kyiv' }).format(new Date()));
+    await startGame(ctx.app, makeQuiz([single]), o.cookie);
+    const second = (await call('GET', '/api/admin/charts', a.cookie)).json() as AdminCharts;
+    expect(second).toEqual(first);
+    expect(JSON.stringify(first)).not.toContain('@');
+  });
+
+  it('shows the newest backup from the list, uptime, memory, rooms and connections', async () => {
+    const lastModified = new Date('2026-11-16T10:05:00Z');
+    const key = 'backups/db/2026-11-16T10-05-00Z-m0040.jsonl.gz';
+    const withList = await buildApp({ db, auth: TEST_AUTH, adminEmails: emails, backupList: async () => [{ key, size: 3_500_000, lastModified }] });
+    try {
+      const health = (await callOn(withList.app, 'GET', '/api/admin/health', a.cookie)).json() as AdminHealth;
+      expect(health.backup).toEqual({ state: 'ok', at: '2026-11-16T10:05:00.000Z', bytes: 3_500_000 });
+      expect(health.uptimeSec).toBeGreaterThanOrEqual(0);
+      expect(health.memory.rss).toBeGreaterThan(0);
+      expect(typeof health.rooms).toBe('number');
+      expect(typeof health.connections).toBe('number');
+    } finally {
+      await withList.app.close();
+    }
+    const off = (await call('GET', '/api/admin/health', a.cookie)).json() as AdminHealth;
+    expect(off.backup).toEqual({ state: 'off' });
+    const broken = await buildApp({ db, auth: TEST_AUTH, adminEmails: emails, backupList: async () => { throw new Error('r2 down'); } });
+    try {
+      const response = await callOn(broken.app, 'GET', '/api/admin/health', a.cookie);
+      expect(response.statusCode).toBe(200);
+      expect((response.json() as AdminHealth).backup).toEqual({ state: 'error' });
+    } finally {
+      await broken.app.close();
+    }
   });
 });
 
