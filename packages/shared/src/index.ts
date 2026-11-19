@@ -54,6 +54,7 @@ export * from './calendar';
 export * from './groups';
 export * from './push';
 export * from './admin';
+export * from './announcement';
 export * from './locale';
 export * from './lobby';
 export * from './jigsaw';
