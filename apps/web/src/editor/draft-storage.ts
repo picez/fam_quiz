@@ -634,7 +634,11 @@ export function loadDraft(id: string | undefined): Quiz | null {
           const { categories, ...rest } = round;
           return { ...rest, categories: categories.map(reviveCategory) };
         }
-        if (round.type === 'truth') return { ...round, points: round.points ?? LIMITS.defaultPoints, timeLimit: round.timeLimit ?? LIMITS.defaultTime };
+        if (round.type === 'truth') {
+          const { fakes, ...rest } = round;
+          const texts = Array.isArray(fakes) ? (fakes as unknown[]).filter((fake): fake is string => typeof fake === 'string') : [];
+          return { ...rest, points: round.points ?? LIMITS.defaultPoints, timeLimit: round.timeLimit ?? LIMITS.defaultTime, ...(texts.length === 0 ? {} : { fakes: texts }) };
+        }
         const questions = round.questions.map(revive);
         if (round.type === 'blitz' || round.type === 'wipeout' || round.type === 'ladder' || round.type === 'puzzles') return { ...round, questions };
         if (round.type === 'quest') return reviveQuest(round, questions);

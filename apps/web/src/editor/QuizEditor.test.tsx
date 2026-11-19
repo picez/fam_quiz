@@ -3,7 +3,7 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-li
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { LIMITS, quizSchema, roundQuestions, rulesOf, type BoardRound, type Question, type Quiz } from '@quiz/shared';
 import { t } from '../i18n';
-import { newBetsRound, newBlitzRound, newBoardRound, newClassicRound, newLadderRound, newQuestion, newQuiz, newSurvivalRound, newThinkRound } from './draft';
+import { newBetsRound, newBlitzRound, newBoardRound, newClassicRound, newLadderRound, newQuestion, newQuiz, newSurvivalRound, newThinkRound, newTruthRound } from './draft';
 import { RoundSettings } from './RoundSettings';
 import { QuizEditor } from './QuizEditor';
 import { getGroup, getGroupItems, getGroups } from '../api';
@@ -3502,5 +3502,42 @@ describe('QuizEditor: think round (35)', () => {
     const next = onChange.mock.calls.at(-1)![0];
     expect(next.type).toBe('think');
     expect('offtopicVote' in next).toBe(false);
+  });
+});
+
+describe('RoundSettings: truth preset fakes (52)', () => {
+  const base = newTruthRound();
+  const fakesField = (n: number) => screen.getByLabelText(`${t('truthFakeOption')} ${n}`);
+
+  it('shows the preset fakes block with an add button, and adding gives an empty line', () => {
+    const onChange = vi.fn();
+    render(<RoundSettings round={base} index={1} onChange={onChange} open />);
+    expect(screen.getByText(t('truthPresetLabel'))).toBeTruthy();
+    expect(screen.getByText(t('truthPresetHint'))).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: t('truthPresetAdd') }));
+    expect(onChange).toHaveBeenCalledWith({ ...base, fakes: [''] });
+  });
+
+  it('typing writes the text, the field is capped at 200 and counted', () => {
+    const onChange = vi.fn();
+    const round = { ...base, fakes: ['', 'Другий'] };
+    render(<RoundSettings round={round} index={1} onChange={onChange} open />);
+    expect(fakesField(1).getAttribute('maxLength')).toBe('200');
+    fireEvent.change(fakesField(1), { target: { value: 'Я тричі бачила північне сяйво' } });
+    expect(onChange).toHaveBeenCalledWith({ ...base, fakes: ['Я тричі бачила північне сяйво', 'Другий'] });
+    expect(screen.getByText(t('truthFactCount', { count: 6 }))).toBeTruthy();
+  });
+
+  it('the add button disappears at five fields', () => {
+    render(<RoundSettings round={{ ...base, fakes: ['а', 'б', 'в', 'г', 'ґ'] }} index={1} onChange={vi.fn()} open />);
+    expect(screen.queryByRole('button', { name: t('truthPresetAdd') })).toBeNull();
+    expect(screen.getAllByRole('button', { name: new RegExp(t('truthFakeRemove')) })).toHaveLength(5);
+  });
+
+  it('removing drops that line only', () => {
+    const onChange = vi.fn();
+    render(<RoundSettings round={{ ...base, fakes: ['а', 'б', 'в'] }} index={1} onChange={onChange} open />);
+    fireEvent.click(screen.getAllByRole('button', { name: new RegExp(t('truthFakeRemove')) })[1]!);
+    expect(onChange).toHaveBeenCalledWith({ ...base, fakes: ['а', 'в'] });
   });
 });

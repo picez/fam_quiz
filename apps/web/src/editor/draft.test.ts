@@ -3889,3 +3889,31 @@ describe('spy: common word and hint (50)', () => {
     expect(bare).not.toHaveProperty('spyWord');
   });
 });
+
+describe('truth preset fakes in the editor (52)', () => {
+  const withFakes = (fakes: unknown) => ({ ...newTruthRound(), fakes }) as unknown as Round;
+  const quizOf = (round: Round): Quiz => ({ ...newQuiz(), title: 'Т', rounds: [round] });
+
+  it('cleaned trims fakes and drops the empty ones, and the result passes the schema', () => {
+    const out = cleaned(quizOf(withFakes(['  Я вмію жонглювати ', '', '  '])));
+    expect(out.rounds[0]).toMatchObject({ type: 'truth', fakes: ['Я вмію жонглювати'] });
+    expect(quizSchema.safeParse(out).success).toBe(true);
+  });
+
+  it('cleaned leaves no fakes key when nothing is left', () => {
+    expect(cleaned(quizOf(withFakes(['']))).rounds[0]).not.toHaveProperty('fakes');
+    expect(newTruthRound()).not.toHaveProperty('fakes');
+  });
+
+  it('a draft keeps the fakes of a truth round', () => {
+    sessionStorage.setItem('quiz:draft:tf1', JSON.stringify(quizOf(withFakes(['Раз', 'Два']))));
+    expect(loadDraft('tf1')!.rounds[0]).toMatchObject({ type: 'truth', fakes: ['Раз', 'Два'] });
+  });
+
+  it('a draft with fakes that are not a list loses the key, and non-strings are dropped', () => {
+    sessionStorage.setItem('quiz:draft:tf2', JSON.stringify(quizOf(withFakes('текст'))));
+    expect(loadDraft('tf2')!.rounds[0]).not.toHaveProperty('fakes');
+    sessionStorage.setItem('quiz:draft:tf3', JSON.stringify(quizOf(withFakes(['Раз', 5, null, 'Два']))));
+    expect(loadDraft('tf3')!.rounds[0]).toMatchObject({ fakes: ['Раз', 'Два'] });
+  });
+});

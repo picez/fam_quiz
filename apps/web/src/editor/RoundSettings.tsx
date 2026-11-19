@@ -1,5 +1,5 @@
 import { useId, useState } from 'react';
-import { betsMinimums, LADDER_PICKS, LADDER_PRESETS, LIFELINES, LIMITS, SURVIVAL_TYPES, ladderPresetSafe, boardCells, cellAnswerMode, roundBrief, rulesOf, type BlitzRoundRules, type BuffKind, type Round, type RoundRules } from '@quiz/shared';
+import { betsMinimums, LADDER_PICKS, LADDER_PRESETS, LIFELINES, LIMITS, SURVIVAL_TYPES, ladderPresetSafe, boardCells, cellAnswerMode, roundBrief, rulesOf, type BlitzRoundRules, type BuffKind, type Round, type RoundRules, type TruthRound } from '@quiz/shared';
 import { ROUND_NAMES } from '../guide-text';
 import { HelpButton } from '../help/HelpButton';
 import { t } from '../i18n';
@@ -30,6 +30,41 @@ export const ROUND_DESCRIPTION_WARN = 500;
 const range = (from: number, to: number, step = 1) => Array.from({ length: (to - from) / step + 1 }, (_, i) => from + i * step);
 /** Порожнє поле дає NaN: перевірка перед збереженням попросить виправити. */
 const toNumber = (value: string) => (value.trim() === '' ? Number.NaN : Number(value));
+/** Заготовлені вигадки раунду «Правда про гравця» (52): до LIMITS.truthPresetFakes полів; порожні відкинуться під час збереження. */
+function TruthPresetFakes({ round, onChange }: { round: TruthRound; onChange: (next: Round) => void }) {
+  const baseId = useId();
+  const fakes = round.fakes ?? [];
+  const write = (next: string[]) => {
+    const { fakes: _old, ...rest } = round;
+    onChange(next.length === 0 ? rest : { ...rest, fakes: next });
+  };
+  return (
+    <fieldset className="field">
+      <legend>{t('truthPresetLabel')}</legend>
+      <p className="meta">{t('truthPresetHint')}</p>
+      {fakes.map((fake, index) => {
+        const id = `${baseId}-${index}`;
+        const name = `${t('truthFakeOption')} ${index + 1}`;
+        return (
+          <div className="field compact" key={index}>
+            <label htmlFor={id}>{name}</label>
+            <input id={id} type="text" maxLength={LIMITS.truthText} value={fake} onChange={(event) => write(fakes.map((f, i) => (i === index ? event.target.value : f)))} />
+            <span className="meta">{t('truthFactCount', { count: fake.length })}</span>
+            <button type="button" className="btn btn-small" aria-label={`${t('truthFakeRemove')}: ${name}`} onClick={() => write(fakes.filter((_, i) => i !== index))}>
+              {t('truthFakeRemove')}
+            </button>
+          </div>
+        );
+      })}
+      {fakes.length < LIMITS.truthPresetFakes && (
+        <button type="button" className="btn btn-small" onClick={() => write([...fakes, ''])}>
+          {t('truthPresetAdd')}
+        </button>
+      )}
+    </fieldset>
+  );
+}
+
 /** Крок серії бліцу за замовчуванням, коли її вмикають. */
 const DEFAULT_SERIES_STEP = 250;
 const WINDOWS = [5, 10, 15, 20, 30, 45, 60, 90, 120];
@@ -219,6 +254,7 @@ export function RoundSettings({ round, index, total = 0, onChange, open, onToggl
               onChange={(event) => onChange({ ...round, timeLimit: toNumber(event.target.value) })}
             />
           </label>
+          <TruthPresetFakes round={round} onChange={onChange} />
         </>
       )}
       {round.type === 'board' && (
