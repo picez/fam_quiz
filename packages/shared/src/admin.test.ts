@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ADMIN_ACTION_KINDS, adminListQuerySchema, adminPages, banSchema } from './admin';
+import { ADMIN_ACTION_KINDS, adminBotCopySchema, adminListQuerySchema, adminPages, banSchema } from './admin';
 
 describe('adminListQuerySchema', () => {
   it('defaults and coerces', () => {
@@ -35,5 +35,14 @@ describe('adminPages', () => {
 });
 
 it('ADMIN_ACTION_KINDS', () => {
-  expect([...ADMIN_ACTION_KINDS]).toEqual(['ban', 'unban', 'quiz_delete', 'question_delete', 'prize_delete', 'award_delete', 'library_hide', 'library_restore', 'report_dismiss', 'appeal_reject', 'nickname_reset', 'avatar_reset', 'game_close', 'announcement_set', 'announcement_clear']);
+  expect([...ADMIN_ACTION_KINDS]).toEqual(['ban', 'unban', 'quiz_delete', 'question_delete', 'prize_delete', 'award_delete', 'library_hide', 'library_restore', 'report_dismiss', 'appeal_reject', 'nickname_reset', 'avatar_reset', 'game_close', 'announcement_set', 'announcement_clear', 'bot_game_start', 'bot_copy', 'bot_quiz_delete']);
+});
+
+describe('adminBotCopySchema', () => {
+  it('takes a quiz uuid and nothing else', () => {
+    const quizId = '3f2b8c1e-5d4a-4e6f-9a7b-1c2d3e4f5a6b';
+    expect(adminBotCopySchema.parse({ quizId })).toEqual({ quizId });
+    expect(() => adminBotCopySchema.parse({ quizId: 'abc' })).toThrow();
+    expect(() => adminBotCopySchema.parse({ quizId, extra: 1 })).toThrow();
+  });
 });

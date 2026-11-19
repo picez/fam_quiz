@@ -12,7 +12,7 @@ export const ADMIN_LIVE_REFRESH_MS = 10_000;
 export const ADMIN_CHART_DAYS = 30;
 /** 53: скільки живуть у кеші графіки й список резервних копій. */
 export const ADMIN_CACHE_MS = 600_000;
-export const ADMIN_ACTION_KINDS = ['ban', 'unban', 'quiz_delete', 'question_delete', 'prize_delete', 'award_delete', 'library_hide', 'library_restore', 'report_dismiss', 'appeal_reject', 'nickname_reset', 'avatar_reset', 'game_close', 'announcement_set', 'announcement_clear'] as const;
+export const ADMIN_ACTION_KINDS = ['ban', 'unban', 'quiz_delete', 'question_delete', 'prize_delete', 'award_delete', 'library_hide', 'library_restore', 'report_dismiss', 'appeal_reject', 'nickname_reset', 'avatar_reset', 'game_close', 'announcement_set', 'announcement_clear', 'bot_game_start', 'bot_copy', 'bot_quiz_delete'] as const;
 export type AdminActionKind = (typeof ADMIN_ACTION_KINDS)[number];
 export type RemovalEffect = 'question' | 'category' | 'round' | 'last_question' | 'not_found' | 'locked';
 
@@ -59,6 +59,10 @@ export interface AdminChartDay { day: string; players: number; games: number; fi
 export interface AdminCharts { days: AdminChartDay[]; computedAt: string }
 export type AdminBackupInfo = { state: 'ok'; at: string; bytes: number } | { state: 'none' | 'off' | 'error' };
 export interface AdminHealth { backup: AdminBackupInfo; uptimeSec: number; memory: { rss: number; heapUsed: number }; rooms: number; connections: number; checkedAt: string }
+export interface AdminBotQuiz { id: string; title: string; rounds: number; questions: number; truth: boolean; updatedAt: string }
+export type AdminBotStatus = 'lobby' | 'playing' | 'paused' | 'finished';
+export interface AdminBotRoom { code: string; title: string; status: AdminBotStatus; players: { online: number; total: number }; stageUrl: string; openedAt: string }
+export interface AdminBot { bot: { nickname: string | null; ready: boolean }; quizzes: AdminBotQuiz[]; rooms: AdminBotRoom[]; roomsMax: number }
 export interface AdminLogEntry { id: string; at: string; admin: string; kind: AdminActionKind; target: string; details: AdminLogDetails }
 
 export const adminListQuerySchema = z
@@ -78,6 +82,8 @@ export const banSchema = z
       .transform((r) => (r ? r : null)),
   })
   .strict();
+
+export const adminBotCopySchema = z.object({ quizId: z.string().uuid() }).strict();
 
 export function adminPages(total: number): number {
   return pageCount(total, ADMIN_PAGE_SIZE);
