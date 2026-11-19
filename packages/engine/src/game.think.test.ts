@@ -5,7 +5,7 @@ import { shopBlock } from './debuffs';
 import { lock, next, override, recordOf, start, submitAnswer, tick, type GameState } from './game';
 import { hostLive } from './live';
 import { perkBlock } from './perks';
-import { setThinkWords, thinkPlayOf, thinkVerdicts } from './think';
+import { setThinkWords, thinkPlayOf, thinkVerdicts, voteThinkOff } from './think';
 import { classicRound, makeRoundsQuiz, single, think, thinkRound } from './testing/fixtures';
 import { lobbyWith, must } from './testing/helpers';
 
@@ -96,7 +96,12 @@ describe('think round flow (35)', () => {
   it('in autopilot everyone answering closes it', () => {
     const s = answerAll(opened(true), { p1: 'жовтий', p2: 'зелений', p3: 'блакитний' });
     expect(s.phase).toBe('question');
-    expect(answerAll(s, { p4: 'фіолетовий' }).phase).toBe('locked');
+    // 51: усі відповіли — етап голосування «не на тему»; усі натиснули «Готово» — закрито.
+    const voting = answerAll(s, { p4: 'фіолетовий' });
+    expect(voting.phase).toBe('question');
+    expect(play(voting).think?.vote?.voters).toEqual(['p1', 'p2', 'p3', 'p4']);
+    const done = ['p1', 'p2', 'p3', 'p4'].reduce((out, id) => must(voteThinkOff(out, id, [], at(out, 1000))), voting);
+    expect(done.phase).toBe('locked');
   });
 
   it('the host edits words only while the timer runs, once after it if empty', () => {

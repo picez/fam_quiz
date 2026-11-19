@@ -89,10 +89,10 @@ describe('think views (35)', () => {
     const host = hostView(asked).think;
     expect(host?.draft).toEqual([red, blue]);
     expect(host?.answers).toEqual([
-      { id: 'p1', nickname: 'Олена', answer: 'Червона', hit: true, overridden: false },
-      { id: 'p2', nickname: 'Тарас', answer: null, hit: null, overridden: false },
-      { id: 'p3', nickname: 'Віра', answer: null, hit: null, overridden: false },
-      { id: 'p4', nickname: 'Хосе', answer: 'Зелений', hit: false, overridden: false },
+      { id: 'p1', nickname: 'Олена', answer: 'Червона', hit: true, overridden: false, off: null },
+      { id: 'p2', nickname: 'Тарас', answer: null, hit: null, overridden: false, off: null },
+      { id: 'p3', nickname: 'Віра', answer: null, hit: null, overridden: false, off: null },
+      { id: 'p4', nickname: 'Хосе', answer: 'Зелений', hit: false, overridden: false, off: null },
     ]);
     expect(host?.editable).toBe(true);
     expect(host?.canReveal).toBe(false);
@@ -110,7 +110,7 @@ describe('think views (35)', () => {
     const asked = answer(opened(intro()), { p1: 'Червона' });
     const think = stageView(asked).think;
     expect(think).toMatchObject({ lives: 3, points: 10_000, index: 0, total: 5, words: null, places: null });
-    expect(think?.rows[0]).toEqual({ id: 'p1', nickname: 'Олена', lives: 3, out: false, answered: true, answer: null, verdict: null, lost: false, overridden: false, matched: null });
+    expect(think?.rows[0]).toEqual({ id: 'p1', nickname: 'Олена', lives: 3, out: false, answered: true, answer: null, verdict: null, lost: false, overridden: false, matched: null, off: null });
     expect(think?.rows[1]).toMatchObject({ nickname: 'Тарас', answered: false, answer: null });
   });
 
@@ -134,7 +134,7 @@ describe('think views (35)', () => {
     const marked = must(override(shown, 'p1', 'correct'));
     expect(stageView(marked).think?.rows.find((r) => r.id === 'p1')).toMatchObject({ verdict: 'safe', lost: false, lives: 3, overridden: true, matched: null });
     expect(playerView(marked, 'p2')?.think?.rows.find((r) => r.id === 'p1')?.overridden).toBe(true);
-    expect(playerView(shown, 'p2')?.me.think).toEqual({ lives: 3, status: 'alive', verdict: 'safe', place: null });
+    expect(playerView(shown, 'p2')?.me.think).toEqual({ lives: 3, status: 'alive', verdict: 'safe', off: null, vote: null, place: null });
     expect(playerView(shown, 'p1')?.me.think?.verdict).toBe('hit');
     // Наступне запитання: знову без слів і відповідей.
     const second = onward(shown);
@@ -181,7 +181,7 @@ describe('think views (35)', () => {
       ['t2', 2, false],
     ]);
     // Товариш по команді бачить життя команди, але не слова ведучого; чужа команда — без відповіді.
-    expect(playerView(s, 'm2')?.me.think).toEqual({ lives: 2, status: 'alive', verdict: null, place: null });
+    expect(playerView(s, 'm2')?.me.think).toEqual({ lives: 2, status: 'alive', verdict: null, off: null, vote: null, place: null });
     for (const id of ['m2', 'm3', 'm4']) expect(JSON.stringify(playerView(s, id))).not.toContain('багряний');
     for (const id of ['m3', 'm4']) expect(JSON.stringify(playerView(s, id))).not.toContain('червоний');
     const shown = revealOf(s);

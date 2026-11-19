@@ -1,11 +1,42 @@
-import { LIMITS, thinkKey, thinkStem, thinkWordsIssue, type Answer, type Question, type ThinkPlaceRow, type ThinkRound, type ThinkVerdict, type ThinkWord } from '@quiz/shared';
+import {
+  familyExtraMs,
+  familyOn,
+  LIMITS,
+  thinkKey,
+  thinkOfftopicVoteOn,
+  thinkStem,
+  thinkWordsIssue,
+  type Answer,
+  type Question,
+  type ThinkOff,
+  type ThinkPlaceRow,
+  type ThinkRound,
+  type ThinkVerdict,
+  type ThinkWord,
+} from '@quiz/shared';
 import { addAdjustment } from './adjust';
 // game.ts викликає цей файл, а цей файл — game.ts; обидва звертаються одне до одного лише під час виклику.
-import { autoLock, currentRound, fail, ok, recordOf, withCurrentPlay, withRecord, type AnswerRecord, type GameState, type Play, type Result, type ThinkPlay } from './game';
+import {
+  autoLock,
+  currentRound,
+  fail,
+  lockNow,
+  ok,
+  recordOf,
+  withCurrentPlay,
+  withRecord,
+  withTotals,
+  type AnswerRecord,
+  type GameState,
+  type Play,
+  type Result,
+  type ThinkPlay,
+  type ThinkVote,
+} from './game';
 import { typoDistance } from './check';
 import { presentPlayers } from './present';
 import { teamMembers, teamsOn } from './teams';
-import { timeOverFor } from './timing';
+import { closesAt, timeOverFor } from './timing';
 
 // «Думай інакше» (35): життя, вибування й місця виводяться з журналу (Play.think кожного запитання раунду), без полів GameState.
 
@@ -147,7 +178,7 @@ export function setThinkWords(state: GameState, words: ThinkWord[]): Result {
   return ok(withThinkGrades(withCurrentPlay(state, { ...rest, think: { ...think, words: cleaned } })));
 }
 
-/** Відповідь гравця: think_spectator / think_out / already_answered / time_over / type_mismatch / think_word. */
+/** Відповідь гравця: think_spectator / think_out / already_answered / time_over (і на етапі голосування «не на тему», 51) / type_mismatch / think_word. */
 export function submitThinkAnswer(state: GameState, playerId: string, answer: Answer, now: number): Result {
   const play = thinkPlayOf(state);
   if (play === null) return fail('wrong_phase');
@@ -155,7 +186,8 @@ export function submitThinkAnswer(state: GameState, playerId: string, answer: An
   if (lives === undefined || watching(play.think, playerId)) return fail('think_spectator');
   if (lives === 0) return fail('think_out');
   if (recordOf(state, state.questionIndex, playerId) !== undefined) return fail('already_answered');
-  if (state.startedAt === null || timeOverFor(state, play, playerId, now)) return fail('time_over');
+  // Етап голосування (51): новий endsAt не відкриває відповідей.
+  if (state.startedAt === null || play.think.vote !== undefined || timeOverFor(state, play, playerId, now)) return fail('time_over');
   if (answer.type !== 'think') return fail('type_mismatch');
   const value = answer.value.replace(/\s+/g, ' ').trim();
   if (value === '' || value.length > LIMITS.thinkWord || thinkKey(value) === '') return fail('think_word');
@@ -221,15 +253,172 @@ export function withThinkGrades(state: GameState): GameState {
   return changed ? { ...state, plays } : state;
 }
 
-/** Життя учасника після запитання index (розкрите — мінус втрата за збіг чи мовчання; ні — як на відкритті); не учасник — null. */
+/**
+ * Життя учасника після запитання index (розкрите — мінус втрата за збіг, мовчання чи відповідь не на тему (51), щонайбільше 1 за запитання;
+ * ні — як на відкритті); не учасник — null.
+ */
 export function thinkLivesAfter(state: GameState, index: number, actorId: string): number | null {
   const think = state.plays[index]?.think;
   if (think === undefined || !Object.hasOwn(think.lives, actorId)) return null;
   const lives = think.lives[actorId];
   if (!think.revealed || lives === 0 || watching(think, actorId)) return lives;
   const record = recordOf(state, index, actorId);
-  const lost = record === undefined || recordVerdict(think, record) === 'hit';
+  const lost = record === undefined || recordVerdict(think, record) === 'hit' || Object.hasOwn(thinkOffOf(state, index), actorId);
   return lost ? lives - 1 : lives;
+}
+
+/** Відповідь у бюлетені (51): ключ thinkKey, текст першого автора за state.players і всі автори цього ключа. */
+export interface ThinkBallotEntry {
+  key: string;
+  text: string;
+  authors: string[];
+}
+
+/**
+ * Бюлетень запитання index (51): непорожні відповіді учасників з lives > 0 і не watch, згруповані за thinkKey;
+ * text — відповідь першого автора за state.players; порядок — за ключем (localeCompare 'uk'), не за гравцями чи часом.
+ */
+export function thinkBallot(state: GameState, index: number): ThinkBallotEntry[] {
+  const play = thinkPlayOf(state, index);
+  if (play === null) return [];
+  const groups = new Map<string, ThinkBallotEntry>();
+  for (const { id } of state.players) {
+    if (!Object.hasOwn(play.think.lives, id) || play.think.lives[id] === 0 || watching(play.think, id)) continue;
+    const record = recordOf(state, index, id);
+    const value = record?.answer?.type === 'think' ? record.answer.value : '';
+    const key = thinkKey(value);
+    if (key === '') continue;
+    const group = groups.get(key);
+    if (group === undefined) groups.set(key, { key, text: value, authors: [id] });
+    else group.authors.push(id);
+  }
+  return [...groups.values()].sort((a, b) => a.key.localeCompare(b.key, 'uk'));
+}
+
+/** Хто голосує за ключ (51): голосувальники, ще в грі, крім авторів цього ключа. */
+function eligibleFor(state: GameState, voters: readonly string[], entry: ThinkBallotEntry): string[] {
+  return voters.filter((id) => !entry.authors.includes(id) && state.players.some((p) => p.id === id));
+}
+
+/** Ключ не на тему за голосуванням (51): позначок від тих, хто має право, строго більше за половину; нічия й 0 права — на тему. */
+function votedOff(state: GameState, vote: ThinkVote, entry: ThinkBallotEntry): boolean {
+  const eligible = eligibleFor(state, vote.voters, entry);
+  const marks = eligible.filter((id) => Object.hasOwn(vote.marks, id) && vote.marks[id].includes(entry.key)).length;
+  return eligible.length > 0 && marks > eligible.length / 2;
+}
+
+/**
+ * Відповіді не на тему запитання index (51), у порядку state.players: позначка ведучого (off) — 'host' (має перевагу), більшість голосування — 'vote'.
+ * Лише непорожні відповіді учасників, ще в грі; поза think — {}.
+ */
+export function thinkOffOf(state: GameState, index: number): Record<string, ThinkOff> {
+  const play = thinkPlayOf(state, index);
+  if (play === null) return {};
+  const host = play.think.off ?? [];
+  const { vote } = play.think;
+  const found = new Map<string, ThinkOff>();
+  for (const entry of thinkBallot(state, index)) {
+    const byVote = vote !== undefined && votedOff(state, vote, entry);
+    for (const id of entry.authors) {
+      if (host.includes(id)) found.set(id, 'host');
+      else if (byVote) found.set(id, 'vote');
+    }
+  }
+  const off: Record<string, ThinkOff> = {};
+  for (const { id } of state.players) {
+    const source = found.get(id);
+    if (source !== undefined) off[id] = source;
+  }
+  return off;
+}
+
+/**
+ * Чи відкривається етап голосування «не на тему» (51): автопілот, раунд з offtopicVote, етапу ще не було, живих присутніх ≥ LIMITS.minThinkVoters
+ * і в бюлетені є ключ, за який хтось із них може голосувати. З ведучим — ніколи.
+ */
+export function thinkVoteDue(state: GameState): boolean {
+  if (state.autopilot === undefined) return false;
+  const round = thinkRoundOf(state);
+  const play = thinkPlayOf(state);
+  if (round === null || play === null || !thinkOfftopicVoteOn(round) || play.think.vote !== undefined) return false;
+  const present = thinkPresent(state) ?? [];
+  if (present.length < LIMITS.minThinkVoters) return false;
+  return thinkBallot(state, state.questionIndex).some((entry) => eligibleFor(state, present, entry).length > 0);
+}
+
+/**
+ * Етап голосування (51): голосувальники — живі присутні (thinkPresent), таймер LIMITS.thinkVoteTime від now (посеред заставки — після неї;
+ * на паузі — remainingMs). Додатковий час гравців запитання не переходить; сімейна надбавка — у extraMs, як у withStage «Шпигуна».
+ * Етап уже був чи не think — той самий стан.
+ */
+export function startThinkVote(state: GameState, now: number): GameState {
+  const play = thinkPlayOf(state);
+  if (play === null || play.think.vote !== undefined) return state;
+  const ms = LIMITS.thinkVoteTime * 1000;
+  const { overtime: _overtime, ...kept } = play;
+  const extra = familyOn(state.quiz) ? familyExtraMs(ms) : 0;
+  const staged = withCurrentPlay(state, { ...kept, extraMs: extra, think: { ...play.think, vote: { voters: thinkPresent(state) ?? [], marks: {} } } });
+  if (state.paused) return { ...staged, remainingMs: ms + extra, startedAt: null, endsAt: null };
+  const from = Math.max(now, state.startedAt ?? now);
+  return { ...staged, startedAt: from, endsAt: from + ms + extra, remainingMs: null };
+}
+
+/**
+ * autoLock і tick запитання think в автопілоті (51; строго «>», як у timeOver). Без етапу голосування: час сплив або всі живі присутні відповіли →
+ * голосування (thinkVoteDue і відомий now) чи lockNow. На етапі: час сплив, або кожен присутній голосувальник натиснув «Готово», або їх немає → lockNow.
+ */
+export function thinkAuto(state: GameState, now: number | null): GameState {
+  if (state.phase !== 'question' || state.paused || state.autopilot === undefined) return state;
+  const play = thinkPlayOf(state);
+  if (play === null) return state;
+  const closes = closesAt(state);
+  const expired = now !== null && closes !== null && state.heldAt === null && now > closes;
+  const present = thinkPresent(state) ?? [];
+  const { vote } = play.think;
+  if (vote === undefined) {
+    const everyone = present.length > 0 && present.every((id) => recordOf(state, state.questionIndex, id) !== undefined);
+    if (!expired && !everyone) return state;
+    return now !== null && thinkVoteDue(state) ? startThinkVote(state, now) : lockNow(state);
+  }
+  const done = vote.voters.filter((id) => present.includes(id)).every((id) => Object.hasOwn(vote.marks, id));
+  return expired || done ? lockNow(state) : state;
+}
+
+/**
+ * Позначки «не на тему» голосувальника (51): не етап голосування — wrong_phase; не з voters (вибулий, глядач, автор автопілота) — think_spectator;
+ * ключ не з бюлетеня або власний — not_found. Дублікати зводяться, нове надсилання замінює попереднє; кожен присутній натиснув — закриття.
+ */
+export function voteThinkOff(state: GameState, actorId: string, keys: string[], now: number): Result {
+  const play = thinkPlayOf(state);
+  const vote = play?.think.vote;
+  if (state.phase !== 'question' || play === null || vote === undefined) return fail('wrong_phase');
+  if (!vote.voters.includes(actorId) || !state.players.some((p) => p.id === actorId)) return fail('think_spectator');
+  const ballot = thinkBallot(state, state.questionIndex);
+  const marked = [...new Set(keys)];
+  for (const key of marked) {
+    const entry = ballot.find((e) => e.key === key);
+    if (entry === undefined || entry.authors.includes(actorId)) return fail('not_found');
+  }
+  const voted = withCurrentPlay(state, { ...play, think: { ...play.think, vote: { ...vote, marks: { ...vote.marks, [actorId]: marked } } } });
+  return ok(thinkAuto(voted, now));
+}
+
+/**
+ * Ведучий позначає чи знімає «не на тему» (51): лише reveal поточного запитання think (wrong_phase), не автопілот (not_allowed),
+ * учасник з непорожньою відповіддю (not_found). Нічого не змінилося — той самий стан.
+ */
+export function markThinkOff(state: GameState, actorId: string, off: boolean): Result {
+  const play = thinkPlayOf(state);
+  if (play === null || state.phase !== 'reveal') return fail('wrong_phase');
+  if (state.autopilot !== undefined) return fail('not_allowed');
+  const { lives } = play.think;
+  if (!Object.hasOwn(lives, actorId) || lives[actorId] === 0 || watching(play.think, actorId)) return fail('not_found');
+  if (recordOf(state, state.questionIndex, actorId) === undefined) return fail('not_found');
+  const current = play.think.off ?? [];
+  if (current.includes(actorId) === off) return ok(state);
+  const list = state.players.map((p) => p.id).filter((id) => (id === actorId ? off : current.includes(id)));
+  const { off: _off, ...think } = play.think;
+  return ok(withTotals(withCurrentPlay(state, { ...play, think: list.length === 0 ? think : { ...think, off: list } })));
 }
 
 /** Живі зараз у поточному раунді think (у порядку state.players): за останнім запитанням раунду; поза раундом — []. */

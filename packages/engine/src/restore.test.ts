@@ -79,6 +79,7 @@ import {
   type WordleProgress,
   type TruthFact,
   type ThinkPlay,
+  type ThinkVote,
   type TruthPlay,
   type TruthState,
   type DrawingPlay,
@@ -178,7 +179,7 @@ import { moreLessPick } from './moreless';
 import { drawGuess, drawStroke } from './drawing';
 import { puzzleFill, puzzleFinish } from './puzzles';
 import { hideTruth, submitTruth } from './truth';
-import { setThinkWords, thinkVerdicts } from './think';
+import { markThinkOff, setThinkWords, thinkLivesAfter, thinkOffOf, thinkVerdicts, voteThinkOff } from './think';
 import { ladderWord } from './wordladder';
 import { wordleGuess } from './wordle';
 import { pickDoor } from './survival';
@@ -429,7 +430,8 @@ const STATE_SHAPE: Record<string, string> = {
   TruthState: keysOf<TruthState>()(['facts', 'deck'], true),
   TruthFact: keysOf<TruthFact>()(['text', 'hidden', 'at', 'revised'], true),
   TruthPlay: keysOf<TruthPlay>()(['authorId', 'actorId', 'guessers', 'right'], true),
-  ThinkPlay: keysOf<ThinkPlay>()(['words', 'lives', 'revealed', 'watch'], true),
+  ThinkPlay: keysOf<ThinkPlay>()(['words', 'lives', 'revealed', 'watch', 'off', 'vote'], true),
+  ThinkVote: keysOf<ThinkVote>()(['voters', 'marks'], true),
   AlikePlay: keysOf<AlikePlay>()(['labels'], true),
   SpyPlay: keysOf<SpyPlay>()(['stage', 'spyId', 'spyName', 'words', 'votes', 'guess'], true),
   SpyWord: keysOf<SpyPlay['words'][string]>()(['text', 'at'], true),
@@ -1303,7 +1305,8 @@ const KEYS: Record<number, Record<string, string>> = {
     TruthState: 'deck,facts',
     TruthFact: 'at,hidden,revised,text',
     TruthPlay: 'actorId,authorId,guessers,right',
-    ThinkPlay: 'lives,revealed,watch,words',
+    ThinkPlay: 'lives,off,revealed,vote,watch,words',
+    ThinkVote: 'marks,voters',
     AlikePlay: 'labels',
     SpyPlay: 'guess,spyId,spyName,stage,votes,words',
     SpyWord: 'at,text',
@@ -1675,6 +1678,8 @@ function representative(): GameState[] {
     hintPerked(),
     ...questing(),
     thinkAsked(),
+    thinkVoting(),
+    thinkMarked(),
     alikeSplitOut(),
     spyGuessed(),
     wordling(),
@@ -1737,6 +1742,43 @@ function thinkAsked(): GameState {
   const worded = must(setThinkWords(open, [{ word: 'червоний', synonyms: ['багряний'] }]));
   const red = must(submitAnswer(worded, 'p1', { type: 'think', value: 'Червона' }, T0 + 1000));
   return must(submitAnswer(red, 'p2', { type: 'think', value: 'синій' }, T0 + 1200));
+}
+
+/** 51: «Думай інакше» на 4 запитання з «червоний», 2 життя, далі класика. */
+function offtopicQuiz() {
+  const red = [{ word: 'червоний', synonyms: [] }];
+  return makeRoundsQuiz([thinkRound('r1', [think('t1', red), think('t2', red), think('t3', red)], { lives: 2 }), classicRound('r2', [single])], { leaderboard: 'end' });
+}
+
+/** 51: автопілот (автор Марта — глядач; Оля, Петро, Віра, Ігор): троє написали, Ігор мовчить; етапу голосування ще немає. */
+function thinkPilotAsked(): GameState {
+  const intro = must(start(lobbyWith(offtopicQuiz(), 'Марта', 'Оля', 'Петро', 'Віра', 'Ігор')));
+  let s = must(next({ ...intro, autopilot: { authorId: 'p1', at: null } }, T0));
+  s = must(submitAnswer(s, 'p2', { type: 'think', value: 'синій' }, T0 + 1000));
+  s = must(submitAnswer(s, 'p3', { type: 'think', value: 'банан' }, T0 + 1000));
+  return must(submitAnswer(s, 'p4', { type: 'think', value: 'зелений' }, T0 + 1000));
+}
+
+/** 51: те саме після таймера — етап голосування (Play.think.vote), Оля позначила «банан». */
+function thinkVoting(): GameState {
+  const asked = thinkPilotAsked();
+  const voting = tick(asked, (asked.endsAt ?? 0) + 1);
+  return must(voteThinkOff(voting, 'p2', ['банан'], (voting.startedAt ?? 0) + 1000));
+}
+
+/** 51: з ведучим (Оля, Петро, Віра) — розкриття, ведучий позначив «банан» Петра не на тему (Play.think.off). */
+function thinkMarked(): GameState {
+  let s = must(next(must(start(lobbyWith(offtopicQuiz(), 'Оля', 'Петро', 'Віра'))), T0));
+  s = must(submitAnswer(s, 'p1', { type: 'think', value: 'синій' }, T0 + 1000));
+  s = must(submitAnswer(s, 'p2', { type: 'think', value: 'банан' }, T0 + 1000));
+  s = must(next(tick(s, (s.endsAt ?? 0) + 1), T0 + 40_000));
+  return must(markThinkOff(s, 'p2', true));
+}
+
+/** Після перезапуску: усі повертаються, ведучий продовжує о at. */
+function backAt(s: GameState, at: number): GameState {
+  const connected = s.players.reduce((out, p) => must(setConnected(out, p.id, true, at)), s);
+  return must(resume(connected, at));
 }
 
 /** 28c: «Малюнок» (Оля, Петро, Іра) — Оля намалювала штрих, Петро вгадав. */
@@ -2569,6 +2611,7 @@ describe('the saved state', () => {
       add('TruthFact', Object.values(s.truth?.facts ?? {}));
       add('TruthPlay', s.plays.map((p) => p.truth));
       add('ThinkPlay', s.plays.map((p) => p.think));
+      add('ThinkVote', s.plays.map((p) => p.think?.vote));
       add('AlikePlay', s.plays.map((p) => p.alike));
       add('SpyPlay', s.plays.map((p) => p.spy));
       add('SpyWord', s.plays.flatMap((p) => [...Object.values(p.spy?.words ?? {}), p.spy?.guess]));
@@ -2752,5 +2795,43 @@ describe('48 snapshots', () => {
     expect(playerView(resumed, 'p1')?.me.wordle?.rows.map((r) => r.letters.join(''))).toEqual(['сосна', 'посол']);
     const done = must(wordleGuess(resumed, 'p1', 'колос', T0 + 9000 + HOUR, () => false));
     expect(done.plays[0].answers.p1).toMatchObject({ answer: { guesses: ['сосна', 'посол', 'колос'], tries: 3, solved: true }, points: 667 });
+  });
+});
+
+describe('51 snapshots', () => {
+  it('an old think snapshot without vote or off restores', () => {
+    expect(GAME_STATE_VERSION).toBe(22);
+    // запитання автопілота до плану 51: vote немає — після перезапуску таймер відкриває голосування
+    const asked = thinkPilotAsked();
+    expect(asked.plays[0].think?.vote).toBeUndefined();
+    const back = backAt(roundTrip(suspend(roundTrip(asked), T0 + 2000)), T0 + 2000 + HOUR);
+    expect(back.phase).toBe('question');
+    const voting = tick(back, (back.endsAt ?? 0) + 1);
+    expect(voting.phase).toBe('question');
+    expect(voting.plays[0].think?.vote).toEqual({ voters: ['p2', 'p3', 'p4', 'p5'], marks: {} });
+    // розкриття без off: ті самі життя, позначок немає, ведучий і далі може позначити
+    let shown = must(next(must(start(lobbyWith(offtopicQuiz(), 'Оля', 'Петро', 'Віра'))), T0));
+    shown = must(submitAnswer(shown, 'p2', { type: 'think', value: 'банан' }, T0 + 1000));
+    shown = must(next(tick(shown, (shown.endsAt ?? 0) + 1), T0 + 40_000));
+    const again = roundTrip(suspend(roundTrip(shown), T0 + 41_000));
+    expect(again.plays[0].think?.off).toBeUndefined();
+    expect(thinkOffOf(again, 0)).toEqual({});
+    expect(['p1', 'p2', 'p3'].map((id) => thinkLivesAfter(again, 0, id))).toEqual([1, 2, 1]);
+    expect(thinkLivesAfter(must(markThinkOff(again, 'p2', true)), 0, 'p2')).toBe(1);
+    // знімок на етапі голосування: відповідей не приймає й закривається за таймером
+    const stage = thinkVoting();
+    const resumed = backAt(roundTrip(suspend(roundTrip(stage), (stage.startedAt ?? 0) + 2000)), T0 + 2 * HOUR);
+    expect(resumed.plays[0].think?.vote).toEqual({ voters: ['p2', 'p3', 'p4', 'p5'], marks: { p2: ['банан'] } });
+    expect(submitAnswer(resumed, 'p5', { type: 'think', value: 'жовтий' }, T0 + 2 * HOUR + 1000)).toEqual({ ok: false, error: 'time_over' });
+    expect(tick(resumed, (resumed.endsAt ?? 0) + 1).phase).toBe('locked');
+  });
+
+  it('a restored reveal keeps the host off-topic mark and the lives', () => {
+    expect(GAME_STATE_VERSION).toBe(22);
+    const marked = thinkMarked();
+    const back = roundTrip(suspend(roundTrip(marked), T0 + 41_000));
+    expect(back.plays[0].think?.off).toEqual(['p2']);
+    expect(thinkOffOf(back, 0)).toEqual({ p2: 'host' });
+    expect(['p1', 'p2', 'p3'].map((id) => thinkLivesAfter(back, 0, id))).toEqual([2, 1, 1]);
   });
 });

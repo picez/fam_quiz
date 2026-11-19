@@ -3097,7 +3097,7 @@ function thinkInfo(state: GameState): ThinkInfo | undefined {
   const rows = state.players.flatMap((p): ThinkRow[] => {
     if (last === undefined) {
       if (thinkWatches(state, p.id)) return [];
-      return [{ id: p.id, nickname: p.nickname, lives: round.lives, out: false, answered: false, answer: null, verdict: null, lost: false, overridden: false, matched: null }];
+      return [{ id: p.id, nickname: p.nickname, lives: round.lives, out: false, answered: false, answer: null, verdict: null, lost: false, overridden: false, matched: null, off: null }];
     }
     const opened = state.plays[last].think?.lives;
     if (opened === undefined || !Object.hasOwn(opened, p.id)) return [];
@@ -3119,6 +3119,8 @@ function thinkInfo(state: GameState): ThinkInfo | undefined {
         overridden: verdict !== null && recordOf(state, last, p.id)?.overridden === true,
         // Збіг програми: з яким словом ведучого (індекс у words); ручний збіг і порожня відповідь — null.
         matched: verdict === 'hit' && play !== null && recordOf(state, last, p.id)?.overridden !== true ? thinkHit(play.think.words, thinkText(state, last, p.id)) : null,
+        // 51: позначки «не на тему» в зрізах — окремою задачею плану.
+        off: null,
       },
     ];
   });
@@ -3133,6 +3135,7 @@ function thinkInfo(state: GameState): ThinkInfo | undefined {
     rows,
     words: shown && play !== null ? play.think.words : null,
     places: ended ? thinkPlaces(state).map((row) => ({ ...row, nickname: nickname(row.id) })) : null,
+    vote: null,
   };
 }
 
@@ -3155,6 +3158,7 @@ function hostThink(state: GameState): HostThink | undefined {
         answer: record === undefined ? null : thinkText(state, state.questionIndex, p.id),
         hit: record === undefined ? null : verdicts[p.id] === 'hit',
         overridden: record?.overridden ?? false,
+        off: null,
       },
     ];
   });
@@ -3177,6 +3181,8 @@ function playerThink(state: GameState, actorId: string): PlayerThink | undefined
     lives: row?.lives ?? 0,
     status: row === undefined ? 'spectator' : row.out ? 'out' : 'alive',
     verdict: row?.verdict ?? null,
+    off: null,
+    vote: null,
     place: place === undefined ? null : { place: place.place, points: place.points },
   };
 }
