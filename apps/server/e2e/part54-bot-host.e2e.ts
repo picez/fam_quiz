@@ -110,7 +110,8 @@ async function bot54(sockets: Socket[]) {
   const rooms = admin.locator('section[aria-labelledby="admin-bot-rooms"]');
   const botQuizzes = admin.locator('section[aria-labelledby="admin-bot-quizzes"]');
   const copySection = admin.locator('section[aria-labelledby="admin-bot-copy"]');
-  const noticeText = async () => (await admin.getByRole('status').first().textContent().catch(() => '')) ?? '';
+  // Рядки стану перевірки (57) стоять у кожній картці вікторини бота: беремо саме повідомлення про кімнату.
+  const noticeText = async () => (await admin.getByRole('status').filter({ hasText: /Кімнату \d{6} створено\./ }).first().textContent({ timeout: 2_000 }).catch(() => '')) ?? '';
 
   // ── 1. «Передати боту копію» → вікторина у «Вікторини бота»; без email і без бокового скролу. ──
   await admin.goto(`${base}/admin/bot`);

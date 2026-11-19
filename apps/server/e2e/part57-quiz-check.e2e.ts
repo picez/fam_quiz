@@ -201,8 +201,8 @@ async function check57() {
   await admin.getByRole('button', { name: 'Перевірити вікторину', ...exact }).click();
   await admin.getByRole('heading', { name: 'Помилки', ...exact }).waitFor();
   const panel = admin.locator('.admin-check');
-  await panel.getByText(`Файл ${MISSING} не знайдено у сховищі`, { exact: false }).waitFor();
-  await panel.getByText(`Відео ${DEAD} не існує`, { exact: false }).waitFor();
+  await panel.getByText(`Файл \u2068${MISSING}\u2069 не знайдено у сховищі`, { exact: false }).waitFor();
+  await panel.getByText(`Відео \u2068${DEAD}\u2069 не існує`, { exact: false }).waitFor();
   expect(await panel.getByRole('button', { name: 'До запитання', ...exact }).count()).toBe(2);
   expect(await panel.getByRole('heading', { name: 'Попередження', ...exact }).count(), 'a warning group with no warnings').toBe(0);
   expect(calls.some((url) => url.includes('/oembed')), 'oEmbed was asked').toBe(true);
@@ -233,18 +233,25 @@ async function check57() {
     messages.push(dialog.message());
     void (answer ? dialog.accept() : dialog.dismiss());
   });
+  // Запити запуску рахуємо самі: «Скасувати» не шле жодного — без сну перед перевіркою.
+  const launches: string[] = [];
+  admin.on('request', (request) => {
+    if (request.method() === 'POST' && /^\/api\/admin\/bot\/quizzes\/[^/]+\/games$/.test(new URL(request.url()).pathname)) launches.push(request.url());
+  });
   const rooms = admin.locator('section[aria-labelledby="admin-bot-rooms"]');
   const launch = botQuizzes.locator('li', { hasText: TITLE }).getByRole('button', { name: 'Запустити гру', ...exact });
   await launch.click();
   await expect.poll(() => messages.length).toBe(1);
   expect(messages[0]).toBe(`Остання перевірка знайшла у «${TITLE}» помилок: 2. Однаково запустити гру?`);
-  await admin.waitForTimeout(500);
+  expect(launches, 'a launch request after «Скасувати»').toEqual([]);
   expect(await rooms.locator('li.admin-card').count(), 'a room after «Скасувати»').toBe(0);
   expect(await admin.getByRole('status').filter({ hasText: /Кімнату \d{6} створено\./ }).count()).toBe(0);
   answer = true;
   await launch.click();
   await admin.getByRole('status').filter({ hasText: /Кімнату \d{6} створено\./ }).waitFor();
   expect(messages.length).toBe(2);
+  // Рівно один запуск — від «Так»: «Скасувати» не прислав запиту й пізніше.
+  expect(launches).toHaveLength(1);
   await rooms.locator('li.admin-card').first().waitFor();
 
   // ── 5. Журнал: перегляд вікторини бота — рядок, і лише один (перегляд відкрито двічі в одному контексті — повтор за хвилину не пишеться). ──
