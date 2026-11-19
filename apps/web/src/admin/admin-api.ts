@@ -1,3 +1,4 @@
+import type { AdminBot, BotAction } from '@quiz/shared';
 import type { Announcement, AnnouncementInput, AdminCharts, AdminHealth, AdminLiveList, AdminList, AdminReportItem, AdminLogEntry, AdminQuizRow, AdminQuizView, AdminStats, AdminUserDetail, AdminUserRow } from '@quiz/shared';
 import { fetchData, request, type ApiData, type ApiResult } from '../api';
 
@@ -34,3 +35,12 @@ export const adminAnnouncement = (): Promise<ApiData<{ announcement: Announcemen
 export const saveAnnouncement = (input: AnnouncementInput): Promise<ApiData<Announcement>> =>
   fetchData<Announcement>('/api/admin/announcement', { method: 'PUT', body: input });
 export const clearAnnouncement = (): Promise<ApiResult<object>> => request<object>('/api/admin/announcement', { method: 'DELETE' });
+/** «Бот» (54): його вікторини й кімнати. */
+export const adminBot = (): Promise<ApiData<AdminBot>> => fetchData<AdminBot>('/api/admin/bot');
+export const startBotGame = (quizId: string): Promise<ApiResult<{ code: string; stageUrl: string }>> =>
+  request<{ code: string; stageUrl: string }>(`/api/admin/bot/quizzes/${id(quizId)}/games`, { method: 'POST' });
+/** Копія своєї вікторини адміна — боту; оригінал не змінюється. */
+export const copyToBot = (quizId: string): Promise<ApiResult<{ id: string }>> => request<{ id: string }>('/api/admin/bot/copies', { method: 'POST', body: { quizId } });
+export const deleteBotQuiz = (quizId: string): Promise<ApiResult<object>> => request<object>(`/api/admin/bot/quizzes/${id(quizId)}`, { method: 'DELETE' });
+export const botRoomAct = (code: string, action: BotAction): Promise<ApiResult<object>> =>
+  request<object>(`/api/admin/bot/rooms/${id(code)}/${action}`, { method: 'POST' });

@@ -13,7 +13,7 @@ import {
   type ReportTarget,
 } from '@quiz/shared';
 import { and, eq, inArray, or, sql } from 'drizzle-orm';
-import { isBanned, logAction } from './bans';
+import { isHidden, logAction } from './bans';
 import type { Db } from './db/client';
 import { isUniqueViolation } from './db/unique';
 import { libraryEntry, profile, user, userReport } from './db/schema';
@@ -42,7 +42,7 @@ export async function fileReport(
       if (target.kind === 'profile') {
         if (target.userId === reporterId) return 'cannot_report_self';
         const [exists] = await tx.select({ id: user.id }).from(user).where(eq(user.id, target.userId));
-        if (exists === undefined || (await isBanned(tx, target.userId))) return 'not_found';
+        if (exists === undefined || (await isHidden(tx, target.userId))) return 'not_found';
         await tx.insert(userReport).values({ reporterId, targetKind: 'profile', targetUserId: target.userId, reason, text, createdAt: now });
         return 'ok';
       }

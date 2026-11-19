@@ -13,7 +13,7 @@ import { hostGame, hostGames, playerHistory, resumeOptions } from './history';
 import { openGameIds, savedSummaries } from './saved-games';
 import { profileEasy, profileLocale, touchSeen } from './profiles';
 import { isAdmin } from './admin';
-import { banNotice, isBanned } from './bans';
+import { banNotice, isHidden } from './bans';
 import type { RoomManager } from './rooms/manager';
 import type { Located } from './rooms/store';
 
@@ -60,8 +60,8 @@ export async function registerAccountRoutes(
     try {
       const found = await auth.api.getSession({ headers: fromNodeHeaders(request.headers) });
       if (found === null) return null;
-      // Сесія могла пережити бан (вхід у ту саму мить, кеш cookie): бан перевіряється на кожному читанні.
-      if (await isBanned(deps.db, found.user.id)) return null;
+      // Сесія могла пережити бан (вхід у ту саму мить, кеш cookie): бан перевіряється на кожному читанні. «Квіз-бот» (54) не входить ніколи.
+      if (await isHidden(deps.db, found.user.id)) return null;
       return { id: found.user.id, name: found.user.name, email: found.user.email };
     } catch {
       return null;

@@ -17411,6 +17411,71 @@ button.wall-tile:disabled {
   margin-top: 0.35rem;
 }
 
+/* 54: вкладка «Бот» — шапка з аватаром, картки кімнат і вікторин; на 360 px кнопки переносяться під текст. */
+.admin-bot {
+  display: grid;
+  gap: 1rem;
+  min-width: 0;
+}
+
+.admin-bot section {
+  display: grid;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.admin-bot h2,
+.admin-bot .admin-card h3,
+.admin-bot section > p {
+  margin: 0;
+}
+
+.admin-bot .admin-card h3 {
+  font-size: 1.1rem;
+  overflow-wrap: anywhere;
+}
+
+.admin-bot-head {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.admin-bot-head > div {
+  min-width: 0;
+}
+
+.admin-bot-head p {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.admin-bot-head .avatar {
+  flex: none;
+}
+
+.admin-bot-name {
+  font-size: 1.2rem;
+  font-weight: 800;
+}
+
+.admin-bot-code {
+  color: var(--dim);
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+}
+
+.admin-bot .admin-actions {
+  margin-top: 0.35rem;
+}
+
+.admin-bot .admin-actions .btn {
+  max-width: 100%;
+  white-space: normal;
+  text-align: center;
+}
+
 /* 53: стовпчики за 30 днів у «Статистиці»; кольори — лише змінні теми. */
 .admin-charts,
 .admin-health {

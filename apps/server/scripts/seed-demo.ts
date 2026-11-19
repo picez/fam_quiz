@@ -1,6 +1,7 @@
 /**
- * Додає демо-вікторину користувачу за email або оновлює вже наявну вікторину за її id.
+ * Додає демо-вікторину користувачу за email (чи «Квіз-боту» за --bot) або оновлює вже наявну вікторину за її id.
  * Запуск: DATABASE_URL=... pnpm --filter @quiz/server seed:demo you@example.com [demo|party|party-media|movies|erudite|school|mosaic|compass|horizon|teams|showcase|grand|family|family2|evening|classroom|movies90|logic|world|fun|halloween|mix|quick|mix2|mega|fest|detective|think|video|alike|spy|school3|wordle|big1|big2|big3|filmbluff]
+ * Бот: DATABASE_URL=... pnpm --filter @quiz/server seed:demo --bot <seedName> — створює акаунт бота, якщо його ще нема, і дає йому вікторину.
  * Оновлення: DATABASE_URL=... pnpm --filter @quiz/server seed:demo --update <quizId> <seedName>
  * — замінює назву, опис, налаштування й раунди рядка новим вмістом сіда (як збереження в редакторі,
  * з новим updatedAt); власник лишається той самий, вікторина зберігає своє посилання й історію ігор.
@@ -13,7 +14,7 @@
  * big3 потребує SITE_URL: «Знайди відмінності» — картина Аверкампа з Wikimedia Commons (BIG3_PHOTOS) і її змінена копія scripts/big3/img (BIG3_FILES).
  */
 import { join } from 'node:path';
-import { quizSchema, type Quiz } from '@quiz/shared';
+import { BOT_USER_ID, quizSchema, type Quiz } from '@quiz/shared';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { eq } from 'drizzle-orm';
 import pg from 'pg';
@@ -22,7 +23,9 @@ import * as schema from '../src/db/schema';
 import { quiz, user } from '../src/db/schema';
 import { compassQuiz } from './compass-quiz';
 import { horizonQuiz } from './horizon-quiz';
+import { ensureBotAccount } from '../src/bot-account';
 import { createQuiz, updateQuiz } from '../src/quizzes';
+import { parseSeedArgs } from './seed-args';
 import { demoQuiz } from './demo-quiz';
 import { partyQuiz } from './party-quiz';
 import { movieQuiz } from './movie-quiz';
@@ -144,7 +147,6 @@ const uploadImages = (
 const SEEDS = ['demo', 'party', 'party-media', 'movies', 'erudite', 'school', 'mosaic', 'compass', 'horizon', 'teams', 'showcase', 'grand', 'family', 'family2', 'evening', 'classroom', 'movies90', 'logic', 'world', 'fun', 'halloween', 'mix', 'quick', 'mix2', 'mega', 'fest', 'detective', 'think', 'video', 'alike', 'spy', 'school3', 'wordle', 'big1', 'big2', 'big3', 'filmbluff'] as const;
 type SeedName = (typeof SEEDS)[number];
 const isSeed = (arg: string | undefined): arg is SeedName => (SEEDS as readonly string[]).includes(arg ?? '');
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** Вміст сіда name; для party-media і showcase картинки завантажуються на site. */
 async function seedQuiz(name: SeedName, db: Db, site: string | undefined): Promise<Quiz> {
@@ -312,19 +314,15 @@ async function seedQuiz(name: SeedName, db: Db, site: string | undefined): Promi
 
 const USAGE = [
   'Usage: DATABASE_URL=... [SITE_URL=...] seed-demo <email> [' + SEEDS.join('|') + ']',
+  '       DATABASE_URL=... [SITE_URL=...] seed-demo --bot <' + SEEDS.join('|') + '>',
   '       DATABASE_URL=... [SITE_URL=...] seed-demo --update <quizId> <' + SEEDS.join('|') + '>',
 ].join('\n');
 
-// pnpm може передати й сам роздільник «--».
-const args = process.argv.slice(2).filter((arg) => arg !== '--');
-const updating = args[0] === '--update';
-const quizId = updating ? args[1] : undefined;
-const email = updating ? undefined : args.find((arg) => arg.includes('@'));
-const name: SeedName | undefined = updating ? (isSeed(args[2]) ? args[2] : undefined) : (args.find(isSeed) ?? 'demo');
+const parsed = parseSeedArgs(process.argv.slice(2), SEEDS);
+const name = parsed !== null && isSeed(parsed.seed) ? parsed.seed : undefined;
 const url = process.env.DATABASE_URL;
 const site = process.env.SITE_URL?.replace(/\/$/, '');
-const valid = updating ? quizId !== undefined && UUID.test(quizId) && name !== undefined : email !== undefined;
-if (!valid || !url || !name || (name === 'party-media' && !site)) {
+if (!parsed || !url || !name || (name === 'party-media' && !site)) {
   console.error(USAGE);
   process.exit(1);
 }
@@ -332,20 +330,25 @@ if (!valid || !url || !name || (name === 'party-media' && !site)) {
 const pool = new pg.Pool({ connectionString: url, ssl: url.includes('render.com') ? { rejectUnauthorized: false } : undefined });
 const db = drizzle(pool, { schema }) as unknown as Db;
 try {
-  if (quizId !== undefined) {
-    // Власника не перевіряємо: скрипт запускає адміністратор. Беремо його з рядка, щоб скористатися тим самим updateQuiz, що й редактор.
-    const [row] = await db.select({ ownerId: quiz.ownerId }).from(quiz).where(eq(quiz.id, quizId));
-    if (!row) throw new Error(`No quiz with id ${quizId}`);
+  if (parsed.mode === 'update') {
+    // Власника не перевіряємо: скрипт запускає адміністратор. Беремо його з рядка (і для вікторини бота теж), щоб скористатися тим самим updateQuiz, що й редактор.
+    const [row] = await db.select({ ownerId: quiz.ownerId }).from(quiz).where(eq(quiz.id, parsed.quizId));
+    if (!row) throw new Error(`No quiz with id ${parsed.quizId}`);
     const data = quizSchema.parse(await seedQuiz(name, db, site));
-    if (!(await updateQuiz(db, row.ownerId, quizId, data))) throw new Error(`Quiz ${quizId} was not updated`);
-    console.log(`Updated quiz ${quizId} from the ${name} seed: «${data.title}»`);
+    if (!(await updateQuiz(db, row.ownerId, parsed.quizId, data))) throw new Error(`Quiz ${parsed.quizId} was not updated`);
+    console.log(`Updated quiz ${parsed.quizId} from the ${name} seed: «${data.title}»`);
+  } else if (parsed.mode === 'bot') {
+    if (!(await ensureBotAccount(db))) throw new Error('The bot email belongs to another user: no bot account');
+    const data = quizSchema.parse(await seedQuiz(name, db, site));
+    const id = await createQuiz(db, BOT_USER_ID, data);
+    console.log(`Created quiz ${id} for the bot`);
   } else {
-    const [owner] = await db.select({ id: user.id }).from(user).where(eq(user.email, email!));
-    if (!owner) throw new Error(`No user with email ${email}`);
+    const [owner] = await db.select({ id: user.id }).from(user).where(eq(user.email, parsed.email));
+    if (!owner) throw new Error(`No user with email ${parsed.email}`);
     const data = quizSchema.parse(await seedQuiz(name, db, site));
     // createQuiz, а не прямий insert: дуелі зберігаються в settings, окремої колонки немає.
     const id = await createQuiz(db, owner.id, data);
-    console.log(`Created quiz ${id} for ${email}`);
+    console.log(`Created quiz ${id} for ${parsed.email}`);
   }
 } finally {
   await pool.end();

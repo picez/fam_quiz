@@ -1,4 +1,5 @@
 import {
+  BOT_USER_ID,
   ONLINE_MS,
   adminPages,
   ADMIN_PAGE_SIZE,
@@ -6,6 +7,7 @@ import {
   hasTruthRound,
   pageOffset,
   questionsOf,
+  type AdminBotQuiz,
   type AdminList,
   type AdminLogEntry,
   type AdminQuizRow,
@@ -14,7 +16,7 @@ import {
   type AdminUserDetail,
   type AdminUserRow,
 } from '@quiz/shared';
-import { and, desc, eq, inArray, gt, sql, type SQL } from 'drizzle-orm';
+import { and, desc, eq, inArray, gt, ne, sql, type SQL } from 'drizzle-orm';
 import { isAdminEmail } from './admin';
 import { escapeLike } from './library-store';
 import type { Db } from './db/client';
@@ -48,10 +50,11 @@ export async function adminStats(db: Db, liveRooms: number, now: Date): Promise<
     sql<number>`(select count(*)::int from ${game} where ${game.status} = 'finished' and ${game.finishedAt} >= ${from})`;
   const [row] = await db
     .select({
-      total: sql<number>`(select count(*)::int from ${user})`,
-      new7: sql<number>`(select count(*)::int from ${user} where ${user.createdAt} >= ${since(7)})`,
-      new30: sql<number>`(select count(*)::int from ${user} where ${user.createdAt} >= ${since(30)})`,
-      online: sql<number>`(select count(*)::int from ${profile} where ${profile.lastSeenAt} >= ${iso(new Date(now.getTime() - ONLINE_MS))})`,
+      // «Квіз-бот» (54) — не людина: у лічильниках його немає.
+      total: sql<number>`(select count(*)::int from ${user} where ${user.id} <> ${BOT_USER_ID})`,
+      new7: sql<number>`(select count(*)::int from ${user} where ${user.id} <> ${BOT_USER_ID} and ${user.createdAt} >= ${since(7)})`,
+      new30: sql<number>`(select count(*)::int from ${user} where ${user.id} <> ${BOT_USER_ID} and ${user.createdAt} >= ${since(30)})`,
+      online: sql<number>`(select count(*)::int from ${profile} where ${profile.userId} <> ${BOT_USER_ID} and ${profile.lastSeenAt} >= ${iso(new Date(now.getTime() - ONLINE_MS))})`,
       today: finishedSince(iso(kyivMidnight(now))),
       days7: finishedSince(since(7)),
       days30: finishedSince(since(30)),
@@ -95,7 +98,7 @@ async function userRows(db: Db, emails: ReadonlySet<string>, where: SQL | undefi
     .from(user)
     .leftJoin(profile, eq(profile.userId, user.id))
     .leftJoin(userBan, eq(userBan.userId, user.id))
-    .where(where)
+    .where(and(ne(user.id, BOT_USER_ID), where))
     .orderBy(desc(user.createdAt), user.id)
     .limit(limit)
     .offset(offset);
@@ -123,7 +126,7 @@ export async function adminUsers(db: Db, emails: ReadonlySet<string>, query: { q
     .select({ n: sql<number>`count(*)::int` })
     .from(user)
     .leftJoin(profile, eq(profile.userId, user.id))
-    .where(where);
+    .where(and(ne(user.id, BOT_USER_ID), where));
   const total = num(n);
   const rows = await userRows(db, emails, where, ADMIN_PAGE_SIZE, pageOffset(query.page, ADMIN_PAGE_SIZE));
   return { rows, total, page: query.page, pages: adminPages(total) };
@@ -145,6 +148,19 @@ export async function adminUser(db: Db, emails: ReadonlySet<string>, id: string,
     awards: awards.map((a) => ({ id: a.id, place: a.place, content: a.content, quizTitle: a.quizTitle, awardedAt: iso(a.awardedAt) })),
     title: title ? { text: title.text, until: iso(title.expiresAt) } : null,
   };
+}
+
+/** Вікторини бота для вкладки «Бот» (54): нові першими. */
+export async function botQuizzes(db: Db): Promise<AdminBotQuiz[]> {
+  const rows = await db.select().from(quiz).where(eq(quiz.ownerId, BOT_USER_ID)).orderBy(desc(quiz.updatedAt), quiz.id);
+  return rows.map((row) => ({
+    id: row.id,
+    title: row.title,
+    rounds: row.rounds.length,
+    questions: questionsOf(row).length,
+    truth: hasTruthRound(row),
+    updatedAt: iso(row.updatedAt),
+  }));
 }
 
 export async function adminQuizzes(db: Db, query: { q?: string; page: number }): Promise<AdminList<AdminQuizRow>> {

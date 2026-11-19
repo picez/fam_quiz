@@ -1,4 +1,5 @@
 import { drizzleAdapter } from '@better-auth/drizzle-adapter';
+import { isBotDomainEmail, isBotUser } from '@quiz/shared';
 import { betterAuth } from 'better-auth';
 import { APIError } from 'better-auth/api';
 import { banNotice, isBanned } from './bans';
@@ -35,9 +36,20 @@ export function createAuth(db: Db, options: AuthOptions) {
     // Будь-який вхід (пароль, Google) створює сесію: забаненому її не дає цей хук. Google-помилку Better Auth
     // перетворює на свій редирект, тож прапорець banNotice каже проксі переписати його на /login?error=account_banned.
     databaseHooks: {
+      user: {
+        create: {
+          // Домен бота (54) зарезервований: ні пароль, ні Google не створять людину з адресою @quiz.invalid.
+          // Сам бот створюється в обхід Better Auth (ensureBotAccount), тож хук його не зачіпає.
+          before: async (created) => {
+            if (isBotDomainEmail(created.email)) throw new APIError('BAD_REQUEST', { code: 'EMAIL_RESERVED', message: 'EMAIL_RESERVED' });
+          },
+        },
+      },
       session: {
         create: {
           before: async (session) => {
+            // «Квіз-бот» (54) не входить жодним шляхом, навіть якби в нього з'явився рядок account.
+            if (isBotUser(session.userId)) throw new APIError('FORBIDDEN', { code: 'BOT_ACCOUNT', message: 'BOT_ACCOUNT' });
             if (await isBanned(db, session.userId)) {
               const notice = banNotice.getStore();
               if (notice) notice.banned = true;

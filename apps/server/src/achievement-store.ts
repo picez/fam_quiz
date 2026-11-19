@@ -13,6 +13,7 @@ import {
   type AchievementsPage,
   type ProfileStats,
   type QuestionType,
+  isBotUser,
 } from '@quiz/shared';
 import { and, count, eq, gt, gte, inArray, isNotNull, isNull, ne, notExists, sql } from 'drizzle-orm';
 import { loadAchievementGames, type AchievementGame } from './achievement-games';
@@ -429,7 +430,7 @@ export async function awardGame(
   const [roles] = await db.select({ hostId: game.hostId, ownerId: quiz.ownerId }).from(game).leftJoin(quiz, eq(quiz.id, game.quizId)).where(eq(game.id, gameId));
   const users = new Set<string>();
   for (const player of loaded.players) for (const id of [player.userId, ...player.members.map((m) => m.userId)]) if (id !== null) users.add(id);
-  if (roles !== undefined) for (const id of [roles.hostId, roles.ownerId]) if (id !== null) users.add(id);
+  if (roles !== undefined) for (const id of [roles.hostId, roles.ownerId]) if (id !== null && !isBotUser(id)) users.add(id);
 
   const at = { gameId, earnedAt: loaded.finishedAt ?? new Date(), game: loaded };
   for (const userId of users) {

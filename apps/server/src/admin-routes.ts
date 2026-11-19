@@ -4,6 +4,7 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { CurrentUser } from './account-routes';
 import { isAdmin } from './admin';
 import { adminCharts } from './admin-charts';
+import { registerAdminBotRoutes } from './admin-bot-routes';
 import { liveRooms } from './admin-live';
 import { adminLog, adminQuiz, adminQuizzes, adminStats, adminUser, adminUsers } from './admin-store';
 import { activeAnnouncement, clearAnnouncement, setAnnouncement, type AnnouncementCache } from './announcement-store';
@@ -28,6 +29,8 @@ export interface AdminDeps {
   backupList?: () => Promise<StoredObject[]>;
   /** Кеш публічного оголошення (53): кожен запис адміна його скидає. */
   announcements: AnnouncementCache;
+  /** Межа кімнат процесу (54): запуск гри бота так само питає manager.size. */
+  maxRooms: number;
   now?: () => Date;
 }
 
@@ -324,4 +327,6 @@ export async function registerAdminRoutes(app: FastifyInstance, deps: AdminDeps)
     if (!query.success) return reply.code(400).send(INVALID);
     return adminLog(db, query.data.page);
   });
+
+  await registerAdminBotRoutes(app, deps, { read, write, adminOf });
 }

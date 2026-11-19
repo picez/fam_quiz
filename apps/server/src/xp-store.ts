@@ -21,6 +21,7 @@ import {
   type PublicLevel,
   type StickerExtra,
   type XpLine,
+  isBotUser,
 } from '@quiz/shared';
 import { and, asc, eq, gt, inArray, isNotNull, isNull, lte, notExists, or, sql } from 'drizzle-orm';
 import { loadAchievementGames, type AchievementGame } from './achievement-games';
@@ -275,7 +276,7 @@ export async function creditGame(db: Db, gameId: string, onError: (e: unknown) =
   }
   // Ачівки ведучого й автора (12i видає й їм).
   for (const userId of new Set([meta.hostId, meta.ownerId])) {
-    if (userId === null || players.includes(userId)) continue;
+    if (userId === null || isBotUser(userId) || players.includes(userId)) continue;
     try {
       await creditAchievements(db, userId);
     } catch (error) {

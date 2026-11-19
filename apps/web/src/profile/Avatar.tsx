@@ -1,4 +1,4 @@
-import type { ProfileCard } from '@quiz/shared';
+import { isBotUser, type ProfileCard } from '@quiz/shared';
 import { t } from '../i18n';
 import { nickText } from '../nick';
 
@@ -9,11 +9,14 @@ function tone(id: string): number {
   return sum % 4;
 }
 
-/** Аватар: зображення або перша літера нікнейма на тлі одного з чотирьох кольорів (за id). */
+/** Аватар: зображення, значок-робот бота (54) або перша літера нікнейма на тлі одного з чотирьох кольорів (за id). */
 export function Avatar({ profile, size }: { profile: ProfileCard; size: 'large' | 'medium' | 'small' }) {
   const label = t('avatarOf', { nickname: nickText(profile.nickname) });
   if (profile.avatar !== null) {
     return <img className={`avatar avatar-${size}`} src={profile.avatar} alt={label} loading="lazy" decoding="async" />;
+  }
+  if (isBotUser(profile.id)) {
+    return <img className={`avatar avatar-${size}`} src="/quiz-bot.svg" alt={label} loading="lazy" decoding="async" />;
   }
   const letter = (Array.from(nickText(profile.nickname))[0] ?? '').toUpperCase();
   return (
