@@ -1,5 +1,6 @@
 import type { AdminLogEntry, Question, RemovalEffect } from '@quiz/shared';
 import { t, type TextKey } from '../i18n';
+import { decimalText } from '../locales/grammar';
 import { nickText } from '../nick';
 
 /** Текст підтвердження видалення запитання; null — кнопка неактивна (останнє, замкнене чи вже немає). */
@@ -18,10 +19,29 @@ export function questionConfirm(effect: RemovalEffect, roundTitle: string): stri
 
 /** Рядок журналу; для блокування з причиною — «. Причина: …». */
 export function logLine(entry: AdminLogEntry): string {
-  const line = t(`adminLog_${entry.kind}` as TextKey, { admin: nickText(entry.admin), target: nickText(entry.target), title: entry.details.title ?? '' });
+  const line = t(`adminLog_${entry.kind}` as TextKey, { admin: nickText(entry.admin), target: nickText(entry.target), title: entry.details.title ?? '', text: entry.details.text ?? '', code: entry.details.code ?? '' });
   const reason = entry.kind === 'ban' ? entry.details.reason : null;
   if (entry.kind === 'nickname_reset' && entry.details.text) return t('adminLogWas', { line, text: entry.details.text });
   return reason ? `${line}. ${t('adminReasonShown', { reason })}` : line;
+}
+
+/** Скільки триває гра: до хвилини — «щойно», до години — хвилини, далі години й хвилини. */
+export function durationText(ms: number): string {
+  const minutes = Math.floor(Math.max(0, ms) / 60_000);
+  if (minutes < 1) return t('adminLiveJustNow');
+  if (minutes < 60) return t('adminLiveSpanMinutes', { count: minutes });
+  return t('adminLiveSpanHours', { hours: Math.floor(minutes / 60), minutes: minutes % 60 });
+}
+
+/** Розмір у мегабайтах з одним знаком після коми (МБ = 1024 · 1024 байтів). */
+export function bytesText(bytes: number): string {
+  return t('adminMegabytes', { value: decimalText(bytes / 1_048_576, 1) });
+}
+
+/** Час роботи сервера: повні доби й години. */
+export function uptimeText(seconds: number): string {
+  const total = Math.max(0, Math.floor(seconds));
+  return t('adminHealthUptimeValue', { days: Math.floor(total / 86_400), hours: Math.floor((total % 86_400) / 3_600) });
 }
 
 /** Текстові рядки запитання для перегляду: текст, далі варіанти, прийнятні відповіді, пари, слова. */

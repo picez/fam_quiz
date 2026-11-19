@@ -1,6 +1,6 @@
 import type { AdminLogEntry, Question } from '@quiz/shared';
 import { describe, expect, it } from 'vitest';
-import { logLine, questionConfirm, questionLines } from './admin-text';
+import { bytesText, durationText, logLine, questionConfirm, questionLines, uptimeText } from './admin-text';
 
 const entry = (over: Partial<AdminLogEntry>): AdminLogEntry => ({ id: 'l1', at: '2026-11-01T10:00:00.000Z', admin: 'Адмін', kind: 'ban', target: 'Богдан', details: {}, ...over });
 const base = { imageUrl: null, video: null, timeLimit: 30, points: 1000 };
@@ -45,6 +45,39 @@ describe('logLine for moderation', () => {
   });
   it('shows a player without a nickname as the default name', () => {
     expect(logLine(entry({ kind: 'avatar_reset', target: '' }))).toBe('Адмін скинув(-ла) аватар Гравець');
+  });
+});
+
+describe('logLine for games and announcements', () => {
+  it('writes the game close with its title and code', () => {
+    expect(logLine(entry({ admin: 'Оля', kind: 'game_close', details: { title: 'Карпати', code: '123456' } }))).toBe('Оля закрив(-ла) гру «Карпати» (код 123456)');
+  });
+  it('writes the announcement set and clear with the text', () => {
+    expect(logLine(entry({ kind: 'announcement_set', details: { text: 'Субота — гра' } }))).toContain('«Субота — гра»');
+    expect(logLine(entry({ kind: 'announcement_clear', details: { text: 'Субота — гра' } }))).toBe('Адмін прибрав(-ла) оголошення «Субота — гра»');
+  });
+});
+
+describe('durationText', () => {
+  it('says just now under a minute, minutes under an hour, then hours and minutes', () => {
+    expect(durationText(30_000)).toBe('щойно');
+    expect(durationText(12 * 60_000)).toBe('12 хв');
+    expect(durationText(125 * 60_000)).toBe('2 год 5 хв');
+    expect(durationText(-5)).toBe('щойно');
+  });
+});
+
+describe('bytesText', () => {
+  it('shows megabytes with one decimal in the current language', () => {
+    expect(bytesText(3_500_000)).toBe('3,3 МБ');
+    expect(bytesText(0)).toBe('0,0 МБ');
+  });
+});
+
+describe('uptimeText', () => {
+  it('shows days and hours', () => {
+    expect(uptimeText(3 * 86_400 + 4 * 3_600 + 59)).toBe('3 д 4 год');
+    expect(uptimeText(59)).toBe('0 д 0 год');
   });
 });
 
