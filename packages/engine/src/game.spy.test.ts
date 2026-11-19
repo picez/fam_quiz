@@ -653,4 +653,17 @@ describe('spy (50): the spy gets no word', () => {
     expect(JSON.stringify(stageView(s).spy)).not.toContain('парус');
     expect(stageView(s).spy).toMatchObject({ playersWord: 'вітрило', spyHint: null });
   });
+
+  it('the old spy word never reaches any view, the reveal and the host key included', () => {
+    let s = open(makeRoundsQuiz([classicRound('c1', [spyLegacy])]));
+    expect(JSON.stringify(hostView(s))).not.toContain('"spyWord"');
+    s = must(next(voteAll(toVote(s), ['p3', 'p3', 'p1', 'p1']), T + 8000));
+    expect(s.phase).toBe('reveal');
+    expect(stageView(s).reveal).toMatchObject({ type: 'spy', accepted: ['вітрило'] });
+    for (const view of [stageView(s), playerView(s, 'p1'), playerView(s, 'p3'), hostView(s)]) {
+      const json = JSON.stringify(view);
+      expect(json).not.toContain('"spyWord"');
+      expect(json).not.toContain('парус');
+    }
+  });
 });
