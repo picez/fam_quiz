@@ -241,6 +241,8 @@ export interface Room {
   pilot: unknown;
   /** Мить, до якої стан уже доведено таймером; дедлайни після неї ще належить обробити. */
   tickedTo: number;
+  /** Мить останнього commit (53, «Живі ігри» адмінки); лише в пам'яті, у знімок не йде; після підняття — мить підняття. */
+  actedAt: number;
   absence: unknown;
   /** Автопілот (11g): автор поставив паузу й пішов — через HOST_ABSENCE_MS пауза знімається сама; null — таймера немає. */
   authorAway: unknown;
@@ -852,6 +854,7 @@ export class RoomManager {
       deadline: null,
       pilot: null,
       tickedTo: 0,
+      actedAt: this.now(),
       absence: null,
       authorAway: null,
       expiry: null,
@@ -930,6 +933,7 @@ export class RoomManager {
       deadline: null,
       pilot: null,
       tickedTo: saved.tickedTo,
+      actedAt: this.now(),
       absence: null,
       authorAway: null,
       expiry: null,
@@ -1005,17 +1009,40 @@ export class RoomManager {
   closeHostedBy(userId: string): number {
     let changed = 0;
     for (const room of [...this.live.values()]) {
-      if (room.hostUserId !== userId) continue;
-      const { phase } = room.state;
-      if (phase === 'finished') continue;
-      if (phase === 'lobby') {
-        this.close(room);
-        changed += 1;
-      } else if (this.apply(room, end(room.state, this.now())).ok) {
-        changed += 1;
-      }
+      if (room.hostUserId === userId && this.shut(room)) changed += 1;
     }
     return changed;
+  }
+
+  /**
+   * «Закрити гру» адміна (53): як бан ведучого для однієї кімнати — lobby → close (подія 'closed'), гра йде → end() рушія
+   * (гравці бачать звичайний кінець гри); finished — без змін.
+   */
+  closeByAdmin(code: string): 'closed' | 'ended' | 'finished' | 'not_found' {
+    const room = this.live.get(code);
+    if (room === undefined) return 'not_found';
+    if (room.state.phase === 'finished') return 'finished';
+    const lobby = room.state.phase === 'lobby';
+    if (!this.shut(room)) return 'finished';
+    return lobby ? 'closed' : 'ended';
+  }
+
+  /** Усі відкриті з'єднання всіх кімнат (ведучі, сцени, гравці; 53, стан сервера в адмінці). */
+  connectionCount(): number {
+    let count = 0;
+    for (const room of this.live.values()) for (const n of room.connections.values()) count += n;
+    return count;
+  }
+
+  /** Закриває лобі чи завершує гру, що йде (21a, 53); false — уже finished або рушій відмовив. */
+  private shut(room: Room): boolean {
+    const { phase } = room.state;
+    if (phase === 'finished') return false;
+    if (phase === 'lobby') {
+      this.close(room);
+      return true;
+    }
+    return this.apply(room, end(room.state, this.now())).ok;
   }
 
   /** Видимість і пароль (24c): лише лобі (інакше wrong_phase), frozen → restarting; пише в кімнату й commit, щоб RoomStore записав. */
@@ -2714,6 +2741,7 @@ export class RoomManager {
 
   /** at — мить зміни для мітки кроку (11b): зараз, а для таймера — його дедлайн. puzzle — зміну дав лише пакет клітинок (28d). */
   private commit(room: Room, state: GameState, at = this.now(), puzzle = false, only?: string): void {
+    room.actedAt = at;
     // Антигугл (12e): годинник виходів між кроками — на кожному кроці (дії, таймери, автопілот), у мить кроку; до stamp.
     state = awayStep(room.state, state, at, room.hidden);
     // Слова з літер (27d): роздача — до розсилки, збереження й плану автопілота; next, tick, автопілот і поле проходять тут.

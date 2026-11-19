@@ -3,6 +3,7 @@ import { eq } from 'drizzle-orm';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { CurrentUser } from './account-routes';
 import { isAdmin } from './admin';
+import { liveRooms } from './admin-live';
 import { adminLog, adminQuiz, adminQuizzes, adminStats, adminUser, adminUsers } from './admin-store';
 import { banUser, logAction, unbanUser } from './bans';
 import type { Db } from './db/client';
@@ -26,8 +27,10 @@ const INVALID = { error: 'invalid_payload' };
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const USER_ID_MAX = 64;
 const QUESTION_ID_MAX = 200;
+const ROOM_CODE = /^\d{6}$/;
 
 type IdParams = { Params: { id: string } };
+type CodeParams = { Params: { code: string } };
 
 export async function registerAdminRoutes(app: FastifyInstance, deps: AdminDeps): Promise<void> {
   const { db, manager, adminEmails, currentUser } = deps;
@@ -77,6 +80,29 @@ export async function registerAdminRoutes(app: FastifyInstance, deps: AdminDeps)
   app.get('/api/admin/stats', read, async () => {
     const live = manager.rooms().filter((room) => room.state.phase !== 'finished').length;
     return adminStats(db, live, now());
+  });
+
+  // «Живі ігри» (53): кімнати цього процесу; ведучі — лише ніки.
+  app.get('/api/admin/live', read, async () => liveRooms(db, manager.rooms(), now()));
+
+  app.post<CodeParams>('/api/admin/live/:code/close', write, async (request, reply) => {
+    const me = await adminOf(request);
+    if (me === null) return reply.code(404).send(NOT_FOUND);
+    const { code } = request.params;
+    if (!ROOM_CODE.test(code)) return reply.code(404).send(NOT_FOUND);
+    // На зупинці кімнати вже записані й віддаються наступному процесу: закриття тут не втрималося б.
+    if (manager.frozen) return reply.code(503).send({ error: 'restarting' });
+    const room = manager.get(code);
+    if (room === undefined) return reply.code(404).send(NOT_FOUND);
+    if (room.state.phase === 'finished') return reply.code(409).send({ error: 'game_finished' });
+    // Знімок до закриття: лобі після close з пам'яті зникає.
+    const { hostUserId } = room;
+    const { title } = room.state.quiz;
+    const result = manager.closeByAdmin(code);
+    if (result === 'not_found') return reply.code(404).send(NOT_FOUND);
+    if (result === 'finished') return reply.code(409).send({ error: 'game_finished' });
+    await logAction(db, { adminId: me.id, kind: 'game_close', targetUserId: hostUserId, details: { title, code }, now: now() });
+    return reply.code(204).send();
   });
 
   app.get('/api/admin/users', read, async (request, reply) => {
