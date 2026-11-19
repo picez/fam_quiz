@@ -291,7 +291,64 @@ describe('limits', () => {
   });
 
   it('host and cancelled appeals do not count', () => {
-    const s: GameState = { ...reveal, appeals: [{ id: 1, by: 'p1', questionIndex: 5, reason: 'grade', openedAt: 0, endsAt: 0, votes: {}, outcome: 'host' }, { id: 2, by: 'p1', questionIndex: 6, reason: 'grade', openedAt: 0, endsAt: 0, votes: {}, outcome: 'cancelled' }] };
+    const s: GameState = {
+      ...reveal,
+      appeals: [
+        { id: 1, by: 'p1', questionIndex: 5, reason: 'grade', openedAt: 0, endsAt: 0, votes: {}, outcome: 'host' },
+        { id: 2, by: 'p1', questionIndex: 6, reason: 'grade', openedAt: 0, endsAt: 0, votes: {}, outcome: 'cancelled' },
+        { id: 3, by: 'p1', questionIndex: 7, reason: 'grade', openedAt: 0, endsAt: 0, votes: {}, outcome: 'yes' },
+      ],
+    };
+    expect(appealsLeft(s, 'p1')).toBe(2);
+  });
+
+  it('an accepted appeal is kept: after yes the player has two again and may appeal the next question', () => {
+    let s = must(openAppeal(reveal, 'p1', 'grade', T1));
+    expect(appealsLeft(s, 'p1')).toBe(1);
+    s = must(castAppealVote(s, 'p2', 1, true, T1 + 1000));
+    s = must(castAppealVote(s, 'p3', 1, true, T1 + 2000));
+    expect(s.appeals?.[0].outcome).toBe('yes');
+    expect(appealsLeft(s, 'p1')).toBe(2);
+    s = answerAndReveal(toNextQuestion(s, T1 + 3000), [WRONG, RIGHT, RIGHT], T1 + 4000);
+    expect(s.questionIndex).toBe(1);
+    expect(appealReasons(s, 'p1')).toEqual(['grade']);
+    expect(openAppeal(s, 'p1', 'grade', T1 + 5000).ok).toBe(true);
+  });
+
+  it('two rejected appeals use the limit even after an accepted one', () => {
+    const four = makeRoundsQuiz([classicRound('r1', [t100, withId(t100, 't2'), withId(t100, 't3'), withId(t100, 't4')], { speedBonus: false, rules: DEFAULT_RULES })], { leaderboard: 'each' });
+    let s = answerAndReveal(startRound(lobbyWith(four, 'Оля', 'Петро', 'Іра'), T0, rng), [WRONG, RIGHT, RIGHT], T0 + 1000);
+    s = must(openAppeal(s, 'p1', 'grade', T1));
+    s = must(castAppealVote(s, 'p2', 1, true, T1 + 1000));
+    s = must(castAppealVote(s, 'p3', 1, true, T1 + 2000));
+    expect(s.appeals?.[0].outcome).toBe('yes');
+    expect(appealsLeft(s, 'p1')).toBe(2);
+    s = answerAndReveal(toNextQuestion(s, T1 + 3000), [WRONG, RIGHT, RIGHT], T1 + 4000);
+    s = must(openAppeal(s, 'p1', 'grade', T1 + 5000));
+    s = must(castAppealVote(s, 'p2', 2, false, T1 + 6000));
+    s = must(castAppealVote(s, 'p3', 2, false, T1 + 7000));
+    expect(s.appeals?.[1].outcome).toBe('no');
+    expect(appealsLeft(s, 'p1')).toBe(1);
+    s = answerAndReveal(toNextQuestion(s, T1 + 8000), [WRONG, RIGHT, RIGHT], T1 + 9000);
+    s = decideAppeal(must(openAppeal(s, 'p1', 'grade', T1 + 10_000)), T1 + 40_000);
+    expect(s.appeals?.[2].outcome).toBe('tie');
+    expect(appealsLeft(s, 'p1')).toBe(0);
+    s = answerAndReveal(toNextQuestion(s, T1 + 41_000), [WRONG, RIGHT, RIGHT], T1 + 42_000);
+    expect(s.questionIndex).toBe(3);
+    expect(openAppeal(s, 'p1', 'grade', T1 + 50_000)).toEqual(err('appeals_used'));
+    expect(appealPossible(s)).toBe(false);
+  });
+
+  it('an undone yes still does not count', () => {
+    let s = must(openAppeal(reveal, 'p1', 'grade', T1));
+    s = must(castAppealVote(s, 'p2', 1, true, T1 + 1000));
+    s = must(castAppealVote(s, 'p3', 1, true, T1 + 2000));
+    expect(s.appeals?.[0]).toMatchObject({ outcome: 'yes', adjustmentSeq: 1 });
+    s = {
+      ...s,
+      adjustments: [...s.adjustments, { seq: 2, playerId: 'p1', points: -100, roundIndex: 0, afterQuestion: 1, source: 'undo', at: T1 + 3000, undoes: { seq: 1 } }],
+      adjustmentSeq: 2,
+    };
     expect(appealsLeft(s, 'p1')).toBe(2);
   });
 

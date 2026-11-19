@@ -74,7 +74,7 @@ export function appealPassedGradeAt(state: GameState, participant: string, quest
   return passed !== undefined && !ledgerOf(state).adjustments.has(passed.adjustmentSeq!);
 }
 
-/** Скільки апеляцій ще має учасник рушія: APPEALS_PER_GAME − раховані (appealCounted) − його апеляція в черзі (29k). */
+/** Скільки апеляцій ще має учасник рушія: APPEALS_PER_GAME − раховані (appealCounted: відхилені no і tie та відкрита; прийнята yes — ні, 45a) − його апеляція в черзі (29k). */
 export function appealsLeft(state: GameState, participant: string): number {
   const counted = (state.appeals ?? []).filter((a) => a.by === participant && appealCounted(a.outcome)).length;
   const used = counted + (appealQueued(state, participant) ? 1 : 0);

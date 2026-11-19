@@ -2,7 +2,7 @@ import type { RoundType } from './quiz';
 
 /** Апеляція (12f): скільки триває голосування залу, мс. */
 export const APPEAL_MS = { vote: 30_000 } as const;
-/** Скільки апеляцій за гру має гравець (у командній грі — команда); відкрита рахується, закрита ведучим чи кінцем — ні. */
+/** Скільки відхилених апеляцій за гру має гравець (у командній грі — команда, 45a): рахуються відхилені — no і tie; відкрита й у черзі тримають місце до рішення; yes, host і cancelled — ні. */
 export const APPEALS_PER_GAME = 2;
 /** Раунди, де можна оскаржити: класика й звичайна клітинка поля. */
 export const APPEAL_ROUNDS: readonly RoundType[] = ['classic', 'board'];
@@ -23,7 +23,7 @@ export function appealDecision(yes: number, no: number): 'yes' | 'no' | 'tie' {
   return 'tie';
 }
 
-/** Чи рахується апеляція в ліміт: відкрита (null) і рішення залу — так; host і cancelled — ні. */
+/** Чи рахується апеляція в ліміт (45a): рахуються відхилені — no і tie; відкрита (null) і в черзі тримають місце до рішення; yes (зал прийняв), host і cancelled — ні. */
 export function appealCounted(outcome: AppealOutcome | null): boolean {
-  return outcome !== 'host' && outcome !== 'cancelled';
+  return outcome === null || outcome === 'no' || outcome === 'tie';
 }

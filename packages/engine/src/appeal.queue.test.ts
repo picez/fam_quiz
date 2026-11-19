@@ -59,6 +59,8 @@ describe('the appeal queue (29k)', () => {
     let s = must(castAppealVote(queued, 'p2', 1, true, T1 + 4000));
     s = must(castAppealVote(s, 'p3', 1, true, T1 + 5000));
     expect(s.appeals?.[0].outcome).toBe('yes');
+    // Оля отримала апеляцію назад (45a): прийнята не рахується.
+    expect(appealsLeft(s, 'p1')).toBe(2);
     expect(appealOpen(s)).toMatchObject({ id: 2, by: 'p2', openedAt: T1 + 5000, endsAt: T1 + 5000 + APPEAL_MS.vote, outcome: null });
     expect(s.appealQueue).toBeUndefined();
     expect(me(s, 'p2')).toEqual({ left: 1, reasons: [], block: null, voter: false, vote: null });
