@@ -79,6 +79,29 @@ describe('staticIssues', () => {
     ]);
   });
 
+  it('media only in media fields: /uploads/ in plain text is not a file, plural url keys count', () => {
+    const raw = {
+      rounds: [
+        {
+          id: 'r1',
+          type: 'classic',
+          questions: [
+            { ...text, id: 'p1', text: '/uploads/aaaaaaaaaaaaaaaa.jpg', hint: '/uploads/bbbbbbbbbbbbbbbb.jpg', accepted: ['/uploads/cccccccccccccccc.jpg'] },
+            { ...text, id: 'p2', imageUrls: ['https://example.com/a.jpg', '/uploads/dddddddddddddddd.png'], photo: '/uploads/eeeeeeeeeeeeeeee.jpg' },
+            { ...text, id: 'p3', type: 'spotdiff', original: '/uploads/ffffffffffffffff.jpg', changed: '/uploads/gggggggggggggggg.jpg' },
+          ],
+        },
+      ],
+    };
+    expect(mediaRefs(raw).map((r) => [r.kind, r.kind === 'storage' ? r.name : r.kind === 'url' ? r.url : r.id, r.place.questionId])).toEqual([
+      ['url', 'https://example.com/a.jpg', 'p2'],
+      ['storage', 'dddddddddddddddd.png', 'p2'],
+      ['storage', 'eeeeeeeeeeeeeeee.jpg', 'p2'],
+      ['storage', 'ffffffffffffffff.jpg', 'p3'],
+      ['storage', 'gggggggggggggggg.jpg', 'p3'],
+    ]);
+  });
+
   it('structure on raw data', () => {
     const raw = {
       title: 'Зламана',

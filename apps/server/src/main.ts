@@ -13,6 +13,7 @@ import { r2Storage, type R2Settings } from './storage/r2';
 import { backupsEnabled, dbBackups, r2BackupStore } from './db-backup';
 import { webPushSender } from './web-push-sender';
 import { log, reportError } from './log';
+import { systemResolve } from './url-guard';
 
 function required(name: string): string {
   const value = process.env[name];
@@ -137,6 +138,7 @@ const { app, shutdown } = await buildApp({
   storage,
   // Єдине місце, де перевірка вікторин (57) ходить у справжню мережу.
   checkFetch: (url, init) => fetch(url, init),
+  checkResolve: systemResolve,
   stickerFixtures,
   webRoot: existsSync(built) ? built : undefined,
   // Єдине місце, де вмикаються заставки переходів справжньої гри (8c).

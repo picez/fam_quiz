@@ -18,6 +18,7 @@ import { latestBackup, parseBackupKey } from './db-backup';
 import { reportError } from './log';
 import { quizChecker } from './quiz-check';
 import type { CheckFetch } from './quiz-check';
+import type { CheckResolve } from './url-guard';
 import type { RoomManager } from './rooms/manager';
 import type { ImageStorage } from './storage/images';
 import type { StoredObject } from './storage/r2-objects';
@@ -38,6 +39,8 @@ export interface AdminDeps {
   storage: ImageStorage;
   /** fetch перевірки вікторини (57); у тестах — підробка, справжній передає лише main.ts. */
   checkFetch: CheckFetch;
+  /** DNS перевірки (57): захист від запитів у внутрішню мережу; без нього зовнішні адреси неперевірені. */
+  checkResolve?: CheckResolve;
   now?: () => Date;
 }
 
@@ -56,7 +59,7 @@ type CodeParams = { Params: { code: string } };
 export async function registerAdminRoutes(app: FastifyInstance, deps: AdminDeps): Promise<void> {
   const { db, manager, adminEmails, currentUser } = deps;
   const now = deps.now ?? (() => new Date());
-  const checker = quizChecker({ storage: deps.storage, fetch: deps.checkFetch, now });
+  const checker = quizChecker({ storage: deps.storage, fetch: deps.checkFetch, resolve: deps.checkResolve, now });
   // Один перегляд вікторини одним адміном — один рядок журналу на хвилину (StrictMode і «Спробувати ще» читають двічі).
   const viewed = new Map<string, number>();
 

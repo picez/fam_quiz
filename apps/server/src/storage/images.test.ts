@@ -162,6 +162,13 @@ describe('r2 storage', () => {
     await expect(storage.has!('0123456789abcdef.png')).rejects.toThrow();
     expect(await storage.has!('../x.png')).toBe(false);
     expect(seen).toHaveLength(3);
+    status = 200;
+    const abort = new AbortController();
+    abort.abort();
+    await storage.has!('0123456789abcdef.png', abort.signal);
+    expect(seen[3].signal.aborted).toBe(true);
+    expect(seen[3].method).toBe('HEAD');
+    expect(seen[3].headers.get('authorization')).toMatch(/^AWS4-HMAC-SHA256/);
   });
 
   it('refuses names that could address another object', async () => {

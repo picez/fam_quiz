@@ -108,6 +108,10 @@ const placeOf = (path: Path, question: Rec | null): MediaPlace => ({
 
 const STORAGE_REF = /^\/uploads\/(.+)$/;
 const EXTERNAL_REF = /^https?:\/\//i;
+/** Поле медіа: ключ на Url/url/Urls/urls (imageUrl, url аудіо) чи одне з полів картинок без такого закінчення (фото пазла, «Знайди відмінності»). */
+const MEDIA_KEY = /(Url|url|Urls|urls)$/;
+const MEDIA_FIELDS: ReadonlySet<string> = new Set(['photo', 'photos', 'image', 'images', 'original', 'changed']);
+const isMediaKey = (key: string | null) => key !== null && (MEDIA_KEY.test(key) || MEDIA_FIELDS.has(key));
 
 /** Найближчий рядковий ключ шляху (для елемента масиву — ключ масиву). */
 const keyOf = (path: Path): string | null => {
@@ -121,9 +125,11 @@ export function mediaRefs(raw: unknown): MediaRef[] {
   walk(raw, (node, path, question) => {
     const key = keyOf(path);
     if (typeof node === 'string') {
+      // Лише поля медіа: текст, підказка чи відповідь, що починається з /uploads/, — не файл.
+      if (!isMediaKey(key)) return;
       const storage = STORAGE_REF.exec(node);
       if (storage !== null) refs.push({ kind: 'storage', name: storage[1]!, place: placeOf(path, question) });
-      else if (EXTERNAL_REF.test(node) && key !== null && /(Url|url)$/.test(key)) refs.push({ kind: 'url', url: node, place: placeOf(path, question) });
+      else if (EXTERNAL_REF.test(node) && MEDIA_KEY.test(key!)) refs.push({ kind: 'url', url: node, place: placeOf(path, question) });
       return;
     }
     if (!isRec(node) || typeof node.id !== 'string' || !YOUTUBE_ID.test(node.id) || typeof node.start !== 'number') return;

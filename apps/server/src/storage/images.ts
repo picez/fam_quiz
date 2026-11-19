@@ -15,8 +15,8 @@ export interface ImageStorage {
   put(name: string, bytes: Uint8Array, contentType: MediaType | StickerType): Promise<void>;
   /** Зображення або null, якщо такого немає. Збій сховища є винятком, а не null. */
   get(name: string): Promise<StoredImage | null>;
-  /** Чи є медіафайл (57, перевірка вікторини) без читання вмісту; ім'я, що не isMediaName, — false. Збій — виняток. Немає методу — питають get. */
-  has?(name: string): Promise<boolean>;
+  /** Чи є медіафайл (57, перевірка вікторини) без читання вмісту; ім'я, що не isMediaName, — false. Збій — виняток. Немає методу — питають get. signal — скасувати запит (R2). */
+  has?(name: string, signal?: AbortSignal): Promise<boolean>;
 }
 
 export const EXTENSIONS: Record<MediaType, string> = {

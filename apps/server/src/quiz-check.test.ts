@@ -3,6 +3,9 @@ import { describe, expect, it, vi } from 'vitest';
 import { offlineFetch, quizChecker, type CheckFetch } from './quiz-check';
 import { memoryStorage, type ImageStorage } from './storage/images';
 import { PNG } from './testing/images';
+import type { CheckResolve } from './url-guard';
+
+const publicResolve: CheckResolve = async () => ['93.184.216.34'];
 
 const IMG = 'aaaaaaaaaaaaaaaa.png';
 const MISSING = 'bbbbbbbbbbbbbbbb.png';
@@ -103,6 +106,7 @@ describe('quizChecker', () => {
     for (const [, init] of fetch.mock.calls) {
       expect(init.headers).toEqual({ 'user-agent': 'quiz-check/1.0' });
       expect(init.method).toBe('GET');
+      expect(init.redirect).toBe('manual');
       expect(init.signal).toBeInstanceOf(AbortSignal);
     }
   });
@@ -116,7 +120,7 @@ describe('quizChecker', () => {
       if (url.endsWith('lost.jpg')) return new Response(null, { status: 404 });
       return new Response(null, { status: init.method === 'HEAD' ? 405 : 200 });
     });
-    const checker = quizChecker({ storage: memoryStorage(), fetch, now: () => at, timeoutMs: 50 });
+    const checker = quizChecker({ storage: memoryStorage(), fetch, now: () => at, resolve: publicResolve, timeoutMs: 50 });
     const result = await checker.check('quiz-1', at, quizWith([fine, lost, picky]));
     expect(network(result)).toEqual([['media_unreachable', lost.id, 'https://example.com/lost.jpg 404']]);
     expect(fetch.mock.calls.map(([url, init]) => `${init.method} ${url}`)).toEqual([
@@ -165,7 +169,7 @@ describe('quizChecker', () => {
     });
     const storage = await storageWithImage();
     const has = vi.spyOn(storage, 'has');
-    const checker = quizChecker({ storage, fetch, now: () => at, timeoutMs: 1000 });
+    const checker = quizChecker({ storage, fetch, now: () => at, resolve: publicResolve, timeoutMs: 1000 });
     const urls = (prefix: string) => Array.from({ length: 12 }, (_, i) => question({ imageUrl: `https://example.com/${prefix}${i}.jpg` }));
     const [first, second] = await Promise.all([checker.check('quiz-a', at, quizWith(urls('a'))), checker.check('quiz-b', at, quizWith(urls('b')))]);
     expect(fetch).toHaveBeenCalledTimes(24);
@@ -213,7 +217,7 @@ describe('quizChecker', () => {
 
   it('a broken quiz is checked, not thrown', async () => {
     const raw = { title: 'Стара', rounds: [{ id: 'r1', type: 'classic', questions: [{ id: 'x1', type: 'single', text: 'Без варіантів?', correctId: 'a', imageUrl: 'https://example.com/x.jpg' }] }] };
-    const checker = quizChecker({ storage: memoryStorage(), fetch: fakeFetch({ 'https://example.com/x.jpg': status(404) }), now: () => at, timeoutMs: 50 });
+    const checker = quizChecker({ storage: memoryStorage(), fetch: fakeFetch({ 'https://example.com/x.jpg': status(404) }), now: () => at, resolve: publicResolve, timeoutMs: 50 });
     const result = await checker.check('quiz-1', at, raw);
     const found = result.issues.map((i) => i.code);
     expect(found).toContain('schema');
@@ -223,7 +227,7 @@ describe('quizChecker', () => {
   });
 
   it('offlineFetch makes every network check a warning', async () => {
-    await expect(offlineFetch('https://example.com', { method: 'GET', signal: AbortSignal.timeout(10), headers: {} })).rejects.toThrow('offline');
+    await expect(offlineFetch('https://example.com', { method: 'GET', signal: AbortSignal.timeout(10), headers: {}, redirect: 'manual' })).rejects.toThrow('offline');
     const raw = quizWith([question({ imageUrl: 'https://example.com/a.jpg' }), question({ video: { id: 'offlinevid1', start: 0 } }), question({ imageUrl: `/uploads/${IMG}` })]);
     const checker = quizChecker({ storage: await storageWithImage(), fetch: offlineFetch, now: () => at, timeoutMs: 50 });
     const result = await checker.check('quiz-1', at, raw);
@@ -231,5 +235,102 @@ describe('quizChecker', () => {
     const severities = result.issues.map((i) => checkSeverity(i.code as QuizCheckCode));
     expect(severities.lastIndexOf('error')).toBeLessThan(severities.indexOf('warning'));
     expect(result.warnings).toBe(severities.filter((s) => s === 'warning').length);
+  });
+});
+
+describe('quizChecker guards and budget', () => {
+  const resolve: CheckResolve = async (host) => (host === 'intranet.example' ? ['192.168.1.10'] : ['93.184.216.34']);
+
+  it('internal targets are never requested and come back as unchecked', async () => {
+    const urls = ['http://localhost/x.jpg', 'http://169.254.169.254/latest/meta-data', 'http://10.0.0.5/x.jpg', 'http://intranet.example/x.jpg', 'https://public.example/x.jpg'];
+    const questions = urls.map((url) => question({ imageUrl: url }));
+    const fetch = vi.fn<CheckFetch>(async () => new Response(null, { status: 200 }));
+    const checker = quizChecker({ storage: memoryStorage(), fetch, now: () => at, timeoutMs: 50, resolve });
+    const result = await checker.check('quiz-1', at, quizWith(questions));
+    expect(fetch.mock.calls.map(([url]) => url)).toEqual(['https://public.example/x.jpg']);
+    expect(network(result)).toEqual(urls.slice(0, 4).map((url, i) => ['media_unchecked', questions[i]!.id, `${url} blocked`]));
+  });
+
+  it('redirects are followed by hand, at most 3 hops, each hop guarded', async () => {
+    const routes: Record<string, () => Response> = {
+      'https://public.example/inside.jpg': () => new Response(null, { status: 302, headers: { location: 'http://10.0.0.1/x.jpg' } }),
+      'https://public.example/moved.jpg': () => new Response(null, { status: 301, headers: { location: '/new.jpg' } }),
+      'https://public.example/new.jpg': () => new Response(null, { status: 200 }),
+      'https://public.example/loop.jpg': () => new Response(null, { status: 302, headers: { location: '/loop.jpg' } }),
+    };
+    const fetch = vi.fn<CheckFetch>(async (url) => routes[url]?.() ?? new Response(null, { status: 404 }));
+    const inside = question({ imageUrl: 'https://public.example/inside.jpg' });
+    const moved = question({ imageUrl: 'https://public.example/moved.jpg' });
+    const loop = question({ imageUrl: 'https://public.example/loop.jpg' });
+    const checker = quizChecker({ storage: memoryStorage(), fetch, now: () => at, timeoutMs: 50, resolve });
+    const result = await checker.check('quiz-1', at, quizWith([inside, moved, loop]));
+    expect(network(result)).toEqual([
+      ['media_unchecked', inside.id, 'https://public.example/inside.jpg blocked'],
+      ['media_unchecked', loop.id, 'https://public.example/loop.jpg'],
+    ]);
+    const calls = fetch.mock.calls.map(([url]) => url);
+    expect(calls).not.toContain('http://10.0.0.1/x.jpg');
+    expect(calls.filter((url) => url.endsWith('loop.jpg'))).toHaveLength(4);
+    for (const [, init] of fetch.mock.calls) expect(init.redirect).toBe('manual');
+  });
+
+  it('the whole run has a budget: what is not done by then is unchecked', async () => {
+    const fetch = vi.fn<CheckFetch>(() => new Promise<Response>(() => {}));
+    const checker = quizChecker({ storage: memoryStorage(), fetch, now: () => at, timeoutMs: 5000, concurrency: 1, budgetMs: 60, resolve });
+    const questions = Array.from({ length: 4 }, (_, i) => question({ imageUrl: `https://public.example/slow${i}.jpg` }));
+    const started = Date.now();
+    const result = await checker.check('quiz-1', at, quizWith(questions));
+    expect(Date.now() - started).toBeLessThan(1000);
+    expect(network(result).map(([code]) => code)).toEqual(['media_unchecked', 'media_unchecked', 'media_unchecked', 'media_unchecked']);
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('at most maxRefs distinct references are probed, the rest are unchecked', async () => {
+    const fetch = vi.fn<CheckFetch>(async () => new Response(null, { status: 200 }));
+    const checker = quizChecker({ storage: memoryStorage(), fetch, now: () => at, timeoutMs: 50, maxRefs: 3, resolve });
+    const questions = Array.from({ length: 5 }, (_, i) => question({ imageUrl: `https://public.example/many${i}.jpg` }));
+    const result = await checker.check('quiz-1', at, quizWith([...questions, question({ imageUrl: 'https://public.example/many0.jpg' })]));
+    expect(fetch).toHaveBeenCalledTimes(3);
+    expect(network(result)).toEqual([
+      ['media_unchecked', questions[3]!.id, 'https://public.example/many3.jpg'],
+      ['media_unchecked', questions[4]!.id, 'https://public.example/many4.jpg'],
+    ]);
+  });
+
+  it('storage.has gets an abort signal', async () => {
+    const signals: (AbortSignal | undefined)[] = [];
+    const storage: ImageStorage = { put: async () => {}, get: async () => null, has: async (_name, signal) => (signals.push(signal), true) };
+    const checker = quizChecker({ storage, fetch: offlineFetch, now: () => at, timeoutMs: 50 });
+    await checker.check('quiz-1', at, quizWith([question({ imageUrl: `/uploads/${IMG}` })]));
+    expect(signals).toHaveLength(1);
+    expect(signals[0]).toBeInstanceOf(AbortSignal);
+  });
+
+  it('an older version finishing late does not replace a newer result', async () => {
+    let open!: () => void;
+    const gate = new Promise<void>((resolve) => (open = resolve));
+    const fetch = vi.fn<CheckFetch>(async () => {
+      await gate;
+      return new Response(null, { status: 200 });
+    });
+    const checker = quizChecker({ storage: memoryStorage(), fetch, now: () => at, timeoutMs: 1000 });
+    const v1 = new Date('2026-11-19T09:00:00.000Z');
+    const v2 = new Date('2026-11-19T09:30:00.000Z');
+    const old = checker.check('quiz-1', v1, quizWith([question({ video: { id: 'slowslowsl1', start: 0 } })]));
+    const fresh = await checker.check('quiz-1', v2, quizWith([question()]));
+    open();
+    await old;
+    expect(checker.last('quiz-1', v2)).toBe(fresh);
+    expect(checker.last('quiz-1', v1)).toBeNull();
+  });
+
+  it('the badge result expires after a day', async () => {
+    let clock = at;
+    const checker = quizChecker({ storage: memoryStorage(), fetch: offlineFetch, now: () => clock, timeoutMs: 50 });
+    const result = await checker.check('quiz-1', at, quizWith([question()]));
+    clock = new Date(at.getTime() + 24 * 3_600_000 - 1);
+    expect(checker.last('quiz-1', at)).toBe(result);
+    clock = new Date(at.getTime() + 24 * 3_600_000);
+    expect(checker.last('quiz-1', at)).toBeNull();
   });
 });
