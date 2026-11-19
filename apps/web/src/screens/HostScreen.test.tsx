@@ -3866,7 +3866,7 @@ describe('HostScreen: player truth (28b)', () => {
     { id: 'p1', nickname: 'Олена', text: 'Я стрибала з парашутом', hidden: false, played: false, revised: false, inDeck: true },
     { id: 'p2', nickname: 'Тарас', text: 'Маю трьох котів', hidden: false, played: false, revised: true, inDeck: true },
   ];
-  const truth = (over: object = {}) => ({ open: true, count: 2, index: null, reveal: null, skipped: false, facts, author: null, ...over });
+  const truth = (over: object = {}) => ({ open: true, count: 2, index: null, reveal: null, skipped: false, facts, fakes: [], author: null, ...over });
   const row = (playerId: string, nickname: string, over: object = {}) => ({ playerId, nickname, answer: null, timeMs: 30000, accepted: true, grade: 'correct' as const, streakBonus: 0, away: [], awayPenalty: false, silent: false, points: 200, overridden: false, buff: null, spare: null, clue: null, ...over });
 
   it('the host sees and hides facts in the lobby', async () => {
@@ -3897,6 +3897,30 @@ describe('HostScreen: player truth (28b)', () => {
     show(during('reveal', truthQuestion, { round: truthRound, truth: truth({ open: false, index: 0 }) }));
     expect(screen.getByText('Правильна відповідь: Олена')).toBeTruthy();
     expect(screen.queryByText(/Правильна відповідь: A\./)).toBeNull();
+  });
+
+  it('the lobby has the fakes panel under the facts (52)', () => {
+    show(view({ truth: truth({ fakes: [{ id: 'fake-1', text: 'Я вмію жонглювати', preset: true, played: false, inDeck: true }] }) }));
+    const facts = screen.getByText(t('truthHostTitle')).closest('section')!;
+    const fakes = screen.getByText(t('truthFakesTitle')).closest('section')!;
+    expect(facts.compareDocumentPosition(fakes) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(within(fakes).getByText('Я вмію жонглювати')).toBeTruthy();
+  });
+
+  it('on a host fake the host sees the mark and the right answer «made up», not an author (52)', () => {
+    const fakeQuestion: Question = { ...truthQuestion, id: 'truth-1', text: 'Я вмію жонглювати', options: [...names, { id: 'fake', text: 'Вигадка' }], correctId: 'fake' };
+    const responses = [row('p2', 'Тарас', { answer: { type: 'single', optionId: 'fake' } }), row('p1', 'Олена', { answer: { type: 'single', optionId: 'p2' }, accepted: false, grade: 'wrong' as const, points: 0 })];
+    show(during('question', fakeQuestion, { round: truthRound, truth: truth({ open: false, index: 1, faked: true, author: { id: 'fake-1', nickname: '', fake: true } }), responses }));
+    expect(screen.getByText(t('truthFakeHostMark')).className).toBe('tag truth-fake-mark');
+    expect(screen.getByText(t('truthFakeHostAnswer'))).toBeTruthy();
+    expect(screen.queryByText(/Автор:/)).toBeNull();
+    expect(screen.queryByText(t('truthHistoryAuthorRow'))).toBeNull();
+  });
+
+  it('the right answer of a host fake is «made up» (52)', () => {
+    const fakeQuestion: Question = { ...truthQuestion, id: 'truth-1', options: [...names, { id: 'fake', text: 'raw' }], correctId: 'fake' };
+    show(during('reveal', fakeQuestion, { round: truthRound, truth: truth({ open: false, index: 1, faked: true }) }));
+    expect(screen.getByText(`Правильна відповідь: ${t('truthFakeOption')}`)).toBeTruthy();
   });
 });
 

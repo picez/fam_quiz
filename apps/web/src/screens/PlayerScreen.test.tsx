@@ -5270,6 +5270,16 @@ describe('PlayerScreen player truth (28b)', () => {
     await waitFor(() => expect(send).toHaveBeenCalledWith('player:answer', { type: 'single', optionId: 'p3' }));
   });
 
+  it('a round with host fakes: «made up» is one more name and the phone counts no answers (52)', async () => {
+    const faked = { ...truthQuestion, choices: [...names, { id: 'fake', text: 'Вигадка' }] };
+    const send = show(onQuestion({ round, question: faked, playerCount: 0, answeredCount: 0, truth: info({ faked: true }), me: { ...me, truth: mine() } }));
+    expect(screen.queryByText(/Відповіли/)).toBeNull();
+    const made = screen.getByRole('button', { name: t('truthFakeOption') });
+    expect(made.className).toBe(screen.getByRole('button', { name: 'Хосе' }).className);
+    fireEvent.click(made);
+    await waitFor(() => expect(send).toHaveBeenCalledWith('player:answer', { type: 'single', optionId: 'fake' }));
+  });
+
   it('on pause the names are off', () => {
     show(onQuestion({ round, paused: true, question: truthQuestion, truth: info(), me: { ...me, truth: mine() } }));
     expect((screen.getByRole('button', { name: 'Хосе' }) as HTMLButtonElement).disabled).toBe(true);

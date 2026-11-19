@@ -10,7 +10,7 @@ import { HostQuestPanel } from './QuestView';
 import { HostThinkAnswers, HostThinkWords, ThinkPlaces } from './ThinkView';
 import { AlikeGroups } from './AlikeView';
 import { OvershootRows } from './OvershootRows';
-import { HostTruthFacts, TruthRecapFold, TruthRecapView } from './TruthView';
+import { HostTruthFacts, HostTruthFakes, TruthRecapFold, TruthRecapView, truthChoiceText } from './TruthView';
 import { paceAttrs, usePace } from '../pace';
 import { useQuizTitle } from './MyPrize';
 import { ResultImageButton } from '../result-image/ResultImage';
@@ -139,7 +139,10 @@ const IN_ROUND: HostView['phase'][] = ['duel', 'intro', 'wager', 'board', 'quest
 
 /** Правильна відповідь на пульті; «Правда про гравця» (28b) — лише ім'я автора: імена йдуть без літер варіантів. */
 function hostCorrectText(correct: NonNullable<HostView['correct']>, view: HostView): string {
-  if (view.truth?.index != null && correct.type === 'single') return correct.options.find((option) => option.id === correct.correctId)?.text ?? '';
+  if (view.truth?.index != null && correct.type === 'single') {
+    const option = correct.options.find((choice) => choice.id === correct.correctId);
+    return option === undefined ? '' : truthChoiceText(option);
+  }
   return correctText(correct, view.question?.choices);
 }
 
@@ -529,6 +532,8 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
   // «Правда про гравця» (28b): рядок автора (у командах — його команди) — частка за чужі помилки, без оцінки.
   const truthAuthorId = view.truth?.author?.id ?? view.truth?.reveal?.author.id ?? null;
   const truthActor = truthAuthorId === null ? null : view.teams === null ? truthAuthorId : (view.teams.teams.find((team) => team.members.some((member) => member.id === truthAuthorId))?.id ?? null);
+  // Варіант «Вигадка» (52) у рядках відповідей — мовою інтерфейсу, за id.
+  const truthCorrect = correct?.type === 'single' && view.truth?.index != null ? { ...correct, options: correct.options.map((option) => ({ ...option, text: truthChoiceText(option) })) } : correct;
   // Пульт фактів: у лобі, поки факти приймаються, і в самому раунді (сховати ще не відкритий).
   const truthFacts = view.truth !== undefined && phase !== 'finished' && (view.truth.open || (round?.type === 'truth' && phase !== 'round_end'));
   const teamStartable = view.teams === null || teamsStartable(view.teams);
@@ -796,11 +801,17 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
       {view.question !== null && phase !== 'finished' && (
         <section className="panel">
           {round !== null && <HostContext round={round} question={view.question} />}
-          {view.truth?.author != null && (
-            <p className="lead truth-host-author" dir="auto">
-              {t('truthHostAuthor', { nickname: view.truth.author.nickname })}
-            </p>
-          )}
+          {view.truth?.author != null &&
+            (view.truth.author.fake === true ? (
+              // Вигадка ведучого (52): позначка й правильна відповідь «Вигадка» замість автора.
+              <p className="lead truth-host-author">
+                <span className="tag truth-fake-mark">{t('truthFakeHostMark')}</span> <span>{t('truthFakeHostAnswer')}</span>
+              </p>
+            ) : (
+              <p className="lead truth-host-author" dir="auto">
+                {t('truthHostAuthor', { nickname: view.truth.author.nickname })}
+              </p>
+            ))}
           {/* «Правда про гравця»: пульт бачить автора й вибори, а зал — ні, до підсумку раунду. */}
           {view.truth?.held === true && <p className="meta truth-host-held">{t('truthHostHeld')}</p>}
           {board !== null && board.cell !== null && (
@@ -1424,7 +1435,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
                       ? t('hostRiskSilent')
                       : response.spare !== null
                         ? answerText(response.answer, response.spare)
-                        : answerText(response.answer, correct, view.question?.choices)}
+                        : answerText(response.answer, truthCorrect, view.question?.choices)}
                   </span>
                   {response.clue !== null && <span className="meta">{t('clueAt', { n: response.clue })}</span>}
                   {awayRowTexts(response.playerId, response.away, view.teams !== null).map((text, index) => (
@@ -1604,6 +1615,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
       )}
       {(phase === 'round_end' || phase === 'finished') && view.truth?.recap !== undefined && <TruthRecapFold recap={view.truth.recap} open={view.truth.recap.early} />}
       {truthFacts && view.truth !== undefined && <HostTruthFacts truth={view.truth} send={send} onError={setError} />}
+      {truthFacts && view.truth !== undefined && <HostTruthFakes truth={view.truth} send={send} onError={setError} />}
 
       {phase !== 'lobby' && view.standings.length > 0 && <HostScores view={view} />}
 

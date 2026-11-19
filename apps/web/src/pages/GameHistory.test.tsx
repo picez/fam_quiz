@@ -217,6 +217,10 @@ describe('truthLine', () => {
     expect(truthLine({ author: 'Олена', points: 200 })).toBe('Факт написав(ла): Олена · автор +200');
     expect(truthLine({ author: 'Олена', points: 0 })).toBe('Факт написав(ла): Олена · автор 0');
   });
+
+  it('a host fake is made up by the host (52)', () => {
+    expect(truthLine({ author: '', points: 0, fake: true })).toBe(t('truthFakeLabel'));
+  });
 });
 
 describe('lettersLines', () => {

@@ -263,6 +263,38 @@ describe('GameHistory', () => {
     expect(screen.getByText('Факт написав(ла): Олена · автор +1000')).toBeTruthy();
   });
 
+  it('a host fake says made up by the host and has no author row (52)', async () => {
+    const fake: Question = { ...singleQ, id: 'truth-0', text: 'Я вмію жонглювати', options: [{ id: 'p1', text: 'Олена' }, { id: 'fake', text: 'Вигадка' }], correctId: 'fake' };
+    const fakeGame: GameDetail = {
+      ...detail,
+      rounds: [{ title: '', type: 'truth' }],
+      questions: [
+        {
+          index: 0,
+          roundIndex: 0,
+          text: fake.text,
+          type: 'single',
+          answered: 1,
+          accepted: 1,
+          cell: null,
+          question: fake,
+          responses: [{ nickname: 'Тарас', answer: { type: 'single', optionId: 'fake' }, accepted: true, buff: null, spare: null, awayMs: null, appeal: null }],
+          final: null,
+          bets: false,
+          auction: false,
+          truth: { author: '', points: 0, fake: true },
+        },
+      ],
+    };
+    vi.mocked(getGame).mockResolvedValue({ ok: true, data: fakeGame });
+    const { container } = open('/history/g1');
+    await screen.findByText('Я вмію жонглювати');
+    expect(container.querySelector('.truth-author-row')).toBeNull();
+    expect(container.querySelectorAll('.responses li')).toHaveLength(1);
+    expect(container.querySelector('.truth-history')?.textContent).toBe(t('truthFakeLabel'));
+    expect(screen.queryByText(t('truthHistoryAuthorRow'))).toBeNull();
+  });
+
   it('marks the details of a game a bot ran, beside the team mark', async () => {
     vi.mocked(getGame).mockResolvedValue({ ok: true, data: { ...detail, autopilot: true, teams: true } });
     open('/history/g1');
