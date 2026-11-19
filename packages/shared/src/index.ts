@@ -55,6 +55,7 @@ export * from './groups';
 export * from './push';
 export * from './admin';
 export * from './bot';
+export * from './bot-schedule';
 export * from './announcement';
 export * from './locale';
 export * from './lobby';

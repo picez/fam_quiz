@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { pushEndpointAllowed, pushPayloadSchema, pushSubscriptionSchema, pushUnsubscribeSchema } from './push';
+import { PUSH_KINDS, pushEndpointAllowed, pushPayloadSchema, pushSubscriptionSchema, pushUnsubscribeSchema } from './push';
 
 const ok = { endpoint: 'https://fcm.googleapis.com/fcm/send/abc', keys: { p256dh: 'BP', auth: 'au' } };
 
@@ -69,5 +69,17 @@ describe('pushPayloadSchema', () => {
   it('parses known kinds and rejects unknown', () => {
     expect(pushPayloadSchema.safeParse({ kind: 'opened', eventId: 'e', title: 'Вечір', code: '123456' }).success).toBe(true);
     expect(pushPayloadSchema.safeParse({ kind: 'liked' }).success).toBe(false);
+  });
+});
+
+describe('bot push (56)', () => {
+  it('a bot plan push: a reminder without a code, an opened room with a code', () => {
+    const bot = { kind: 'bot', planId: 'P', title: 'Т', startsAt: '2026-11-20T17:00:00.000Z', code: null };
+    expect(pushPayloadSchema.safeParse(bot).success).toBe(true);
+    expect(pushPayloadSchema.safeParse({ ...bot, code: '123456', locale: 'en' }).success).toBe(true);
+    const { planId: _planId, ...noPlan } = bot;
+    expect(pushPayloadSchema.safeParse(noPlan).success).toBe(false);
+    expect(pushPayloadSchema.safeParse({ ...bot, code: 5 }).success).toBe(false);
+    expect(PUSH_KINDS).toContain('bot');
   });
 });
