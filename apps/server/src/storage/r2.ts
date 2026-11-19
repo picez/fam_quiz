@@ -41,5 +41,12 @@ export function r2Storage(settings: R2Settings): ImageStorage {
       if (!response.ok) throw new Error(`image storage answered ${response.status}`);
       return { bytes: new Uint8Array(await response.arrayBuffer()) };
     },
+    async has(name) {
+      if (!isMediaName(name)) return false;
+      const response = await send(await client.sign(urlOf(name), { method: 'HEAD' }));
+      if (response.status === 404) return false;
+      if (!response.ok) throw new Error(`image storage answered ${response.status}`);
+      return true;
+    },
   };
 }

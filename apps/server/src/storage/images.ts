@@ -1,4 +1,4 @@
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, stat, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 
 export type ImageType = 'image/jpeg' | 'image/png' | 'image/webp';
@@ -15,6 +15,8 @@ export interface ImageStorage {
   put(name: string, bytes: Uint8Array, contentType: MediaType | StickerType): Promise<void>;
   /** Зображення або null, якщо такого немає. Збій сховища є винятком, а не null. */
   get(name: string): Promise<StoredImage | null>;
+  /** Чи є медіафайл (57, перевірка вікторини) без читання вмісту; ім'я, що не isMediaName, — false. Збій — виняток. Немає методу — питають get. */
+  has?(name: string): Promise<boolean>;
 }
 
 export const EXTENSIONS: Record<MediaType, string> = {
@@ -125,6 +127,9 @@ export function memoryStorage(): ImageStorage {
       const bytes = files.get(name);
       return bytes === undefined ? null : { bytes };
     },
+    async has(name) {
+      return isMediaName(name) && files.has(name);
+    },
   };
 }
 
@@ -142,6 +147,15 @@ export function diskStorage(dir: string): ImageStorage {
         return { bytes: await readFile(join(dir, name)) };
       } catch (error) {
         if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null;
+        throw error;
+      }
+    },
+    async has(name) {
+      if (!isMediaName(name)) return false;
+      try {
+        return (await stat(join(dir, name))).isFile();
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === 'ENOENT') return false;
         throw error;
       }
     },

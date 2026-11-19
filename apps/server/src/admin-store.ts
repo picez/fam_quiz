@@ -160,6 +160,8 @@ export async function botQuizzes(db: Db): Promise<AdminBotQuiz[]> {
     questions: questionsOf(row).length,
     truth: hasTruthRound(row),
     updatedAt: iso(row.updatedAt),
+    // 57: значок останньої перевірки дописують маршрути (checker.last).
+    check: null,
   }));
 }
 

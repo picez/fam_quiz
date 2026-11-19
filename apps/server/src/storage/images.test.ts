@@ -96,6 +96,15 @@ describe.each([
     }
     if (dir !== null) expect(await readdir(dir)).not.toContain('escape.png');
   });
+
+  it('has: true for a stored file, false for a missing one and for a bad name', async () => {
+    const { storage, dir } = await make();
+    if (dir !== null) dirs.push(dir);
+    await storage.put('0123456789abcdef.png', PNG, 'image/png');
+    expect(await storage.has!('0123456789abcdef.png')).toBe(true);
+    expect(await storage.has!('fedcba9876543210.png')).toBe(false);
+    for (const name of ['../escape.png', 'a/b.png', '', 'stickers/x.gif']) expect(await storage.has!(name), name).toBe(false);
+  });
 });
 
 describe('r2 storage', () => {
@@ -131,6 +140,28 @@ describe('r2 storage', () => {
     status = 500;
     await expect(storage.get('0123456789abcdef.png')).rejects.toThrow();
     await expect(storage.put('0123456789abcdef.png', PNG, 'image/png')).rejects.toThrow();
+  });
+
+  it('has: a signed HEAD to the object, 404 is false, another failure throws', async () => {
+    const seen: Request[] = [];
+    let status = 200;
+    const storage = r2Storage({
+      ...settings,
+      fetch: async (request) => {
+        seen.push(request);
+        return new Response(null, { status });
+      },
+    });
+    expect(await storage.has!('0123456789abcdef.png')).toBe(true);
+    expect(seen[0].method).toBe('HEAD');
+    expect(seen[0].url).toBe('https://acc123.r2.cloudflarestorage.com/quiz-images/0123456789abcdef.png');
+    expect(seen[0].headers.get('authorization')).toMatch(/^AWS4-HMAC-SHA256 Credential=key\//);
+    status = 404;
+    expect(await storage.has!('0123456789abcdef.png')).toBe(false);
+    status = 500;
+    await expect(storage.has!('0123456789abcdef.png')).rejects.toThrow();
+    expect(await storage.has!('../x.png')).toBe(false);
+    expect(seen).toHaveLength(3);
   });
 
   it('refuses names that could address another object', async () => {
