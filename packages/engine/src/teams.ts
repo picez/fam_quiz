@@ -316,10 +316,10 @@ export function dropMember(state: GameState, memberId: string, now?: number): Re
   // Команда на зв'язку, поки хтось із її людей на зв'язку.
   const present = members.some((m) => m.teamId === team && m.connected);
   const player = left.players.find((p) => p.id === team);
-  if (team === null || player === undefined || player.connected === present) return ok(autoLock(left));
+  if (team === null || player === undefined || player.connected === present) return ok(autoLock(left, now ?? null));
   if (now !== undefined) return setConnected(left, team, present, now);
   const players = left.players.map((p): PlayerState => (p.id === team ? { ...p, connected: present } : p));
-  return ok(settleTrial(settleDecision(autoLock(settleAudience({ ...left, players })))));
+  return ok(settleTrial(settleDecision(autoLock(settleAudience({ ...left, players }), now ?? null))));
 }
 
 /** Зв'язок учасника; якщо змінилося «хтось із команди на зв'язку» — setConnected(команда); повернувся — команда зникає з awaiting. */

@@ -312,13 +312,14 @@ function votedOff(state: GameState, vote: ThinkVote, entry: ThinkBallotEntry): b
  * Лише непорожні відповіді учасників, ще в грі; поза think — {}.
  */
 export function thinkOffOf(state: GameState, index: number): Record<string, ThinkOff> {
+  // Після закриття — заморожений результат (vote.off); наживо — лише на етапі й для знімків без off.
   const play = thinkPlayOf(state, index);
   if (play === null) return {};
   const host = play.think.off ?? [];
   const { vote } = play.think;
   const found = new Map<string, ThinkOff>();
   for (const entry of thinkBallot(state, index)) {
-    const byVote = vote !== undefined && votedOff(state, vote, entry);
+    const byVote = vote !== undefined && (vote.off !== undefined ? vote.off.includes(entry.key) : votedOff(state, vote, entry));
     for (const id of entry.authors) {
       if (host.includes(id)) found.set(id, 'host');
       else if (byVote) found.set(id, 'vote');
@@ -330,6 +331,17 @@ export function thinkOffOf(state: GameState, index: number): Record<string, Thin
     if (source !== undefined) off[id] = source;
   }
   return off;
+}
+
+/** Закриття запитання (51, з lockNow): заморожує результат голосування поточного запитання think у vote.off; немає етапу чи вже заморожено — той самий стан. */
+export function freezeThinkVote(state: GameState): GameState {
+  const play = thinkPlayOf(state);
+  const vote = play?.think.vote;
+  if (play === null || vote === undefined || vote.off !== undefined) return state;
+  const off = thinkBallot(state, state.questionIndex)
+    .filter((entry) => votedOff(state, vote, entry))
+    .map((entry) => entry.key);
+  return withCurrentPlay(state, { ...play, think: { ...play.think, vote: { ...vote, off } } });
 }
 
 /**
@@ -385,13 +397,14 @@ export function thinkAuto(state: GameState, now: number | null): GameState {
 }
 
 /**
- * Позначки «не на тему» голосувальника (51): не етап голосування — wrong_phase; не з voters (вибулий, глядач, автор автопілота) — think_spectator;
+ * Позначки «не на тему» голосувальника (51): не етап голосування — wrong_phase; пауза — paused (як у «Шпигуна»); не з voters (вибулий, глядач, автор автопілота) — think_spectator;
  * ключ не з бюлетеня або власний — not_found. Дублікати зводяться, нове надсилання замінює попереднє; кожен присутній натиснув — закриття.
  */
 export function voteThinkOff(state: GameState, actorId: string, keys: string[], now: number): Result {
   const play = thinkPlayOf(state);
   const vote = play?.think.vote;
   if (state.phase !== 'question' || play === null || vote === undefined) return fail('wrong_phase');
+  if (state.paused) return fail('paused');
   if (!vote.voters.includes(actorId) || !state.players.some((p) => p.id === actorId)) return fail('think_spectator');
   const ballot = thinkBallot(state, state.questionIndex);
   const marked = [...new Set(keys)];

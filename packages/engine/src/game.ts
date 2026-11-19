@@ -95,7 +95,7 @@ import { packMemories, scoreMemory } from './memory';
 import { isSnippetQuestion, snippetHeard, snippetPaid } from './snippets';
 import { packPuzzles, scorePuzzle } from './puzzles';
 import { dealTruth, dropTruthFacts, nextTruthQuestion, truthGuessers, truthPlayFor, truthPlayOf, withTruthPoints } from './truth';
-import { awardThinkPlaces, openThink, submitThinkAnswer, thinkAuto, thinkOver, thinkPlayOf, thinkPresent, withThinkGrades } from './think';
+import { awardThinkPlaces, freezeThinkVote, openThink, submitThinkAnswer, thinkAuto, thinkOver, thinkPlayOf, thinkPresent, withThinkGrades } from './think';
 import { scoreWordLadder } from './wordladder';
 import { scoreWordle } from './wordle';
 import { scoreSort, shiftSortLocks } from './sort';
@@ -311,6 +311,11 @@ export interface ThinkVote {
   voters: string[];
   /** Позначки «не на тему» — ключі thinkKey відповідей; є ключ учасника — він натиснув «Готово» (повторне надсилання замінює). */
   marks: Record<string, string[]>;
+  /**
+   * Результат, заморожений на мить закриття етапу (lockNow): ключі, що вийшли не на тему. Немає — етап ще йде (рахується наживо)
+   * або знімок до заморожування (теж наживо). Етап також переносить startedAt запитання на свій початок (як у «Шпигуна»).
+   */
+  off?: string[];
 }
 
 /** Вихід людини з гри на одному запитанні (12e): закритий час, скільки інтервалів закрито (≥ 1 мс), відколи поза грою зараз (час сервера) чи null. */
@@ -2042,8 +2047,9 @@ export function lockNow(state: GameState): GameState {
   // «Більше чи менше»: неповні ряди отримують записи тут, а лічильники правильних заморожуються (28a).
   // «Малюнок»: художник отримує частку, решта — записи з 0, лічильники заморожуються (28c).
   // «Головоломки»: дошки без «Готово» отримують записи за сіткою на цю мить (28d).
+  // «Думай інакше» (51): результат голосування «не на тему» заморожується (ThinkVote.off) — пізніші вилучення його не переписують.
   const closed = spendDebuffs(
-    withCellPenalty(withRiskMisses(dropQueue(scoreSpy(scoreBluff(scoreWall(scoreSort(scoreMemory(scoreSpotdiff(scoreJigsaw(scorePuzzle(scoreDrawing(scoreMoreLess(scoreAlike(scoreOvershoot(scoreLetterWords(scoreTimedList(scoreWordle(scoreWordLadder(scoreChain(closeAudience(settleRetries(state)))))))))))))))))))))),
+    withCellPenalty(withRiskMisses(dropQueue(scoreSpy(scoreBluff(scoreWall(scoreSort(scoreMemory(scoreSpotdiff(scoreJigsaw(scorePuzzle(scoreDrawing(scoreMoreLess(scoreAlike(scoreOvershoot(scoreLetterWords(scoreTimedList(scoreWordle(scoreWordLadder(scoreChain(closeAudience(settleRetries(freezeThinkVote(state))))))))))))))))))))))),
   );
   return withTotals({ ...closed, phase: 'locked', startedAt: null, endsAt: null, remainingMs: null, heldAt: null, board: clearAway(closed.board) });
 }

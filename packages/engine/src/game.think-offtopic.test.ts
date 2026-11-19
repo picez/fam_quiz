@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Answer, ThinkRound, ThinkWord } from '@quiz/shared';
-import { addPlayer, createGame, next, removePlayer, setConnected, start, submitAnswer, tick, type GameState } from './game';
-import { markThinkOff, thinkBallot, thinkLivesAfter, thinkOffOf, thinkOver, voteThinkOff } from './think';
+import { addPlayer, createGame, next, pause, removePlayer, setConnected, start, submitAnswer, tick, type GameState } from './game';
+import { markThinkOff, thinkBallot, thinkLivesAfter, thinkOffOf, thinkOver, thinkPlaces, voteThinkOff } from './think';
 import { classicRound, makeRoundsQuiz, single, think, thinkRound } from './testing/fixtures';
 import { must } from './testing/helpers';
 
@@ -254,5 +254,37 @@ describe('the off-topic vote on autopilot (51)', () => {
     expect(kicked.phase).toBe('question');
     expect(vote(kicked)?.voters).toEqual(FOUR);
     expect(kicked.endsAt).toBe(t0 + 5000 + 25_000);
+  });
+
+  it('the vote result is frozen when the stage closes', () => {
+    // q1: «банан» Петра — 2 з 3 (Оля, Віра); Петро на останньому житті вибуває
+    let s = answer(piloted(FOUR, { lives: 1 }), { olya: 'синій', petro: 'банан', vira: 'зелений', ihor: 'жовтий' });
+    s = mark(mark(s, 'olya', ['банан']), 'vira', ['банан']);
+    s = mark(mark(s, 'petro', []), 'ihor', []);
+    expect(s.phase).toBe('locked');
+    expect(vote(s)?.off).toEqual(['банан']);
+    s = must(next(s, t0 + 90_000, rng0));
+    const q1 = here(s);
+    expect(thinkOffOf(s, q1)).toEqual({ petro: 'vote' });
+    s = must(next(s, t0 + 100_000, rng0));
+    expect(play(s).question.id).toBe('q2');
+    // q2: Віру (голосувала за «банан») вилучено — наживо було б 1 з 2 (нічия), але результат q1 і місця ті самі
+    const placesBefore = thinkPlaces(s, 0).find((r) => r.id === 'petro');
+    expect(placesBefore).toMatchObject({ lives: 0, outAt: 1 });
+    const kicked = must(removePlayer(s, 'vira', t0 + 101_000));
+    expect(thinkOffOf(kicked, q1)).toEqual({ petro: 'vote' });
+    expect(thinkLivesAfter(kicked, q1, 'petro')).toBe(0);
+    expect(thinkPlaces(kicked, 0).find((r) => r.id === 'petro')).toMatchObject({ lives: 0, outAt: 1 });
+    // старий знімок без off — рахується наживо
+    const { off: _off, ...live } = s.plays[q1].think?.vote ?? { voters: [], marks: {} };
+    void _off;
+    const legacy: GameState = { ...s, plays: s.plays.map((p, i) => (i === q1 && p.think !== undefined ? { ...p, think: { ...p.think, vote: live } } : p)) };
+    expect(thinkOffOf(legacy, q1)).toEqual({ petro: 'vote' });
+  });
+
+  it('no votes while paused', () => {
+    const s = voting();
+    const paused = must(pause(s, t0 + 40_000));
+    expect(voteThinkOff(paused, 'olya', ['банан'], t0 + 41_000)).toEqual({ ok: false, error: 'paused' });
   });
 });
