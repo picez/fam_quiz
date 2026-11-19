@@ -137,6 +137,7 @@ import {
   drawStroke,
   submitTruth,
   hideTruth,
+  setTruthFake,
   setThinkWords,
   voteThinkOff,
   markThinkOff,
@@ -437,6 +438,7 @@ export type HostAction =
   | { type: 'captain'; teamId: string; memberId: string }
   /** «Правда про гравця» (28b): сховати чи показати факт людини. Лише ведучий: автор кімнати-автопілота теж вгадує. */
   | { type: 'truth-hide'; playerId: string; hidden: boolean }
+  | { type: 'truth-fake'; id: string | null; text: string }
   /** «Думай інакше» (35): замінити слова ведучого поточного запитання. Лише ведучий: автор кімнати-автопілота — not_allowed. Слова не йдуть ні в події, ні в логи. */
   | { type: 'think-words'; words: ThinkWord[] }
   | { type: 'think-off'; playerId: string; off: boolean }
@@ -2532,6 +2534,11 @@ export class RoomManager {
         return this.apply(room, setCaptain(state, action.teamId, action.memberId));
       case 'truth-hide':
         return this.apply(room, hideTruth(state, action.playerId, action.hidden));
+      case 'truth-fake': {
+        if (truthPassed(room)) return { ok: false, error: 'truth_closed' };
+        if (!rateAllowed(room, 'truth', HOST_RATE_ID, this.now())) return { ok: false, error: 'too_soon' };
+        return this.apply(room, setTruthFake(state, action.id, action.text));
+      }
       case 'think-words': {
         const now = this.now();
         if (!rateAllowed(room, 'think', HOST_RATE_ID, now)) return { ok: false, error: 'too_soon' };

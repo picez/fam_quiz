@@ -221,7 +221,7 @@ function answerRowsOf(state: GameState, index: number, playerId: string, engineP
 /** «Правда про гравця» (28b) для PlayRef: запитання з фактом, автор і його нікнейм з варіантів (вони не міняються після вилучення). */
 function truthRef(truth: TruthPlay, question: Question): NonNullable<PlayRef['truth']> {
   const authorName = question.type === 'single' ? (question.options.find((o) => o.id === truth.authorId)?.text ?? '') : '';
-  return { question, author: truth.authorId, authorName, actor: truth.actorId };
+  return { question, author: truth.authorId, authorName, actor: truth.actorId, ...(truth.fake === true ? { fake: true as const } : {}) };
 }
 
 /** «Малюнок» (28c) для PlayRef: нік художника (людини; у командній грі — учасника; вилученого — '') і стиснені штрихи. */

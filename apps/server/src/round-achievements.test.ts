@@ -87,6 +87,18 @@ describe('roundAchievements (33)', () => {
     expect(has(fakeGame({ questions: three, rows: missed }), 'mind_reader')).toBe(false);
   });
 
+  it('mind_reader counts only real facts, a fake of the host does not count', () => {
+    const fake = (index: number): AchievementQuestion =>
+      q(index, { roundType: 'truth', ref: { roundIndex: 0, questionId: `t${index}`, truth: { question: single, author: 'fake-1', authorName: '', actor: 'fake-1', fake: true } } });
+    const three = [truth(0, PETRO, PETRO), truth(1, 'p-ira', 'p-ira'), truth(2, 'p-marko', 'p-marko')];
+    // три справжні вгадано, вигадку ні — є
+    const missedFake = [...three, fake(3)];
+    expect(has(fakeGame({ questions: missedFake, rows: [...three.map((x) => row(x.index)), row(3, { accepted: false })] }), 'mind_reader')).toBe(true);
+    // два справжні й вигадка вгадано — немає
+    const two = [...three.slice(0, 2), fake(2)];
+    expect(has(fakeGame({ questions: two, rows: two.map((x) => row(x.index)) }), 'mind_reader')).toBe(false);
+  });
+
   it('dark_horse: nobody of at least 3 guessed your fact; in a team game it goes to the author person', () => {
     const guess = (participantId: string, accepted = false): AchievementRow => row(0, { participantId, accepted, points: accepted ? 100 : 0 });
     const others = [guess(PETRO), guess('p-ira'), guess('p-marko')];

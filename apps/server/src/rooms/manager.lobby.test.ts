@@ -142,4 +142,30 @@ describe('player truth facts (28b)', () => {
     expect(room.state.truth?.facts[olena]?.hidden).toBe(true);
     expect(manager.host(room, { type: 'truth-hide', playerId: 'nobody', hidden: true })).toEqual({ ok: false, error: 'not_found' });
   });
+
+  it('the host adds a fake in the lobby, the players never see it', () => {
+    const { manager, scheduler, room, olena } = truthRoom();
+    const FAKE = 'Я вмію жонглювати';
+    expect(manager.truth(room, olena, FACT)).toEqual({ ok: true });
+    expect(manager.host(room, { type: 'truth-fake', id: null, text: FAKE })).toEqual({ ok: true });
+    const host = manager.view(room, HOST);
+    if (host === null || host.role !== 'host') throw new Error('not a host');
+    expect(host.truth !== undefined && 'fakes' in host.truth ? host.truth.fakes[0]?.text : undefined).toBe(FAKE);
+    const taras = JSON.stringify(manager.view(room, { role: 'player', playerId: room.state.players[1]!.id }));
+    const stage = JSON.stringify(manager.view(room, { role: 'stage', playerId: null }));
+    expect(taras).not.toContain('жонглювати');
+    expect(stage).not.toContain('жонглювати');
+    // ліміт частоти: два за секунду, третій — надто швидко
+    expect(manager.host(room, { type: 'truth-fake', id: null, text: 'Я знаю шість мов' })).toEqual({ ok: true });
+    expect(manager.host(room, { type: 'truth-fake', id: null, text: 'Я бачив північне сяйво' })).toEqual({ ok: false, error: 'too_soon' });
+    scheduler.advance(1000);
+    expect(manager.host(room, { type: 'truth-fake', id: null, text: 'Я бачив північне сяйво' })).toEqual({ ok: true });
+  });
+
+  it('a fake is refused in the lobby that continues after the truth round', () => {
+    const { manager } = setup();
+    const room = manager.create(makeRoundsQuiz([truthRound('r1'), classicRound('r2', [single])]), 'u1');
+    room.continued = { carry: { roundIndex: 1 } } as never;
+    expect(manager.host(room, { type: 'truth-fake', id: null, text: 'Я вмію жонглювати' })).toEqual({ ok: false, error: 'truth_closed' });
+  });
 });
