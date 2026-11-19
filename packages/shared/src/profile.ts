@@ -64,6 +64,8 @@ export interface PublicProfile extends ProfileCard {
   showcase: Showcase;
   level: PublicLevel;
   likes: LikeTotals;
+  /** Остання форма (49); необов'язкова — старий кеш вебу й фікстури без неї. */
+  form?: RecentForm;
 }
 
 export interface ProfileWin {
@@ -106,6 +108,8 @@ export interface OwnProfile extends ProfileCard {
   wins: ProfileWin[];
   friends: FriendCard[];
   showcase: Showcase;
+  /** Остання форма (49); необов'язкова — старий кеш вебу й фікстури без неї. */
+  form?: RecentForm;
 }
 
 type Counted = Pick<PlayedGame, 'status' | 'rank' | 'score' | 'playerCount' | 'correct' | 'questionsPlayed'>;

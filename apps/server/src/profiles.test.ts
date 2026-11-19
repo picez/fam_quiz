@@ -9,7 +9,7 @@ import { playToEnd } from './testing/final-game';
 import { playLadderQuestion } from './testing/ladder-game';
 import { playSurvivalQuestion } from './testing/survival-game';
 import { playWipeout } from './testing/wipeout-game';
-import { follow, game, participant, profile, quiz as quizTable, showcasePin, user, userAchievement } from './db/schema';
+import { follow, game, participant, profile, quiz as quizTable, showcasePin, user, userAchievement, userBan } from './db/schema';
 import { nicknameKey } from './profiles';
 import { ensureProfile, findByNickname, searchProfiles, ownProfile, profileFacts, publicProfile, saveProfile } from './profiles';
 import { markInterrupted } from './recorder';
@@ -269,6 +269,50 @@ describe('profile facts', () => {
     // Перервана гра не рахується зовсім (беклог 12): ігор 7, а не 8.
     expect(stats).toMatchObject({ games: 7, wins: 1, podium: { first: 1, second: 1, third: 1 }, top3: 50, bestScore: 500, avgPlace: 2.2 });
     expect((await publicProfile(db, me, null))?.stats).toMatchObject({ podium: { first: 1, second: 1, third: 1 }, top3: 50, bestScore: 500, avgPlace: 2.2 });
+  });
+
+  it('the profile shows the recent form (49): placed games with rivals, newest first, and the streak; a banned profile stays null', async () => {
+    const hostId = randomUUID();
+    const me = randomUUID();
+    await db.insert(user).values([
+      { id: hostId, name: 'Ведуча', email: `${hostId}@example.com` },
+      { id: me, name: 'Гравець', email: `${me}@example.com` },
+    ]);
+    // Від найстарішої: 1-е з 2, 2-е з 3, 1-е з 2 і найновіша — соло (у формі її немає).
+    const games = [
+      { title: 'Перша', rank: 1, playerCount: 2 },
+      { title: 'Друга', rank: 2, playerCount: 3 },
+      { title: 'Третя', rank: 1, playerCount: 2 },
+      { title: 'Соло', rank: 1, playerCount: 1 },
+    ];
+    const ids: string[] = [];
+    for (const [i, g] of games.entries()) {
+      const { gameId } = await seedGame(db, {
+        hostId,
+        title: g.title,
+        startedAt: new Date(Date.UTC(2026, 2, 1 + i)),
+        players: [
+          { userId: me, nickname: 'Я', score: 100, rank: g.rank },
+          ...Array.from({ length: g.playerCount - 1 }, (_, j) => ({ userId: null, nickname: `Гість ${j}`, score: 10 * j, rank: j + (g.rank === 1 ? 2 : 1) })),
+        ],
+      });
+      ids.push(gameId);
+    }
+    const expected = {
+      games: [
+        { gameId: ids[2], title: 'Третя', startedAt: '2026-03-03T00:00:00.000Z', place: 1, medal: 1, team: null },
+        { gameId: ids[1], title: 'Друга', startedAt: '2026-03-02T00:00:00.000Z', place: 2, medal: 2, team: null },
+        { gameId: ids[0], title: 'Перша', startedAt: '2026-03-01T00:00:00.000Z', place: 1, medal: 1, team: null },
+      ],
+      // Перемога поспіль лише одна, у трійці — три.
+      streak: { kind: 'top3', count: 3 },
+    };
+    const own = await ownProfile(db, { id: me, name: 'Гравець', email: `${me}@example.com` } as Parameters<typeof ownProfile>[1]);
+    expect(own.form).toEqual(expected);
+    expect((await publicProfile(db, me, null))?.form).toEqual(expected);
+
+    await db.insert(userBan).values({ userId: me, reason: null, bannedBy: null, bannedAt: new Date() });
+    expect(await publicProfile(db, me, null)).toBeNull();
   });
 
   it('profileFacts earns blitz, final, comeback and friends achievements from stored games', async () => {

@@ -72,7 +72,9 @@ describe('public profile', () => {
       const response = await request('GET', `/api/profiles/${olenaId}`, cookie);
       expect(response.statusCode).toBe(200);
       const body = response.json();
-      expect(Object.keys(body).sort()).toEqual(['achievements', 'avatar', 'following', 'id', 'leagueTitles', 'level', 'likes', 'nickname', 'showcase', 'stats']);
+      expect(Object.keys(body).sort()).toEqual(['achievements', 'avatar', 'following', 'form', 'id', 'leagueTitles', 'level', 'likes', 'nickname', 'showcase', 'stats']);
+      // Остання форма (49): лише місця, назви й дати ігор; без ігор — порожня.
+      expect(body.form).toEqual({ games: [], streak: null });
       expect(Object.keys(body.stats).sort()).toEqual(['accuracy', 'avgPlace', 'bestScore', 'games', 'hosted', 'podium', 'quizzes', 'top3', 'wins']);
       expect(response.body).not.toContain(olena.email);
       expect(response.body).not.toContain('Таємна вікторина');

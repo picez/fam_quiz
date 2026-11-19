@@ -178,6 +178,14 @@ describe('profile speed (46): the safety net', () => {
     }).toEqual({ own: 1, public: 1, achievementsOwn: 1 });
   });
 
+  it('the recent form is the newest ten of the career (49)', { timeout: 120_000 }, async () => {
+    const db = await createTestDb();
+    const career = await seedCareer(db);
+    const first = await readAll(db, career);
+    expect(first.own.form?.games).toHaveLength(10);
+    expect(first.own.form).toEqual(first.public?.form);
+  });
+
   it('the first read levels up from the achievements it just wrote', { timeout: 120_000 }, async () => {
     const db = await createTestDb();
     const career = await seedCareer(db);
