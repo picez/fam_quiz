@@ -24,7 +24,7 @@ describe('RecentForm', () => {
     expect(items).toHaveLength(3);
     const chips = screen.getAllByRole('button');
     expect(chips.map((chip) => chip.textContent)).toEqual(['🥇', '🥉', '5']);
-    expect(chips[2]!.getAttribute('aria-label')).toBe('5-е місце, Назва · 12.11.2026');
+    expect(chips[2]!.getAttribute('aria-label')).toBe('5-е місце, Назва, 12.11.2026');
     expect(chips[2]!.getAttribute('title')).toBe('Назва · 12.11.2026');
   });
 
@@ -36,6 +36,7 @@ describe('RecentForm', () => {
     expect(caption.textContent).toBe('Назва · 12.11.2026');
     fireEvent.click(screen.getAllByRole('button')[1]!);
     expect(caption.textContent).toBe('Назва · команда «Сови» · 12.11.2026');
+    expect(screen.getAllByRole('button')[1]!.getAttribute('aria-label')).toBe('3-е місце, Назва, Сови, 12.11.2026');
   });
 
   it('the public form has no titles: only the date', () => {

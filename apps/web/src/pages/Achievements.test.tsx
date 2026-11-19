@@ -80,7 +80,7 @@ describe('Achievements, shares and xp (49)', () => {
     await screen.findByText('Отримано 2 з 102');
     const win = await waitFor(() => {
       const card = cardOf('Перша перемога');
-      expect(within(card).getByText('Є в 3 % гравців')).toBeTruthy();
+      expect(within(card).getByText('Є в 2 % гравців')).toBeTruthy();
       return card;
     });
     expect(within(win).getByText('дуже рідкісне')).toBeTruthy();

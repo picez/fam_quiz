@@ -151,14 +151,14 @@ function lookName(slot: LookSlot, id: string): string {
 }
 
 /** Вміст плитки: власне фото в рамці, нік власним шрифтом, назва кольором/рамкою, емодзі. Підпис — назва вигляду. */
-export function TileFace({ slot, id, nickname, avatar }: { slot: LookSlot; id: string | null; nickname: string; avatar: ProfileCard }) {
+export function TileFace({ slot, id, nickname, avatar, size = 'medium' }: { slot: LookSlot; id: string | null; nickname: string; avatar: ProfileCard; size?: 'medium' | 'small' }) {
   const name = id === null ? null : lookName(slot, id);
   switch (slot) {
     case 'photo':
       return (
         <span className="look-art" aria-hidden="true">
           <AvatarFrame frame={id as PhotoFrame | null}>
-            <Avatar profile={avatar} size="medium" />
+            <Avatar profile={avatar} size={size} />
           </AvatarFrame>
         </span>
       );

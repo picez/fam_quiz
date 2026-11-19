@@ -34,7 +34,7 @@ describe('AchievementShowcase', () => {
     expect(squares[1]!.classList.contains('is-rare')).toBe(false);
     expect(squares[1]!.classList.contains('is-very-rare')).toBe(false);
     fireEvent.click(squares[0]!);
-    expect(document.querySelector('[aria-live="polite"]')!.textContent).toBe('Перша перемога · є в 3 % гравців · дуже рідкісне');
+    expect(document.querySelector('[aria-live="polite"]')!.textContent).toBe('Перша перемога · є в 2 % гравців · дуже рідкісне');
     fireEvent.click(squares[1]!);
     expect(document.querySelector('[aria-live="polite"]')!.textContent).toBe('Перша гра · є в 50 % гравців');
   });

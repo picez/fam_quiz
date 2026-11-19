@@ -26753,7 +26753,10 @@ a.library-card:focus-visible {
   font-weight: 700;
 }
 
-.level-row-from,
+.level-row-lock {
+  font-size: 0.875rem;
+}
+
 .level-row-none,
 .level-row-next,
 .level-row-date {
@@ -26780,20 +26783,34 @@ a.library-card:focus-visible {
   overflow-wrap: anywhere;
 }
 
+/* Однакова квадратна рамка для кожної картинки: фото мале, вигляд ніка — зразок з двох літер. */
 .reward-art {
   display: inline-grid;
   flex: none;
   place-items: center;
-  min-width: 2.5rem;
-  max-width: 6rem;
+  inline-size: 3rem;
+  block-size: 3rem;
+  min-width: 0;
+  max-width: none;
   overflow: hidden;
   font-size: 1.5rem;
+  line-height: 1;
+}
+
+.reward-art .nick-name {
+  white-space: nowrap;
+  text-overflow: clip;
+  font-size: 1.25rem;
+}
+
+.reward-art .photo-frame {
+  transform: scale(0.85);
 }
 
 /* Силует майбутньої нагороди: фільтр лише на картинці, підпис лишається звичайним текстом. */
 .level-row.is-future .reward-art {
-  filter: grayscale(1) brightness(0.5);
-  opacity: 0.55;
+  filter: grayscale(1) brightness(1.1);
+  opacity: 0.6;
 }
 
 :root.is-light .level-row.is-future .reward-art {

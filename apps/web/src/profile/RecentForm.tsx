@@ -12,6 +12,13 @@ function gameText(game: FormGame | PublicFormGame): string {
   return game.team === null ? t('formGame', { title: game.title, date }) : t('formTeamGame', { title: game.title, team: game.team, date });
 }
 
+/** Те саме для читача з екрана: через кому, бо «·» він читає як «крапка» чи ковтає паузу. */
+function spokenText(game: FormGame | PublicFormGame): string {
+  const date = shortDate(game.startedAt);
+  if (!('title' in game)) return date;
+  return [game.title, ...(game.team === null ? [] : [game.team]), date].join(', ');
+}
+
 /**
  * Остання форма (49): до 10 останніх ігор з місцем чипами — медаль 🥇🥈🥉 чи число, найновіша першою. Чип — кнопка (≥ 32 px):
  * title і підпис aria-live після дотику кажуть гру й дату. Серія («3 перемоги поспіль») — під чипами. Без ігор чи без форми — нічого.
@@ -33,7 +40,7 @@ export function RecentForm({ form }: { form: Form | PublicRecentForm | undefined
                 type="button"
                 className={selected === index ? 'recent-form-chip is-selected' : 'recent-form-chip'}
                 title={text}
-                aria-label={t('formPlaceAria', { place: game.place, game: text })}
+                aria-label={t('formPlaceAria', { place: game.place, game: spokenText(game) })}
                 onClick={() => setSelected(index)}
                 onFocus={() => setSelected(index)}
               >
