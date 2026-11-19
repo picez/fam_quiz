@@ -287,6 +287,9 @@ export const LIMITS = {
   maxThinkWords: 3,
   maxThinkSynonyms: 5,
   thinkWord: 40,
+  /** «Думай інакше» (51): час етапу голосування «не на тему» в автопілоті (с); найменше живих присутніх учасників, щоб етап відкрився. */
+  thinkVoteTime: 25,
+  minThinkVoters: 3,
   /** «Шпигун» (38): час останнього шансу викритого шпигуна (с); найменше гравців, щоб запитання відкрилося. */
   spyGuessTime: 30,
   minSpyPlayers: 3,
@@ -1495,9 +1498,16 @@ export const thinkRoundSchema = z.object({
   /** Сума за 1-ше місце; останнє — 0, між ними рівними кроками. */
   points: z.number().int().min(0).max(LIMITS.maxThinkPoints),
   questions: z.array(questionSchema).min(LIMITS.minThinkQuestions).max(LIMITS.maxThinkQuestions),
+  /** Голосування «не на тему» в автопілоті (51); немає — увімкнено. */
+  offtopicVote: z.boolean().optional(),
 });
 
 export type ThinkRound = z.infer<typeof thinkRoundSchema>;
+
+/** «Думай інакше» (51): чи є в автопілоті етап голосування «не на тему» (немає поля — так). */
+export function thinkOfftopicVoteOn(round: ThinkRound): boolean {
+  return round.offtopicVote !== false;
+}
 export type TrialKind = (typeof TRIAL_KINDS)[number];
 
 /** Як вибирається учасник драбини: ведучий сам, жереб, найменші бали на початку раунду. */

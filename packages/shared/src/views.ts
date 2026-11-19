@@ -1774,6 +1774,15 @@ export interface PlayerSpy {
 /** «Думай інакше» (35): вердикт відповіді учасника на розкритті — не збігся, збігся зі словом ведучого, нічого не написав. */
 export type ThinkVerdict = 'safe' | 'hit' | 'empty';
 
+/** «Думай інакше» (51): хто вирішив, що відповідь не на тему, — ведучий чи голосування автопілота. */
+export type ThinkOff = 'host' | 'vote';
+
+/** «Думай інакше» (51): відповідь у бюлетені — ключ thinkKey і текст, без автора. */
+export interface ThinkVoteEntry {
+  key: string;
+  text: string;
+}
+
 /** «Думай інакше» (35): місце учасника раунду (thinkPlaces). */
 export interface ThinkPlaceRow {
   id: string;
@@ -1801,6 +1810,8 @@ export interface ThinkRow {
   overridden: boolean;
   /** Лише reveal, збіг програми: індекс слова ведучого (words), з яким збіглася відповідь; ручний збіг чи порожня — null. */
   matched: number | null;
+  /** Лише reveal (51): відповідь не на тему — позначка ведучого чи голосування; інакше null. */
+  off: ThinkOff | null;
 }
 
 /** «Не перебільш» (37d): рядок відповіді на reveal. */
@@ -1824,6 +1835,11 @@ export interface ThinkInfo {
   words: ThinkWord[] | null;
   /** Лише round_end (і finished) раунду think. */
   places: (ThinkPlaceRow & { nickname: string })[] | null;
+  /**
+   * Лише етап голосування автопілота (51): бюлетень без авторів за ключем, id учасників, що натиснули «Готово»,
+   * і скільки всього голосувальників. Кількостей позначок до reveal немає.
+   */
+  vote: { entries: ThinkVoteEntry[]; voted: string[]; voters: number } | null;
 }
 
 /** Пульт «Думай інакше» (35): чернетка слів і відповіді наживо з позначкою збігу. */
@@ -1835,7 +1851,8 @@ export interface HostThink extends ThinkInfo {
   /** locked: «Показати» дозволено (є слова або автопілот). */
   canReveal: boolean;
   /** question…reveal: відповіді живих на відкритті з позначкою збігу; немає відповіді — answer і hit null. */
-  answers: { id: string; nickname: string; answer: string | null; hit: boolean | null; overridden: boolean }[];
+  /** off (51) — позначка «не на тему» (лише reveal; інакше null). */
+  answers: { id: string; nickname: string; answer: string | null; hit: boolean | null; overridden: boolean; off: ThinkOff | null }[];
 }
 
 /** Телефон «Думай інакше» (35): власні життя (соло — свої, командна гра — команди). */
@@ -1845,6 +1862,13 @@ export interface PlayerThink {
   status: 'alive' | 'out' | 'spectator';
   /** Лише reveal: свій вердикт. */
   verdict: ThinkVerdict | null;
+  /** Лише reveal (51): своя відповідь не на тему — ведучий чи голосування; інакше null. */
+  off: ThinkOff | null;
+  /**
+   * Лише етап голосування автопілота (51): бюлетень без власного ключа (не голосувальнику — повний), свої надіслані позначки,
+   * чи може голосувати (капітан чи соло-гравець з voters) і чи вже натиснув «Готово».
+   */
+  vote: { entries: ThinkVoteEntry[]; marked: string[]; canVote: boolean; done: boolean } | null;
   /** Лише round_end (і finished): своє місце й очки. */
   place: { place: number; points: number } | null;
 }
