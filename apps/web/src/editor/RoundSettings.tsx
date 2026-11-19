@@ -191,7 +191,7 @@ export function RoundSettings({ round, index, total = 0, onChange, open, onToggl
             <span>{t('thinkOffVoteSetting')}</span>
           </label>
           <p className="meta" id={offtopicHintId}>
-            {t('thinkOffVoteSettingHint')}
+            {t('thinkOffVoteSettingHint', { count: LIMITS.minThinkVoters })}
           </p>
         </fieldset>
       )}

@@ -3490,7 +3490,9 @@ describe('QuizEditor: think round (35)', () => {
     const { rerender } = render(<RoundSettings round={round} index={2} onChange={onChange} open />);
     const box = screen.getByRole('checkbox', { name: t('thinkOffVoteSetting') }) as HTMLInputElement;
     expect(box.checked).toBe(true);
-    expect(screen.getByText(t('thinkOffVoteSettingHint'))).toBeTruthy();
+    // Поріг — з LIMITS.minThinkVoters, а не вписане число.
+    expect(screen.getByText(t('thinkOffVoteSettingHint', { count: LIMITS.minThinkVoters }))).toBeTruthy();
+    expect(t('thinkOffVoteSettingHint', { count: LIMITS.minThinkVoters })).toContain(String(LIMITS.minThinkVoters));
     fireEvent.click(box);
     expect(onChange.mock.calls.at(-1)![0]).toMatchObject({ type: 'think', offtopicVote: false });
     rerender(<RoundSettings round={{ ...round, offtopicVote: false }} index={2} onChange={onChange} open />);
