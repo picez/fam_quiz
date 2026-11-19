@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { existsSync, readFileSync } from 'node:fs';
 import { act, cleanup, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { StickyTimerProvider } from './StickyTimer';
@@ -184,5 +185,15 @@ describe('StickyTimer', () => {
     );
     expect(screen.getByRole('timer')).toBeTruthy();
     expect(strip()).toBeNull();
+  });
+});
+
+describe('strip height', () => {
+  it('the row height leaves room for the 3 px bar and the 1 px border, so the strip is 40 px', () => {
+    const path = ['apps/web/src/styles.css', 'src/styles.css'].find((p) => existsSync(p) as boolean)!;
+    const css = readFileSync(path, 'utf8') as string;
+    expect(css.match(/\.timer-sticky-row \{[^}]*\}/)![0]).toContain('height: calc(2.5rem - 4px)');
+    expect(css.match(/\.timer-sticky \{[^}]*\}/)![0]).toContain('border-bottom: 1px solid');
+    expect(css.match(/\.timer-sticky-bar \{[^}]*\}/)![0]).toContain('height: 3px');
   });
 });

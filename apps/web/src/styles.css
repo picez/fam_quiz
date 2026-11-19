@@ -1170,7 +1170,7 @@ button.choice {
   background: var(--accent);
 }
 
-/* Смужка з часом угорі (55): поки табло запитання вище екрана. 40 px без вирізу; дотик проходить крізь неї.
+/* Смужка з часом угорі (55): поки табло запитання вище екрана. 40 px з рамкою, без вирізу; дотик проходить крізь неї.
    Над банерами (55), під заставкою (65) і сповіщеннями (66). */
 .timer-sticky {
   position: fixed;
@@ -1196,7 +1196,7 @@ button.choice {
 
 .timer-sticky-row {
   box-sizing: border-box;
-  height: calc(2.5rem - 3px);
+  height: calc(2.5rem - 4px);
   display: flex;
   align-items: center;
   gap: 0.5rem;
