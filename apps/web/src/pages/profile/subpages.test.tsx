@@ -223,7 +223,10 @@ describe('«Налаштування»', () => {
   it('links to the admin panel for admins', async () => {
     signedIn(true);
     open('/profile/settings');
-    expect((await screen.findByRole('link', { name: 'Адмінка' })).getAttribute('href')).toBe('/admin');
+    // Посилання і в налаштуваннях, і в головному меню адміна — обидва ведуть в адмінку.
+    const links = await screen.findAllByRole('link', { name: 'Адмінка' });
+    expect(links.length).toBe(2);
+    for (const link of links) expect(link.getAttribute('href')).toBe('/admin');
   });
 
   it('opens the nickname form by the button and saves through saveMyProfile', async () => {
