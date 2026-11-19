@@ -1234,12 +1234,15 @@ export function removePlayer(state: GameState, playerId: string, now?: number): 
 function removeAnyone(state: GameState, playerId: string, now?: number): Result {
   if (teamsOn(state)) {
     if (memberOf(state, playerId) !== undefined) return dropMember(state, playerId, now);
-    if (state.players.some((p) => p.id === playerId)) return removeFromGame(withoutTeam(state, playerId), playerId);
+    if (state.players.some((p) => p.id === playerId)) return removeFromGame(withoutTeam(state, playerId), playerId, now);
   }
   return removeFromGame(state, playerId, now);
 }
 
-/** now (сервер) — лише для «Шпигуна» (38): якщо після вилучення всі вже написали чи проголосували, наступний етап стартує від now. */
+/**
+ * now (сервер) — для «Шпигуна» (38): якщо після вилучення всі вже написали чи проголосували, наступний етап стартує від now;
+ * для «Думай інакше» (51) в автопілоті — так само голосування «не на тему» (без now стан чекає наступного tick).
+ */
 function removeFromGame(state: GameState, playerId: string, now?: number): Result {
   if (!state.players.some((p) => p.id === playerId)) return fail('not_found');
   // «Мільйонер»: учасник, вилучений посеред драбини, зупиняє її без виграшу; запитання, що йде, зал дограє.

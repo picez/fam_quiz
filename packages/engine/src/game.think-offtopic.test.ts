@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import type { Answer, ThinkRound, ThinkWord } from '@quiz/shared';
-import { addPlayer, createGame, next, pause, removePlayer, setConnected, start, submitAnswer, tick, type GameState } from './game';
+import { familyExtraMs, type Answer, type ThinkRound, type ThinkWord } from '@quiz/shared';
+import { addPlayer, createGame, next, pause, removePlayer, resume, setConnected, start, submitAnswer, tick, type GameState } from './game';
+import { limitMsOf } from './timing';
+import { stageView } from './views';
 import { markThinkOff, thinkBallot, thinkLivesAfter, thinkOffOf, thinkOver, thinkPlaces, voteThinkOff } from './think';
 import { classicRound, makeRoundsQuiz, single, think, thinkRound } from './testing/fixtures';
 import { must } from './testing/helpers';
@@ -286,5 +288,26 @@ describe('the off-topic vote on autopilot (51)', () => {
     const s = voting();
     const paused = must(pause(s, t0 + 40_000));
     expect(voteThinkOff(paused, 'olya', ['банан'], t0 + 41_000)).toEqual({ ok: false, error: 'paused' });
+  });
+
+  it('the vote stage timer total is the vote time, also after a pause', () => {
+    const s = voting();
+    expect(limitMsOf(play(s))).toBe(25_000);
+    expect(stageView(s).limitMs).toBe(25_000);
+    expect(limitMsOf({ ...play(s), extraMs: familyExtraMs(25_000) })).toBe(25_000 + familyExtraMs(25_000));
+    const paused = must(pause(s, (s.startedAt ?? 0) + 5000));
+    const resumed = must(resume(paused, t0 + 100_000));
+    expect(resumed.endsAt).not.toBeNull();
+    expect(resumed.startedAt).toBe((resumed.endsAt ?? 0) - 25_000);
+  });
+
+  it('a kick without now keeps the question open so the next tick opens the vote', () => {
+    const s = answer(piloted([...FOUR, 'taras']), { olya: 'синій', petro: 'банан', vira: 'зелений', ihor: 'жовтий' });
+    const kicked = must(removePlayer(s, 'taras'));
+    expect(kicked.phase).toBe('question');
+    expect(vote(kicked)).toBeUndefined();
+    const ticked = tick(kicked, t0 + 6000, rng0);
+    expect(vote(ticked)?.voters).toEqual(FOUR);
+    expect(ticked.endsAt).toBe(t0 + 6000 + 25_000);
   });
 });

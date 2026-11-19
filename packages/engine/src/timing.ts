@@ -21,12 +21,14 @@ export function timedPlay(play: Play): boolean {
 
 /**
  * Повний час запитання (з довшим фрагментом аудіо) з урахуванням змін ведучого; null — без таймера. У фазі вибору блефу — choiceTime;
- * «Шпигун» (38): голосування — voteTime, останній шанс — LIMITS.spyGuessTime.
+ * «Шпигун» (38): голосування — voteTime, останній шанс — LIMITS.spyGuessTime. «Думай інакше» (51): з етапом голосування «не на тему» — LIMITS.thinkVoteTime
+ * (сімейна надбавка — у extraMs); до етапу — звичайний час запитання.
  */
 export function limitMsOf(play: Play): number | null {
   if (play.bluff?.stage === 'choice' && play.question.type === 'bluff') return play.question.choiceTime * 1000 + play.extraMs;
   if (play.spy?.stage === 'vote' && play.question.type === 'spy') return play.question.voteTime * 1000 + play.extraMs;
   if (play.spy?.stage === 'guess') return LIMITS.spyGuessTime * 1000 + play.extraMs;
+  if (play.think?.vote !== undefined) return LIMITS.thinkVoteTime * 1000 + play.extraMs;
   return timedPlay(play) ? answerWindowMs(play.question) + play.extraMs : null;
 }
 

@@ -377,7 +377,7 @@ export function startThinkVote(state: GameState, now: number): GameState {
 
 /**
  * autoLock і tick запитання think в автопілоті (51; строго «>», як у timeOver). Без етапу голосування: час сплив або всі живі присутні відповіли →
- * голосування (thinkVoteDue і відомий now) чи lockNow. На етапі: час сплив, або кожен присутній голосувальник натиснув «Готово», або їх немає → lockNow.
+ * голосування (thinkVoteDue; без now — той самий стан до наступного tick) чи lockNow. На етапі: час сплив, або кожен присутній голосувальник натиснув «Готово», або їх немає → lockNow.
  */
 export function thinkAuto(state: GameState, now: number | null): GameState {
   if (state.phase !== 'question' || state.paused || state.autopilot === undefined) return state;
@@ -390,7 +390,9 @@ export function thinkAuto(state: GameState, now: number | null): GameState {
   if (vote === undefined) {
     const everyone = present.length > 0 && present.every((id) => recordOf(state, state.questionIndex, id) !== undefined);
     if (!expired && !everyone) return state;
-    return now !== null && thinkVoteDue(state) ? startThinkVote(state, now) : lockNow(state);
+    // Без now (виклик без годинника) етап не відкрити: стан той самий — наступний tick відкриє голосування.
+    if (thinkVoteDue(state)) return now === null ? state : startThinkVote(state, now);
+    return lockNow(state);
   }
   const done = vote.voters.filter((id) => present.includes(id)).every((id) => Object.hasOwn(vote.marks, id));
   return expired || done ? lockNow(state) : state;
