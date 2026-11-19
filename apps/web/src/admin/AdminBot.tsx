@@ -196,7 +196,7 @@ export function AdminBot(): JSX.Element {
                       <Link className="btn" to={`/admin/bot/quizzes/${encodeURIComponent(quiz.id)}`} aria-label={`${t('adminView')}: ${quiz.title}`}>
                         {t('adminView')}
                       </Link>
-                      <QuizCheckButton quizId={quiz.id} onDone={reload} />
+                      <QuizCheckButton quizId={quiz.id} title={quiz.title} onDone={reload} />
                       <button type="button" className="btn btn-primary" disabled={busy} onClick={() => launch(quiz)}>
                         {t('adminBotLaunch')}
                       </button>

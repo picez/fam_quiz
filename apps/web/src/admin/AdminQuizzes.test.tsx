@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import type { AdminList, AdminQuizRow } from '@quiz/shared';
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AdminQuizzes } from './AdminQuizzes';
@@ -58,7 +58,9 @@ describe('AdminQuizzes', () => {
   it('has a short check in each card that ends in a summary line', async () => {
     open();
     const item = (await screen.findByRole('heading', { name: 'Річки України' })).closest('li') as HTMLElement;
-    fireEvent.click(within(item).getByRole('button', { name: 'Перевірити' }));
-    expect((await within(item).findByRole('status')).textContent).toBe('Помилок: 2 · попереджень: 1');
+    // Кнопок і посилань у списку багато: у назві — вікторина.
+    expect(within(item).getByRole('link', { name: 'Переглянути: Річки України' })).toBeTruthy();
+    fireEvent.click(within(item).getByRole('button', { name: 'Перевірити: Річки України' }));
+    await waitFor(() => expect(within(item).getByRole('status').textContent).toBe('Помилок: 2 · попереджень: 1'));
   });
 });

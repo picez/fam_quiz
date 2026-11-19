@@ -78,10 +78,10 @@ export function AdminQuizzes(): JSX.Element {
                   <p className="meta">{quizSizeText(countText('questionCount', row.questionCount, { count: row.questionCount }),row.questionCount, row.truth)}</p>
                   <p className="meta">{t('adminGamesOf', { count: row.games })}</p>
                   <div className="admin-actions">
-                    <Link className="btn" to={`/admin/quizzes/${encodeURIComponent(row.id)}`}>
+                    <Link className="btn" to={`/admin/quizzes/${encodeURIComponent(row.id)}`} aria-label={`${t('adminView')}: ${row.title}`}>
                       {t('adminView')}
                     </Link>
-                    <QuizCheckButton quizId={row.id} />
+                    <QuizCheckButton quizId={row.id} title={row.title} />
                     <button type="button" className="btn btn-danger" disabled={busy} onClick={() => void remove(row.id, row.title, nickText(row.author.nickname))}>
                       {t('adminDeleteQuiz')}
                     </button>

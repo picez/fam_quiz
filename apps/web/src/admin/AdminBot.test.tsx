@@ -107,7 +107,7 @@ describe('AdminBot', () => {
     const item = (await screen.findByRole('heading', { name: 'Річки України' })).closest('li') as HTMLElement;
     expect(within(item).getByText('2 раунди · 10 запитань')).toBeTruthy();
     fireEvent.click(within(item).getByRole('button', { name: 'Запустити гру' }));
-    expect((await screen.findByRole('status')).textContent).toBe('Кімнату 654321 створено.');
+    expect((await screen.findByText('Кімнату 654321 створено.')).getAttribute('role')).toBe('status');
     expect(sent('POST', `/api/admin/bot/quizzes/${QUIZ_ID}/games`)).toHaveLength(1);
     await waitFor(() => expect(sent('GET', '/api/admin/bot')).toHaveLength(2));
   });
@@ -126,7 +126,7 @@ describe('AdminBot', () => {
     open();
     const own = (await screen.findByRole('heading', { name: 'Карпати' })).closest('li') as HTMLElement;
     fireEvent.click(within(own).getByRole('button', { name: 'Передати боту копію' }));
-    expect((await screen.findByRole('status')).textContent).toBe('Копію «Карпати» передано боту.');
+    expect((await screen.findByText('Копію «Карпати» передано боту.')).getAttribute('role')).toBe('status');
     expect(sent('POST', '/api/admin/bot/copies')[0]?.body).toEqual({ quizId: OWN_ID });
     await waitFor(() => expect(sent('GET', '/api/admin/bot')).toHaveLength(2));
   });
@@ -309,7 +309,7 @@ describe('AdminBot', () => {
     replies[`POST /api/admin/quizzes/${QUIZ_ID}/check`] = { status: 200, body: { quizId: QUIZ_ID, checkedAt: '2026-11-19T10:00:00.000Z', errors: 1, warnings: 0, issues: [] } };
     open();
     const item = (await screen.findByRole('heading', { name: 'Річки України' })).closest('li') as HTMLElement;
-    fireEvent.click(within(item).getByRole('button', { name: 'Перевірити' }));
+    fireEvent.click(within(item).getByRole('button', { name: 'Перевірити: Річки України' }));
     await waitFor(() => expect(sent('POST', `/api/admin/quizzes/${QUIZ_ID}/check`)).toHaveLength(1));
     await waitFor(() => expect(sent('GET', '/api/admin/bot')).toHaveLength(2));
   });

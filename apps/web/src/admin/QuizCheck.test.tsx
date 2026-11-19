@@ -34,9 +34,12 @@ describe('QuizCheckPanel', () => {
   it('all good', async () => {
     vi.mocked(checkQuiz).mockResolvedValue({ ok: true, data: result([]) });
     panel();
+    // Рядок стану є з першого показу, порожній: програма читання екрана оголошує зміну тексту, а не новий вузол.
+    const status = screen.getByRole('status');
+    expect(status.textContent).toBe('');
     fireEvent.click(screen.getByRole('button', { name: 'Перевірити вікторину' }));
-    const status = await screen.findByRole('status');
-    expect(status.textContent).toBe('Усе добре');
+    await waitFor(() => expect(status.textContent).toBe('Усе добре'));
+    expect(screen.getByRole('status')).toBe(status);
     expect(checkQuiz).toHaveBeenCalledWith('z1');
   });
 
@@ -51,7 +54,10 @@ describe('QuizCheckPanel', () => {
     panel(onIssue);
     fireEvent.click(screen.getByRole('button', { name: 'Перевірити вікторину' }));
     const errors = (await screen.findByRole('heading', { name: 'Помилки' })).parentElement as HTMLElement;
+    expect(screen.getByRole('status').textContent).toBe('Помилок: 2 · попереджень: 1');
     expect(within(errors).getAllByRole('listitem')).toHaveLength(2);
+    // Шлях ізольовано (FSI … PDI): в арабській «/» і «.» не переставляються.
+    expect(errors.textContent).toContain('Файл \u2068/uploads/aaaaaaaaaaaaaaaa.jpg\u2069 не знайдено у сховищі');
     expect(errors.textContent).toContain('У «Думай інакше» є питання без слів ведучого');
     expect(errors.textContent).toContain('Раунд 1');
     const warnings = screen.getByRole('heading', { name: 'Попередження' }).parentElement as HTMLElement;
@@ -72,6 +78,26 @@ describe('QuizCheckPanel', () => {
     expect((await screen.findByText(/Запасні й дуелі/)).textContent).toContain('Запасні й дуелі');
   });
 
+  it('labels an issue of the whole quiz, and the duel timer as duels', async () => {
+    const whole = issue({ code: 'schema', round: null, questionId: null, question: null, detail: 'title: Too small' });
+    const duelTimer = issue({ code: 'short_timer', round: null, questionId: null, question: null, detail: '20' });
+    const duelSchema = issue({ code: 'schema', round: null, questionId: null, question: null, detail: 'duels.stake: Too big' });
+    vi.mocked(checkQuiz).mockResolvedValue({ ok: true, data: result([whole, duelSchema, duelTimer]) });
+    panel();
+    fireEvent.click(screen.getByRole('button', { name: 'Перевірити вікторину' }));
+    const items = await screen.findAllByRole('listitem');
+    expect(items.map((item) => item.querySelector('.meta')?.textContent)).toEqual(['Уся вікторина', 'Запасні й дуелі', 'Запасні й дуелі']);
+  });
+
+  it('a blocked address has its own text', async () => {
+    vi.mocked(checkQuiz).mockResolvedValue({ ok: true, data: result([issue({ code: 'media_blocked', detail: 'http://10.0.0.5/x.jpg' })]) });
+    panel();
+    fireEvent.click(screen.getByRole('button', { name: 'Перевірити вікторину' }));
+    const item = await screen.findByRole('listitem');
+    expect(item.textContent).toContain('Адреса веде у внутрішню мережу, її не перевіряли: \u2068http://10.0.0.5/x.jpg\u2069');
+    expect(item.textContent).not.toContain('blocked');
+  });
+
   it('is busy while the request is on its way', async () => {
     let finish: (value: Awaited<ReturnType<typeof checkQuiz>>) => void = () => undefined;
     vi.mocked(checkQuiz).mockReturnValue(new Promise((resolve) => (finish = resolve)));
@@ -87,7 +113,8 @@ describe('QuizCheckPanel', () => {
     vi.mocked(checkQuiz).mockResolvedValueOnce({ ok: false, error: 'network' });
     panel();
     fireEvent.click(screen.getByRole('button', { name: 'Перевірити вікторину' }));
-    expect((await screen.findByRole('alert')).textContent).toBeTruthy();
+    await waitFor(() => expect(screen.getByRole('status').textContent).toBeTruthy());
+    expect(screen.getByRole('status').className).toContain('error');
     vi.mocked(checkQuiz).mockResolvedValueOnce({ ok: false, error: 'not_found' });
     fireEvent.click(screen.getByRole('button', { name: 'Перевірити вікторину' }));
     expect(await screen.findByText('головна')).toBeTruthy();
@@ -100,11 +127,14 @@ describe('QuizCheckButton', () => {
     const onDone = vi.fn();
     render(
       <MemoryRouter>
-        <QuizCheckButton quizId="z1" onDone={onDone} />
+        <QuizCheckButton quizId="z1" title="Карпати" onDone={onDone} />
       </MemoryRouter>,
     );
-    fireEvent.click(screen.getByRole('button', { name: 'Перевірити' }));
-    expect((await screen.findByRole('status')).textContent).toBe('Помилок: 2 · попереджень: 1');
+    const status = screen.getByRole('status');
+    expect(status.textContent).toBe('');
+    // Кнопок у списку багато: у назві — вікторина.
+    fireEvent.click(screen.getByRole('button', { name: 'Перевірити: Карпати' }));
+    await waitFor(() => expect(status.textContent).toBe('Помилок: 2 · попереджень: 1'));
     await waitFor(() => expect(onDone).toHaveBeenCalledTimes(1));
   });
 
@@ -112,10 +142,10 @@ describe('QuizCheckButton', () => {
     vi.mocked(checkQuiz).mockResolvedValue({ ok: true, data: result([]) });
     render(
       <MemoryRouter>
-        <QuizCheckButton quizId="z1" />
+        <QuizCheckButton quizId="z1" title="Карпати" />
       </MemoryRouter>,
     );
-    fireEvent.click(screen.getByRole('button', { name: 'Перевірити' }));
-    expect((await screen.findByRole('status')).textContent).toBe('Усе добре');
+    fireEvent.click(screen.getByRole('button', { name: 'Перевірити: Карпати' }));
+    await waitFor(() => expect(screen.getByRole('status').textContent).toBe('Усе добре'));
   });
 });

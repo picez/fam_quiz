@@ -22,15 +22,40 @@ function useCheck(quizId: string, onDone?: () => void): { run: Run; start: () =>
   return { run, start };
 }
 
+/** Ізоляція напрямку (FSI … PDI): шлях чи адреса в арабському реченні не переставляє «/» і «.»; чисте число не потребує. */
+const isolate = (detail: string): string => (detail === '' || /^\d+$/.test(detail) ? detail : `⁨${detail}⁩`);
+
 /** Текст проблеми за кодом; для autopilot_blocked деталь — код блокування з власним текстом, якщо він є. */
 function issueText(issue: QuizCheckIssue): string {
-  let detail = issue.detail ?? '';
-  const block = `autopilotBlock_${detail}`;
-  if (issue.code === 'autopilot_blocked' && Object.hasOwn(ukMessages, block)) detail = t(block as TextKey);
+  const raw = issue.detail ?? '';
+  const block = `autopilotBlock_${raw}`;
+  const detail = issue.code === 'autopilot_blocked' && Object.hasOwn(ukMessages, block) ? t(block as TextKey) : isolate(raw);
   return t(`adminCheck_${issue.code}`, { detail });
 }
 
-const placeText = (issue: QuizCheckIssue): string => (issue.round === null ? t('adminCheckOther') : t('adminCheckRound', { number: issue.round + 1 }));
+/** Без раунду й запитання: таймер дуелей і вади схеми в запасних чи дуелях — «Запасні й дуелі», решта — уся вікторина. */
+function placeText(issue: QuizCheckIssue): string {
+  if (issue.round !== null) return t('adminCheckRound', { number: issue.round + 1 });
+  if (issue.questionId !== null || issue.code === 'short_timer' || /^(duels|spares)\b/.test(issue.detail ?? '')) return t('adminCheckOther');
+  return t('adminCheckWholeQuiz');
+}
+
+/** Підсумок перевірки одним рядком. */
+const summaryText = (check: AdminQuizCheck): string =>
+  check.errors === 0 && check.warnings === 0 ? t('adminCheckOk') : t('adminCheckSummary', { errors: check.errors, warnings: check.warnings });
+
+/**
+ * Рядок стану: один і той самий вузол із першого показу (порожній), змінюється лише текст —
+ * так програми читання екрана оголошують і підсумок, і збій.
+ */
+function StatusLine({ run, className }: { run: Run; className: string }): JSX.Element {
+  const text = run.status === 'done' ? summaryText(run.check) : run.status === 'error' ? run.message : '';
+  return (
+    <p className={`${className} admin-check-status${run.status === 'error' ? ' error' : ' meta'}`} role="status">
+      {text}
+    </p>
+  );
+}
 
 function Group({ title, issues, onIssue }: { title: string; issues: QuizCheckIssue[]; onIssue: (issue: QuizCheckIssue) => void }): JSX.Element | null {
   if (issues.length === 0) return null;
@@ -69,41 +94,23 @@ export function QuizCheckPanel({ quizId, onIssue }: { quizId: string; onIssue: (
           {run.status === 'running' ? t('adminChecking') : t('adminCheckRun')}
         </button>
       </div>
-      {run.status === 'error' && (
-        <p className="error" role="alert">
-          {run.message}
-        </p>
-      )}
-      {run.status === 'done' && issues.length === 0 && (
-        <p className="meta" role="status">
-          {t('adminCheckOk')}
-        </p>
-      )}
+      <StatusLine run={run} className="admin-check-summary" />
       <Group title={t('adminCheckErrors')} issues={issues.filter((issue) => checkSeverity(issue.code) === 'error')} onIssue={onIssue} />
       <Group title={t('adminCheckWarnings')} issues={issues.filter((issue) => checkSeverity(issue.code) === 'warning')} onIssue={onIssue} />
     </section>
   );
 }
 
-/** Коротка перевірка для списків: кнопка й рядок підсумку. */
-export function QuizCheckButton({ quizId, onDone }: { quizId: string; onDone?: () => void }): JSX.Element {
+/** Коротка перевірка для списків: кнопка (у назві — вікторина, бо кнопок у списку багато) і рядок підсумку. */
+export function QuizCheckButton({ quizId, title, onDone }: { quizId: string; title: string; onDone?: () => void }): JSX.Element {
   const { run, start } = useCheck(quizId, onDone);
   if (run.status === 'home') return <Navigate to="/" replace />;
   return (
     <>
-      <button type="button" className="btn" disabled={run.status === 'running'} onClick={start}>
+      <button type="button" className="btn" disabled={run.status === 'running'} aria-label={`${run.status === 'running' ? t('adminChecking') : t('adminCheckShort')}: ${title}`} onClick={start}>
         {run.status === 'running' ? t('adminChecking') : t('adminCheckShort')}
       </button>
-      {run.status === 'error' && (
-        <p className="error admin-check-line" role="alert">
-          {run.message}
-        </p>
-      )}
-      {run.status === 'done' && (
-        <p className="meta admin-check-line" role="status">
-          {run.check.errors === 0 && run.check.warnings === 0 ? t('adminCheckOk') : t('adminCheckSummary', { errors: run.check.errors, warnings: run.check.warnings })}
-        </p>
-      )}
+      <StatusLine run={run} className="admin-check-line" />
     </>
   );
 }
