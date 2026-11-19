@@ -1146,6 +1146,9 @@ export function createGame(quiz: Quiz, options: GameOptions = {}): GameState {
   const teams = quiz.settings.teams;
   const truthRound = quiz.rounds.find((r) => r.type === 'truth');
   const presetFakes = truthRound?.type === 'truth' ? (truthRound.fakes ?? []) : [];
+  // Заготовлені вигадки (52) — у лобі з позначкою preset; без них поля fakes немає зовсім.
+  const fakes = presetFakes.map((text, i) => ({ id: `${TRUTH_FAKE_PREFIX}${i + 1}`, text: truthText(text), preset: true as const }));
+  const truth = { facts: {}, ...(fakes.length > 0 ? { fakes } : {}) };
   return {
     quiz,
     phase: 'lobby',
@@ -1188,7 +1191,7 @@ export function createGame(quiz: Quiz, options: GameOptions = {}): GameState {
         }),
     // «Правда про гравця» (28b): факти приймаються з лобі.
     // Заготовлені вигадки (52) копіюються з (єдиного) раунду truth.
-    ...(truthRound === undefined ? {} : { truth: { facts: {}, ...(presetFakes.length > 0 ? { fakes: presetFakes.map((text, i) => ({ id: `${TRUTH_FAKE_PREFIX}${i + 1}`, text: truthText(text), preset: true as const })) } : {}) } }),
+    ...(truthRound === undefined ? {} : { truth }),
   };
 }
 

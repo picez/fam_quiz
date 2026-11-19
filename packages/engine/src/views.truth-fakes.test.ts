@@ -147,6 +147,23 @@ describe('truth fake views (52)', () => {
     expect(stageView(opened(l)).truth?.count).toBe(5);
   });
 
+  it('before the deal, outside the lobby, the round counts the fakes that will play (the splash agrees with «Факт 1 з N»)', () => {
+    const started = must(start(lobby()));
+    expect(started.phase).not.toBe('lobby');
+    expect(started.truth?.deck).toBeUndefined();
+    expect(stageView(started).total).toBe(5);
+    expect(stageView(started).truth?.count).toBe(5);
+    expect(stageView(opened()).total).toBe(5);
+    // фактів менше, ніж вигадок: зіграються лише min(вигадок, фактів)
+    const few = must(start(lobby({ p1: FACTS.p1! })));
+    expect(stageView(few).total).toBe(2);
+    expect(hostView(few).truth?.count).toBe(2);
+    expect(hostView(few).truth?.fakes.map((f) => f.inDeck)).toEqual([true, false]);
+    expect(stageView(opened(lobby({ p1: FACTS.p1! }))).total).toBe(2);
+    // жодного факту — вигадки не грають, раунд порожній
+    expect(stageView(must(start(lobby({})))).total).toBe(0);
+  });
+
   it('a round without fakes keeps its counter', () => {
     const s = opened(lobby(FACTS, false, null));
     const locked = must(lock(s));

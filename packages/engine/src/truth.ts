@@ -208,15 +208,24 @@ export function truthHeld(state: GameState): boolean {
   return !exhausted || state.phase === 'question' || state.phase === 'locked';
 }
 
+/** Нехованих справжніх фактів до роздачі (у лобі — усіх, після старту — лише людей, що грають); вигадки ведучого (52) не рахуються. */
+export function truthRealCount(state: GameState): number {
+  const truth = state.truth;
+  if (truth === undefined) return 0;
+  return Object.entries(truth.facts).filter(([id, fact]) => !fact.hidden && (state.phase === 'lobby' || inGame(state, id))).length;
+}
+
 /**
- * Скільки запитань дає раунд truth: до роздачі — нехованих фактів (після старту — лише людей, що грають);
+ * Скільки запитань дає раунд truth: до роздачі — нехованих фактів (після старту — лише людей, що грають), а поза лобі ще й вигадок,
+ * що зіграються (52: не більше, ніж фактів, — як у dealTruth; заставка раунду й «Факт 1 з N» кажуть те саме; «Фактів: N» у лобі — лише справжні);
  * після роздачі — зіграні запитання + ще не зіграні записи колоди, що досі зіграються (truthQuestion не null).
  */
 export function truthCount(state: GameState): number {
   const truth = state.truth;
   if (truth === undefined) return 0;
   if (truth.deck === undefined) {
-    return Object.entries(truth.facts).filter(([id, fact]) => !fact.hidden && (state.phase === 'lobby' || inGame(state, id))).length;
+    const real = truthRealCount(state);
+    return state.phase === 'lobby' ? real : real + Math.min((truth.fakes ?? []).length, real);
   }
   const played = new Set(state.plays.filter((p) => p.truth !== undefined).map((p) => p.question.id));
   return played.size + truth.deck.filter((_, k) => !played.has(`${TRUTH_QUESTION_PREFIX}${k}`) && truthQuestion(state, k) !== null).length;

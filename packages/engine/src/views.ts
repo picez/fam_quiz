@@ -202,7 +202,7 @@ import { BETS_OPEN_PHASES, betLimit, betsIndex, betsPlaying, stakedPlay, wagerLi
 import { auctionLeader, auctionNextNow, auctionRoundOf } from './auction';
 import { questAfter, questOpened, questRoundOf, questSolved, questWindowOpen, type QuestTry } from './quest';
 import { thinkBallot, thinkHit, thinkLivesAfter, thinkOffOf, thinkPlaces, thinkPlayOf, thinkRoundOf, thinkRoundPlays, thinkVerdicts, thinkWatches } from './think';
-import { inTruthDeck, nextTruthQuestion, truthCount, truthFaked, truthGuessers, truthHeld, truthOpen, truthPlayOf, truthRoundOf, truthSkipped } from './truth';
+import { inTruthDeck, nextTruthQuestion, truthCount, truthFaked, truthRealCount, truthGuessers, truthHeld, truthOpen, truthPlayOf, truthRoundOf, truthSkipped } from './truth';
 import { presentPlayers } from './present';
 import { appealView, playerAppeal } from './appeal';
 import { undoPanel } from './undo';
@@ -1410,7 +1410,7 @@ function hostTruth(state: GameState): HostTruth | undefined {
   const options = open?.question.type === 'single' ? open.question.options : [];
   const nickname = authorId === null || current?.fake === true ? undefined : (truthPeople(state).find((p) => p.id === authorId)?.nickname ?? options.find((o) => o.id === authorId)?.text);
   // Вигадки ведучого (52): до роздачі зіграються перші min(вигадок, нехованих справжніх фактів); після — ті, що в колоді.
-  const real = truth.deck === undefined ? truthCount(state) : 0;
+  const real = truth.deck === undefined ? truthRealCount(state) : 0;
   const fakes = (truth.fakes ?? []).map((f, i) => ({
     id: f.id,
     text: f.text,
