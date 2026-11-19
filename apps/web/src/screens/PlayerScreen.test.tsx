@@ -5416,10 +5416,10 @@ describe('PlayerScreen: family game (31)', () => {
 
 describe('PlayerScreen: think round (35)', () => {
   const thinkQuestion = { ...publicQuestion, type: 'think' as const, text: 'Напишіть колір веселки', points: 0, choices: [] };
-  const think = { lives: 3, points: 10000, index: 0, total: 5, rows: [{ id: 'p1', nickname: 'Олена', lives: 2, out: false, answered: false, answer: null, verdict: null, lost: false, overridden: false, matched: null }], words: null, places: null };
+  const think = { lives: 3, points: 10000, index: 0, total: 5, rows: [{ id: 'p1', nickname: 'Олена', lives: 2, out: false, answered: false, answer: null, verdict: null, lost: false, overridden: false, matched: null, off: null }], words: null, places: null, vote: null };
 
   it('one word field instead of the answer input, and own hearts', () => {
-    show(onQuestion({ question: thinkQuestion as never, think, me: { ...me, think: { lives: 2, status: 'alive', verdict: null, place: null } } as never }));
+    show(onQuestion({ question: thinkQuestion as never, think, me: { ...me, think: { lives: 2, status: 'alive', verdict: null, off: null, vote: null, place: null } } as never }));
     expect(screen.getByLabelText(t('thinkInputLabel'))).toBeTruthy();
     expect(screen.getByRole('button', { name: t('thinkSend') })).toBeTruthy();
     expect(document.querySelector('.choices')).toBeNull();
@@ -5428,7 +5428,7 @@ describe('PlayerScreen: think round (35)', () => {
 
   it('the reveal shows the host words, the own verdict and every answer', () => {
     const revealed = { ...think, words: [{ word: 'червоний', synonyms: [] }], rows: [{ ...think.rows[0]!, lives: 1, answer: 'Червона', verdict: 'hit' as const, lost: true }] };
-    show(view({ phase: 'reveal', questionIndex: 0, question: thinkQuestion as never, think: revealed, me: { ...me, think: { lives: 1, status: 'alive', verdict: 'hit', place: null } } as never }));
+    show(view({ phase: 'reveal', questionIndex: 0, question: thinkQuestion as never, think: revealed, me: { ...me, think: { lives: 1, status: 'alive', verdict: 'hit', off: null, vote: null, place: null } } as never }));
     expect(screen.getByText('Збіг: −1 ❤️')).toBeTruthy();
     expect(screen.getByText('червоний')).toBeTruthy();
     expect(screen.getByText('Червона')).toBeTruthy();
@@ -5436,18 +5436,45 @@ describe('PlayerScreen: think round (35)', () => {
 
   it('the think round last: the finished phone shows the own place and the places table', () => {
     const places = [{ id: 'p1', nickname: 'Олена', place: 1, lives: 2, outAt: null, points: 10000 }];
-    show(view({ phase: 'finished', think: { ...think, index: null, places }, me: { ...me, think: { lives: 2, status: 'alive', verdict: null, place: { place: 1, points: 10000 } } } as never }));
+    show(view({ phase: 'finished', think: { ...think, index: null, places }, me: { ...me, think: { lives: 2, status: 'alive', verdict: null, off: null, vote: null, place: { place: 1, points: 10000 } } } as never }));
     expect(screen.getByText(`${t('thinkPlace', { place: 1 })} · +10000`)).toBeTruthy();
     expect(screen.getByText(t('thinkPlacesTitle'))).toBeTruthy();
   });
 
   it('locked without an answer warns that silence costs a heart', () => {
-    show(view({ phase: 'locked', questionIndex: 0, question: thinkQuestion as never, think, me: { ...me, answer: null, think: { lives: 2, status: 'alive', verdict: null, place: null } } as never }));
+    show(view({ phase: 'locked', questionIndex: 0, question: thinkQuestion as never, think, me: { ...me, answer: null, think: { lives: 2, status: 'alive', verdict: null, off: null, vote: null, place: null } } as never }));
     expect(screen.getByText(t('thinkNoAnswer'))).toBeTruthy();
     cleanup();
-    show(view({ phase: 'locked', questionIndex: 0, question: thinkQuestion as never, think, me: { ...me, answer: { type: 'think', value: 'Синій' }, think: { lives: 2, status: 'alive', verdict: null, place: null } } as never }));
+    show(view({ phase: 'locked', questionIndex: 0, question: thinkQuestion as never, think, me: { ...me, answer: { type: 'think', value: 'Синій' }, think: { lives: 2, status: 'alive', verdict: null, off: null, vote: null, place: null } } as never }));
     expect(screen.queryByText(t('thinkNoAnswer'))).toBeNull();
     expect(screen.getByText(t('thinkSent', { word: 'Синій' }))).toBeTruthy();
+  });
+
+  const entries = [{ key: 'банан', text: 'Банан' }];
+  it('51: the vote stage shows the ballot instead of the word field', async () => {
+    const vote = { entries, marked: [], canVote: true, done: false };
+    const send = show(onQuestion({ question: thinkQuestion as never, think: { ...think, vote: { entries, voted: [], voters: 3 } }, me: { ...me, answer: { type: 'think', value: 'Синій' }, think: { lives: 2, status: 'alive', verdict: null, off: null, vote, place: null } } as never }));
+    expect(screen.queryByLabelText(t('thinkInputLabel'))).toBeNull();
+    expect(screen.queryByText(t('thinkSent', { word: 'Синій' }))).toBeNull();
+    expect(screen.getByRole('heading', { name: t('thinkVoteTitle') })).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Банан' }));
+    fireEvent.click(screen.getByRole('button', { name: t('thinkVoteDone') }));
+    await waitFor(() => expect(send).toHaveBeenCalledWith('player:think-vote', { keys: ['банан'] }));
+  });
+
+  it('51: a team member who is not the captain sees that the captain votes', () => {
+    const vote = { entries, marked: [], canVote: false, done: false };
+    show(teamPlayerView({ phase: 'question', questionIndex: 0, question: thinkQuestion as never, endsAt: Date.now() + 20_000, think: { ...think, vote: { entries, voted: [], voters: 3 } }, me: { ...baseMe, think: { lives: 2, status: 'alive', verdict: null, off: null, vote, place: null } } } as never, { captain: false, canAct: false, memberId: 'u3' }));
+    expect(screen.getByText(t('thinkVoteCaptain'))).toBeTruthy();
+    expect(screen.getByText('Банан')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Банан' })).toBeNull();
+  });
+
+  it('51: the reveal says an off-topic answer cost a heart', () => {
+    const revealed = { ...think, words: [{ word: 'червоний', synonyms: [] }], rows: [{ ...think.rows[0]!, lives: 1, answer: 'Банан', verdict: 'safe' as const, lost: true, off: 'vote' as const }] };
+    show(view({ phase: 'reveal', questionIndex: 0, question: thinkQuestion as never, think: revealed, me: { ...me, think: { lives: 1, status: 'alive', verdict: 'safe', off: 'vote', vote: null, place: null } } as never }));
+    expect(screen.getByText(t('thinkVerdictOff'))).toBeTruthy();
+    expect(screen.getByText(t('thinkOffVoteTag'))).toBeTruthy();
   });
 });
 

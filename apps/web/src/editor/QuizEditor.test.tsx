@@ -3,7 +3,8 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-li
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { LIMITS, quizSchema, roundQuestions, rulesOf, type BoardRound, type Question, type Quiz } from '@quiz/shared';
 import { t } from '../i18n';
-import { newBetsRound, newBlitzRound, newBoardRound, newClassicRound, newLadderRound, newQuestion, newQuiz, newSurvivalRound } from './draft';
+import { newBetsRound, newBlitzRound, newBoardRound, newClassicRound, newLadderRound, newQuestion, newQuiz, newSurvivalRound, newThinkRound } from './draft';
+import { RoundSettings } from './RoundSettings';
 import { QuizEditor } from './QuizEditor';
 import { getGroup, getGroupItems, getGroups } from '../api';
 import { GroupDraftsProvider } from './group-drafts';
@@ -3481,5 +3482,23 @@ describe('QuizEditor: think round (35)', () => {
     const questions = roundQuestions(quiz.rounds[1]);
     expect(questions.map((q) => q.type)).toEqual(['think', 'think', 'think']);
     expect(questions[0]).toMatchObject({ points: 0, words: [{ word: 'червоний', synonyms: ['багряний'] }] });
+  });
+
+  it('51: the off-topic vote switch is on without the field; off writes false, on drops the key', () => {
+    const onChange = vi.fn();
+    const round = newThinkRound();
+    const { rerender } = render(<RoundSettings round={round} index={2} onChange={onChange} open />);
+    const box = screen.getByRole('checkbox', { name: t('thinkOffVoteSetting') }) as HTMLInputElement;
+    expect(box.checked).toBe(true);
+    expect(screen.getByText(t('thinkOffVoteSettingHint'))).toBeTruthy();
+    fireEvent.click(box);
+    expect(onChange.mock.calls.at(-1)![0]).toMatchObject({ type: 'think', offtopicVote: false });
+    rerender(<RoundSettings round={{ ...round, offtopicVote: false }} index={2} onChange={onChange} open />);
+    const off = screen.getByRole('checkbox', { name: t('thinkOffVoteSetting') }) as HTMLInputElement;
+    expect(off.checked).toBe(false);
+    fireEvent.click(off);
+    const next = onChange.mock.calls.at(-1)![0];
+    expect(next.type).toBe('think');
+    expect('offtopicVote' in next).toBe(false);
   });
 });

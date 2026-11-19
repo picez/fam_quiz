@@ -4092,10 +4092,11 @@ describe('HostScreen: think round (35)', () => {
     rows: [],
     words: null,
     places: null,
+    vote: null,
     draft: [],
     editable: true,
     canReveal: false,
-    answers: [{ id: 'p1', nickname: 'Оля', answer: 'Червоний', hit: false, overridden: false }],
+    answers: [{ id: 'p1', nickname: 'Оля', answer: 'Червоний', hit: false, overridden: false, off: null }],
     ...over,
   });
 
@@ -4120,11 +4121,17 @@ describe('HostScreen: think round (35)', () => {
 
   it('the answered count is out of the living participants, not every player', () => {
     const answers = [
-      { id: 'p1', nickname: 'Оля', answer: 'Червоний', hit: false, overridden: false },
-      { id: 'p2', nickname: 'Тарас', answer: null, hit: null, overridden: false },
+      { id: 'p1', nickname: 'Оля', answer: 'Червоний', hit: false, overridden: false, off: null },
+      { id: 'p2', nickname: 'Тарас', answer: null, hit: null, overridden: false, off: null },
     ];
     show(during('question', think, { think: hostThink({ answers }) }));
     expect(screen.getAllByText(t('answeredOf', { answered: 1, total: 2 })).length).toBeGreaterThan(0);
+  });
+
+  it('51: on reveal the host marks an answer off topic', async () => {
+    const send = show(during('reveal', think, { think: hostThink({ draft: [{ word: 'синій', synonyms: [] }], editable: false }) }));
+    fireEvent.click(screen.getByRole('button', { name: `${t('thinkHostMarkOff')}: Оля` }));
+    await waitFor(() => expect(send).toHaveBeenCalledWith('host:think-off', { playerId: 'p1', off: true }));
   });
 });
 

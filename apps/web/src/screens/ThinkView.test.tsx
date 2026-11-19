@@ -4,14 +4,14 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { HostThink, PlayerThink, PublicQuestion, StageView, ThinkInfo, ThinkRow } from '@quiz/shared';
 import type { Send } from '../live/types';
 import { t } from '../i18n';
-import { HostThinkAnswers, HostThinkWords, ThinkHearts, ThinkInput, ThinkPhoneVerdict, ThinkPlaces, ThinkReveal, ThinkStage } from './ThinkView';
+import { HostThinkAnswers, HostThinkWords, ThinkHearts, ThinkInput, ThinkPhoneVerdict, ThinkPlaces, ThinkReveal, ThinkStage, ThinkVoteBallot } from './ThinkView';
 
 afterEach(cleanup);
 
 const question = { type: 'think', text: 'Напишіть колір веселки', imageUrl: null, video: null, timeLimit: 30, points: 0, choices: [] } as unknown as PublicQuestion;
-const alive: PlayerThink = { lives: 3, status: 'alive', verdict: null, place: null };
-const row = (over: Partial<ThinkRow> = {}): ThinkRow => ({ id: 'p1', nickname: 'Олена', lives: 3, out: false, answered: false, answer: null, verdict: null, lost: false, overridden: false, matched: null, ...over });
-const info = (over: Partial<ThinkInfo> = {}): ThinkInfo => ({ lives: 3, points: 10000, index: 0, total: 5, rows: [row(), row({ id: 'p2', nickname: 'Хосе' })], words: null, places: null, ...over });
+const alive: PlayerThink = { lives: 3, status: 'alive', verdict: null, off: null, vote: null, place: null };
+const row = (over: Partial<ThinkRow> = {}): ThinkRow => ({ id: 'p1', nickname: 'Олена', lives: 3, out: false, answered: false, answer: null, verdict: null, lost: false, overridden: false, matched: null, off: null, ...over });
+const info = (over: Partial<ThinkInfo> = {}): ThinkInfo => ({ lives: 3, points: 10000, index: 0, total: 5, rows: [row(), row({ id: 'p2', nickname: 'Хосе' })], words: null, places: null, vote: null, ...over });
 const host = (over: Partial<HostThink> = {}): HostThink => ({ ...info(), draft: [], editable: true, canReveal: false, answers: [], ...over });
 const okSend = () => vi.fn<Send>(async () => ({ ok: true as const }));
 
@@ -176,9 +176,9 @@ describe('HostThinkWords', () => {
 
 describe('HostThinkAnswers', () => {
   const answers: HostThink['answers'] = [
-    { id: 'p1', nickname: 'Олена', answer: 'Червона', hit: true, overridden: false },
-    { id: 'p2', nickname: 'Хосе', answer: 'Зелений', hit: false, overridden: false },
-    { id: 'p3', nickname: 'Іра', answer: null, hit: null, overridden: false },
+    { id: 'p1', nickname: 'Олена', answer: 'Червона', hit: true, overridden: false, off: null },
+    { id: 'p2', nickname: 'Хосе', answer: 'Зелений', hit: false, overridden: false, off: null },
+    { id: 'p3', nickname: 'Іра', answer: null, hit: null, overridden: false, off: null },
   ];
 
   it('the host marks a match on reveal', async () => {
@@ -192,8 +192,8 @@ describe('HostThinkAnswers', () => {
     await waitFor(() => expect(send).toHaveBeenCalledWith('host:override', { playerId: 'p1', grade: 'correct' }));
     fireEvent.click(screen.getByRole('button', { name: `${t('thinkHostMarkHit')}: Хосе` }));
     await waitFor(() => expect(send).toHaveBeenCalledWith('host:override', { playerId: 'p2', grade: 'wrong' }));
-    // Без відповіді — без кнопок: 2 рядки з кнопками.
-    expect(screen.getAllByRole('button')).toHaveLength(2);
+    // Без відповіді — без кнопок: 2 рядки по дві кнопки (вердикт і «не на тему»).
+    expect(screen.getAllByRole('button')).toHaveLength(4);
   });
 
   it('no verdict tag while the host has no words yet', () => {
@@ -279,5 +279,134 @@ describe('ThinkStage and ThinkReveal', () => {
     expect(screen.getByRole('columnheader', { name: t('thinkTotalCol') })).toBeTruthy();
     expect(screen.getByText('Олена').closest('tr')!.querySelector('.think-place-total')?.textContent?.replace(/\s/g, '')).toBe('4200');
     expect(screen.getByText('Хосе').closest('tr')!.querySelector('.think-place-total')?.textContent?.replace(/\s/g, '')).toBe('10500');
+  });
+});
+
+describe('51: off-topic', () => {
+  const entries = [
+    { key: 'банан', text: 'Банан' },
+    { key: 'синій', text: 'Синій' },
+  ];
+  const ballot = (over: Partial<NonNullable<PlayerThink['vote']>> = {}): NonNullable<PlayerThink['vote']> => ({ entries, marked: [], canVote: true, done: false, ...over });
+
+  it('the ballot toggles answers and sends the marks', async () => {
+    const send = okSend();
+    render(<ThinkVoteBallot vote={ballot()} send={send} />);
+    expect(screen.getByRole('heading', { name: t('thinkVoteTitle') })).toBeTruthy();
+    expect(screen.getByText(t('thinkVoteLead'))).toBeTruthy();
+    const banana = screen.getByRole('button', { name: 'Банан' });
+    expect(banana.getAttribute('aria-pressed')).toBe('false');
+    expect(screen.getByRole('button', { name: 'Синій' }).getAttribute('aria-pressed')).toBe('false');
+    // Живий регіон порожній, доки голос не враховано.
+    expect(screen.getByRole('status').textContent).toBe('');
+    fireEvent.click(banana);
+    expect(banana.getAttribute('aria-pressed')).toBe('true');
+    fireEvent.click(screen.getByRole('button', { name: t('thinkVoteDone') }));
+    await waitFor(() => expect(send).toHaveBeenCalledWith('player:think-vote', { keys: ['банан'] }));
+    expect(await screen.findByText(t('thinkVoteSent'))).toBeTruthy();
+    // Перемикачі лишаються: повторне «Готово» замінює голос.
+    fireEvent.click(screen.getByRole('button', { name: 'Синій' }));
+    fireEvent.click(screen.getByRole('button', { name: t('thinkVoteDone') }));
+    await waitFor(() => expect(send).toHaveBeenLastCalledWith('player:think-vote', { keys: ['банан', 'синій'] }));
+  });
+
+  it('own marks from the view are pressed from the start', () => {
+    render(<ThinkVoteBallot vote={ballot({ marked: ['синій'], done: true })} send={okSend()} />);
+    expect(screen.getByRole('button', { name: 'Синій' }).getAttribute('aria-pressed')).toBe('true');
+    expect(screen.getByRole('button', { name: 'Банан' }).getAttribute('aria-pressed')).toBe('false');
+    expect(screen.getByText(t('thinkVoteSent'))).toBeTruthy();
+  });
+
+  it('a refusal shows the reason', async () => {
+    const onError = vi.fn();
+    const send = vi.fn<Send>(async () => ({ ok: false as const, error: 'wrong_phase' }));
+    render(<ThinkVoteBallot vote={ballot()} send={send} onError={onError} />);
+    fireEvent.click(screen.getByRole('button', { name: t('thinkVoteDone') }));
+    await waitFor(() => expect(onError).toHaveBeenCalledWith(expect.any(String)));
+    expect(onError.mock.calls[0]![0]).not.toBeNull();
+    expect(screen.queryByText(t('thinkVoteSent'))).toBeNull();
+  });
+
+  it('who cannot vote sees the answers without buttons', () => {
+    const { rerender } = render(<ThinkVoteBallot vote={ballot({ canVote: false })} send={okSend()} />);
+    expect(screen.queryAllByRole('button')).toHaveLength(0);
+    expect(screen.getByText('Банан')).toBeTruthy();
+    expect(screen.getByText(t('thinkVoteWatch'))).toBeTruthy();
+    rerender(<ThinkVoteBallot vote={ballot({ canVote: false })} send={okSend()} teamMember />);
+    expect(screen.getByText(t('thinkVoteCaptain'))).toBeTruthy();
+    expect(screen.queryAllByRole('button')).toHaveLength(0);
+  });
+
+  it('nothing to check for a voter with only their own answer', () => {
+    render(<ThinkVoteBallot vote={ballot({ entries: [] })} send={okSend()} />);
+    expect(screen.getByText(t('thinkVoteNothing'))).toBeTruthy();
+    expect(screen.getByRole('button', { name: t('thinkVoteDone') })).toBeTruthy();
+  });
+
+  const stageView = (think: ThinkInfo) => ({ phase: 'question', question, think, endsAt: Date.now() + 20_000, remainingMs: null, limitMs: 25_000, paused: false, held: false, autopilot: true }) as unknown as StageView;
+
+  it('the stage shows the anonymous ballot and who has voted', () => {
+    const think = info({
+      rows: [row({ id: 'p1', nickname: 'Петро', answered: true }), row({ id: 'p2', nickname: 'Хосе', answered: true })],
+      vote: { entries, voted: ['p1'], voters: 2 },
+    });
+    const { container, rerender } = render(<ThinkStage view={stageView(think)} offsetMs={0} />);
+    expect(screen.getByRole('heading', { name: t('thinkVoteTitle') })).toBeTruthy();
+    expect(screen.getByText('Банан')).toBeTruthy();
+    expect(screen.getByText('Синій')).toBeTruthy();
+    expect(screen.getByText(t('thinkVoteVoted', { names: 'Петро' }))).toBeTruthy();
+    // У сітці відповідей — лише тексти, жодного ніку.
+    for (const cell of container.querySelectorAll('.think-vote-entry')) {
+      expect(cell.textContent).not.toContain('Петро');
+      expect(cell.textContent).not.toContain('Хосе');
+    }
+    expect(container.querySelector('.think-vote-grid')!.textContent).toBe('БананСиній');
+    rerender(<ThinkStage view={stageView({ ...think, vote: { entries, voted: [], voters: 2 } })} offsetMs={0} />);
+    expect(screen.getByText(t('thinkVoteNobody'))).toBeTruthy();
+  });
+
+  it('reveal tags off-topic answers', () => {
+    const think = info({
+      words: [{ word: 'червоний', synonyms: [] }],
+      rows: [row({ answer: 'Банан', verdict: 'safe', lives: 2, lost: true, off: 'vote' }), row({ id: 'p2', nickname: 'Хосе', answer: 'Стіл', verdict: 'safe', lives: 2, lost: true, off: 'host' }), row({ id: 'p3', nickname: 'Іра', answer: 'Зелений', verdict: 'safe' })],
+    });
+    render(<ThinkReveal think={think} />);
+    const banana = screen.getByText('Банан').closest('li')!;
+    expect(banana.className).toContain('is-off');
+    expect(banana.textContent).toContain(t('thinkOffVoteTag'));
+    const table = screen.getByText('Стіл').closest('li')!;
+    expect(table.className).toContain('is-off');
+    expect(table.querySelector('.think-off')?.textContent).toBe(t('thinkOffTag'));
+    expect(screen.getByText('Зелений').closest('li')!.className).not.toContain('is-off');
+    expect(screen.getByText('Зелений').closest('li')!.querySelector('.think-off')).toBeNull();
+  });
+
+  it('the phone verdict says the answer was off topic', () => {
+    render(<ThinkPhoneVerdict think={{ ...alive, lives: 2, verdict: 'safe', off: 'vote' }} />);
+    expect(screen.getByText(t('thinkVerdictOff'))).toBeTruthy();
+    expect(screen.queryByText('Ви в безпеці')).toBeNull();
+  });
+
+  it('the host marks and unmarks an off-topic answer on reveal', async () => {
+    const send = okSend();
+    const answers: HostThink['answers'] = [
+      { id: 'p1', nickname: 'Олена', answer: 'банан', hit: false, overridden: false, off: null },
+      { id: 'p2', nickname: 'Хосе', answer: 'Стіл', hit: false, overridden: false, off: 'host' },
+      { id: 'p3', nickname: 'Іра', answer: '', hit: false, overridden: false, off: null },
+    ];
+    const { rerender } = render(<HostThinkAnswers think={host({ answers })} phase="question" send={send} />);
+    expect(screen.queryByRole('button', { name: `${t('thinkHostMarkOff')}: Олена` })).toBeNull();
+    rerender(<HostThinkAnswers think={host({ answers })} phase="reveal" send={send} />);
+    const mark = screen.getByRole('button', { name: `${t('thinkHostMarkOff')}: Олена` });
+    // Назва сама каже стан («Не на тему» / «Зняти…»): без aria-pressed, щоб зчитувач не чув «Зняти…, натиснуто».
+    expect(mark.hasAttribute('aria-pressed')).toBe(false);
+    fireEvent.click(mark);
+    await waitFor(() => expect(send).toHaveBeenCalledWith('host:think-off', { playerId: 'p1', off: true }));
+    const unmark = screen.getByRole('button', { name: `${t('thinkHostUnmarkOff')}: Хосе` });
+    fireEvent.click(unmark);
+    await waitFor(() => expect(send).toHaveBeenCalledWith('host:think-off', { playerId: 'p2', off: false }));
+    expect(screen.getByText('Стіл').closest('li')!.querySelector('.think-off')?.textContent).toBe(t('thinkOffTag'));
+    // Порожня відповідь — без кнопки «не на тему».
+    expect(screen.queryByRole('button', { name: `${t('thinkHostMarkOff')}: Іра` })).toBeNull();
   });
 });

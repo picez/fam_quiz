@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState } from 'react';
-import { LIMITS, type HostThink, type Phase, type PlayerThink, type PublicQuestion, type StageView, type ThinkInfo, type ThinkRow, type ThinkWord } from '@quiz/shared';
+import { LIMITS, type HostThink, type Phase, type PlayerThink, type PublicQuestion, type StageView, type ThinkInfo, type ThinkOff, type ThinkRow, type ThinkWord } from '@quiz/shared';
 import { num, questionClass, signed } from '../format';
 import { errorText, t } from '../i18n';
 import { RowReaction } from '../live/Reactions';
@@ -141,14 +141,104 @@ export function ThinkInput({
   );
 }
 
-/** Телефон на reveal: «Ви в безпеці» / «Збіг: −1 ❤️» / «Без відповіді: −1 ❤️»; з 0 — ще й «Ви вибули — тепер ви глядач». */
+/**
+ * Телефон на reveal: «Ви в безпеці» / «Збіг: −1 ❤️» / «Без відповіді: −1 ❤️»; не на тему (51) — «−1 ❤️: відповідь не на тему»
+ * (й зі збігом: життя одне); з 0 — ще й «Ви вибули — тепер ви глядач».
+ */
 export function ThinkPhoneVerdict({ think }: { think: PlayerThink }) {
   if (think.verdict === null) return null;
-  const safe = think.verdict === 'safe';
+  const safe = think.verdict === 'safe' && think.off === null;
   return (
     <section className={safe ? 'think-verdict is-safe' : 'think-verdict is-hit'} role="status">
-      <h2>{t(safe ? 'thinkSafe' : think.verdict === 'hit' ? 'thinkHit' : 'thinkEmpty')}</h2>
+      <h2>{t(safe ? 'thinkSafe' : think.off !== null ? 'thinkVerdictOff' : think.verdict === 'hit' ? 'thinkHit' : 'thinkEmpty')}</h2>
       {!safe && think.lives === 0 && <p className="lead">{t('thinkOutNow')}</p>}
+    </section>
+  );
+}
+
+/** Тег «не на тему» (51): позначка ведучого чи голосування автопілота. */
+function ThinkOffTag({ off }: { off: ThinkOff | null }) {
+  if (off === null) return null;
+  return <span className="tag is-wrong think-off">{t(off === 'vote' ? 'thinkOffVoteTag' : 'thinkOffTag')}</span>;
+}
+
+/**
+ * Телефон на етапі голосування автопілота (51): «Чи всі на тему?», чужі відповіді кнопками-перемикачами (aria-pressed)
+ * і «Готово» → player:think-vote { keys }; після згоди — «Голос враховано…», перемикачі лишаються (повторне «Готово» замінює).
+ * Без права голосу — лише список: члену команди «Голосує капітан команди», решті «Гравці перевіряють…».
+ */
+export function ThinkVoteBallot({
+  vote,
+  send,
+  onError,
+  teamMember = false,
+}: {
+  vote: NonNullable<PlayerThink['vote']>;
+  send: Send;
+  onError?: (text: string | null) => void;
+  /** Живий член команди не капітан: голосує капітан. */
+  teamMember?: boolean;
+}) {
+  const [picked, setPicked] = useState<string[]>(() => vote.marked);
+  const [sent, setSent] = useState(vote.done);
+  const busy = useRef(false);
+  if (!vote.canVote) {
+    return (
+      <section className="think-vote">
+        <h2 className="think-vote-title">{t('thinkVoteTitle')}</h2>
+        <p className="lead think-status">{t(teamMember ? 'thinkVoteCaptain' : 'thinkVoteWatch')}</p>
+        <ul className="think-vote-list">
+          {vote.entries.map((entry) => (
+            <li key={entry.key} className="think-vote-entry" dir="auto">
+              {entry.text}
+            </li>
+          ))}
+        </ul>
+      </section>
+    );
+  }
+  const toggle = (key: string) => setPicked((now) => (now.includes(key) ? now.filter((k) => k !== key) : [...now, key]));
+  const submit = () => {
+    if (busy.current) return;
+    busy.current = true;
+    // Порядок — за бюлетенем: надіслане не залежить від того, що натиснули першим.
+    const keys = vote.entries.map((entry) => entry.key).filter((key) => picked.includes(key));
+    void send('player:think-vote', { keys })
+      .then((result) => {
+        onError?.(result.ok ? null : errorText(result.error));
+        if (result.ok) setSent(true);
+      })
+      .catch(() => onError?.(errorText('network')))
+      .finally(() => {
+        busy.current = false;
+      });
+  };
+  return (
+    <section className="think-vote">
+      <h2 className="think-vote-title">{t('thinkVoteTitle')}</h2>
+      <p className="meta">{t('thinkVoteLead')}</p>
+      {vote.entries.length === 0 ? (
+        <p className="lead think-status">{t('thinkVoteNothing')}</p>
+      ) : (
+        <ul className="think-vote-list">
+          {vote.entries.map((entry) => {
+            const on = picked.includes(entry.key);
+            return (
+              <li key={entry.key}>
+                <button type="button" className={on ? 'btn think-vote-toggle is-on' : 'btn think-vote-toggle'} aria-pressed={on} dir="auto" onClick={() => toggle(entry.key)}>
+                  {entry.text}
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+      <button type="button" className="btn btn-primary" onClick={submit}>
+        {t('thinkVoteDone')}
+      </button>
+      <p className="meta think-vote-sent" role="status">
+        {sent ? t('thinkVoteSent') : null}
+      </p>
     </section>
   );
 }
@@ -270,19 +360,24 @@ export function HostThinkWords({ think, phase, send, onError }: { think: HostThi
   );
 }
 
-/** Пульт: учасник · відповідь · «збіг»/«в безпеці»; на reveal — «Зарахувати збіг» / «Зняти збіг» → host:override { playerId, grade: 'wrong' | 'correct' }. Без відповіді — без кнопок. */
+/**
+ * Пульт: учасник · відповідь · «збіг»/«в безпеці»; на reveal — «Зарахувати збіг» / «Зняти збіг» → host:override { playerId, grade: 'wrong' | 'correct' }
+ * і (51) «Не на тему» / «Зняти «не на тему»» → host:think-off { playerId, off } для непорожньої відповіді. Без відповіді — без кнопок.
+ */
 export function HostThinkAnswers({ think, phase, send, onError }: { think: HostThink; phase: Phase; send: Send; onError?: (text: string | null) => void }) {
   const busy = useRef(false);
-  const mark = (playerId: string, grade: 'wrong' | 'correct') => {
+  const run = (action: () => ReturnType<Send>) => {
     if (busy.current) return;
     busy.current = true;
-    void send('host:override', { playerId, grade })
+    void action()
       .then((result) => onError?.(result.ok ? null : errorText(result.error)))
       .catch(() => onError?.(errorText('network')))
       .finally(() => {
         busy.current = false;
       });
   };
+  const mark = (playerId: string, grade: 'wrong' | 'correct') => run(() => send('host:override', { playerId, grade }));
+  const markOff = (playerId: string, off: boolean) => run(() => send('host:think-off', { playerId, off }));
   const answered = think.answers.filter((row) => row.answer !== null).length;
   // Слів ведучого ще немає — порівнювати нема з чим: без позначки, а не «в безпеці».
   const judged = think.draft.length > 0;
@@ -293,7 +388,7 @@ export function HostThinkAnswers({ think, phase, send, onError }: { think: HostT
       </h2>
       <ul className="rows think-answer-rows">
         {think.answers.map((row) => (
-          <li key={row.id} className={row.hit === true ? 'think-answer is-hit' : row.answer === null ? 'think-answer is-empty' : 'think-answer'}>
+          <li key={row.id} className={[row.hit === true ? 'think-answer is-hit' : row.answer === null ? 'think-answer is-empty' : 'think-answer', row.off !== null ? 'is-off' : ''].filter(Boolean).join(' ')}>
             <span className="name" dir="auto">
               {row.nickname}
             </span>
@@ -302,9 +397,15 @@ export function HostThinkAnswers({ think, phase, send, onError }: { think: HostT
             </span>
             {judged && row.hit !== null && <span className={row.hit ? 'tag is-wrong' : 'tag is-correct'}>{t(row.hit ? 'thinkHostHit' : 'thinkHostSafe')}</span>}
             {row.overridden && <span className="tag">{t('thinkHostOverridden')}</span>}
+            <ThinkOffTag off={row.off} />
             {phase === 'reveal' && row.hit !== null && (
               <button type="button" className="btn btn-small" aria-label={`${t(row.hit ? 'thinkHostMarkSafe' : 'thinkHostMarkHit')}: ${row.nickname}`} onClick={() => mark(row.id, row.hit ? 'correct' : 'wrong')}>
                 {t(row.hit ? 'thinkHostMarkSafe' : 'thinkHostMarkHit')}
+              </button>
+            )}
+            {phase === 'reveal' && row.answer !== null && row.answer !== '' && (
+              <button type="button" className="btn btn-small" aria-label={`${t(row.off !== null ? 'thinkHostUnmarkOff' : 'thinkHostMarkOff')}: ${row.nickname}`} onClick={() => markOff(row.id, row.off === null)}>
+                {t(row.off !== null ? 'thinkHostUnmarkOff' : 'thinkHostMarkOff')}
               </button>
             )}
           </li>
@@ -337,7 +438,10 @@ function ThinkRowsStrip({ think, me }: { think: ThinkInfo; me?: string }) {
   );
 }
 
-/** Сцена на question/locked: тема великим, таймер, «Питання k з n», ряд учасників із ❤️ і ✓ «відповів». */
+/**
+ * Сцена на question/locked: тема великим, таймер, «Питання k з n», ряд учасників із ❤️ і ✓ «відповів».
+ * Етап голосування автопілота (51): «Чи всі на тему?», сітка відповідей без імен і «Проголосували: …» без кількостей позначок.
+ */
 export function ThinkStage({ view, offsetMs }: { view: StageView; offsetMs: number }) {
   const { question, think } = view;
   if (question === null || think === undefined) return null;
@@ -359,19 +463,43 @@ export function ThinkStage({ view, offsetMs }: { view: StageView; offsetMs: numb
           </div>
         )}
       </div>
-      <p className="lead think-stage-prompt">{t('thinkPrompt')}</p>
+      {think.vote === null ? (
+        <p className="lead think-stage-prompt">{t('thinkPrompt')}</p>
+      ) : (
+        <ThinkStageVote think={think} vote={think.vote} />
+      )}
       <ThinkRowsStrip think={think} />
     </div>
   );
 }
 
+/** Сцена (51): бюлетень голосування — тексти за ключем без авторів; хто вже натиснув «Готово» — ніками. */
+function ThinkStageVote({ think, vote }: { think: ThinkInfo; vote: NonNullable<ThinkInfo['vote']> }) {
+  const names = vote.voted.map((id) => think.rows.find((row) => row.id === id)?.nickname).filter((name): name is string => name !== undefined);
+  return (
+    <section className="think-vote think-stage-vote">
+      <h2 className="think-vote-title">{t('thinkVoteTitle')}</h2>
+      <ul className="think-vote-grid">
+        {vote.entries.map((entry) => (
+          <li key={entry.key} className="think-vote-entry" dir="auto">
+            {entry.text}
+          </li>
+        ))}
+      </ul>
+      <p className="meta think-vote-voted" dir="auto">
+        {names.length === 0 ? t('thinkVoteNobody') : t('thinkVoteVoted', { names: names.join(', ') })}
+      </p>
+    </section>
+  );
+}
+
 /** Рядок відповіді на розкритті: нік, слово (порожнє — «—»), ❤️ після; збіг і порожня — підсвічені. */
 function RevealRow({ row, max, me, words }: { row: ThinkRow; max: number; me?: string; words: ThinkWord[] }) {
-  const hit = row.verdict === 'hit' || row.verdict === 'empty';
+  const hit = row.verdict === 'hit' || row.verdict === 'empty' || row.off !== null;
   // З яким словом ведучого збіглася відповідь («Синя» ≈ «синій»): видно й без синонімів, які щільна сцена ховає.
   const matched = row.matched === null ? null : (words[row.matched]?.word ?? null);
   return (
-    <li className={['think-reveal-row', hit ? 'is-hit' : 'is-safe', row.id === me ? 'is-me' : ''].filter(Boolean).join(' ')}>
+    <li className={['think-reveal-row', hit ? 'is-hit' : 'is-safe', row.off !== null ? 'is-off' : '', row.id === me ? 'is-me' : ''].filter(Boolean).join(' ')}>
       <span className="name" dir="auto">
         {row.nickname}
         <RowReaction rowId={row.id} />
@@ -385,6 +513,7 @@ function RevealRow({ row, max, me, words }: { row: ThinkRow; max: number; me?: s
         )}
       </span>
       {row.overridden && <span className="tag think-overridden">{t('thinkHostOverridden')}</span>}
+      <ThinkOffTag off={row.off} />
       <ThinkHearts lives={row.lives} max={max} lost={row.lost} />
     </li>
   );

@@ -232,6 +232,7 @@ export function ThinkHistory({ think }: { think: NonNullable<GameQuestionResult[
             </span>
             <span className="tag">{t(verdictKey[row.verdict])}</span>
             {row.manual === true && <span className="tag think-overridden">{t('thinkHostOverridden')}</span>}
+            {row.off !== undefined && <span className="tag think-off">{t(row.off === 'vote' ? 'thinkHistoryOffVote' : 'thinkHistoryOff')}</span>}
             {think.lives[row.nickname] !== undefined && <span className="meta think-history-lives">{`❤️ ${think.lives[row.nickname]}`}</span>}
           </li>
         ))}
