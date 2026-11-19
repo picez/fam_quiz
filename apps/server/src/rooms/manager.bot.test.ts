@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { isAuthor } from '@quiz/engine';
 import { classicRound, makeRoundsQuiz, single, text } from '@quiz/engine/testing';
 import type { Quiz } from '@quiz/shared';
 import { FakeScheduler } from '../testing/fake-scheduler';
@@ -108,6 +109,32 @@ describe('bot rooms (54)', () => {
     const olya = enter(manager, room, 'Оля');
     expect(manager.author(room, olya.playerId, { type: 'start' })).toEqual({ ok: false, error: 'not_allowed' });
     expect(room.state.phase).toBe('lobby');
+  });
+
+  it('no player of a bot room gets the author view, in the lobby or in play', () => {
+    const { manager, scheduler } = setup();
+    const room = botRoom(manager);
+    const olya = enter(manager, room, 'Оля', 'u-olya');
+    const petro = enter(manager, room, 'Петро');
+    const authorOf = (id: string) => (manager.view(room, { role: 'player', playerId: id }) as unknown as { author?: unknown }).author;
+    const check = () => {
+      for (const p of room.state.players) {
+        expect(isAuthor(room.state, p.id), p.nickname).toBe(false);
+        expect(authorOf(p.id), p.nickname).toBeNull();
+      }
+    };
+    expect(room.state.players).toHaveLength(2);
+    check();
+    expect(manager.botAct(room.code, 'start')).toEqual({ ok: true });
+    for (let i = 0; i < 20 && room.state.phase !== 'question'; i++) scheduler.advance(1000);
+    expect(room.state.phase).toBe('question');
+    check();
+    // Контроль: у звичайному автопілоті автор цей блок бачить, тож null вище дає саме бот.
+    const pilot = manager.createAutopilot(quiz(), 'u-marta', 'q2', 'Марта');
+    if (!pilot.ok) throw new Error(pilot.error);
+    const marta = pilot.room.state.players[0]!;
+    expect((manager.view(pilot.room, { role: 'player', playerId: marta.id }) as unknown as { author?: unknown }).author).not.toBeNull();
+    expect([olya.playerId, petro.playerId]).not.toContain('quiz-bot');
   });
 
   it('a paused bot room resumes by itself after ten minutes', () => {

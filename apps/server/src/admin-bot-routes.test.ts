@@ -118,6 +118,25 @@ describe('admin bot routes (54)', () => {
     for (const code of codes) expect((await asAdmin('POST', `/api/admin/bot/rooms/${code}/end`)).statusCode).toBe(204);
   });
 
+  it('a full server refuses a bot game with server_busy and no log line', async () => {
+    const id = await botQuiz();
+    const small = await buildApp({ db, auth: TEST_AUTH, adminEmails: emails, maxRooms: 1 });
+    try {
+      const first = await asAdmin('POST', `/api/admin/bot/quizzes/${id}/games`, undefined, small);
+      expect(first.statusCode).toBe(201);
+      expect(small.manager.size).toBe(1);
+      const before = (await lastLog()).id;
+      const refused = await asAdmin('POST', `/api/admin/bot/quizzes/${id}/games`, undefined, small);
+      expect(refused.statusCode).toBe(503);
+      expect(refused.json()).toEqual({ error: 'server_busy' });
+      expect(small.manager.size).toBe(1);
+      expect((await lastLog()).id).toBe(before);
+      small.manager.botAct((first.json() as { code: string }).code, 'end');
+    } finally {
+      await small.app.close();
+    }
+  });
+
   it('a blocked quiz is not started', async () => {
     const wordless = makeRoundsQuiz([thinkRound('r1', [think('t1', []), think('t2', [{ word: 'червоний', synonyms: [] }]), think('t3', [{ word: 'червоний', synonyms: [] }])]), classicRound('r2', [single])]);
     const id = await botQuiz({ ...wordless, title: 'Без слів 54' });

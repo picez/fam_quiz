@@ -21,11 +21,11 @@ beforeAll(async () => {
   db = await createTestDb();
 });
 
-async function person(name: string, extra: { email?: string; createdAt?: Date; verified?: boolean; lastSeen?: Date } = {}) {
+async function person(name: string, extra: { email?: string; createdAt?: Date; verified?: boolean; lastSeen?: Date } = {}, into: Db = db) {
   n += 1;
   const id = `as${n}`;
-  await db.insert(user).values({ id, name, email: extra.email ?? `${id}@example.com`, emailVerified: extra.verified ?? false, createdAt: extra.createdAt ?? NOW });
-  await db.insert(profile).values({ userId: id, nickname: name, nicknameKey: name.toLowerCase().replace(/\s/g, ''), lastSeenAt: extra.lastSeen ?? null });
+  await into.insert(user).values({ id, name, email: extra.email ?? `${id}@example.com`, emailVerified: extra.verified ?? false, createdAt: extra.createdAt ?? NOW });
+  await into.insert(profile).values({ userId: id, nickname: name, nicknameKey: name.toLowerCase().replace(/\s/g, ''), lastSeenAt: extra.lastSeen ?? null });
   return id;
 }
 
@@ -203,17 +203,18 @@ describe('admin store', () => {
 
 describe('the bot in the admin panel (54)', () => {
   it('the admin user list and counts leave the bot out', async () => {
-    db = await createTestDb();
-    await person('Квізолюб', { lastSeen: NOW });
-    const before = await adminStats(db, 0, NOW);
-    await ensureBotAccount(db);
+    // Своя порожня база: лічильники мають бачити лише одну людину, і спільна db інших тестів не чіпається.
+    const botDb = await createTestDb();
+    await person('Квізолюб', { lastSeen: NOW }, botDb);
+    const before = await adminStats(botDb, 0, NOW);
+    await ensureBotAccount(botDb);
     // Бот «щойно створений» і «на зв'язку» — однаково не рахується.
-    await db.update(profile).set({ lastSeenAt: NOW }).where(eq(profile.userId, BOT_USER_ID));
-    const after = await adminStats(db, 0, NOW);
+    await botDb.update(profile).set({ lastSeenAt: NOW }).where(eq(profile.userId, BOT_USER_ID));
+    const after = await adminStats(botDb, 0, NOW);
     expect(after.users).toEqual(before.users);
-    const list = await adminUsers(db, none, { q: 'Квіз', page: 1 });
+    const list = await adminUsers(botDb, none, { q: 'Квіз', page: 1 });
     expect(list.rows.map((r) => r.id)).not.toContain(BOT_USER_ID);
     expect(list.total).toBe(1);
-    expect((await adminUsers(db, none, { page: 1 })).total).toBe(1);
+    expect((await adminUsers(botDb, none, { page: 1 })).total).toBe(1);
   });
 });
