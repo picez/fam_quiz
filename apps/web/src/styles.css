@@ -17187,6 +17187,83 @@ button.wall-tile:disabled {
   opacity: 0.55;
 }
 
+/* 53: «Живі ігри» — картки кімнат; дії переносяться під текст на вузькому екрані. */
+.admin-live-bar {
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.admin-live-bar .meta {
+  margin: 0;
+}
+
+.admin-live .admin-live-code {
+  color: var(--dim);
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+}
+
+.admin-live .admin-actions {
+  margin-top: 0.35rem;
+}
+
+/* 53: стовпчики за 30 днів у «Статистиці»; кольори — лише змінні теми. */
+.admin-charts,
+.admin-health {
+  margin-top: 1.5rem;
+}
+
+.day-bars-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr));
+  gap: 0.75rem;
+}
+
+.day-bars {
+  min-width: 0;
+  margin: 0;
+  padding: 0.75rem;
+  border: 2px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.day-bars h3 {
+  margin: 0 0 0.25rem;
+  font-size: 1rem;
+  overflow-wrap: anywhere;
+}
+
+.day-bars .meta {
+  margin: 0 0 0.25rem;
+}
+
+.day-bars svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  color: var(--dim);
+}
+
+.day-bars rect {
+  fill: var(--accent);
+}
+
+.day-bars text {
+  fill: currentColor;
+  font-size: 10px;
+}
+
+.day-bars-axis {
+  stroke: var(--line);
+  stroke-width: 1;
+}
+
+.admin-health .admin-stat dd {
+  font-size: 1.1rem;
+  overflow-wrap: anywhere;
+}
+
 /* ---------- 23a: мотиви «Кривавого місяця» (власні CSS / inline SVG, лише декор) ---------- */
 
 /* Герой: місяць і ворони позаду, вміст поверх. isolation тримає від'ємні z-index мотивів усередині героя. */

@@ -9,16 +9,19 @@ export type AdminData<T> =
   | { status: 'error'; message: string }
   | { status: 'ready'; data: T };
 
-/** Читає адмін-API; `key` змінюється — читає знову; `reload` перечитує тим самим ключем. */
-export function useAdminData<T>(load: () => Promise<ApiData<T>>, key: string): AdminData<T> & { reload: () => void } {
+/**
+ * Читає адмін-API; `key` змінюється — читає знову; `reload` перечитує тим самим ключем.
+ * `keep`: під час `reload` (той самий ключ) лишає попередні дані замість «Завантаження…» — для автооновлення без миготіння.
+ */
+export function useAdminData<T>(load: () => Promise<ApiData<T>>, key: string, options?: { keep?: boolean }): AdminData<T> & { reload: () => void } {
   const [version, setVersion] = useState(0);
-  const [state, setState] = useState<{ key: string; result: ApiData<T> } | null>(null);
+  const [state, setState] = useState<{ key: string; base: string; result: ApiData<T> } | null>(null);
   const full = `${key}#${version}`;
 
   useEffect(() => {
     let current = true;
     void load().then((result) => {
-      if (current) setState({ key: full, result });
+      if (current) setState({ key: full, base: key, result });
     });
     return () => {
       current = false;
@@ -27,6 +30,7 @@ export function useAdminData<T>(load: () => Promise<ApiData<T>>, key: string): A
   }, [full]);
 
   const reload = useCallback(() => setVersion((n) => n + 1), []);
+  if (state !== null && state.key !== full && options?.keep === true && state.base === key && state.result.ok) return { status: 'ready', data: state.result.data, reload };
   if (state === null || state.key !== full) return { status: 'loading', reload };
   if (state.result.ok) return { status: 'ready', data: state.result.data, reload };
   if (state.result.error === 'not_found') return { status: 'home', reload };
