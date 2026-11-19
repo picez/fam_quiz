@@ -135,6 +135,8 @@ const { app, shutdown } = await buildApp({
   // Стиснення кадрів WebSocket (30c) увімкнено; SOCKET_DEFLATE=off вимикає, якщо бракує пам'яті.
   socketDeflate: process.env.SOCKET_DEFLATE !== 'off',
   storage,
+  // Єдине місце, де перевірка вікторин (57) ходить у справжню мережу.
+  checkFetch: (url, init) => fetch(url, init),
   stickerFixtures,
   webRoot: existsSync(built) ? built : undefined,
   // Єдине місце, де вмикаються заставки переходів справжньої гри (8c).

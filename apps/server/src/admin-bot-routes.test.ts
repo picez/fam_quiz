@@ -1,12 +1,12 @@
 import { classicRound, makeQuiz, makeRoundsQuiz, single, think, thinkRound } from '@quiz/engine/testing';
-import { BOT_USER_ID, type AdminBot, type AdminList, type AdminLogEntry, type Quiz } from '@quiz/shared';
+import { BOT_USER_ID, type AdminBot, type AdminQuizCheck, type AdminList, type AdminLogEntry, type Quiz } from '@quiz/shared';
 import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { buildApp } from './app';
 import { ensureBotAccount } from './bot-account';
 import { user } from './db/schema';
 import { log } from './log';
-import { createQuiz } from './quizzes';
+import { createQuiz, updateQuiz } from './quizzes';
 import { TEST_AUTH, signUp } from './testing/accounts';
 import { createTestDb } from './testing/test-db';
 
@@ -198,6 +198,22 @@ describe('admin bot routes (54)', () => {
   it('a quiz of the bot is not reachable through the owner routes', async () => {
     const id = await botQuiz();
     expect((await call('GET', `/api/quizzes/${id}`, admin.cookie)).statusCode).toBe(404);
+  });
+
+  it('the bot list carries the last check', async () => {
+    const broken: Quiz = {
+      ...makeRoundsQuiz([classicRound('r0', [{ ...single, timeLimit: 30, imageUrl: '/uploads/abcdefghijklmnop.png' }, { ...single, id: 'q2', timeLimit: 30 }])]),
+      title: 'Бот із битою картинкою',
+    };
+    const id = await botQuiz(broken);
+    const row = async () => (await bot()).quizzes.find((q) => q.id === id)!;
+    expect((await row()).check).toBeNull();
+    const done = await asAdmin('POST', `/api/admin/quizzes/${id}/check`);
+    expect(done.statusCode).toBe(200);
+    expect((done.json() as AdminQuizCheck).errors).toBe(1);
+    expect((await row()).check).toEqual({ errors: 1, warnings: 0 });
+    expect(await updateQuiz(db, BOT_USER_ID, id, rivers())).toBe(true);
+    expect((await row()).check).toBeNull();
   });
 
   it('gives only 404 to non-admins and guests', async () => {

@@ -6,7 +6,7 @@ import { isAdmin } from './admin';
 import { adminCharts } from './admin-charts';
 import { registerAdminBotRoutes } from './admin-bot-routes';
 import { liveRooms } from './admin-live';
-import { adminLog, adminQuiz, adminQuizzes, adminStats, adminUser, adminUsers } from './admin-store';
+import { adminLog, adminQuiz, adminQuizRaw, adminQuizzes, adminStats, adminUser, adminUsers } from './admin-store';
 import { activeAnnouncement, clearAnnouncement, setAnnouncement, type AnnouncementCache } from './announcement-store';
 import { banUser, logAction, unbanUser } from './bans';
 import type { Db } from './db/client';
@@ -16,7 +16,10 @@ import { deleteAward, deletePrize } from './prizes';
 import { deleteQuestionAsAdmin, deleteQuiz } from './quizzes';
 import { latestBackup, parseBackupKey } from './db-backup';
 import { reportError } from './log';
+import { quizChecker } from './quiz-check';
+import type { CheckFetch } from './quiz-check';
 import type { RoomManager } from './rooms/manager';
+import type { ImageStorage } from './storage/images';
 import type { StoredObject } from './storage/r2-objects';
 import { ttlCache } from './ttl-cache';
 
@@ -31,6 +34,10 @@ export interface AdminDeps {
   announcements: AnnouncementCache;
   /** Межа кімнат процесу (54): запуск гри бота так само питає manager.size. */
   maxRooms: number;
+  /** Сховище медіафайлів (57): перевірка вікторини питає, чи файл є. */
+  storage: ImageStorage;
+  /** fetch перевірки вікторини (57); у тестах — підробка, справжній передає лише main.ts. */
+  checkFetch: CheckFetch;
   now?: () => Date;
 }
 
@@ -40,6 +47,7 @@ const INVALID = { error: 'invalid_payload' };
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const USER_ID_MAX = 64;
 const QUESTION_ID_MAX = 200;
+const VIEW_LOG_MS = 60_000;
 const ROOM_CODE = /^\d{6}$/;
 
 type IdParams = { Params: { id: string } };
@@ -48,6 +56,9 @@ type CodeParams = { Params: { code: string } };
 export async function registerAdminRoutes(app: FastifyInstance, deps: AdminDeps): Promise<void> {
   const { db, manager, adminEmails, currentUser } = deps;
   const now = deps.now ?? (() => new Date());
+  const checker = quizChecker({ storage: deps.storage, fetch: deps.checkFetch, now });
+  // Один перегляд вікторини одним адміном — один рядок журналу на хвилину (StrictMode і «Спробувати ще» читають двічі).
+  const viewed = new Map<string, number>();
 
   // Один запит — одна перевірка: ворота, ключ обмеження, allowList і сам маршрут питають той самий проміс.
   const checked = new WeakMap<FastifyRequest, Promise<CurrentUser | null>>();
@@ -222,8 +233,26 @@ export async function registerAdminRoutes(app: FastifyInstance, deps: AdminDeps)
   });
 
   app.get<IdParams>('/api/admin/quizzes/:id', read, async (request, reply) => {
+    const me = await adminOf(request);
+    if (me === null) return reply.code(404).send(NOT_FOUND);
     const view = await adminQuiz(db, request.params.id);
-    return view === null ? reply.code(404).send(NOT_FOUND) : view;
+    if (view === null) return reply.code(404).send(NOT_FOUND);
+    const at = now();
+    const key = `${me.id}:${view.id}`;
+    for (const [seen, time] of viewed) if (at.getTime() - time >= VIEW_LOG_MS) viewed.delete(seen);
+    if (!viewed.has(key)) {
+      await logAction(db, { adminId: me.id, kind: 'quiz_view', targetUserId: view.author.id, details: { title: view.quiz.title }, now: at });
+      viewed.set(key, at.getTime());
+    }
+    return view;
+  });
+
+  app.post<IdParams>('/api/admin/quizzes/:id/check', write, async (request, reply) => {
+    const me = await adminOf(request);
+    if (me === null) return reply.code(404).send(NOT_FOUND);
+    const found = await adminQuizRaw(db, request.params.id);
+    if (found === null) return reply.code(404).send(NOT_FOUND);
+    return checker.check(request.params.id, found.updatedAt, found.raw);
   });
 
   app.delete<IdParams>('/api/admin/quizzes/:id', write, async (request, reply) => {
@@ -328,5 +357,5 @@ export async function registerAdminRoutes(app: FastifyInstance, deps: AdminDeps)
     return adminLog(db, query.data.page);
   });
 
-  await registerAdminBotRoutes(app, deps, { read, write, adminOf });
+  await registerAdminBotRoutes(app, deps, { read, write, adminOf, checker });
 }

@@ -34,6 +34,7 @@ import { registerStickerRoutes } from './sticker-routes';
 import { attachLevels } from './levels';
 import { attachLikes } from './likes';
 import { attachTitles } from './titles';
+import { offlineFetch, type CheckFetch } from './quiz-check';
 import { memoryStorage, type ImageStorage } from './storage/images';
 import { registerUploadRoutes } from './upload-routes';
 import { registerWordLadderRoutes } from './wordladder-routes';
@@ -62,6 +63,8 @@ export interface AppOptions {
   maxRooms?: number;
   /** Де лежать зображення до запитань; без нього вони живуть у пам'яті процесу. */
   storage?: ImageStorage;
+  /** fetch перевірки вікторини адміном (57); без нього — offlineFetch (мережі немає), справжній передає лише main.ts. */
+  checkFetch?: CheckFetch;
   /** Віддавати малу картинку-фікстуру, коли справжнього файла стікера у сховищі немає (локально й у тестах); типово ні. */
   stickerFixtures?: boolean;
   /** Тека зі зібраним web-клієнтом. */
@@ -147,7 +150,7 @@ export async function buildApp(options: AppOptions) {
   await registerShowcaseRoutes(app, { db: options.db, currentUser });
   const announcements = announcementCache(options.db, () => Date.now());
   await registerAnnouncementRoutes(app, { cache: announcements });
-  await registerAdminRoutes(app, { db: options.db, manager, adminEmails: options.adminEmails ?? new Set<string>(), currentUser, backupList: options.backupList, announcements, maxRooms });
+  await registerAdminRoutes(app, { db: options.db, manager, adminEmails: options.adminEmails ?? new Set<string>(), currentUser, backupList: options.backupList, announcements, maxRooms, storage: imageStorage, checkFetch: options.checkFetch ?? offlineFetch });
   const invites = new Invites(manager);
   await registerInviteRoutes(app, { db: options.db, manager, invites, currentUser });
   const gate = new LobbyGate(options.db, invites, () => manager.now());
