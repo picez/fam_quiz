@@ -59,25 +59,35 @@ describe('logLine for games and announcements', () => {
 });
 
 describe('durationText', () => {
-  it('says just now under a minute, minutes under an hour, then hours and minutes', () => {
-    expect(durationText(30_000)).toBe('щойно');
+  it('says minutes (at least 1) under an hour, then hours and minutes; never «щойно»', () => {
+    expect(durationText(30_000)).toBe('1 хв');
     expect(durationText(12 * 60_000)).toBe('12 хв');
     expect(durationText(125 * 60_000)).toBe('2 год 5 хв');
-    expect(durationText(-5)).toBe('щойно');
+    expect(durationText(-5)).toBe('1 хв');
   });
 });
 
 describe('bytesText', () => {
   it('shows megabytes with one decimal in the current language', () => {
     expect(bytesText(3_500_000)).toBe('3,3 МБ');
-    expect(bytesText(0)).toBe('0,0 МБ');
+    expect(bytesText(0)).toBe('0 МБ');
+  });
+  it('shows «< 0,1 МБ» for tiny sizes and a dash for NaN, infinity or a negative size', () => {
+    expect(bytesText(1_000)).toBe('< 0,1 МБ');
+    expect(bytesText(104_857)).toBe('< 0,1 МБ');
+    expect(bytesText(104_858)).toBe('0,1 МБ');
+    expect(bytesText(Number.NaN)).toBe('—');
+    expect(bytesText(Number.POSITIVE_INFINITY)).toBe('—');
+    expect(bytesText(-1)).toBe('—');
   });
 });
 
 describe('uptimeText', () => {
-  it('shows days and hours', () => {
+  it('shows days and hours from an hour on, minutes below an hour', () => {
     expect(uptimeText(3 * 86_400 + 4 * 3_600 + 59)).toBe('3 д 4 год');
-    expect(uptimeText(59)).toBe('0 д 0 год');
+    expect(uptimeText(3_600)).toBe('0 д 1 год');
+    expect(uptimeText(59)).toBe('0 хв');
+    expect(uptimeText(42 * 60 + 5)).toBe('42 хв');
   });
 });
 

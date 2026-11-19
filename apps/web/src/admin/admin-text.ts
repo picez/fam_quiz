@@ -25,22 +25,26 @@ export function logLine(entry: AdminLogEntry): string {
   return reason ? `${line}. ${t('adminReasonShown', { reason })}` : line;
 }
 
-/** Скільки триває гра: до хвилини — «щойно», до години — хвилини, далі години й хвилини. */
+/** Скільки триває гра: до години — хвилини (щонайменше 1; «щойно відкрито» каже сам AdminLive), далі години й хвилини. */
 export function durationText(ms: number): string {
-  const minutes = Math.floor(Math.max(0, ms) / 60_000);
-  if (minutes < 1) return t('adminLiveJustNow');
+  const minutes = Math.max(1, Math.floor(Math.max(0, ms) / 60_000));
   if (minutes < 60) return t('adminLiveSpanMinutes', { count: minutes });
   return t('adminLiveSpanHours', { hours: Math.floor(minutes / 60), minutes: minutes % 60 });
 }
 
-/** Розмір у мегабайтах з одним знаком після коми (МБ = 1024 · 1024 байтів). */
+/** Розмір у мегабайтах з одним знаком після коми (МБ = 1024 · 1024 байтів); менше 0,1 МБ — «< 0,1 МБ», не число — «—». */
 export function bytesText(bytes: number): string {
-  return t('adminMegabytes', { value: decimalText(bytes / 1_048_576, 1) });
+  if (!Number.isFinite(bytes) || bytes < 0) return '—';
+  if (bytes === 0) return t('adminMegabytes', { value: '0' });
+  const megabytes = bytes / 1_048_576;
+  if (megabytes < 0.1) return t('adminMegabytes', { value: `< ${decimalText(0.1, 1)}` });
+  return t('adminMegabytes', { value: decimalText(megabytes, 1) });
 }
 
-/** Час роботи сервера: повні доби й години. */
+/** Час роботи сервера: повні доби й години; першу годину — хвилини (свіжий сервер не «0 д 0 год»). */
 export function uptimeText(seconds: number): string {
   const total = Math.max(0, Math.floor(seconds));
+  if (total < 3_600) return t('adminLiveSpanMinutes', { count: Math.floor(total / 60) });
   return t('adminHealthUptimeValue', { days: Math.floor(total / 86_400), hours: Math.floor((total % 86_400) / 3_600) });
 }
 

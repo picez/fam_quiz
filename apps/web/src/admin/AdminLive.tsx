@@ -40,7 +40,16 @@ function actedText(ms: number): string {
   return agoText(ms);
 }
 
-/** Автооновлення кожні 10 с, поки вкладка відкрита й видима; приховали — пауза, повернулися — одразу читає. */
+/** «Відкрито щойно» до хвилини (а не «Триває щойно»), далі «Триває N хв» / «Триває N год M хв». */
+function ageText(ms: number): string {
+  if (ms < 60_000) return t('adminLiveAgeNew');
+  return t('adminLiveAge', { time: durationText(ms) });
+}
+
+/**
+ * Автооновлення кожні 10 с, поки вкладка відкрита й видима; приховали — пауза, повернулися — одразу читає.
+ * `reload` тут — refresh: поки попередній запит у дорозі, тік пропускається, тож відповідь, довша за 10 с, не губиться.
+ */
 function useLiveRefresh(reload: () => void): void {
   useEffect(() => {
     let timer: ReturnType<typeof setInterval> | null = null;
@@ -73,8 +82,8 @@ export function AdminLive(): JSX.Element {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const { reload } = state;
-  useLiveRefresh(reload);
+  const { reload, refresh } = state;
+  useLiveRefresh(refresh);
 
   const close = async (room: AdminLiveRoom) => {
     const code = spacedCode(room.code);
@@ -119,6 +128,11 @@ export function AdminLive(): JSX.Element {
           </button>
         </>
       )}
+      {state.status === 'ready' && state.stale === true && (
+        <p className="meta" role="status">
+          {t('adminLiveStale')}
+        </p>
+      )}
       {state.status === 'ready' &&
         (state.data.rooms.length === 0 ? (
           <p className="meta">{t('adminLiveEmpty')}</p>
@@ -133,7 +147,7 @@ export function AdminLive(): JSX.Element {
                   <p>{hostText(room)}</p>
                   <p>{t('adminLivePlayers', { online: room.players.online, total: room.players.total })}</p>
                   <p className="admin-mark">{statusText(room)}</p>
-                  <p className="meta">{t('adminLiveAge', { time: durationText(now - Date.parse(room.openedAt)) })}</p>
+                  <p className="meta">{ageText(now - Date.parse(room.openedAt))}</p>
                   <p className="meta">{t('adminLiveActed', { time: actedText(now - Date.parse(room.actedAt)) })}</p>
                   <div className="admin-actions">
                     <a className="btn" href={room.stageUrl} target="_blank" rel="noopener noreferrer">

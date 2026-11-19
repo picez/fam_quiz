@@ -58,6 +58,64 @@ describe('AdminLive', () => {
     expect(within(card('Код 654 321')).getByText('Лобі')).toBeTruthy();
   });
 
+  it('a room opened less than a minute ago reads «Відкрито щойно», not «Триває щойно»', async () => {
+    vi.mocked(adminLive).mockResolvedValue(list([room({ openedAt: '2026-11-19T09:59:30.000Z' })]));
+    open();
+    const first = (await screen.findByText('Код 123 456')).closest('li') as HTMLElement;
+    expect(within(first).getByText('Відкрито щойно')).toBeTruthy();
+    expect(within(first).queryByText(/Триває/)).toBeNull();
+  });
+
+  it('a failed poll keeps the list and says the data is stale; the next good poll clears the note', async () => {
+    vi.useFakeTimers();
+    vi.mocked(adminLive).mockResolvedValue(list([room()]));
+    open();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    vi.mocked(adminLive).mockResolvedValueOnce({ ok: false, error: 'offline' });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(10_000);
+    });
+    expect(adminLive).toHaveBeenCalledTimes(2);
+    expect(screen.getByText('Код 123 456')).toBeTruthy();
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Спробувати ще' })).toBeNull();
+    expect(screen.getByRole('status').textContent).toBe('Не вдалося оновити; показано останні дані.');
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(10_000);
+    });
+    expect(screen.queryByText('Не вдалося оновити; показано останні дані.')).toBeNull();
+  });
+
+  it('skips a tick while the previous request is still on its way, so a slow answer still shows', async () => {
+    vi.useFakeTimers();
+    vi.mocked(adminLive).mockResolvedValue(list([room()]));
+    open();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    let answer: (value: Awaited<ReturnType<typeof adminLive>>) => void = () => undefined;
+    vi.mocked(adminLive).mockReturnValueOnce(new Promise((resolve) => (answer = resolve)));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(10_000);
+    });
+    expect(adminLive).toHaveBeenCalledTimes(2);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(20_000);
+    });
+    expect(adminLive).toHaveBeenCalledTimes(2);
+    await act(async () => {
+      answer(list([room({ code: '777888' })]));
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(screen.getByText('Код 777 888')).toBeTruthy();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(10_000);
+    });
+    expect(adminLive).toHaveBeenCalledTimes(3);
+  });
+
   it('shows the paused round and the starting state', async () => {
     vi.mocked(adminLive).mockResolvedValue(list([room({ status: 'paused' }), room({ code: '111222', status: 'starting', round: null })]));
     open();

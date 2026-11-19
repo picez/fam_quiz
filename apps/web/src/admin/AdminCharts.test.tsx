@@ -48,8 +48,9 @@ describe('AdminCharts', () => {
     expect(charts).toHaveLength(4);
     expect(players.tagName.toLowerCase()).toBe('svg');
     expect(players.getAttribute('viewBox')).toBe('0 0 300 120');
-    expect(players.querySelectorAll('rect')).toHaveLength(30);
-    expect(screen.getByRole('img', { name: 'Ігор за день' }).querySelectorAll('rect')).toHaveLength(30);
+    // День із нулем — без стовпчика (вісь уже позначає нуль), але в таблиці лишається «0».
+    expect(players.querySelectorAll('rect')).toHaveLength(29);
+    expect(screen.getByRole('img', { name: 'Ігор за день' }).querySelectorAll('rect')).toHaveLength(29);
     expect(screen.getByRole('img', { name: 'Дограно до кінця, %' }).querySelectorAll('rect')).toHaveLength(29);
     expect(screen.getByRole('img', { name: 'Повернення, %' }).querySelectorAll('rect')).toHaveLength(23);
     expect(screen.getByText('Частка тих, хто грав 8–14 днів тому й зіграв знову за останні 7 днів.')).toBeTruthy();
@@ -63,16 +64,33 @@ describe('AdminCharts', () => {
     expect(within(rows[1]!).getAllByRole('cell')[1]!.textContent).toBe('50');
     const playerRows = within(screen.getByRole('table', { name: 'Активні гравці (акаунти, що зіграли гру)' })).getAllByRole('row').slice(1);
     expect(within(playerRows[29]!).getAllByRole('cell')[1]!.textContent).toBe('29');
-    expect(screen.getAllByText('макс. 29').length).toBeGreaterThan(0);
+    expect(within(playerRows[0]!).getAllByRole('cell')[1]!.textContent).toBe('0');
+    expect(within(players).getByText('макс. 29')).toBeTruthy();
+    // Відсоткові графіки масштабовані до 100 %, тож і підпис верху — 100 %, а не найбільше значення.
+    expect(within(screen.getByRole('img', { name: 'Дограно до кінця, %' })).getByText('макс. 100 %')).toBeTruthy();
+    expect(within(screen.getByRole('img', { name: 'Повернення, %' })).getByText('макс. 100 %')).toBeTruthy();
+    expect(screen.queryByText('макс. 50')).toBeNull();
     expect(screen.getByText(`Пораховано ${formatDate('2026-11-19T09:55:00.000Z')}; оновлюється раз на 10 хв.`)).toBeTruthy();
   });
 
-  it('keeps a flat bar for a zero day and scales to the largest value', async () => {
-    vi.mocked(adminCharts).mockResolvedValue({ ok: true, data: { days: days.map((d) => ({ ...d, players: 0 })), computedAt: '2026-11-19T09:55:00.000Z' } });
+  it('draws no bar for a zero day and keeps a 1-unit bar visible next to a large one', async () => {
+    vi.mocked(adminCharts).mockResolvedValue({ ok: true, data: { days: days.map((d, n) => ({ ...d, games: n === 3 ? 1 : n === 4 ? 10_000 : 0 })), computedAt: '2026-11-19T09:55:00.000Z' } });
     show(<AdminCharts />);
-    const players = await screen.findByRole('img', { name: 'Активні гравці (акаунти, що зіграли гру)' });
-    expect(players.querySelectorAll('rect')).toHaveLength(30);
-    expect(screen.getAllByText('макс. 0').length).toBeGreaterThan(0);
+    const games = await screen.findByRole('img', { name: 'Ігор за день' });
+    const bars = games.querySelectorAll('rect');
+    expect(bars).toHaveLength(2);
+    expect(Number(bars[0]!.getAttribute('height'))).toBe(1);
+  });
+
+  it('a chart with only zeros and gaps says «Немає даних за ці дні.» instead of an empty frame', async () => {
+    vi.mocked(adminCharts).mockResolvedValue({ ok: true, data: { days: days.map((d) => ({ ...d, players: 0, returns: null })), computedAt: '2026-11-19T09:55:00.000Z' } });
+    show(<AdminCharts />);
+    await screen.findByRole('img', { name: 'Ігор за день' });
+    expect(screen.queryByRole('img', { name: 'Активні гравці (акаунти, що зіграли гру)' })).toBeNull();
+    expect(screen.queryByRole('img', { name: 'Повернення, %' })).toBeNull();
+    expect(screen.getAllByText('Немає даних за ці дні.')).toHaveLength(2);
+    expect(screen.getByRole('heading', { name: 'Активні гравці (акаунти, що зіграли гру)' })).toBeTruthy();
+    expect(screen.queryByText('макс. 0')).toBeNull();
   });
 });
 

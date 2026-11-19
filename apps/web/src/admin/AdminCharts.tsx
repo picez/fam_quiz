@@ -18,7 +18,10 @@ function shortDay(day: string): string {
   return new Intl.DateTimeFormat(intlTag(), { day: 'numeric', month: 'short', timeZone: 'UTC' }).format(new Date(`${day}T12:00:00Z`));
 }
 
-/** Стовпчики за днями (старіші ліворуч); null — без стовпчика; поруч таблиця тих самих чисел для читачів екрана. */
+/**
+ * Стовпчики за днями (старіші ліворуч); null і 0 — без стовпчика (нуль позначає вісь); поруч таблиця тих самих чисел для читачів екрана.
+ * Відсоткові графіки масштабовані до 100 %, тож і підпис верху — «100 %». Самі нулі й прогалини — рядок «немає даних» замість порожньої рамки.
+ */
 export function DayBars({ title, hint, days, value, percent }: { title: TextKey; hint?: TextKey; days: AdminChartDay[]; value: (day: AdminChartDay) => number | null; percent: boolean }): JSX.Element {
   const id = useId();
   const values = days.map(value);
@@ -26,6 +29,7 @@ export function DayBars({ title, hint, days, value, percent }: { title: TextKey;
   const scale = percent ? 100 : max;
   const first = days[0];
   const last = days[days.length - 1];
+  const empty = values.every((v) => v === null || v === 0);
   return (
     <figure className="day-bars">
       <h3 id={`${id}-title`}>{t(title)}</h3>
@@ -34,14 +38,22 @@ export function DayBars({ title, hint, days, value, percent }: { title: TextKey;
           {t(hint)}
         </p>
       )}
+      {empty ? <p className="meta">{t('adminChartNoData')}</p> : <Bars id={id} title={title} hint={hint} days={days} values={values} max={max} scale={scale} percent={percent} first={first} last={last} />}
+    </figure>
+  );
+}
+
+function Bars({ id, title, hint, days, values, max, scale, percent, first, last }: { id: string; title: TextKey; hint?: TextKey; days: AdminChartDay[]; values: (number | null)[]; max: number; scale: number; percent: boolean; first?: AdminChartDay; last?: AdminChartDay }): JSX.Element {
+  return (
+    <>
       <svg viewBox="0 0 300 120" role="img" aria-labelledby={`${id}-title`} aria-describedby={hint !== undefined ? `${id}-hint` : undefined}>
         <text x={0} y={10} className="day-bars-max">
-          {t('adminChartMax', { value: max })}
+          {percent ? t('adminChartMaxPercent') : t('adminChartMax', { value: max })}
         </text>
         <line x1={0} x2={WIDTH} y1={BOTTOM + 0.5} y2={BOTTOM + 0.5} className="day-bars-axis" />
         {values.map((v, index) => {
-          if (v === null) return null;
-          const height = scale > 0 ? Math.max(1, ((BOTTOM - TOP) * Math.min(v, scale)) / scale) : 1;
+          if (v === null || v === 0 || scale === 0) return null;
+          const height = Math.max(1, ((BOTTOM - TOP) * Math.min(v, scale)) / scale);
           return <rect key={days[index]!.day} x={index * SLOT + (SLOT - BAR) / 2} y={BOTTOM - height} width={BAR} height={height} rx={1} />;
         })}
         {first !== undefined && (
@@ -72,7 +84,7 @@ export function DayBars({ title, hint, days, value, percent }: { title: TextKey;
           ))}
         </tbody>
       </table>
-    </figure>
+    </>
   );
 }
 

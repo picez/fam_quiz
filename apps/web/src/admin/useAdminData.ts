@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ApiData } from '../api';
 import { errorText } from '../i18n';
 
@@ -7,22 +7,37 @@ export type AdminData<T> =
   /** Сервер відповів «not_found»: для не-адміна адмінки не існує, веде на головну. */
   | { status: 'home' }
   | { status: 'error'; message: string }
-  | { status: 'ready'; data: T };
+  /** `stale`: лише з `keep` — останнє перечитування не вдалося, показано попередні дані. */
+  | { status: 'ready'; data: T; stale?: boolean };
+
+type Controls = {
+  /** Перечитує тим самим ключем (кнопка «Оновити»: завжди). */
+  reload: () => void;
+  /** Те саме, але пропускає, поки попередній запит ще в дорозі (автооновлення: повільна відповідь не губиться). */
+  refresh: () => void;
+};
 
 /**
  * Читає адмін-API; `key` змінюється — читає знову; `reload` перечитує тим самим ключем.
- * `keep`: під час `reload` (той самий ключ) лишає попередні дані замість «Завантаження…» — для автооновлення без миготіння.
+ * `keep`: під час `reload` (той самий ключ) лишає попередні дані замість «Завантаження…» — для автооновлення без миготіння;
+ * збій перечитування теж лишає попередні дані, з позначкою `stale`.
  */
-export function useAdminData<T>(load: () => Promise<ApiData<T>>, key: string, options?: { keep?: boolean }): AdminData<T> & { reload: () => void } {
+export function useAdminData<T>(load: () => Promise<ApiData<T>>, key: string, options?: { keep?: boolean }): AdminData<T> & Controls {
   const [version, setVersion] = useState(0);
-  const [state, setState] = useState<{ key: string; base: string; result: ApiData<T> } | null>(null);
+  const [state, setState] = useState<{ key: string; base: string; result: ApiData<T>; lastOk: { base: string; data: T } | null } | null>(null);
+  const pending = useRef(false);
   const full = `${key}#${version}`;
 
   useEffect(() => {
     let current = true;
-    void load().then((result) => {
-      if (current) setState({ key: full, base: key, result });
-    });
+    pending.current = true;
+    void load()
+      .then((result) => {
+        if (current) setState((prev) => ({ key: full, base: key, result, lastOk: result.ok ? { base: key, data: result.data } : (prev?.lastOk ?? null) }));
+      })
+      .finally(() => {
+        if (current) pending.current = false;
+      });
     return () => {
       current = false;
     };
@@ -30,9 +45,14 @@ export function useAdminData<T>(load: () => Promise<ApiData<T>>, key: string, op
   }, [full]);
 
   const reload = useCallback(() => setVersion((n) => n + 1), []);
-  if (state !== null && state.key !== full && options?.keep === true && state.base === key && state.result.ok) return { status: 'ready', data: state.result.data, reload };
-  if (state === null || state.key !== full) return { status: 'loading', reload };
-  if (state.result.ok) return { status: 'ready', data: state.result.data, reload };
-  if (state.result.error === 'not_found') return { status: 'home', reload };
-  return { status: 'error', message: errorText(state.result.error), reload };
+  const refresh = useCallback(() => {
+    if (!pending.current) setVersion((n) => n + 1);
+  }, []);
+  const controls = { reload, refresh };
+  const kept = options?.keep === true && state !== null && state.lastOk !== null && state.lastOk.base === key ? state.lastOk : null;
+  if (state === null || state.key !== full) return kept !== null ? { status: 'ready', data: kept.data, ...controls } : { status: 'loading', ...controls };
+  if (state.result.ok) return { status: 'ready', data: state.result.data, ...controls };
+  if (state.result.error === 'not_found') return { status: 'home', ...controls };
+  if (kept !== null) return { status: 'ready', data: kept.data, stale: true, ...controls };
+  return { status: 'error', message: errorText(state.result.error), ...controls };
 }
