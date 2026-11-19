@@ -74,7 +74,7 @@ export function AdminQuizzes(): JSX.Element {
                     {t('adminAuthor', { name: nickText(row.author.nickname) })}
                     {row.authorBanned && ` (${t('adminAuthorBanned')})`}
                   </p>
-                  <p className="meta">{quizSizeText(countText('questionCount', row.questionCount), row.questionCount, row.truth)}</p>
+                  <p className="meta">{quizSizeText(countText('questionCount', row.questionCount, { count: row.questionCount }),row.questionCount, row.truth)}</p>
                   <p className="meta">{t('adminGamesOf', { count: row.games })}</p>
                   <div className="admin-actions">
                     <Link className="btn" to={`/admin/quizzes/${encodeURIComponent(row.id)}`}>
