@@ -4263,3 +4263,40 @@ describe('HostScreen result image (38c)', () => {
     expect(button()).toBeNull();
   });
 });
+
+describe('HostScreen sticky timer (55)', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('the host panel timer raises a host-wide strip (55)', () => {
+    const observers: { callback: IntersectionObserverCallback; observed: Element[] }[] = [];
+    vi.stubGlobal(
+      'IntersectionObserver',
+      vi.fn(function (callback: IntersectionObserverCallback) {
+        const entry = { callback, observed: [] as Element[] };
+        observers.push(entry);
+        return {
+          observe: (element: Element) => entry.observed.push(element),
+          unobserve: (element: Element) => entry.observed.splice(entry.observed.indexOf(element), 1),
+          disconnect: () => entry.observed.splice(0),
+        };
+      }),
+    );
+    show(during('question', single, { endsAt: Date.now() + 20_000, limitMs: 30_000 }));
+    expect(document.body.querySelector('.timer-sticky')).toBeNull();
+    act(() => {
+      for (const { callback, observed } of observers.filter((observer) => observer.observed.length > 0)) {
+        callback(
+          observed.map(
+            (target) =>
+              ({ target, isIntersecting: false, boundingClientRect: { top: -70, bottom: -10 }, rootBounds: { top: 0, bottom: 568 } }) as unknown as IntersectionObserverEntry,
+          ),
+          {} as IntersectionObserver,
+        );
+      }
+    });
+    expect(document.body.querySelector('.timer-sticky.is-host')).not.toBeNull();
+    expect(document.body.querySelector('.timer-sticky-left')?.textContent).toBe('20 с');
+  });
+});

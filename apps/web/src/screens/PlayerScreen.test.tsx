@@ -5654,3 +5654,95 @@ describe('PlayerScreen result image (38c)', () => {
     expect(button()).toBeNull();
   });
 });
+
+describe('sticky timer (55)', () => {
+  let observers: { callback: IntersectionObserverCallback; observed: Element[] }[] = [];
+  let construct: ReturnType<typeof vi.fn>;
+
+  beforeEach(() => {
+    observers = [];
+    construct = vi.fn(function (callback: IntersectionObserverCallback) {
+      const entry = { callback, observed: [] as Element[] };
+      observers.push(entry);
+      return {
+        observe: (element: Element) => entry.observed.push(element),
+        unobserve: (element: Element) => entry.observed.splice(entry.observed.indexOf(element), 1),
+        disconnect: () => entry.observed.splice(0),
+      };
+    });
+    vi.stubGlobal('IntersectionObserver', construct);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  const strip = () => document.body.querySelector('.timer-sticky:not(.is-host)');
+
+  /** Каже спостерігачам, що табло (не) на екрані; bottom — низ табло. */
+  function scrollAway(isIntersecting: boolean, bottom: number): void {
+    act(() => {
+      for (const { callback, observed } of observers.filter((observer) => observer.observed.length > 0)) {
+        callback(
+          observed.map(
+            (target) =>
+              ({ target, isIntersecting, boundingClientRect: { top: bottom - 60, bottom }, rootBounds: { top: 0, bottom: 568 } }) as unknown as IntersectionObserverEntry,
+          ),
+          {} as IntersectionObserver,
+        );
+      }
+    });
+  }
+
+  it('the question timer raises the strip when scrolled above the screen, the phone size', () => {
+    show(onQuestion({ endsAt: Date.now() + 20_000, limitMs: 30_000 }));
+    expect(document.querySelector('.question-head .timer')).not.toBeNull();
+    expect(strip()).toBeNull();
+    scrollAway(false, -10);
+    expect(strip()).not.toBeNull();
+    expect(strip()!.querySelector('.timer-sticky-left')?.textContent).toBe('20 с');
+    scrollAway(true, 80);
+    expect(strip()).toBeNull();
+  });
+
+  it('a duel question timer raises the strip too', () => {
+    const running = {
+      challenger: { playerId: 'p1', nickname: 'Олена' },
+      opponent: { playerId: 'p2', nickname: 'Петро' },
+      stage: 'question' as const,
+      categories: [{ id: 'dc1', title: 'Столиці', left: 2 }],
+      category: 'Столиці',
+      number: 1,
+      total: 3,
+      question: 'Столиця Франції?',
+      accepted: null,
+      wins: { challenger: 0, opponent: 0 },
+      tries: { challenger: 0, opponent: 0 },
+      questionWinner: null,
+      winningAnswer: null,
+      winner: null,
+      stake: 300,
+      bets: null,
+      ending: false,
+    };
+    show(
+      view({
+        phase: 'duel',
+        duel: running,
+        endsAt: Date.now() + 20_000,
+        limitMs: 30_000,
+        me: { ...me, duel: { rights: null, tries: [], canAnswer: true, canPick: false, bet: null } },
+      }),
+    );
+    expect(strip()).toBeNull();
+    scrollAway(false, -10);
+    expect(strip()).not.toBeNull();
+  });
+
+  it('«Без годинника» shows no strip', () => {
+    show(onQuestion({ me: { ...me, debuff: { kind: 'noclock', since: Date.now(), by: null } } }));
+    scrollAway(false, -10);
+    expect(observers.some((observer) => observer.observed.length > 0)).toBe(false);
+    expect(strip()).toBeNull();
+  });
+});

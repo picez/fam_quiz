@@ -5187,6 +5187,11 @@ body:has(.banner.is-offline) .host .live-notices {
   top: calc(max(0.75rem, env(safe-area-inset-top)) + 3rem);
 }
 
+/* Смужка таймера (55) вгорі та смуга «Немає зв'язку» разом: сповіщення пульта під обома. */
+body:has(.banner.is-offline):has(.timer-sticky) .host .live-notices {
+  top: calc(2.5rem + max(0.75rem, env(safe-area-inset-top)) + 3rem);
+}
+
 .stage .live-notices {
   bottom: 0.75rem;
 }

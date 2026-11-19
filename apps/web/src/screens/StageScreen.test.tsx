@@ -3516,3 +3516,20 @@ describe('StageScreen result image (38c)', () => {
     expect(screen.queryByRole('button', { name: '📸 Підсумок картинкою' })).toBeNull();
   });
 });
+
+describe('StageScreen sticky timer (55)', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('the stage never watches its timer for a strip (55)', () => {
+    const construct = vi.fn(function () {
+      return { observe: vi.fn(), unobserve: vi.fn(), disconnect: vi.fn() };
+    });
+    vi.stubGlobal('IntersectionObserver', construct);
+    show(view({ phase: 'question', questionIndex: 0, question, endsAt: Date.now() + 20_000, limitMs: 30_000 }));
+    expect(document.querySelector('.timer')).not.toBeNull();
+    expect(construct).not.toHaveBeenCalled();
+    expect(document.body.querySelector('.timer-sticky')).toBeNull();
+  });
+});
