@@ -10,6 +10,7 @@ import {
   authorTeamForm,
   autopilotStart,
   createAutopilotGame,
+  createBotGame,
   isAuthor,
   pilotKey,
   pilotTry,
@@ -173,7 +174,7 @@ import {
   type Result,
   type TeamAct,
 } from '@quiz/engine';
-import { ANSWERER_PICKS_PER_SECOND, REACTION_GAP_MS, reactionAllowed, type Reaction, type ReactionItem, APPEAL_VOTES_PER_SECOND, AWAY_EVENTS_PER_SECOND, awayGapMs, draftQuestionType, DRAFTS_PER_SECOND, isAnswerDraft, isUnscored, SORT_TILT_GAP_MS, LIST_WORDS_PER_SECOND, MORELESS_PICKS_PER_SECOND, PUZZLE_BATCHES_PER_SECOND, JIGSAW_MOVES_PER_SECOND, SPOTDIFF_TAPS_PER_SECOND, MEMORY_FLIPS_PER_SECOND, DRAW_GUESSES_PER_SECOND, DRAW_OPS_PER_SECOND, type DrawingEvent, type DrawOp, type AckResult, type Answer, type MoreLessSide, type AnswererScope, type AppealReason, type BuffKind, type DebuffKind, type DraftValue, type DuelSide, type ErrorCode, type GameView, type Grade, type HostDrafts, type HostUndoTarget, type LifelineKind, type Phase, type PlayerView, type Question, type Quiz, type ResumeSetup, RESUME_POINTS_MAX, clamp, isObjectLike, type ContinuedView, type PlacedPrize, placedPrizeSchema, type SlotsResponse, type Role, type SortTilt, type SubmittedAnswer, type TeamForm, type ThinkWord, type ActivePerk, type NickLevel, type StickerExtra, stickerOpen, LIKE_RATE, type LikePayload, LOBBY_VISIBILITIES, lobbyPasswordSchema, type LobbySettings, type LobbyVisibility, type AchievementId, type HostLeagueView, type PlayerLeagueView, type GameXpMoment } from '@quiz/shared';
+import { ANSWERER_PICKS_PER_SECOND, REACTION_GAP_MS, reactionAllowed, type Reaction, type ReactionItem, APPEAL_VOTES_PER_SECOND, AWAY_EVENTS_PER_SECOND, awayGapMs, draftQuestionType, DRAFTS_PER_SECOND, isAnswerDraft, isUnscored, SORT_TILT_GAP_MS, LIST_WORDS_PER_SECOND, MORELESS_PICKS_PER_SECOND, PUZZLE_BATCHES_PER_SECOND, JIGSAW_MOVES_PER_SECOND, SPOTDIFF_TAPS_PER_SECOND, MEMORY_FLIPS_PER_SECOND, DRAW_GUESSES_PER_SECOND, DRAW_OPS_PER_SECOND, type DrawingEvent, type DrawOp, type AckResult, type Answer, type MoreLessSide, type AnswererScope, type AppealReason, type BuffKind, type DebuffKind, type DraftValue, type DuelSide, type ErrorCode, type GameView, type Grade, type HostDrafts, type HostUndoTarget, type LifelineKind, type Phase, type PlayerView, type Question, type Quiz, type ResumeSetup, RESUME_POINTS_MAX, clamp, isObjectLike, type ContinuedView, type PlacedPrize, placedPrizeSchema, type SlotsResponse, type Role, type SortTilt, type SubmittedAnswer, type TeamForm, type ThinkWord, type ActivePerk, type NickLevel, type StickerExtra, stickerOpen, LIKE_RATE, type LikePayload, LOBBY_VISIBILITIES, lobbyPasswordSchema, type LobbySettings, type LobbyVisibility, type AchievementId, type HostLeagueView, type PlayerLeagueView, type GameXpMoment, BOT_ROOMS_MAX, BOT_USER_ID, isBotUser, type BotAction } from '@quiz/shared';
 import type { LeagueGameResult } from '../league-store';
 import type { LikeChange, LikeKey } from '../like-store';
 import { SAVED_GAME_VERSION, type ContinueResult, type RestartInput, type SavedGameData } from './continuation';
@@ -833,6 +834,16 @@ export class RoomManager {
     return { ok: true, room, token, playerId };
   }
 
+  /**
+   * Кімната бота (54): автопілот, чий ведучий — акаунт Квіз-бота, а автор (BOT_PLAYER_ID) не гравець; токена автора немає,
+   * лобі «Приховане» (open). Не більше BOT_ROOMS_MAX незавершених кімнат бота водночас; frozen → restarting.
+   */
+  createBotRoom(quiz: Quiz, quizId: string): { ok: true; room: Room } | { ok: false; error: 'restarting' | 'bot_rooms_full' } {
+    if (this.isFrozen) return { ok: false, error: 'restarting' };
+    if (this.botRooms().filter((room) => room.state.phase !== 'finished').length >= BOT_ROOMS_MAX) return { ok: false, error: 'bot_rooms_full' };
+    return { ok: true, room: this.open(createBotGame(quiz, this.gameOptions(quiz)), BOT_USER_ID, quizId) };
+  }
+
   private gameOptions(quiz: Quiz): { transitions: boolean; teamIds: string[] } {
     // Рядок команди стає рядком participant в історії: id команд — uuid.
     return { transitions: this.transitions, teamIds: Array.from({ length: quiz.settings.teams?.count ?? 0 }, () => randomUUID()) };
@@ -871,7 +882,7 @@ export class RoomManager {
       awayCredit: new Set(),
       checkpoint: null,
       continued: null,
-      lobby: { visibility: hostUserId === null || challenge !== null ? 'hidden' : 'friends', password: null, openedAt: this.now() },
+      lobby: { visibility: hostUserId === null || challenge !== null || isBotUser(hostUserId) ? 'hidden' : 'friends', password: null, openedAt: this.now() },
       challenge,
       league: null,
       leagueResult: null,
@@ -1000,6 +1011,11 @@ export class RoomManager {
   /** Усі живі кімнати (для запису на зупинці). */
   rooms(): Room[] {
     return [...this.live.values()];
+  }
+
+  /** Живі кімнати бота (54), і завершені теж. */
+  botRooms(): Room[] {
+    return this.rooms().filter((room) => isBotUser(room.hostUserId));
   }
 
   /**
@@ -1178,7 +1194,8 @@ export class RoomManager {
     const me = room.playerUsers.get(by);
     if (me === undefined) return { ok: false, error: 'like_guest' };
     const mine = room.likes.mine.get(me);
-    if (room.quizId === null || room.hostUserId === null || mine === undefined) return { ok: false, error: 'like_unavailable' };
+    // Кімната бота (54): лайків немає (лайк вікторини йшов би боту).
+    if (room.quizId === null || room.hostUserId === null || isBotUser(room.hostUserId) || mine === undefined) return { ok: false, error: 'like_unavailable' };
     if (state.phase !== (payload.target === 'question' ? 'reveal' : 'finished')) return { ok: false, error: 'wrong_phase' };
     const base = { userId: me, liked: payload.liked, gameId: room.id, quizId: room.quizId };
     let key: LikeKey;
@@ -2430,6 +2447,27 @@ export class RoomManager {
     const state = room.state;
     if (state.autopilot === undefined) return FORBIDDEN;
     if (!isAuthor(state, playerId) || !isAuthorAction(action)) return NOT_ALLOWED;
+    return this.authorAct(room, playerId, action);
+  }
+
+  /**
+   * Дія адміна в кімнаті бота (54): немає кімнати чи вона не бота → game_not_found; інакше як дія автора,
+   * лише end у лобі закриває кімнату (end рушія там не діє), як closeHostedBy.
+   */
+  botAct(code: string, action: BotAction): AckResult {
+    const room = this.live.get(code);
+    if (room === undefined || !isBotUser(room.hostUserId) || room.state.autopilot === undefined) return GONE;
+    if (!this.alive(room)) return this.gone();
+    if (action === 'end' && room.state.phase === 'lobby') {
+      this.close(room);
+      return { ok: true };
+    }
+    return this.authorAct(room, null, { type: action });
+  }
+
+  /** Тіло дії автора (11g) для author і botAct; playerId — автор-гравець (null — адмін за бота), для kick/release. */
+  private authorAct(room: Room, playerId: string | null, action: AuthorAction): AckResult {
+    const state = room.state;
     // Затримки 11b для дій автора немає: жодна з них не «Далі».
     switch (action.type) {
       case 'start':
@@ -2675,10 +2713,11 @@ export class RoomManager {
     });
   }
 
-  /** Ручне збереження (host 'save', author 'save'): hostUserId null → not_allowed; lobby/finished чи checkpoint null → wrong_phase; інакше закрити з saved. */
+  /** Ручне збереження (host 'save', author 'save'): hostUserId null чи кімната бота (54) → not_allowed; lobby/finished чи checkpoint null → wrong_phase; інакше закрити з saved. */
   save(room: Room): AckResult {
     if (!this.alive(room)) return this.gone();
-    if (room.hostUserId === null) return NOT_ALLOWED;
+    // Кімната бота (54) не зберігається: гра бота не є збереженою грою жодного власника.
+    if (room.hostUserId === null || isBotUser(room.hostUserId)) return NOT_ALLOWED;
     if (!this.savable(room, false)) return { ok: false, error: 'wrong_phase' };
     this.closeSaved(room);
     return { ok: true };
@@ -2690,10 +2729,10 @@ export class RoomManager {
     else this.apply(room, end(room.state, this.now()));
   }
 
-  /** hostUserId є, фаза не lobby/finished, контрольна точка є, а для автозбереження гра ще й дійшла до запитання (plays). */
+  /** hostUserId є і не бот (54), фаза не lobby/finished, контрольна точка є, а для автозбереження гра ще й дійшла до запитання (plays). */
   private savable(room: Room, auto: boolean): boolean {
     const { phase, plays } = room.state;
-    if (room.hostUserId === null || phase === 'lobby' || phase === 'finished' || room.checkpoint === null) return false;
+    if (room.hostUserId === null || isBotUser(room.hostUserId) || phase === 'lobby' || phase === 'finished' || room.checkpoint === null) return false;
     return !auto || plays.length > 0;
   }
 

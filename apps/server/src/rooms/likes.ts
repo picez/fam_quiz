@@ -1,5 +1,5 @@
 import { memberOf, questionFor, teamOf, teamsOn, type GameState } from '@quiz/engine';
-import type { LikePerson, LikesView } from '@quiz/shared';
+import { isBotUser, type LikePerson, type LikesView } from '@quiz/shared';
 import type { LikeKey } from '../like-store';
 import type { Room } from './manager';
 
@@ -39,10 +39,11 @@ function likeablePeople(room: Room, me: string): { id: string; nickname: string;
   return result;
 }
 
-/** Що бачить людина personId; undefined — гість, не прочитано, без quizId/hostUserId або нічого не можна. */
+/** Що бачить людина personId; undefined — гість, не прочитано, без quizId/hostUserId, кімната бота або нічого не можна. */
 export function likesView(room: Room, personId: string): LikesView | undefined {
   const { state } = room;
-  if (room.quizId === null || room.hostUserId === null) return undefined;
+  // Кімната бота (54): лайків немає.
+  if (room.quizId === null || room.hostUserId === null || isBotUser(room.hostUserId)) return undefined;
   if (personOf(state, personId) === undefined) return undefined;
   const me = room.playerUsers.get(personId);
   const mine = me === undefined ? undefined : room.likes.mine.get(me);
