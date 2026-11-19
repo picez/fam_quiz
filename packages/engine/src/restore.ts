@@ -96,6 +96,7 @@ export const GAME_STATE_VERSION = 22;
  * 50 без нової версії: spy — необов'язкові spyHint і spyWord (застаріле, рушій його не читає); Play.spy без змін.
  * 51 без нової версії: think — необов'язкові Play.think.off (позначки ведучого «не на тему») і Play.think.vote (голосування автопілота), необов'язкове ThinkRound.offtopicVote; старий знімок не містить нічого з цього.
  *   Необов'язкове ThinkVote.off — результат, заморожений на закритті етапу; знімок без нього рахує результат наживо.
+ * 52 без нової версії: truth — необов'язкові GameState.truth.fakes і Play.truth.fake, id вигадок fake-N у колоді; старий знімок їх не має — раунд без варіанта «Вигадка», як до 52.
  */
 export const READABLE_STATE_VERSIONS: readonly number[] = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, GAME_STATE_VERSION];
 

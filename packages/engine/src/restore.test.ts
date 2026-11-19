@@ -78,6 +78,7 @@ import {
   type WordLadderProgress,
   type WordleProgress,
   type TruthFact,
+  type TruthFake,
   type ThinkPlay,
   type ThinkVote,
   type TruthPlay,
@@ -178,7 +179,7 @@ import { dealLetters, letterWord } from './letterwords';
 import { moreLessPick } from './moreless';
 import { drawGuess, drawStroke } from './drawing';
 import { puzzleFill, puzzleFinish } from './puzzles';
-import { hideTruth, submitTruth } from './truth';
+import { hideTruth, setTruthFake, submitTruth } from './truth';
 import { markThinkOff, setThinkWords, thinkLivesAfter, thinkOffOf, thinkVerdicts, voteThinkOff } from './think';
 import { ladderWord } from './wordladder';
 import { wordleGuess } from './wordle';
@@ -427,9 +428,10 @@ const STATE_SHAPE: Record<string, string> = {
   MoreLessPlay: keysOf<MoreLessPlay>()(['progress', 'scored'], true),
   MoreLessScored: keysOf<NonNullable<MoreLessPlay['scored']>>()(['right'], true),
   MoreLessProgress: keysOf<MoreLessProgress>()(['picks'], true),
-  TruthState: keysOf<TruthState>()(['facts', 'deck'], true),
+  TruthState: keysOf<TruthState>()(['facts', 'deck', 'fakes'], true),
+  TruthFake: keysOf<TruthFake>()(['id', 'text', 'preset'], true),
   TruthFact: keysOf<TruthFact>()(['text', 'hidden', 'at', 'revised'], true),
-  TruthPlay: keysOf<TruthPlay>()(['authorId', 'actorId', 'guessers', 'right'], true),
+  TruthPlay: keysOf<TruthPlay>()(['authorId', 'actorId', 'guessers', 'right', 'fake'], true),
   ThinkPlay: keysOf<ThinkPlay>()(['words', 'lives', 'revealed', 'watch', 'off', 'vote'], true),
   ThinkVote: keysOf<ThinkVote>()(['voters', 'marks', 'off'], true),
   AlikePlay: keysOf<AlikePlay>()(['labels'], true),
@@ -1302,9 +1304,10 @@ const KEYS: Record<number, Record<string, string>> = {
     MoreLessPlay: 'progress,scored',
     MoreLessScored: 'right',
     MoreLessProgress: 'picks',
-    TruthState: 'deck,facts',
+    TruthState: 'deck,facts,fakes',
+    TruthFake: 'id,preset,text',
     TruthFact: 'at,hidden,revised,text',
-    TruthPlay: 'actorId,authorId,guessers,right',
+    TruthPlay: 'actorId,authorId,fake,guessers,right',
     ThinkPlay: 'lives,off,revealed,vote,watch,words',
     ThinkVote: 'marks,off,voters',
     AlikePlay: 'labels',
@@ -1659,6 +1662,8 @@ function representative(): GameState[] {
     truthLobby,
     truthOpen,
     truthClosed,
+    truthFakeLobby(),
+    truthFakeAsked(),
     drawOpen,
     drawClosed,
     drawPacked,
@@ -1733,6 +1738,22 @@ function truthAsked(): GameState {
   const open = must(next(must(start(lobby)), T0, seededRng(7)));
   const author = open.plays[0].truth?.authorId ?? '';
   return must(submitAnswer(open, 'p3', { type: 'single', optionId: author }, T0 + 1000));
+}
+
+/** 52: лобі «Правди про гравця» з заготовленою вигадкою (змінена ведучим — без preset) і доданою (Оля, Петро, Іра; факти Олі й Петра). */
+function truthFakeLobby(): GameState {
+  let lobby = lobbyWith(makeRoundsQuiz([truthRound('r1', { fakes: ['Я тричі бачила північне сяйво', 'Я вмію жонглювати'] }), classicRound('r2', [single])]), 'Оля', 'Петро', 'Іра');
+  lobby = must(submitTruth(must(submitTruth(lobby, 'p1', 'Я стрибала з парашутом', T0)), 'p2', 'Я знаю шість мов', T0));
+  lobby = must(setTruthFake(must(setTruthFake(lobby, 'fake-2', 'Я вмію жонглювати трьома м’ячами')), null, 'Я обійшла пішки озеро'));
+  return lobby;
+}
+
+/** 52: запитання-вигадка (Play.truth.fake) — колода з двома вигадками, Іра вже вибрала «Вигадка». */
+function truthFakeAsked(): GameState {
+  let s = must(next(must(start(truthFakeLobby())), T0, seededRng(7)));
+  for (let i = 0; i < 20 && !(s.phase === 'question' && s.plays[s.questionIndex].truth?.fake === true); i++) s = s.phase === 'question' ? must(lock(s)) : must(next(s, T0, () => 0));
+  expect(s.plays[s.questionIndex].truth?.fake).toBe(true);
+  return must(submitAnswer(s, 'p3', { type: 'single', optionId: 'fake' }, T0 + 1000));
 }
 
 /** 35: «Думай інакше» (Оля, Петро, Іра) — запитання без слів, ведучий дописав «червоний», Оля збіглася, Петро — ні. */
@@ -2609,6 +2630,7 @@ describe('the saved state', () => {
       add('MoreLessProgress', s.plays.flatMap((p) => Object.values(p.moreless?.progress ?? {})));
       add('TruthState', [s.truth]);
       add('TruthFact', Object.values(s.truth?.facts ?? {}));
+      add('TruthFake', s.truth?.fakes ?? []);
       add('TruthPlay', s.plays.map((p) => p.truth));
       add('ThinkPlay', s.plays.map((p) => p.think));
       add('ThinkVote', s.plays.map((p) => p.think?.vote));
@@ -2833,5 +2855,52 @@ describe('51 snapshots', () => {
     expect(back.plays[0].think?.off).toEqual(['p2']);
     expect(thinkOffOf(back, 0)).toEqual({ p2: 'host' });
     expect(['p1', 'p2', 'p3'].map((id) => thinkLivesAfter(back, 0, id))).toEqual([2, 1, 1]);
+  });
+});
+
+describe('52 snapshots', () => {
+  it('an old truth snapshot plays on without the «made up» option', () => {
+    expect(GAME_STATE_VERSION).toBe(22);
+    // знімок до плану 52: колода лише з людей, ключа fakes немає
+    const open = truthAsked();
+    expect(open.truth && 'fakes' in open.truth).toBe(false);
+    const author = open.plays[0].truth?.authorId ?? '';
+    const other = author === 'p1' ? 'p2' : 'p1';
+    const back = backAt(roundTrip(suspend(roundTrip(open), T0 + 1500)), T0 + 1500 + HOUR);
+    const question = back.plays[0].question;
+    expect(question.type === 'single' ? question.options.map((o) => o.id) : null).toEqual(['p3', 'p1', 'p2']);
+    expect(back.plays[0].truth?.fake).toBeUndefined();
+    // частка автора та сама, що й без перезапуску
+    const closed = must(submitAnswer(back, other, { type: 'single', optionId: 'p3' }, T0 + 2000 + HOUR));
+    expect(closed.phase).toBe('locked');
+    expect(closed.plays[0].answers[author]?.points).toBe(150);
+    // наступне запитання — теж без «Вигадка»
+    let second = closed;
+    for (let i = 0; i < 5 && second.phase !== 'question'; i++) second = must(next(second, T0 + 3000 + HOUR + i * 1000, () => 0));
+    expect(second.phase).toBe('question');
+    expect(second.plays[1].truth?.authorId).toBe(other);
+    const options = second.plays[1].question.type === 'single' ? second.plays[1].question.options : [];
+    expect(options.map((o) => o.id)).toEqual(['p3', 'p1', 'p2']);
+    expect(second.plays[1].question.type === 'single' ? second.plays[1].question.correctId : null).toBe(other);
+  });
+
+  it('a snapshot with fakes keeps the deck and the fake play', () => {
+    expect(GAME_STATE_VERSION).toBe(22);
+    const lobby = truthFakeLobby();
+    expect(roundTrip(suspend(roundTrip(lobby), T0)).truth).toEqual(lobby.truth);
+    const asked = truthFakeAsked();
+    const k = asked.questionIndex;
+    const back = backAt(roundTrip(suspend(roundTrip(asked), T0 + 1500)), T0 + 1500 + HOUR);
+    expect(back.truth).toEqual(asked.truth);
+    expect(back.plays[k].truth).toEqual(asked.plays[k].truth);
+    expect(back.plays[k].truth).toMatchObject({ fake: true, guessers: ['p1', 'p2', 'p3'] });
+    expect(back.plays[k].question).toEqual(asked.plays[k].question);
+    let s = must(submitAnswer(back, 'p1', { type: 'single', optionId: 'fake' }, T0 + 2000 + HOUR));
+    s = must(submitAnswer(s, 'p2', { type: 'single', optionId: 'p1' }, T0 + 2000 + HOUR));
+    expect(s.phase).toBe('locked');
+    expect(s.plays[k].answers.p1?.grade).toBe('correct');
+    expect(s.plays[k].answers.p3?.grade).toBe('correct');
+    expect(s.plays[k].answers.p2?.grade).toBe('wrong');
+    expect(Object.keys(s.plays[k].answers).sort()).toEqual(['p1', 'p2', 'p3']);
   });
 });
