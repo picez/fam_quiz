@@ -1,4 +1,4 @@
-import { memberOf, teamsOn } from '@quiz/engine';
+import { IN_ROUND, memberOf, teamsOn } from '@quiz/engine';
 import {
   BOT_COMMAND_TYPES,
   BOT_PLANS_MAX,
@@ -74,6 +74,7 @@ function botRoomView(room: Room): AdminBotRoom {
     : state.players.map((p) => ({ id: p.id, nickname: p.nickname, online: isOnline(p.id), team: null }));
   return {
     question: state.phase === 'question',
+    inRound: IN_ROUND.includes(state.phase),
     lobby: { listed: room.lobby.visibility !== 'hidden', password: room.lobby.password },
     people,
     teams: teamsOn(state) ? { form: state.teams.form } : null,

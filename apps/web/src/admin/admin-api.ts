@@ -1,4 +1,4 @@
-import type { AchievementId, AdminBot, AdminBotLobby, AdminBotPerson, AdminBotPlan, BotAction, BotCommand, BotPlanInput, GameDetail } from '@quiz/shared';
+import type { AchievementId, AdminBot, AdminBotLobby, AdminBotPerson, AdminBotPlan, BotCommand, BotPlanInput, GameDetail } from '@quiz/shared';
 import type { Announcement, AnnouncementInput, AdminCharts, AdminHealth, AdminLiveList, AdminList, AdminReportItem, AdminLogEntry, AdminQuizCheck, AdminQuizRow, AdminQuizView, AdminStats, AdminUserDetail, AdminUserRow } from '@quiz/shared';
 import { fetchData, request, type ApiData, type ApiResult } from '../api';
 
@@ -49,7 +49,6 @@ export const botRoomCommand = (code: string, command: BotCommand): Promise<ApiRe
   const { type, ...body } = command;
   return request<object>(`/api/admin/bot/rooms/${id(code)}/${type}`, Object.keys(body).length === 0 ? { method: 'POST' } : { method: 'POST', body });
 };
-export const botRoomAct = (code: string, action: BotAction): Promise<ApiResult<object>> => botRoomCommand(code, { type: action });
 /** 62: лобі кімнати бота — у списку лобі чи лише за кодом, і пароль (null — без пароля). */
 export const saveBotLobby = (code: string, input: AdminBotLobby): Promise<ApiResult<AdminBotLobby>> =>
   request<AdminBotLobby>(`/api/admin/bot/rooms/${id(code)}/lobby`, { method: 'PUT', body: input });

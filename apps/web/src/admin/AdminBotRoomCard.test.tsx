@@ -14,6 +14,7 @@ const room = (over: Partial<AdminBotRoom> = {}): AdminBotRoom => ({
   stageUrl: '/stage/123456#tok',
   openedAt: '2026-11-20T09:00:00.000Z',
   question: false,
+  inRound: false,
   lobby: { listed: true, password: null },
   people: [
     { id: 'p1', nickname: 'Оля', online: true, team: null },
@@ -61,7 +62,7 @@ describe('AdminBotRoomCard', () => {
 
     const password = screen.getByLabelText('Пароль гри (необов’язково)') as HTMLInputElement;
     expect(password.getAttribute('type')).toBe('password');
-    expect(password.maxLength).toBe(32);
+    expect(password.maxLength).toBe(-1);
     expect(document.getElementById(password.getAttribute('aria-describedby')!)?.textContent).toBe('Від 4 до 32 символів. Без нього в гру не ввійти — і тобі теж.');
     const save = screen.getByRole('button', { name: 'Зберегти пароль' }) as HTMLButtonElement;
     expect(save.disabled).toBe(true);
@@ -132,7 +133,7 @@ describe('AdminBotRoomCard', () => {
 
   it('playing with an open question: skip, +30 s, end round', () => {
     const confirm = vi.mocked(window.confirm);
-    show(room({ status: 'playing', question: true }));
+    show(room({ status: 'playing', question: true, inRound: true }));
     fireEvent.click(screen.getByRole('button', { name: '+30 с' }));
     expect(onCommand).toHaveBeenLastCalledWith({ type: 'time' });
     fireEvent.click(screen.getByRole('button', { name: 'Пропустити запитання' }));
@@ -151,16 +152,19 @@ describe('AdminBotRoomCard', () => {
     expect(screen.queryByLabelText('Пароль гри (необов’язково)')).toBeNull();
     expect(screen.getByRole('heading', { name: 'Гравці' })).toBeTruthy();
     cleanup();
-    show(room({ status: 'playing', question: false }));
+    show(room({ status: 'playing', question: false, inRound: true }));
     expect(screen.queryByRole('button', { name: '+30 с' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Пропустити запитання' })).toBeNull();
     expect(screen.getByRole('button', { name: 'Завершити раунд' })).toBeTruthy();
     cleanup();
-    show(room({ status: 'paused', question: true }));
+    show(room({ status: 'playing', question: false, inRound: false }));
+    expect(screen.queryByRole('button', { name: 'Завершити раунд' })).toBeNull();
+    cleanup();
+    show(room({ status: 'paused', question: true, inRound: true }));
     for (const name of ['+30 с', 'Пропустити запитання', 'Завершити раунд']) expect(screen.queryByRole('button', { name })).toBeNull();
     expect(screen.getByRole('button', { name: 'Продовжити' })).toBeTruthy();
     cleanup();
-    show(room({ status: 'playing', question: true }), true);
+    show(room({ status: 'playing', question: true, inRound: true }), true);
     expect((screen.getByRole('button', { name: '+30 с' }) as HTMLButtonElement).disabled).toBe(true);
     expect((within(person('Оля')).getByRole('button', { name: 'Вилучити' }) as HTMLButtonElement).disabled).toBe(true);
   });

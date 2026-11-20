@@ -2542,7 +2542,7 @@ export class RoomManager {
   /** Лобі кімнати бота (62): немає кімнати чи вона не бота → game_not_found; інакше setLobby (лише лобі → wrong_phase, frozen → restarting). */
   botLobby(code: string, input: AdminBotLobby): AckResult {
     const room = this.live.get(code);
-    if (room === undefined || !isBotUser(room.hostUserId)) return GONE;
+    if (room === undefined || !isBotUser(room.hostUserId) || room.state.autopilot === undefined) return GONE;
     return this.setLobby(room, { visibility: input.listed ? 'all' : 'hidden', password: input.password });
   }
 

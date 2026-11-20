@@ -1,6 +1,6 @@
 import { useEffect, useState, type JSX } from 'react';
 import { Link } from 'react-router-dom';
-import { BOT_TEAM_FORMS, LOBBY_PASSWORD_MAX, LOBBY_PASSWORD_MIN, type AdminBotLobby, type AdminBotRoom, type AdminBotRoomPerson, type AdminBotStatus, type BotAction, type BotCommand } from '@quiz/shared';
+import { BOT_TEAM_FORMS, BOT_TIME_SECONDS, LOBBY_PASSWORD_MAX, LOBBY_PASSWORD_MIN, type AdminBotLobby, type AdminBotRoom, type AdminBotRoomPerson, type AdminBotStatus, type BotAction, type BotCommand } from '@quiz/shared';
 import { t, type TextKey } from '../i18n';
 import { nickText } from '../nick';
 
@@ -76,14 +76,14 @@ export function AdminBotRoomCard({ room, busy, onCommand, onLobby }: { room: Adm
         {playing && room.question && (
           <>
             <button type="button" className="btn" disabled={busy} onClick={() => onCommand({ type: 'time' })}>
-              {t('adminBotTime')}
+              {t('adminBotTime', { seconds: BOT_TIME_SECONDS })}
             </button>
             <button type="button" className="btn" disabled={busy} onClick={() => asked(t('adminBotSkipConfirm', { code: room.code }), { type: 'skip' })}>
               {t('adminBotSkip')}
             </button>
           </>
         )}
-        {playing && (
+        {playing && room.inRound && (
           <button type="button" className="btn" disabled={busy} onClick={() => asked(t('endRoundConfirm'), { type: 'end-round' })}>
             {t('endRound')}
           </button>
@@ -112,7 +112,6 @@ export function AdminBotRoomCard({ room, busy, onCommand, onLobby }: { room: Adm
                 autoComplete="off"
                 spellCheck={false}
                 dir="auto"
-                maxLength={LOBBY_PASSWORD_MAX}
                 value={draft}
                 aria-describedby={`${ids}-password-hint`}
                 aria-invalid={draft !== '' && !valid}

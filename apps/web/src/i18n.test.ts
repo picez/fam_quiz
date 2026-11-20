@@ -525,14 +525,15 @@ describe('uk golden (22a)', () => {
     const vars = (text: string) => [...text.matchAll(/\{(\w+)\}/g)].map((m) => m[1]).sort();
     expect(vars('{b} and {a}')).toEqual(['a', 'b']);
     for (const key of ADDED_BOT_ROOM_62) expect(ukMessages, key).toHaveProperty(key);
-    expect(ukMessages.adminBotTime).toBe('+30 с');
+    expect(ukMessages.adminBotTime).toBe('+{seconds} с');
     expect(ukMessages.adminLog_bot_room_lobby).toBe('{admin} змінив(-ла) лобі гри бота (код {code}): {listed}, {locked}');
     for (const [lang, dict] of Object.entries(locales)) {
       expect(ADDED_BOT_ROOM_62.filter((key) => !dict[key]?.trim()), lang).toEqual([]);
       for (const key of ADDED_BOT_ROOM_62) {
         expect(vars(dict[key]!), lang + ' ' + key).toEqual(vars((ukMessages as Record<string, string>)[key]!));
       }
-      expect(dict.adminBotTime, lang).toContain('30');
+      expect(dict.adminBotTime, lang).toContain('{seconds}');
+      expect(dict.adminLog_bot_room_time, lang).toContain('{seconds}');
     }
   });
 

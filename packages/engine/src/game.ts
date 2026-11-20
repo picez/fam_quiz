@@ -2719,7 +2719,7 @@ export function next(state: GameState, now: number, rng: Rng = Math.random): Res
   }
 }
 
-const IN_ROUND: Phase[] = ['intro', 'wager', 'board', 'question', 'locked', 'reveal', 'leaderboard', 'duel'];
+export const IN_ROUND: Phase[] = ['intro', 'wager', 'board', 'question', 'locked', 'reveal', 'leaderboard', 'duel'];
 
 /** Ведучий завершує раунд достроково; незіграні запитання раунду так і лишаються незіграними. */
 export function endRound(state: GameState, now: number): Result {

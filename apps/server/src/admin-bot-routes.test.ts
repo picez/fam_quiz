@@ -243,10 +243,12 @@ describe('admin bot routes (54)', () => {
         teams: null,
         continued: false,
         question: false,
+        inRound: false,
       });
       expect((await asAdmin('POST', `/api/admin/bot/rooms/${code}/start`, undefined, own)).statusCode).toBe(204);
       for (let i = 0; i < 20 && own.manager.get(code)!.state.phase !== 'question'; i += 1) scheduler.advance(1000);
       expect((await card()).question).toBe(true);
+      expect((await card()).inRound).toBe(true);
       const raw = (await asAdmin('GET', '/api/admin/bot', undefined, own)).body;
       expect(raw).not.toContain('Дніпро 62');
       expect(raw).not.toContain(right.text);

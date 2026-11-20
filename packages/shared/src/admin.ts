@@ -77,6 +77,8 @@ export interface AdminBotRoom {
   openedAt: string;
   /** Відкрите запитання (фаза question): лише тоді діють «Пропустити запитання» і «+30 с». */
   question: boolean;
+  /** Є раунд, який можна завершити (фази раунду без паузи між раундами): лише тоді діє «Завершити раунд». */
+  inRound: boolean;
   lobby: { listed: boolean; password: string | null };
   /** Люди в порядку приходу; командна гра — усі учасники (і ще без команди). */
   people: AdminBotRoomPerson[];

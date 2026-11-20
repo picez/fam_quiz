@@ -17,6 +17,7 @@ const room = (over: Partial<AdminBotRoom> = {}): AdminBotRoom => ({
   stageUrl: '/stage/123456#tok',
   openedAt: '2026-11-19T09:00:00.000Z',
   question: false,
+  inRound: false,
   lobby: { listed: true, password: null },
   people: [],
   teams: null,
