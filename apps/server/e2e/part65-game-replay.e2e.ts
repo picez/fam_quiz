@@ -208,7 +208,7 @@ async function replay65() {
       const kinds = (await db.select({ kind: gameEvent.kind }).from(gameEvent).where(eq(gameEvent.gameId, gameId))).map((one) => one.kind);
       return state?.status === 'finished' ? [...new Set(kinds)].sort() : null;
     }, { timeout: 30_000 })
-    .toEqual(['join', 'leave', 'pause', 'resume', 'start', 'verdict']);
+    .toEqual(['join', 'leave', 'pause', 'resume', 'save', 'start', 'verdict']);
 
   // ── 4. Адмін на широкому екрані: перегляд гри → «Повтор по кроках». ──
   await admin.setViewportSize({ width: 1280, height: 800 });
@@ -251,6 +251,10 @@ async function replay65() {
   expect((await cellOf(admin, 'Оля', 'points')).trim(), 'the buff doubles the points').toBe('200');
   expect((await cellOf(admin, 'Марко', 'verdict')).trim()).toBe('не зараховано');
   await view(admin, 'part65-replay-step2-wide');
+  // Колонки рядків на широкому екрані стоять рівно: рішення кожного рядка — на тому самому x і в один рядок.
+  const verdictCells = await admin.locator('.replay-row .replay-verdict').evaluateAll((cells) => cells.map((cell) => { const box = cell.getBoundingClientRect(); const value = cell.querySelector('.replay-value')!; return { x: Math.round(box.left), oneLine: value.getBoundingClientRect().height < parseFloat(getComputedStyle(value).fontSize) * 1.9 }; }));
+  expect(new Set(verdictCells.map((cell) => cell.x)).size, `verdict columns are aligned: ${JSON.stringify(verdictCells)}`).toBe(1);
+  expect(verdictCells.every((cell) => cell.oneLine), `verdicts are on one line: ${JSON.stringify(verdictCells)}`).toBe(true);
 
   // Крок 3 — вибором у списку: вилучення Ірини з рахунком; останній рахунок кожного збігається з підсумками гри.
   expect(await jump(admin).locator('optgroup').getAttribute('label')).toBe('Раунд 1. Розминка');
@@ -302,6 +306,11 @@ async function replay65() {
       expect(box!.height, `${suffix}: a tap target is too low (${box!.height}px)`).toBeGreaterThanOrEqual(36);
       expect(box!.x + box!.width, `${suffix}: a control is out of the screen`).toBeLessThanOrEqual(360);
     }
+    // Рядок «← Назад · Запитання N з M · Далі →» — один рядок і на 360 px.
+    const prevBox = (await page.getByRole('button', { name: '← Назад', ...exact }).boundingBox())!;
+    const nextBox = (await page.getByRole('button', { name: 'Далі →', ...exact }).boundingBox())!;
+    expect(Math.abs(prevBox.y - nextBox.y), `${suffix}: the step buttons are on one line`).toBeLessThan(2);
+    expect(nextBox.x, `${suffix}: «Далі» is right of «Назад»`).toBeGreaterThan(prevBox.x + prevBox.width);
   }
 
   // ── 6. Журнал: кілька переглядів у межах хвилини — один рядок; не-адміну — 404. ──
