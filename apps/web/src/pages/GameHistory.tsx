@@ -2,7 +2,7 @@ import { Fragment } from 'react';
 import { Link, Navigate, useParams } from 'react-router-dom';
 import { awaySeconds, cloudKey, factPercent, isUnscored, pinDistance, surveyHitsOf, surveyOrder, undoAnswerKey, undoLedger, type GameAdjustment, type BluffInfo, type GameQuestionResult, type SurveyInfo, unpackStrokes } from '@quiz/shared';
 import { getGame } from '../api';
-import { answerText, choicesOf, correctText, formatDate, markText, num, pairTexts, roundLabel, secondsText, signed } from '../format';
+import { answerText, choicesOf, correctText, formatDate, markText, num, pairTexts, questionName, roundLabel, secondsText, signed } from '../format';
 import { DEBUFF_ICONS, debuffName } from '../debuff-meta';
 import { t, type TextKey } from '../i18n';
 import { compareText } from '../locales/grammar';
@@ -467,7 +467,8 @@ export function GameHistory() {
                     {questions.map((question, position) => (
                       <li key={question.index}>
                         <span className="rank">{position + 1}</span>
-                        <span className="name">{question.text}</span>
+                        {/* 61: «Вгадай слово» зветься словом — старий текст автора в грі не показувався. */}
+                        <span className="name">{question.question.type === 'wordle' ? questionName(question.question) : question.text}</span>
                         {question.cell !== null && (
                           <>
                             <span className="tag">{t('cellTitle', { category: question.cell.category, price: question.cell.price })}</span>

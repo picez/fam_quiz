@@ -74,6 +74,10 @@ describe('questionPreview', () => {
 
   it('numbers and the word game give one answer', () => {
     expect(questionPreview({ ...base, id: 'n', type: 'numeric', text: 'Скільки областей?', correct: 24, tolerance: 0 }).answer).toBe('24');
+    // 61: замість старого тексту автора — «Вгадай слово: СЛОВО», без підказки.
+    const old = questionPreview({ ...base, id: 'w', type: 'wordle', text: 'Ягода з колючого куща', hint: 'Росте при дорозі', word: 'ожина' });
+    expect([old.text, old.hint]).toEqual(['Вгадай слово: ОЖИНА', null]);
+    expect(questionLines({ ...base, id: 'w', type: 'wordle', text: 'Ягода з колючого куща', word: 'ожина' })).toEqual(['Вгадай слово: ОЖИНА']);
     expect(questionPreview({ ...base, id: 'w', type: 'wordle', text: 'Слово', word: 'КАВУН' }).answer).toBe('КАВУН');
   });
 
