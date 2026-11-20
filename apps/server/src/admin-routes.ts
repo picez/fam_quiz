@@ -7,6 +7,7 @@ import { adminCharts } from './admin-charts';
 import type { PushService } from './push';
 import { registerAdminBotRoutes } from './admin-bot-routes';
 import { registerAdminBroadcastRoutes } from './admin-broadcast-routes';
+import { registerAdminProblemRoutes } from './admin-problem-routes';
 import { registerPlayerCardRoutes } from './admin-card-routes';
 import { liveRooms } from './admin-live';
 import { adminLog, adminQuiz, adminQuizRaw, adminQuizzes, adminStats, adminUser, adminUsers } from './admin-store';
@@ -368,4 +369,5 @@ export async function registerAdminRoutes(app: FastifyInstance, deps: AdminDeps)
   await registerAdminBotRoutes(app, deps, { read, write, adminOf, checker });
   await registerPlayerCardRoutes(app, deps, { read, write, adminOf });
   await registerAdminBroadcastRoutes(app, deps, { read, write, adminOf });
+  await registerAdminProblemRoutes(app, deps, { read, write, adminOf });
 }
