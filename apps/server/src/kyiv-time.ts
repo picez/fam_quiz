@@ -54,3 +54,11 @@ export function nextWeekKyiv(at: Date, wall?: string | null): Date {
   const first = guess - offsetMs(guess);
   return new Date(guess - offsetMs(first));
 }
+
+/** 63: момент 00:00 дня 'YYYY-MM-DD' у Києві (два проходи, як nextWeekKyiv: зсув у самій точці біля переходу). */
+export function kyivDayStart(day: string): Date {
+  const [y, m, d] = day.split('-').map(Number) as [number, number, number];
+  const guess = Date.UTC(y, m - 1, d);
+  const first = guess - offsetMs(guess);
+  return new Date(guess - offsetMs(first));
+}
