@@ -97,6 +97,18 @@ describe('feed routes', () => {
     expect((await like(`like:${GAME}:${petroId}`, true)).statusCode).toBe(404);
   });
 
+  it('a friend cannot like an event hidden by a moderator (63)', async () => {
+    const at = new Date(Date.now() - 60_000);
+    const [hidden] = await db
+      .insert(feedEvent)
+      .values({ key: `level:${petroId}:4`, userId: petroId, kind: 'level', gameId: null, data: { kind: 'level', level: 4 }, at, createdAt: at, hiddenAt: at })
+      .returning({ id: feedEvent.id });
+    const res = await like(hidden.id, true);
+    expect(res.statusCode).toBe(404);
+    expect(res.json()).toEqual({ error: 'not_found' });
+    await db.delete(feedEvent).where(eq(feedEvent.id, hidden.id));
+  });
+
   it('limits likes to LIKE_RATE per person', async () => {
     let last = await like(gameEventId, true, petro.cookie); // Петро: своя подія, 403, але рахується
     expect(last.statusCode).toBe(403);

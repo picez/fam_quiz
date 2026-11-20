@@ -633,6 +633,8 @@ export const feedEvent = pgTable(
     at: at('at').notNull(),
     /** Коли записано: за ним рахує бейдж. Теж до мілісекунд. */
     createdAt: at('created_at').notNull(),
+    /** 63: сховав адміністратор; null — видно. Вставки й оновлення planned її не скидають. */
+    hiddenAt: at('hidden_at'),
   },
   (table) => [
     index('feed_event_user_at_idx').on(table.userId, table.at),
@@ -726,7 +728,7 @@ export const adminAction = pgTable(
     targetLabel: text('target_label').notNull(),
     details: jsonb('details').$type<AdminLogDetails>().notNull(),
   },
-  (table) => [index('admin_action_at_idx').on(table.at)],
+  (table) => [index('admin_action_at_idx').on(table.at), index('admin_action_admin_idx').on(table.adminId, table.at)],
 );
 
 /** Група родини чи компанії (12k). Власник — рядок group_member з role 'owner'. */
@@ -737,6 +739,9 @@ export const familyGroup = pgTable('family_group', {
   description: text('description').notNull().default(''),
   /** Код посилання /groups/join/<код>; «Нове посилання» замінює його. */
   inviteCode: text('invite_code').notNull().unique(),
+  /** 63: сховав адміністратор — для всіх, і для власника, як неіснуюча. */
+  hiddenAt: at('hidden_at'),
+  hiddenReason: text('hidden_reason'),
   ...stamps,
 });
 
@@ -794,6 +799,8 @@ export const groupItem = pgTable(
     photo: text('photo'),
     /** Не бачать акаунти з about (крім автора). */
     surprise: boolean('surprise').notNull().default(false),
+    /** 63: сховав адміністратор — для всіх, і для автора. */
+    hiddenAt: at('hidden_at'),
     ...stamps,
   },
   (table) => [index('group_item_group_idx').on(table.groupId, table.createdAt), index('group_item_author_idx').on(table.authorId)],

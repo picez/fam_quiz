@@ -203,6 +203,15 @@ describe('calendar store', () => {
     expect(starts).toEqual([...starts].sort());
   });
 
+  it('republishing or editing a hidden event keeps it hidden (63)', async () => {
+    const id = await create();
+    await db.update(feedEvent).set({ hiddenAt: NOW }).where(eq(feedEvent.key, `planned:${id}`));
+    expect(await updateEvent(db, h, id, input({ title: 'Сховане', startsAt: '2026-11-08T17:00:00.000Z' }), at(H), noRooms)).toEqual({ ok: true });
+    const [row] = await db.select().from(feedEvent).where(eq(feedEvent.key, `planned:${id}`));
+    expect(row.data).toMatchObject({ title: 'Сховане' });
+    expect(row.hiddenAt).toEqual(NOW);
+  });
+
   it('edits only a planned event and keeps the feed row created_at', async () => {
     const id = await create();
     const [before] = await db.select().from(feedEvent).where(eq(feedEvent.key, `planned:${id}`));
