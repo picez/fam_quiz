@@ -70,6 +70,20 @@ describe('the log filters', () => {
     expect((await adminLogPage(db, { page: 1, admin: 'iryna', groups: ['moderation'] })).total).toBe(0);
   });
 
+  it('escapes %, _ and the backslash in the text search', async () => {
+    const own = await createTestDb();
+    await own.insert(user).values({ id: 'ad', name: 'Адмін', email: 'ad@example.com' });
+    const bs = String.fromCharCode(92);
+    const count = async (d: Db, q: string) => (await adminLogPage(d, { page: 1, q })).total;
+    expect(await count(own, '%')).toBe(0);
+    await logAction(own, { adminId: 'ad', kind: 'ban', targetUserId: null, details: { text: `50%_off${bs}x` }, now: when('2026-11-20T10:00:00Z') });
+    expect(await count(own, '50%')).toBe(1);
+    expect(await count(own, '%_')).toBe(1);
+    expect(await count(own, '5_%')).toBe(0);
+    expect(await count(own, bs)).toBe(1);
+    expect(await count(db, '%')).toBe(0);
+  });
+
   it('lists admins once each by nickname, with the newest label', async () => {
     await db.insert(adminAction).values({ at: when('2026-11-21T08:00:00Z'), adminId: 'hanna', adminLabel: 'Ганна Нова', kind: 'unban', targetUserId: null, targetLabel: '', details: {} });
     const { admins } = await adminLogPage(db, { page: 1 });

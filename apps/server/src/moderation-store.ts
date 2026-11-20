@@ -19,6 +19,7 @@ import { familyGroup, feedEvent, groupInvite, groupItem, groupMember, profile, u
 import { eventLikes } from './feed-store';
 import type { Fail } from './calendar-store';
 import { deleteGroup, roleIn, swapOwner } from './group-store';
+import { containsPattern } from './like-escape';
 
 type Tx = Parameters<Parameters<Db['transaction']>[0]>[0];
 
@@ -100,7 +101,7 @@ export async function setFeedHidden(
 function groupPattern(q: string | undefined): string | null {
   const text = (q ?? '').trim().slice(0, ADMIN_QUERY_MAX);
   if (text.length === 0) return null;
-  return `%${text.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
+  return containsPattern(text);
 }
 
 /** Власник групи (частковий унікальний індекс: не більше одного). */

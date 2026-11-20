@@ -3,14 +3,10 @@ import { and, desc, gte, inArray, lt, sql, type SQL } from 'drizzle-orm';
 import type { Db } from './db/client';
 import { adminAction } from './db/schema';
 import { kyivDayStart } from './kyiv-time';
+import { containsPattern } from './like-escape';
 
 const iso = (d: Date): string => d.toISOString();
 const num = (n: unknown): number => Number(n);
-
-/** Пошуковий рядок для ilike: від одного символу; %, _ і \ екрануються. */
-function likePattern(q: string): string {
-  return `%${q.replace(/[\%_]/g, (c) => `\${c}`)}%`;
-}
 
 /** День після 'YYYY-MM-DD' (через Date.UTC на розібраних полях). */
 function nextDay(day: string): string {
@@ -28,7 +24,7 @@ export function logWhere(filter: AdminLogFilter): SQL | undefined {
   if (filter.from !== undefined) parts.push(gte(adminAction.at, kyivDayStart(filter.from)));
   if (filter.to !== undefined) parts.push(lt(adminAction.at, kyivDayStart(nextDay(filter.to))));
   if (filter.q !== undefined && filter.q !== '') {
-    const like = likePattern(filter.q);
+    const like = containsPattern(filter.q);
     parts.push(sql`(${adminAction.adminLabel} ilike ${like} or ${adminAction.targetLabel} ilike ${like} or ${adminAction.details}::text ilike ${like})`);
   }
   return parts.length === 0 ? undefined : and(...parts);
