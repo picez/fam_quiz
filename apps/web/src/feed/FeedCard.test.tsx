@@ -69,4 +69,11 @@ describe('FeedCard', () => {
     expect(screen.getByRole('link', { name: 'До календаря' }).getAttribute('href')).toBe('/feed/calendar#event-e1');
     expect(screen.getByRole('button', { name: 'Вподобати подію' })).toBeTruthy();
   });
+
+  it('a hidden own event says «Приховано модератором» and has no heart (63)', () => {
+    const { container } = show(event({ mine: true, hidden: true, likes: { count: 0, liked: false } }));
+    expect(screen.getByText('Приховано модератором').className).toBe('meta feed-hidden');
+    expect(screen.queryByRole('button')).toBeNull();
+    expect(container.querySelector('.feed-like, .feed-like-count')).toBeNull();
+  });
 });

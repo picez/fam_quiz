@@ -95,22 +95,42 @@ export function Groups() {
             <p className="meta groups-empty">{t('groupsEmpty')}</p>
           ) : (
             <ul className="group-cards">
-              {state.data.groups.map((group) => (
-                <li key={group.id}>
-                  <Link className="group-card" to={`/profile/groups/${encodeURIComponent(group.id)}`}>
-                    <span className="group-card-emoji" aria-hidden="true">
-                      {group.emoji}
-                    </span>
-                    <span className="group-card-body">
-                      <h2 className="group-card-name">{group.name}</h2>
-                      <span className="meta">
-                        {countText('groupPeople', group.people, { count: group.people })} · {countText('groupItems', group.items, { count: group.items })}
-                        {group.role === 'owner' && ` · ${t('groupRoleOwner')}`}
+              {state.data.groups.map((group) =>
+                group.hidden !== undefined ? (
+                  // 63: групу сховав модератор — власник бачить картку з причиною, але відкрити її не може.
+                  <li key={group.id}>
+                    <div className="group-card is-hidden">
+                      <span className="group-card-emoji" aria-hidden="true">
+                        {group.emoji}
                       </span>
-                    </span>
-                  </Link>
-                </li>
-              ))}
+                      <span className="group-card-body">
+                        <h2 className="group-card-name">{group.name}</h2>
+                        <span className="meta group-hidden">{t('groupHiddenByModerator')}</span>
+                        {group.hidden.reason !== null && (
+                          <span className="meta" dir="auto">
+                            {t('groupHiddenReason', { reason: group.hidden.reason })}
+                          </span>
+                        )}
+                      </span>
+                    </div>
+                  </li>
+                ) : (
+                  <li key={group.id}>
+                    <Link className="group-card" to={`/profile/groups/${encodeURIComponent(group.id)}`}>
+                      <span className="group-card-emoji" aria-hidden="true">
+                        {group.emoji}
+                      </span>
+                      <span className="group-card-body">
+                        <h2 className="group-card-name">{group.name}</h2>
+                        <span className="meta">
+                          {countText('groupPeople', group.people, { count: group.people })} · {countText('groupItems', group.items, { count: group.items })}
+                          {group.role === 'owner' && ` · ${t('groupRoleOwner')}`}
+                        </span>
+                      </span>
+                    </Link>
+                  </li>
+                ),
+              )}
             </ul>
           )}
           {creating ? (

@@ -5,7 +5,10 @@ import { useAccount } from '../useAccount';
 import { AdminAnnouncement } from './AdminAnnouncement';
 import { AdminBot } from './AdminBot';
 import { AdminBroadcast } from './AdminBroadcast';
+import { AdminFeed } from './AdminFeed';
 import { AdminGame } from './AdminGame';
+import { AdminGroup } from './AdminGroup';
+import { AdminGroups } from './AdminGroups';
 import { AdminLive } from './AdminLive';
 import { AdminLog } from './AdminLog';
 import { AdminBotQuizView, AdminQuiz, AdminReportedQuiz } from './AdminQuiz';
@@ -23,6 +26,8 @@ const TABS = [
   { to: '/admin/reports', key: 'adminTabReports', end: false },
   { to: '/admin/announcement', key: 'adminTabAnnouncement', end: false },
   { to: '/admin/broadcast', key: 'adminTabBroadcast', end: false },
+  { to: '/admin/feed', key: 'adminTabFeed', end: false },
+  { to: '/admin/groups', key: 'adminTabGroups', end: false },
   { to: '/admin/log', key: 'adminTabLog', end: false },
   { to: '/admin/bot', key: 'adminTabBot', end: false },
 ] as const;
@@ -54,6 +59,9 @@ export function Admin(): JSX.Element | null {
         <Route path="reports/quiz/:entryId" element={<AdminReportedQuiz />} />
         <Route path="announcement" element={<AdminAnnouncement />} />
         <Route path="broadcast" element={<AdminBroadcast />} />
+        <Route path="feed" element={<AdminFeed />} />
+        <Route path="groups" element={<AdminGroups />} />
+        <Route path="groups/:id" element={<AdminGroup />} />
         <Route path="log" element={<AdminLog />} />
         <Route path="bot" element={<AdminBot />} />
         <Route path="bot/quizzes/:id" element={<AdminBotQuizView />} />

@@ -4,10 +4,10 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { me } from '../api';
 import { Admin } from './Admin';
-import { adminCharts, adminHealth, adminStats } from './admin-api';
+import { adminCharts, adminFeed, adminGroup, adminHealth, adminStats } from './admin-api';
 
 vi.mock('../api', () => ({ me: vi.fn() }));
-vi.mock('./admin-api', () => ({ adminStats: vi.fn(), adminCharts: vi.fn(), adminHealth: vi.fn() }));
+vi.mock('./admin-api', () => ({ adminStats: vi.fn(), adminCharts: vi.fn(), adminHealth: vi.fn(), adminFeed: vi.fn(), adminGroup: vi.fn(), searchBotPeople: vi.fn() }));
 
 const stats = {
   users: { total: 12, new7: 3, new30: 5, online: 2 },
@@ -16,9 +16,9 @@ const stats = {
   topQuizzes: [{ id: 'q', title: 'Карпати', author: 'Оля', games: 6 }],
 };
 
-const open = () =>
+const open = (path = '/admin') =>
   render(
-    <MemoryRouter initialEntries={['/admin']}>
+    <MemoryRouter initialEntries={[path]}>
       <Routes>
         <Route path="/admin/*" element={<Admin />} />
         <Route path="/" element={<p>головна</p>} />
@@ -57,7 +57,7 @@ describe('Admin', () => {
     expect(await screen.findByText('головна')).toBeTruthy();
   });
 
-  it('shows the stats and the nine section links', async () => {
+  it('shows the stats and the eleven section links', async () => {
     vi.mocked(me).mockResolvedValue(account(true));
     vi.mocked(adminStats).mockResolvedValue({ ok: true, data: stats });
     open();
@@ -68,12 +68,38 @@ describe('Admin', () => {
     expect(screen.getByText('«Карпати» — Оля, ігор: 6')).toBeTruthy();
     const nav = screen.getByRole('navigation', { name: 'Розділи адмінки' });
     const links = within(nav).getAllByRole('link');
-    expect(links.map((link) => link.textContent)).toEqual(['Статистика', 'Живі ігри', 'Користувачі', 'Вікторини', 'Скарги', 'Оголошення', 'Розсилка', 'Журнал', 'Бот']);
+    expect(links.map((link) => link.textContent)).toEqual(['Статистика', 'Живі ігри', 'Користувачі', 'Вікторини', 'Скарги', 'Оголошення', 'Розсилка', 'Стрічка', 'Групи', 'Журнал', 'Бот']);
     expect(within(nav).getByRole('link', { name: 'Бот' }).getAttribute('href')).toBe('/admin/bot');
     expect(within(nav).getByRole('link', { name: 'Розсилка' }).getAttribute('href')).toBe('/admin/broadcast');
     expect(within(nav).getByRole('link', { name: 'Живі ігри' }).getAttribute('href')).toBe('/admin/live');
     expect(within(nav).getByRole('link', { name: 'Скарги' }).getAttribute('href')).toBe('/admin/reports');
     await waitFor(() => expect(within(nav).getByRole('link', { name: 'Статистика' }).getAttribute('aria-current')).toBe('page'));
     expect(within(nav).getByRole('link', { name: 'Користувачі' }).getAttribute('aria-current')).toBeNull();
+  });
+
+  it('puts «Стрічка» and «Групи» before «Журнал» and opens their pages (63)', async () => {
+    vi.mocked(me).mockResolvedValue(account(true));
+    vi.mocked(adminFeed).mockResolvedValue({ ok: true, data: { rows: [], total: 0, page: 1, pages: 1 } });
+    open('/admin/feed');
+    const nav = await screen.findByRole('navigation', { name: 'Розділи адмінки' });
+    expect(within(nav).getByRole('link', { name: 'Стрічка' }).getAttribute('href')).toBe('/admin/feed');
+    expect(within(nav).getByRole('link', { name: 'Групи' }).getAttribute('href')).toBe('/admin/groups');
+    const names = within(nav).getAllByRole('link').map((link) => link.textContent);
+    expect(names.indexOf('Групи')).toBe(names.indexOf('Стрічка') + 1);
+    expect(names.indexOf('Журнал')).toBe(names.indexOf('Групи') + 1);
+    expect(await screen.findByText('Подій немає.')).toBeTruthy();
+    expect(adminFeed).toHaveBeenCalledWith({ page: 1 });
+    cleanup();
+    vi.mocked(adminGroup).mockResolvedValue({
+      ok: true,
+      data: {
+        group: { id: 'g1', name: 'Родина Квіткових', emoji: '🌻', owner: { id: 'u2', nickname: 'Оля' }, members: 2, items: 0, createdAt: '2026-11-14T10:00:00.000Z', hidden: null },
+        members: [],
+        items: { rows: [], total: 0, page: 1, pages: 1 },
+      },
+    });
+    open('/admin/groups/g1');
+    expect(await screen.findByRole('heading', { name: '🌻 Родина Квіткових' })).toBeTruthy();
+    expect(adminGroup).toHaveBeenCalledWith('g1', 1);
   });
 });

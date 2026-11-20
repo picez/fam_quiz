@@ -2,6 +2,7 @@ import { isObjectLike } from '@quiz/shared';
 import type { AdminBroadcast, AdminBroadcasts, BroadcastInput, BroadcastPreview, BroadcastRecipients } from '@quiz/shared';
 import type { AchievementId, AdminBot, AdminBotLobby, AdminBotPerson, AdminBotPlan, BotCommand, BotPlanInput, GameDetail } from '@quiz/shared';
 import type { Announcement, AnnouncementInput, AdminCharts, AdminHealth, AdminLiveList, AdminList, AdminReportItem, AdminLogEntry, AdminQuizCheck, AdminQuizRow, AdminQuizView, AdminStats, AdminUserDetail, AdminUserRow } from '@quiz/shared';
+import type { AdminFeedKind, AdminFeedRow, AdminGroupDetail, AdminGroupRow } from '@quiz/shared';
 import { fetchData, request, type ApiData, type ApiResult } from '../api';
 
 const id = encodeURIComponent;
@@ -94,3 +95,27 @@ export async function sendBroadcast(input: BroadcastInput): Promise<BroadcastSen
     return { ok: false, error: 'offline' };
   }
 }
+
+/** Модерація (63): усі події стрічки з фільтрами за людиною й видом. */
+export function adminFeed(query: { page: number; user?: string; kind?: AdminFeedKind }): Promise<ApiData<AdminList<AdminFeedRow>>> {
+  const params = new URLSearchParams();
+  if (query.user !== undefined) params.set('user', query.user);
+  if (query.kind !== undefined) params.set('kind', query.kind);
+  params.set('page', String(query.page));
+  return fetchData(`/api/admin/feed?${params.toString()}`);
+}
+type Changed = { changed: boolean };
+export const setFeedHidden = (eventId: string, hidden: boolean): Promise<ApiData<Changed>> => fetchData<Changed>(`/api/admin/feed/${id(eventId)}/hidden`, { method: 'PUT', body: { hidden } });
+/** Сімейні групи (63): пошук за назвою чи ніком власника; картка групи з записами сторінками. */
+export const adminGroups = (query: { q: string; page: number }): Promise<ApiData<AdminList<AdminGroupRow>>> => fetchData(list('groups', query.q, query.page));
+export const adminGroup = (groupId: string, page: number): Promise<ApiData<AdminGroupDetail>> => fetchData<AdminGroupDetail>(`/api/admin/groups/${id(groupId)}?page=${page}`);
+/** Причину шле лише ховання і лише непорожню (порожню сервер і так робить null). */
+export const setGroupHidden = (groupId: string, hidden: boolean, reason: string): Promise<ApiData<Changed>> =>
+  fetchData<Changed>(`/api/admin/groups/${id(groupId)}/hidden`, { method: 'PUT', body: hidden && reason.trim() !== '' ? { hidden, reason: reason.trim() } : { hidden } });
+export const removeGroupMember = (groupId: string, userId: string): Promise<ApiData<Changed>> =>
+  fetchData<Changed>(`/api/admin/groups/${id(groupId)}/members/${id(userId)}`, { method: 'DELETE' });
+export const passGroupOwner = (groupId: string, userId: string): Promise<ApiData<Changed>> => fetchData<Changed>(`/api/admin/groups/${id(groupId)}/owner`, { method: 'PUT', body: { userId } });
+/** `name` — назва, набрана адміном; сервер порівнює після обрізання країв, з урахуванням регістру; успіх — 204. */
+export const deleteGroupAsAdmin = (groupId: string, name: string): Promise<ApiData<object>> => fetchData<object>(`/api/admin/groups/${id(groupId)}`, { method: 'DELETE', body: { name } });
+export const setGroupItemHidden = (groupId: string, itemId: string, hidden: boolean): Promise<ApiData<Changed>> =>
+  fetchData<Changed>(`/api/admin/groups/${id(groupId)}/items/${id(itemId)}/hidden`, { method: 'PUT', body: { hidden } });

@@ -35,6 +35,7 @@ export function FeedCard({ event, onLike, pending = false }: { event: FeedEvent;
           )}{' '}
           {feedText(data)}
         </p>
+        {event.hidden && <p className="meta feed-hidden">{t('feedHiddenByModerator')}</p>}
         {data.kind === 'planned' && (
           <p className="feed-link">
             <Link to={`/feed/calendar#event-${data.eventId}`}>{t('feedPlannedLink')}</Link>
@@ -42,7 +43,9 @@ export function FeedCard({ event, onLike, pending = false }: { event: FeedEvent;
         )}
         <p className="meta feed-time">{formatDate(event.at)}</p>
       </div>
+      {/* 63: подію, приховану модератором, бачить лише автор — без вподобайок. */}
       {likes !== null &&
+        !event.hidden &&
         (own ? (
           likes.count > 0 && <span className="feed-like-count">❤️ {likes.count}</span>
         ) : (

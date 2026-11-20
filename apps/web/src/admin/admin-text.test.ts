@@ -1,5 +1,6 @@
 import type { AdminLogEntry, Question } from '@quiz/shared';
 import { describe, expect, it } from 'vitest';
+import { feedText } from '../feed/feed-text';
 import { bytesText, durationText, kyivWhenText, logLine, questionConfirm, questionLines, uptimeText } from './admin-text';
 
 const entry = (over: Partial<AdminLogEntry>): AdminLogEntry => ({ id: 'l1', at: '2026-11-01T10:00:00.000Z', admin: 'Адмін', kind: 'ban', target: 'Богдан', details: {}, ...over });
@@ -139,5 +140,26 @@ describe('questionLines', () => {
   it('lists the text and the options', () => {
     expect(questionLines(single)).toEqual([single.text, ...single.options.map((o) => o.text)]);
     expect(questionLines(bool)).toEqual([bool.text]);
+  });
+});
+
+describe('logLine for feed and group moderation (63)', () => {
+  it('writes the feed event in words', () => {
+    const feed = { kind: 'level' as const, level: 12 };
+    const line = logLine(entry({ kind: 'feed_hide', target: 'Оля', details: { feed } }));
+    expect(line).toContain(feedText(feed));
+    expect(line).toBe(`Адмін сховав(-ла) подію стрічки Оля: ${feedText(feed)}`);
+    expect(logLine(entry({ kind: 'feed_show', target: 'Оля', details: { feed } }))).toContain(feedText(feed));
+  });
+  it('adds the reason to a group hide', () => {
+    expect(logLine(entry({ kind: 'group_hide', target: 'Оля', details: { title: 'Родина', reason: 'Образлива назва' } }))).toBe('Адмін сховав(-ла) групу «Родина» (Оля). Причина: Образлива назва');
+    expect(logLine(entry({ kind: 'group_hide', target: 'Оля', details: { title: 'Родина', reason: null } }))).toBe('Адмін сховав(-ла) групу «Родина» (Оля)');
+  });
+  it('writes the owner transfer from the old owner to the new one', () => {
+    expect(logLine(entry({ kind: 'group_owner_transfer', target: 'Петро', details: { title: 'Родина', text: 'Оля' } }))).toBe('Адмін передав(-ла) групу «Родина» від Оля до Петро');
+  });
+  it('writes the record lines and the other group lines', () => {
+    expect(logLine(entry({ kind: 'group_item_hide', target: 'Петро', details: { title: 'Родина', text: 'Бабуся свистить' } }))).toContain('запис «Бабуся свистить» у групі «Родина»');
+    for (const kind of ['group_restore', 'group_member_remove', 'group_delete', 'group_item_show'] as const) expect(logLine(entry({ kind, details: { title: 'Родина' } })), kind).toContain('«Родина»');
   });
 });
