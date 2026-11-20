@@ -35,8 +35,9 @@ describe('adminPages', () => {
 });
 
 it('ADMIN_ACTION_KINDS', () => {
-  expect([...ADMIN_ACTION_KINDS]).toEqual(['ban', 'unban', 'quiz_delete', 'question_delete', 'prize_delete', 'award_delete', 'library_hide', 'library_restore', 'report_dismiss', 'appeal_reject', 'nickname_reset', 'avatar_reset', 'game_close', 'announcement_set', 'announcement_clear', 'bot_game_start', 'bot_copy', 'bot_quiz_delete', 'bot_plan_create', 'bot_plan_update', 'bot_plan_cancel', 'bot_plan_run', 'bot_plan_fail', 'quiz_view', 'achievement_grant', 'achievement_revoke', 'xp_adjust', 'prize_gift', 'gift_revoke', 'account_delete', 'bot_room_start', 'bot_room_pause', 'bot_room_resume', 'bot_room_end', 'bot_room_skip', 'bot_room_time', 'bot_room_end_round', 'bot_room_kick', 'bot_room_release', 'bot_room_teams', 'bot_room_lobby', 'push_broadcast', 'feed_hide', 'feed_show', 'group_hide', 'group_restore', 'group_member_remove', 'group_owner_transfer', 'group_delete', 'group_item_hide', 'group_item_show', 'server_error_resolve', 'problem_resolve', 'problem_reply', 'backup_now']);
+  expect([...ADMIN_ACTION_KINDS]).toEqual(['ban', 'unban', 'quiz_delete', 'question_delete', 'prize_delete', 'award_delete', 'library_hide', 'library_restore', 'report_dismiss', 'appeal_reject', 'nickname_reset', 'avatar_reset', 'game_close', 'announcement_set', 'announcement_clear', 'bot_game_start', 'bot_copy', 'bot_quiz_delete', 'bot_plan_create', 'bot_plan_update', 'bot_plan_cancel', 'bot_plan_run', 'bot_plan_fail', 'quiz_view', 'achievement_grant', 'achievement_revoke', 'xp_adjust', 'prize_gift', 'gift_revoke', 'account_delete', 'bot_room_start', 'bot_room_pause', 'bot_room_resume', 'bot_room_end', 'bot_room_skip', 'bot_room_time', 'bot_room_end_round', 'bot_room_kick', 'bot_room_release', 'bot_room_teams', 'bot_room_lobby', 'push_broadcast', 'feed_hide', 'feed_show', 'group_hide', 'group_restore', 'group_member_remove', 'group_owner_transfer', 'group_delete', 'group_item_hide', 'group_item_show', 'server_error_resolve', 'problem_resolve', 'problem_reply', 'backup_now', 'game_replay_view']);
   for (const k of ['server_error_resolve', 'problem_resolve', 'problem_reply', 'backup_now']) expect(ADMIN_ACTION_KINDS).toContain(k);
+  expect(ADMIN_ACTION_KINDS).toContain('game_replay_view');
 });
 
 describe('adminBotCopySchema', () => {
@@ -57,6 +58,7 @@ describe('admin log groups (63)', () => {
     expect(ADMIN_LOG_GROUP_KINDS.moderation).toEqual(expect.arrayContaining(['feed_hide', 'group_delete', 'library_hide', 'ban']));
     expect(ADMIN_LOG_GROUP_KINDS.bot).toEqual(expect.arrayContaining(['bot_plan_run', 'bot_room_lobby']));
     expect(ADMIN_LOG_GROUP_KINDS.announcements).toContain('push_broadcast');
+    expect(ADMIN_LOG_GROUP_KINDS.games).toEqual(['game_close', 'game_replay_view']);
     expect(ADMIN_LOG_GROUP_KINDS.system).toEqual(['server_error_resolve', 'problem_resolve', 'problem_reply', 'backup_now']);
   });
 
