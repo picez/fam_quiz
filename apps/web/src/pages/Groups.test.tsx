@@ -137,4 +137,13 @@ describe('Groups (12k)', () => {
     expect(second.textContent).toContain('Приховано модератором');
     expect(second.textContent).not.toContain('Причина');
   });
+
+  it('a hidden group takes no slot of the ten (63)', async () => {
+    const groups = Array.from({ length: 10 }, (_, i) => card('g' + i, i === 0 ? { role: 'owner', hidden: { reason: null } } : {}));
+    vi.mocked(getGroups).mockResolvedValue({ ok: true, groups, invites: [] });
+    open();
+    const create = (await screen.findByRole('button', { name: 'Створити групу' })) as HTMLButtonElement;
+    expect(create.disabled).toBe(false);
+    expect(screen.queryByText(/щонайбільше в 10 групах/)).toBeNull();
+  });
 });
