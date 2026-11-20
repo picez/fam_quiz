@@ -58,6 +58,7 @@ export * from './player-card';
 export * from './bot';
 export * from './bot-schedule';
 export * from './announcement';
+export * from './broadcast';
 export * from './locale';
 export * from './lobby';
 export * from './jigsaw';

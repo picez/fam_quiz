@@ -17,12 +17,28 @@ export interface PushOptions {
 /** Відправник: статус відповіді push-сервісу (201 — ок, 404/410 — підписка мертва). Кидати не повинен; мережева помилка → status 0. */
 export type PushSend = (target: PushTarget, payload: string, options: PushOptions) => Promise<{ status: number }>;
 
-export const PUSH_TTL = { reminder: 3600, opened: 21_600, cancelled: 86_400, bot: 3600 } as const;
+export const PUSH_TTL = { reminder: 3600, opened: 21_600, cancelled: 86_400, bot: 3600, broadcast: 86_400 } as const;
+/** Повільні види (не терміново): скасування й розсилка адміна. */
+/** Скільки пушів летить одночасно (8). */
+const PUSH_CHUNK = 50;
+
+const NORMAL_URGENCY: ReadonlySet<PushPayload['kind']> = new Set(['cancelled', 'broadcast']);
+
+/** Підсумок відправки у пристроях (підписках): delivered — 2xx, failed — усе інше (404/410, інший статус, виняток). */
+export interface PushCount {
+  sent: number;
+  delivered: number;
+  failed: number;
+}
 
 export interface PushService {
   readonly publicKey: string;
   /** Надіслати payload усім підпискам людей; 404/410 → dropEndpoint; повертає кількість спроб. */
   deliver(userIds: string[], payload: PushPayload): Promise<number>;
+  /** Те саме, що deliver, але рахує доставлені й невдалі у пристроях (59). */
+  deliverCounted(userIds: string[], payload: PushPayload): Promise<PushCount>;
+  /** Фонова робота в наборі для idle() і shutdown; помилка — у log, не назовні (59). */
+  background(work: Promise<unknown>): void;
   /** Для calendar-routes: opened — approved (раз на подію, opened_pushed_at); cancelled — pending + approved. Обидва fire-and-forget. */
   readonly calendarNotify: CalendarNotify;
   /** Позначає reminded_at атомарно й шле reminder ведучому + approved; повертає кількість нагаданих подій. */
@@ -60,10 +76,10 @@ export function createPushService(deps: {
   const log = deps.log ?? (() => undefined);
   const inFlight = new Set<Promise<unknown>>();
 
-  async function deliver(userIds: string[], payload: PushPayload): Promise<number> {
+  async function deliverCounted(userIds: string[], payload: PushPayload): Promise<PushCount> {
     const subs = await subscriptionsOf(db, userIds);
-    if (subs.length === 0) return 0;
-    const options: PushOptions = { ttl: PUSH_TTL[payload.kind], urgency: payload.kind === 'cancelled' ? 'normal' : 'high' };
+    if (subs.length === 0) return { sent: 0, delivered: 0, failed: 0 };
+    const options: PushOptions = { ttl: PUSH_TTL[payload.kind], urgency: NORMAL_URGENCY.has(payload.kind) ? 'normal' : 'high' };
     // Одне тіло на мову одержувача (22a): без профілю чи мови — українська.
     const bodies = new Map<Locale, string>();
     const bodyFor = (locale: Locale | null): string => {
@@ -75,18 +91,27 @@ export function createPushService(deps: {
       }
       return body;
     };
-    await Promise.allSettled(
-      subs.map(async (sub) => {
-        try {
-          const { status } = await send({ endpoint: sub.endpoint, keys: sub.keys }, bodyFor(sub.locale), options);
-          if (status === 404 || status === 410) await dropEndpoint(db, sub.endpoint);
-          else if (status < 200 || status >= 300) log(`push ${payload.kind} answered ${status}`);
-        } catch (error) {
-          log('push send failed', error);
-        }
-      }),
-    );
-    return subs.length;
+    let delivered = 0;
+    // Порціями по 50, щоб розсилка всім не відкривала сотні з'єднань одразу.
+    for (let from = 0; from < subs.length; from += PUSH_CHUNK) {
+      await Promise.allSettled(
+        subs.slice(from, from + PUSH_CHUNK).map(async (sub) => {
+          try {
+            const { status } = await send({ endpoint: sub.endpoint, keys: sub.keys }, bodyFor(sub.locale), options);
+            if (status >= 200 && status < 300) delivered += 1;
+            else if (status === 404 || status === 410) await dropEndpoint(db, sub.endpoint);
+            else log(`push ${payload.kind} answered ${status}`);
+          } catch (error) {
+            log('push send failed', error);
+          }
+        }),
+      );
+    }
+    return { sent: subs.length, delivered, failed: subs.length - delivered };
+  }
+
+  async function deliver(userIds: string[], payload: PushPayload): Promise<number> {
+    return (await deliverCounted(userIds, payload)).sent;
   }
 
   /** Обіцянка в набір для idle(); помилка — у log, не назовні. */
@@ -158,6 +183,8 @@ export function createPushService(deps: {
   return {
     publicKey: deps.publicKey,
     deliver,
+    deliverCounted,
+    background: track,
     calendarNotify: {
       opened: (eventId) => track(opened(eventId)),
       cancelled: (eventId) => track(cancelled(eventId)),

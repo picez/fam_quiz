@@ -415,6 +415,8 @@ export const profile = pgTable('profile', {
   hideAnti: boolean('hide_anti').notNull().default(false),
   /** Легкий режим (31): великий шрифт і спокійний екран на кожному пристрої, де людина ще не вибирала. */
   easyMode: boolean('easy_mode').notNull().default(false),
+  /** «Оголошення від адміністраторів» (59): false — розсилки адміна не приходять; календар і бот — як раніше. */
+  adminPush: boolean('admin_push').notNull().default(true),
   ...stamps,
 });
 
@@ -1063,4 +1065,31 @@ export const botPlan = pgTable(
     updatedAt: at('updated_at').notNull(),
   },
   (table) => [index('bot_plan_status_starts_idx').on(table.status, table.startsAt)],
+);
+
+/**
+ * Push-розсилка адміна (59): заголовок і текст — як написав адмін, без перекладу.
+ * group_name — знімок назви (групу можуть видалити); people — вибрані id для recipients = 'people';
+ * delivered/failed — у пристроях (підписках); sending, що завис, показується «перерваним».
+ */
+export const pushBroadcast = pgTable(
+  'push_broadcast',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    createdBy: text('created_by').references(() => user.id, { onDelete: 'set null' }),
+    title: text('title').notNull(),
+    text: text('text').notNull(),
+    url: text('url'),
+    recipients: text('recipients').$type<'all' | 'group' | 'people'>().notNull(),
+    groupId: uuid('group_id').references(() => familyGroup.id, { onDelete: 'set null' }),
+    groupName: text('group_name'),
+    people: jsonb('people').$type<string[]>().notNull().default([]),
+    peopleCount: integer('people_count').notNull(),
+    delivered: integer('delivered').notNull().default(0),
+    failed: integer('failed').notNull().default(0),
+    status: text('status').$type<'sending' | 'sent'>().notNull().default('sending'),
+    createdAt: at('created_at').notNull(),
+    finishedAt: at('finished_at'),
+  },
+  (table) => [index('push_broadcast_created_idx').on(table.createdAt)],
 );

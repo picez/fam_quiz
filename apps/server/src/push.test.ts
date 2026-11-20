@@ -290,3 +290,93 @@ describe('ticker', () => {
     stop();
   });
 });
+
+describe('broadcast (59)', () => {
+  const broadcast: PushPayload = { kind: 'broadcast', broadcastId: 'B', title: 'Нова вікторина', text: 'Заходьте на «Карпатські озера»', url: '/library' };
+  const left = async (id: string) => (await db.select().from(pushSubscription).where(eq(pushSubscription.endpoint, URL + id))).length;
+  const flaky = (): PushService =>
+    createPushService({
+      db,
+      publicKey: 'pub',
+      send: async (target, payload, options) => {
+        calls.push({ endpoint: target.endpoint, payload: JSON.parse(payload) as PushPayload, options });
+        if (target.endpoint === URL + q) throw new Error('network');
+        return { status: status[target.endpoint] ?? 201 };
+      },
+      log,
+    });
+
+  it('deliverCounted counts delivered and failed per device and drops the dead', async () => {
+    status[URL + p] = 410;
+    expect(await flaky().deliverCounted([o, p, q], broadcast)).toEqual({ sent: 3, delivered: 1, failed: 2 });
+    expect(await left(p)).toBe(0);
+    expect(await left(o)).toBe(1);
+    expect(await left(q)).toBe(1);
+
+    await saveSubscription(db, p, { endpoint: URL + p, keys: { p256dh: 'BP' + p, auth: 'au' + p } }, NOW);
+    expect(await flaky().deliver([o, p, q], broadcast)).toBe(3);
+  });
+
+  it('a 500 and a status 0 count as failed; nobody subscribed gives zeros', async () => {
+    status[URL + o] = 500;
+    status[URL + p] = 0;
+    expect(await service.deliverCounted([o, p, q], broadcast)).toEqual({ sent: 3, delivered: 1, failed: 2 });
+    expect(await service.deliverCounted([], broadcast)).toEqual({ sent: 0, delivered: 0, failed: 0 });
+  });
+
+  it('sends in chunks of 50 at a time', async () => {
+    // saveSubscription держить лише PUSH_MAX_SUBSCRIPTIONS на людину, тож рядки — напряму.
+    await db.insert(pushSubscription).values(Array.from({ length: 120 }, (_, i) => ({ endpoint: URL + 'many' + i, userId: o, p256dh: 'x' + i, auth: 'y', createdAt: at(1) })));
+    let running = 0;
+    let peak = 0;
+    const chunked = createPushService({
+      db,
+      publicKey: 'pub',
+      send: async () => {
+        running += 1;
+        peak = Math.max(peak, running);
+        await new Promise((resolve) => setTimeout(resolve, 2));
+        running -= 1;
+        return { status: 201 };
+      },
+      log,
+    });
+    expect(await chunked.deliverCounted([o], broadcast)).toEqual({ sent: 121, delivered: 121, failed: 0 });
+    expect(peak).toBe(50);
+  });
+
+  it('two devices of one person count twice', async () => {
+    await saveSubscription(db, o, { endpoint: URL + 'second', keys: { p256dh: 'x', auth: 'y' } }, at(1));
+    expect(await service.deliverCounted([o], broadcast)).toEqual({ sent: 2, delivered: 2, failed: 0 });
+  });
+
+  it("a broadcast push goes in the recipient's language with a day TTL", async () => {
+    await db.insert(profile).values({ userId: p, locale: 'pl' });
+    await service.deliverCounted([o, p], broadcast);
+    expect(calls).toHaveLength(2);
+    for (const c of calls) expect(c.options).toEqual({ ttl: 86_400, urgency: 'normal' });
+    expect(calls.find((c) => c.endpoint === URL + p)?.payload).toEqual({ ...broadcast, locale: 'pl' });
+    expect(calls.find((c) => c.endpoint === URL + o)?.payload).toEqual({ ...broadcast, locale: 'uk' });
+  });
+
+  it('background work is awaited by idle', async () => {
+    let done = false;
+    service.background(
+      new Promise<void>((resolve) =>
+        setTimeout(() => {
+          done = true;
+          resolve();
+        }, 20),
+      ),
+    );
+    expect(done).toBe(false);
+    await service.idle();
+    expect(done).toBe(true);
+  });
+
+  it('a failing background work goes to the log, not out', async () => {
+    service.background(Promise.reject(new Error('boom')));
+    await service.idle();
+    expect(log).toHaveBeenCalled();
+  });
+});

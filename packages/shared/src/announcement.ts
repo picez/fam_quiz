@@ -21,18 +21,23 @@ export function isAnnouncementUrl(url: string): boolean {
   return /^\/(?![/\\])/.test(url);
 }
 
+/** Необов'язкове посилання: обрізане, '' чи відсутнє → null, інакше isAnnouncementUrl (53, 59). */
+export function optionalSiteUrl(max: number) {
+  return z
+    .string()
+    .trim()
+    .max(max)
+    .nullable()
+    .default(null)
+    .transform((u) => (u ? u : null))
+    .refine((u) => u === null || isAnnouncementUrl(u), 'bad url');
+}
+
 /** Межі строку (у майбутньому, не далі ANNOUNCEMENT_MAX_DAYS) перевіряє сервер (потрібне now). */
 export const announcementInputSchema = z
   .object({
     text: z.string().trim().min(1).max(ANNOUNCEMENT_TEXT_MAX).refine(isStorable, UNSTORABLE),
-    url: z
-      .string()
-      .trim()
-      .max(ANNOUNCEMENT_URL_MAX)
-      .nullable()
-      .default(null)
-      .transform((u) => (u ? u : null))
-      .refine((u) => u === null || isAnnouncementUrl(u), 'bad url'),
+    url: optionalSiteUrl(ANNOUNCEMENT_URL_MAX),
     expiresAt: z
       .string()
       .max(40)

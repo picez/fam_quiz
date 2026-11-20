@@ -4,7 +4,7 @@ import { isAdmin } from './admin';
 import { logAction } from './bans';
 import { ensureBotAccount } from './bot-account';
 import type { Db } from './db/client';
-import { botPlan, game, groupItem, groupMember, liveRoom, participant, savedGame, scoreAdjustment, user, verification } from './db/schema';
+import { botPlan, game, groupItem, groupMember, liveRoom, participant, pushBroadcast, savedGame, scoreAdjustment, user, verification } from './db/schema';
 import { deleteGroup } from './group-store';
 import { forgetInPlays } from './forget-plays';
 import { ensureProfile } from './profiles';
@@ -70,6 +70,11 @@ export async function deleteAccount(
       .update(botPlan)
       .set({ people: sql`${botPlan.people} - ${userId}::text` })
       .where(sql`${botPlan.people} ? ${userId}::text`);
+    // 59: вибрані адресати розсилки; people_count лишається (скільки мали отримати тоді).
+    await tx
+      .update(pushBroadcast)
+      .set({ people: sql`${pushBroadcast.people} - ${userId}::text` })
+      .where(sql`${pushBroadcast.people} ? ${userId}::text`);
 
     await handOverGroups(tx, userId);
     await tx.delete(verification).where(eq(verification.value, userId));

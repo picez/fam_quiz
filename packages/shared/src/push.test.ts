@@ -83,3 +83,15 @@ describe('bot push (56)', () => {
     expect(PUSH_KINDS).toContain('bot');
   });
 });
+
+describe('broadcast push (59)', () => {
+  it('a broadcast push: a title, a text and an optional link', () => {
+    const b = { kind: 'broadcast', broadcastId: 'B', title: 'Т', text: 'Х', url: null };
+    expect(pushPayloadSchema.safeParse(b).success).toBe(true);
+    expect(pushPayloadSchema.safeParse({ ...b, url: '/library' }).success).toBe(true);
+    expect(pushPayloadSchema.safeParse({ ...b, locale: 'pl' }).success).toBe(true);
+    const { text: _text, ...noText } = b;
+    expect(pushPayloadSchema.safeParse(noText).success).toBe(false);
+    expect(PUSH_KINDS).toContain('broadcast');
+  });
+});

@@ -8,6 +8,7 @@ import {
   type AdminBotPlan,
   type AdminBotPlanTo,
   type BotPlanInput,
+  type BotPlanRecipients,
 } from '@quiz/shared';
 import { and, asc, count, desc, eq, inArray, notInArray, sql } from 'drizzle-orm';
 import { logAction } from './bans';
@@ -201,7 +202,25 @@ export async function cancelPlan(db: Db, adminId: string, id: string, now: Date)
 
 /** Кому слати пуш плану: ніколи не бот і не забанені (на момент відправки). */
 export async function recipientsOf(db: Db, plan: BotPlanRow): Promise<string[]> {
+  return recipientsFor(db, planRecipients(plan));
+}
+
+/** Адресати з рядка плану: групу видалено чи людей не лишилось — нікому. */
+function planRecipients(plan: BotPlanRow): BotPlanRecipients {
   switch (plan.recipients) {
+    case 'none':
+    case 'all':
+      return { kind: plan.recipients };
+    case 'group':
+      return plan.groupId === null ? { kind: 'none' } : { kind: 'group', groupId: plan.groupId };
+    case 'people':
+      return plan.people.length === 0 ? { kind: 'none' } : { kind: 'people', userIds: plan.people };
+  }
+}
+
+/** Кому слати пуш (56, 59): ніколи не бот і не забанені; all — лише ті, хто має підписку; people — у порядку вибору. */
+export async function recipientsFor(db: Db, to: BotPlanRecipients): Promise<string[]> {
+  switch (to.kind) {
     case 'none':
       return [];
     case 'all': {
@@ -209,21 +228,20 @@ export async function recipientsOf(db: Db, plan: BotPlanRow): Promise<string[]> 
       return rows.map((row) => row.id);
     }
     case 'group': {
-      if (plan.groupId === null) return [];
       const rows = await db
         .select({ id: groupMember.userId })
         .from(groupMember)
-        .where(and(eq(groupMember.groupId, plan.groupId), notHidden(groupMember.userId)));
+        .where(and(eq(groupMember.groupId, to.groupId), notHidden(groupMember.userId)));
       return rows.map((row) => row.id);
     }
     case 'people': {
-      if (plan.people.length === 0) return [];
+      if (to.userIds.length === 0) return [];
       const rows = await db
         .select({ id: user.id })
         .from(user)
-        .where(and(inArray(user.id, plan.people), notHidden(user.id)));
+        .where(and(inArray(user.id, to.userIds), notHidden(user.id)));
       const visible = new Set(rows.map((row) => row.id));
-      return plan.people.filter((id) => visible.has(id));
+      return to.userIds.filter((id) => visible.has(id));
     }
   }
 }

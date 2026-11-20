@@ -1,3 +1,5 @@
+import { isObjectLike } from '@quiz/shared';
+import type { AdminBroadcast, AdminBroadcasts, BroadcastInput, BroadcastPreview, BroadcastRecipients } from '@quiz/shared';
 import type { AchievementId, AdminBot, AdminBotLobby, AdminBotPerson, AdminBotPlan, BotCommand, BotPlanInput, GameDetail } from '@quiz/shared';
 import type { Announcement, AnnouncementInput, AdminCharts, AdminHealth, AdminLiveList, AdminList, AdminReportItem, AdminLogEntry, AdminQuizCheck, AdminQuizRow, AdminQuizView, AdminStats, AdminUserDetail, AdminUserRow } from '@quiz/shared';
 import { fetchData, request, type ApiData, type ApiResult } from '../api';
@@ -73,3 +75,22 @@ export const revokeGift = (awardId: string): Promise<ApiResult<object>> => reque
 export const deleteUserAsAdmin = (userId: string, confirm: string): Promise<ApiResult<object>> =>
   request<object>(`/api/admin/users/${id(userId)}`, { method: 'DELETE', body: { confirm } });
 export const adminGame = (gameId: string): Promise<ApiData<GameDetail>> => fetchData<GameDetail>(`/api/admin/games/${id(gameId)}`);
+/** Розсилка (59): історія, ліміти й групи; скільки людей отримають; відправка. */
+export const adminBroadcasts = (): Promise<ApiData<AdminBroadcasts>> => fetchData<AdminBroadcasts>('/api/admin/broadcasts');
+export const previewBroadcast = (recipients: BroadcastRecipients): Promise<ApiData<BroadcastPreview>> =>
+  fetchData<BroadcastPreview>('/api/admin/broadcasts/preview', { method: 'POST', body: { recipients } });
+/** Відмова за лімітом (409) каже й `nextAt` — коли вже можна; інші помилки — як у request. */
+export type BroadcastSent = ({ ok: true } & AdminBroadcast) | { ok: false; error: string; nextAt?: string };
+export async function sendBroadcast(input: BroadcastInput): Promise<BroadcastSent> {
+  try {
+    const response = await fetch('/api/admin/broadcasts', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(input) });
+    if (response.status === 429) return { ok: false, error: 'too_many' };
+    const data: unknown = await response.json().catch(() => null);
+    if (response.ok && isObjectLike(data)) return { ok: true, ...(data as unknown as AdminBroadcast) };
+    const error = isObjectLike(data) && typeof data.error === 'string' ? data.error : 'unknown';
+    const nextAt = isObjectLike(data) && typeof data.nextAt === 'string' ? data.nextAt : undefined;
+    return nextAt === undefined ? { ok: false, error } : { ok: false, error, nextAt };
+  } catch {
+    return { ok: false, error: 'offline' };
+  }
+}

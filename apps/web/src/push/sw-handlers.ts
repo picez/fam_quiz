@@ -26,7 +26,7 @@ export interface SwScope {
 }
 
 const ICON = '/icon-192.png';
-const KINDS = ['reminder', 'opened', 'cancelled', 'bot'];
+const KINDS = ['reminder', 'opened', 'cancelled', 'bot', 'broadcast'];
 
 function isObject(v: unknown): v is Record<string, unknown> {
   return typeof v === 'object' && v !== null;
@@ -35,6 +35,9 @@ function isObject(v: unknown): v is Record<string, unknown> {
 /** Легка перевірка форми пуша (zod у воркер не тягнемо). */
 export function isPushPayload(raw: unknown): raw is PushPayload {
   if (!isObject(raw) || typeof raw.kind !== 'string' || !KINDS.includes(raw.kind)) return false;
+  if (raw.kind === 'broadcast') {
+    return typeof raw.broadcastId === 'string' && typeof raw.title === 'string' && typeof raw.text === 'string' && (raw.url === null || typeof raw.url === 'string');
+  }
   if (raw.kind === 'bot') {
     return typeof raw.planId === 'string' && typeof raw.title === 'string' && typeof raw.startsAt === 'string' && (raw.code === null || typeof raw.code === 'string');
   }
@@ -74,8 +77,20 @@ export async function onPush(scope: SwScope, data: { json(): unknown } | null, z
   });
 }
 
-/** Вікно того ж origin є → focus + navigate(url) (збій навігації → openWindow); інакше openWindow(url). */
+function isOtherSite(url: string, origin: string): boolean {
+  try {
+    return new URL(url, origin).origin !== origin;
+  } catch {
+    return false;
+  }
+}
+
+/** Адреса іншого сайту → нове вікно (вікна сайту не підмінюємо); вікно того ж origin є → focus + navigate(url) (збій навігації → openWindow); інакше openWindow(url). */
 export async function onNotificationClick(scope: SwScope, url: string): Promise<void> {
+  if (isOtherSite(url, scope.location.origin)) {
+    await scope.clients.openWindow(url);
+    return;
+  }
   const windows = await scope.clients.matchAll({ type: 'window', includeUncontrolled: true });
   const same = windows.find((w) => {
     try {

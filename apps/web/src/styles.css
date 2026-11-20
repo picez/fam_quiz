@@ -27991,3 +27991,122 @@ a.library-card:focus-visible {
   padding: 0;
   list-style: none;
 }
+
+/* 59: «Розсилка» — форма, перегляд сповіщення й історія; лише змінні теми, на 360 px без бічного скролу. */
+.admin-broadcast {
+  display: grid;
+  gap: 1rem;
+  max-width: 40rem;
+  min-width: 0;
+}
+
+.admin-broadcast form {
+  display: grid;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.admin-broadcast textarea,
+.admin-broadcast input[type='text'],
+.admin-broadcast input[type='search'],
+.admin-broadcast select {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  min-height: 2.75rem;
+  padding: 0.6rem 0.85rem;
+  border: 2px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--paper);
+  font: inherit;
+}
+
+.admin-broadcast input[aria-invalid='true'] {
+  border-color: var(--wrong);
+}
+
+.admin-broadcast .broadcast-count {
+  margin: 0;
+  text-align: end;
+}
+
+.admin-broadcast .broadcast-live:empty,
+.admin-broadcast .broadcast-audience:empty,
+.admin-push-error:empty {
+  display: none;
+}
+
+.admin-broadcast-to {
+  display: grid;
+  gap: 0.35rem;
+  min-width: 0;
+  margin: 0.5rem 0 0;
+  padding: 0;
+  border: 0;
+}
+
+.admin-broadcast-to legend {
+  margin-bottom: 0.35rem;
+  padding: 0;
+  font-weight: 700;
+}
+
+.admin-broadcast-to label:has(input:disabled) {
+  opacity: 0.55;
+}
+
+.broadcast-preview-wrap h3 {
+  margin: 0.5rem 0;
+}
+
+.broadcast-preview {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  min-width: 0;
+  padding: 0.75rem;
+  border: 2px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--paper);
+}
+
+.broadcast-preview img {
+  flex: none;
+  border-radius: 0.5rem;
+}
+
+.broadcast-preview > div {
+  min-width: 0;
+}
+
+.broadcast-preview strong,
+.broadcast-preview p {
+  display: block;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.broadcast-preview p {
+  margin-top: 0.25rem;
+}
+
+.admin-broadcast .admin-card h3,
+.admin-broadcast .admin-card p {
+  overflow-wrap: anywhere;
+}
+
+.admin-broadcast .admin-mark.is-muted {
+  color: var(--dim);
+}
+
+/* 59: вимкнена основна кнопка читається в обох темах: без прозорості всієї кнопки, а приглушена заливка акценту й звичайний текст.
+   Стоїть останньою й має .btn.btn-primary:not(.is-pacing), тож перемагає .btn:disabled, легкий режим і .admin-card .btn:disabled; інших кнопок не чіпає. */
+.btn.btn-primary:not(.is-pacing):disabled {
+  opacity: 1;
+  border-color: color-mix(in srgb, var(--accent) 35%, var(--surface));
+  background-color: color-mix(in srgb, var(--accent) 35%, var(--surface));
+  color: var(--paper);
+}

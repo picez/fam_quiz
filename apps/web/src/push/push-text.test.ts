@@ -34,6 +34,20 @@ describe('pushNotice', () => {
     expect(n.url).toBe('/feed/calendar#event-E');
   });
 
+  it('a broadcast with an unsafe link opens the home page', () => {
+    const base = { kind: 'broadcast' as const, broadcastId: 'B', title: 'T', text: 'X', locale: 'en' as const };
+    expect(pushNotice({ ...base, url: 'javascript:alert(1)' }, zone, now).url).toBe('/');
+    expect(pushNotice({ ...base, url: '//evil.example' }, zone, now).url).toBe('/');
+    expect(pushNotice({ ...base, url: 'https://example.com/a' }, zone, now).url).toBe('https://example.com/a');
+    expect(pushNotice({ ...base, url: null }, zone, now).url).toBe('/');
+  });
+
+  it("a broadcast shows the admin's words as they are", () => {
+    const payload = { kind: 'broadcast' as const, broadcastId: 'B', title: 'Нова вікторина', text: 'Заходь у бібліотеку', url: '/library', locale: 'en' as const };
+    expect(pushNotice(payload, zone, now)).toEqual({ title: 'Нова вікторина', body: 'Заходь у бібліотеку', url: '/library', tag: 'broadcast-B' });
+    expect(pushNotice({ ...payload, url: null }, zone, now).url).toBe('/');
+  });
+
   it('the bot push: soon with the time, then open with the code', () => {
     const soon = { kind: 'bot' as const, planId: 'P', title: 'Поліські озера', startsAt: '2026-11-20T17:00:00.000Z', code: null };
     expect(pushNotice(soon, zone, now)).toEqual({

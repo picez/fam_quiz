@@ -4,7 +4,9 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { CurrentUser } from './account-routes';
 import { isAdmin } from './admin';
 import { adminCharts } from './admin-charts';
+import type { PushService } from './push';
 import { registerAdminBotRoutes } from './admin-bot-routes';
+import { registerAdminBroadcastRoutes } from './admin-broadcast-routes';
 import { registerPlayerCardRoutes } from './admin-card-routes';
 import { liveRooms } from './admin-live';
 import { adminLog, adminQuiz, adminQuizRaw, adminQuizzes, adminStats, adminUser, adminUsers } from './admin-store';
@@ -42,6 +44,8 @@ export interface AdminDeps {
   checkFetch: CheckFetch;
   /** DNS перевірки (57): захист від запитів у внутрішню мережу; без нього зовнішні адреси неперевірені. */
   checkResolve?: CheckResolve;
+  /** Push-служба (59): без неї розсилка відповідає 503 push_off. */
+  push: PushService | null;
   now?: () => Date;
 }
 
@@ -363,4 +367,5 @@ export async function registerAdminRoutes(app: FastifyInstance, deps: AdminDeps)
 
   await registerAdminBotRoutes(app, deps, { read, write, adminOf, checker });
   await registerPlayerCardRoutes(app, deps, { read, write, adminOf });
+  await registerAdminBroadcastRoutes(app, deps, { read, write, adminOf });
 }

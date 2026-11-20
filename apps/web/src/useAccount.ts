@@ -31,7 +31,7 @@ function check(): Promise<AccountState> {
         // «Легкий режим» (31): профіль вмикає його лише на пристрої, що ще не вибирав.
         const easyMode = result.easyMode === true;
         syncAccountEasy(easyMode, result.id);
-        return { status: 'signed-in', account: { id: result.id, name: result.name, email: result.email, admin: result.admin === true, locale, easyMode } };
+        return { status: 'signed-in', account: { id: result.id, name: result.name, email: result.email, admin: result.admin === true, locale, easyMode, adminPush: result.adminPush !== false } };
       }
       // Лише відповідь «немає сесії» означає, що людина не увійшла; будь-який інший збій нічого про це не каже.
       if (result.error === 'unauthorized') {
@@ -87,7 +87,7 @@ function sameState(a: AccountState, b: AccountState): boolean {
   if (a.status === 'signed-in' && b.status === 'signed-in') {
     const x = a.account;
     const y = b.account;
-    return x.id === y.id && x.name === y.name && x.email === y.email && x.admin === y.admin && x.locale === y.locale && x.easyMode === y.easyMode;
+    return x.id === y.id && x.name === y.name && x.email === y.email && x.admin === y.admin && x.locale === y.locale && x.easyMode === y.easyMode && x.adminPush === y.adminPush;
   }
   if (a.status === 'unknown' && b.status === 'unknown') return a.error === b.error;
   return true;

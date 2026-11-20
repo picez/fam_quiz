@@ -23,6 +23,8 @@ export interface Account {
   locale: Locale | null;
   /** «Легкий режим» (31) у профілі. */
   easyMode: boolean;
+  /** «Оголошення від адміністраторів» (59): push-розсилки адмінів; немає поля — увімкнено. */
+  adminPush: boolean;
 }
 
 export interface QuizSummary {
@@ -101,11 +103,13 @@ const gameUrl = (code: string) => `/api/games/by-code/${encodeURIComponent(code)
 
 /**
  * Відповідь /api/me: старий сервер чи кешована відповідь може не мати locale — useAccount тоді ставить null;
- * без easyMode (31) — вимкнено.
+ * без easyMode (31) — вимкнено; без adminPush (59) — увімкнено.
  */
-export const me = () => request<Omit<Account, 'locale' | 'easyMode'> & { locale?: unknown; easyMode?: unknown }>('/api/me');
+export const me = () => request<Omit<Account, 'locale' | 'easyMode' | 'adminPush'> & { locale?: unknown; easyMode?: unknown; adminPush?: unknown }>('/api/me');
 /** «Легкий режим» (31) у профілі. */
 export const setEasy = (on: boolean) => fetchData<{ easyMode: boolean }>('/api/me/easy', { method: 'PUT', body: { on } });
+/** «Оголошення від адміністраторів» (59) у профілі. */
+export const setAdminPush = (on: boolean): Promise<ApiData<{ adminPush: boolean }>> => fetchData<{ adminPush: boolean }>('/api/me/admin-push', { method: 'PUT', body: { on } });
 /** Зберігає мову в профілі, щоб пуші приходили нею ж. */
 export async function saveMyLocale(locale: Locale): Promise<{ ok: true } | { ok: false; error: string }> {
   const result = await request<object>('/api/me/locale', { method: 'PUT', body: { locale } });

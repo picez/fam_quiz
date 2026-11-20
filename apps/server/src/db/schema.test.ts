@@ -977,3 +977,37 @@ describe('bot plan listed (62)', () => {
     expect(kept).toMatchObject({ title: 'Старий план', status: 'scheduled', listed: true });
   });
 });
+
+describe('push broadcast (59)', () => {
+  const T = new Date('2026-11-20T10:00:00.000Z');
+
+  it('migration 0045 adds the push_broadcast table and admin announcements on for an existing profile', async () => {
+    const { profile, pushBroadcast } = await import('./schema');
+    const { db, migrateRest } = await createTestDbUpTo('0044_bot_plan_listed');
+    await db.insert(user).values({ id: 'u1', name: 'Олена', email: 'olena@example.com' });
+    await db.execute(sql`INSERT INTO "profile" ("user_id", "nickname", "easy_mode") VALUES ('u1', 'Олена', true)`);
+
+    await migrateRest();
+
+    const [kept] = await db.select().from(profile);
+    expect(kept).toMatchObject({ userId: 'u1', nickname: 'Олена', easyMode: true, adminPush: true });
+    expect(await db.select().from(pushBroadcast)).toEqual([]);
+  });
+
+  it('a broadcast row has zero counters, sending, no people by default; deleting the group or the author keeps it', async () => {
+    const { familyGroup, pushBroadcast } = await import('./schema');
+    const db = await createTestDb();
+    await db.insert(user).values({ id: 'a', name: 'Адмін', email: 'a@example.com' });
+    const [g] = await db.insert(familyGroup).values({ name: 'Родина', emoji: '👪', inviteCode: 'code59' }).returning();
+    const [row] = await db
+      .insert(pushBroadcast)
+      .values({ createdBy: 'a', title: 'Нова вікторина', text: 'Заходьте!', recipients: 'group', groupId: g.id, groupName: 'Родина', peopleCount: 3, createdAt: T })
+      .returning();
+    expect(row).toMatchObject({ delivered: 0, failed: 0, status: 'sending', people: [], url: null, finishedAt: null, peopleCount: 3 });
+
+    await db.delete(familyGroup).where(eq(familyGroup.id, g.id));
+    await db.delete(user).where(eq(user.id, 'a'));
+    const [kept] = await db.select().from(pushBroadcast);
+    expect(kept).toMatchObject({ id: row.id, title: 'Нова вікторина', groupId: null, groupName: 'Родина', createdBy: null });
+  });
+});

@@ -84,6 +84,15 @@ describe('onPush', () => {
     );
   });
 
+  it('shows the broadcast under one tag per broadcast', async () => {
+    const scope = fakeScope();
+    await onPush(scope, { json: () => ({ kind: 'broadcast', broadcastId: 'B', title: 'Нова вікторина', text: 'Заходь', url: null }) }, 'Europe/Kyiv');
+    expect(scope.registration.showNotification).toHaveBeenCalledWith(
+      'Нова вікторина',
+      expect.objectContaining({ body: 'Заходь', tag: 'broadcast-B', data: { url: '/' } }),
+    );
+  });
+
   it('shows a generic notice for an invalid payload, keeping a string title', async () => {
     const scope = fakeScope();
     await onPush(scope, { json: () => ({ kind: 'liked', title: 'Привіт' }) }, 'Europe/Kyiv');
@@ -121,6 +130,12 @@ describe('isPushPayload', () => {
     expect(isPushPayload({ ...bot, code: '123456' })).toBe(true);
     expect(isPushPayload({ ...bot, code: 5 })).toBe(false);
     expect(isPushPayload({ ...bot, planId: undefined })).toBe(false);
+    const broadcast = { kind: 'broadcast', broadcastId: 'B', title: 'T', text: 'X', url: null };
+    expect(isPushPayload(broadcast)).toBe(true);
+    expect(isPushPayload({ ...broadcast, url: '/library' })).toBe(true);
+    expect(isPushPayload({ ...broadcast, text: undefined })).toBe(false);
+    expect(isPushPayload({ ...broadcast, url: 5 })).toBe(false);
+    expect(isPushPayload({ ...broadcast, broadcastId: undefined })).toBe(false);
     expect(isPushPayload(null)).toBe(false);
     expect(isPushPayload('x')).toBe(false);
   });
@@ -155,6 +170,24 @@ describe('onNotificationClick', () => {
     const scope = fakeScope([client]);
     await onNotificationClick(scope, '/play/1');
     expect(scope.clients.openWindow).toHaveBeenCalledWith('/play/1');
+  });
+
+  it('opens another site in a new window and leaves ours alone', async () => {
+    const client = { url: 'https://quiz.test/feed', focus: vi.fn(() => Promise.resolve()), navigate: vi.fn(() => Promise.resolve()) };
+    const scope = fakeScope([client]);
+    await onNotificationClick(scope, 'https://example.com/news');
+    expect(scope.clients.openWindow).toHaveBeenCalledWith('https://example.com/news');
+    expect(client.navigate).not.toHaveBeenCalled();
+    expect(client.focus).not.toHaveBeenCalled();
+  });
+
+  it('navigates our own absolute address in the open window', async () => {
+    const client = { url: 'https://quiz.test/feed', focus: vi.fn(() => Promise.resolve()), navigate: vi.fn(() => Promise.resolve()) };
+    const scope = fakeScope([client]);
+    await onNotificationClick(scope, 'https://quiz.test/library');
+    expect(client.focus).toHaveBeenCalled();
+    expect(client.navigate).toHaveBeenCalledWith('https://quiz.test/library');
+    expect(scope.clients.openWindow).not.toHaveBeenCalled();
   });
 
   it('does not touch a window of another origin', async () => {
