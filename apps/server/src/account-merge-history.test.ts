@@ -402,6 +402,48 @@ describe('json rules', () => {
     expect(rooms.get(`${code}-b`)).toEqual({ hostUserId: olia, playerUsers: [['p1', primary], ['p2', olia]], state: { phase: 'finished' } });
   });
 
+  it('when the secondary seat scored more, the saved game and the room keep that seat for the primary, like the game rows and events', async () => {
+    const { primary, secondary, ctx } = await pair();
+    const host = await person('Марта');
+    const petro = await person('Петро');
+    const players = [
+      { userId: secondary, nickname: 'Ольга', score: 7, rank: 1 },
+      { userId: petro, nickname: 'Петро', score: 5, rank: 2 },
+      { userId: primary, nickname: 'Оля', score: 3, rank: 3 },
+    ];
+    const saved = await seedGame(db, { hostId: host, status: 'saved', startedAt: PAST, players });
+    const roomGame = await seedGame(db, { hostId: host, startedAt: PAST, players });
+    const seats = (ids: string[]) => [[ids[0], secondary], [ids[1], petro], [ids[2], primary]];
+    await db.insert(savedGame).values({ gameId: saved.gameId, data: { v: 1, playerUsers: seats(saved.participantIds) }, stateVersion: 22, savedAt: NOW });
+    const code = `mw-${n}`;
+    await db.insert(liveRoom).values({ code, roomId: roomGame.gameId, data: { hostUserId: host, playerUsers: seats(roomGame.participantIds), state: { phase: 'finished' } }, updatedAt: NOW });
+    await db.insert(gameEvent).values(
+      saved.participantIds.map((participantId, i) => ({ id: randomUUID(), gameId: saved.gameId, at: PAST, questionIndex: -1, kind: 'join' as const, participantId, userId: players[i].userId, nickname: players[i].nickname, details: null })),
+    );
+
+    await applyMergeRules(db, ctx, [...HISTORY_RULES, ...MERGE_JSON_RULES]);
+
+    expect(ctx.secondaryWonGames).toEqual(new Set([saved.gameId, roomGame.gameId]));
+    const [savedRow] = await db.select().from(savedGame).where(eq(savedGame.gameId, saved.gameId));
+    expect(savedRow.data).toEqual({ v: 1, playerUsers: [[saved.participantIds[0], primary], [saved.participantIds[1], petro]] });
+    const [roomRow] = await db.select().from(liveRoom).where(eq(liveRoom.code, code));
+    expect(roomRow.data).toMatchObject({ playerUsers: [[roomGame.participantIds[0], primary], [roomGame.participantIds[1], petro]] });
+
+    // Повторний запис гри (продовження збереженої, перезапис кімнати) бере user_id з playerUsers: він має збігтися з рядками гри.
+    for (const [gameId, data] of [[saved.gameId, savedRow.data], [roomGame.gameId, roomRow.data]] as const) {
+      const bound = new Map((data as { playerUsers: [string, string][] }).playerUsers);
+      const rows = await db.select().from(participant).where(eq(participant.gameId, gameId));
+      expect(rows.map((row) => [row.id, row.userId]).sort()).toEqual(rows.map((row) => [row.id, bound.get(row.id) ?? null]).sort());
+    }
+    const events = new Map((await db.select().from(gameEvent).where(eq(gameEvent.gameId, saved.gameId))).map((row) => [row.participantId, row.userId]));
+    expect(saved.participantIds.map((id) => events.get(id))).toEqual([primary, petro, null]);
+    // Історія гравця показує завершені ігри; рядок P у збереженій — теж з 7 балами.
+    const history = (await playerHistory(db, primary)).filter((g) => g.gameId === roomGame.gameId);
+    expect(history.map((g) => g.score)).toEqual([7]);
+    const own = await db.select().from(participant).where(eq(participant.gameId, saved.gameId));
+    expect(own.filter((row) => row.userId === primary).map((row) => row.score)).toEqual([7]);
+  });
+
   it('group facts about the secondary now name the primary; bot plans and broadcasts list the primary once; admin log targets move', async () => {
     const { primary, secondary, ctx } = await pair();
     const petro = await person('Петро');

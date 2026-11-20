@@ -296,22 +296,27 @@ export const HISTORY_RULES: readonly MergeRule[] = [
 const hasPair = (column: typeof savedGame.data | typeof liveRoom.data, userId: string) =>
   sql`jsonb_typeof(${column}->'playerUsers') = 'array' and ${column}->'playerUsers' @> jsonb_build_array(jsonb_build_array(${userId}::text))`;
 
-/** Пари S — на P; якщо P уже сидить у цій грі — пари S геть (місце стає гостьовим зі своїм ніком, не forgotten). */
-function rebindPairs(data: Record<string, unknown>, S: string, P: string): Record<string, unknown> {
+/**
+ * Пари S — на P. Обидва в цій грі — лишається те саме місце, що й у рядках гри (правило 1): місце S, якщо гра в
+ * secondaryWonGames (воно й переходить на P), інакше місце P; друге місце стає гостьовим зі своїм ніком (не forgotten).
+ * Інакше повторний запис гри (рекордер бере user_id з playerUsers) перевернув би рішення злиття.
+ */
+function rebindPairs(data: Record<string, unknown>, S: string, P: string, secondaryWon: boolean): Record<string, unknown> {
   const pairs = Array.isArray(data.playerUsers) ? (data.playerUsers as unknown[]) : [];
   const isOf = (pair: unknown, id: string) => Array.isArray(pair) && pair[1] === id;
   const seated = pairs.some((pair) => isOf(pair, P));
-  const playerUsers = seated ? pairs.filter((pair) => !isOf(pair, S)) : pairs.map((pair) => (isOf(pair, S) ? [(pair as unknown[])[0], P] : pair));
+  const kept = seated && !secondaryWon ? pairs.filter((pair) => !isOf(pair, S)) : pairs.filter((pair) => !(seated && isOf(pair, P)));
+  const playerUsers = kept.map((pair) => (isOf(pair, S) ? [(pair as unknown[])[0], P] : pair));
   return { ...data, playerUsers };
 }
 
 const savedGameRule: MergeRule = {
   keys: ['saved_game.data'],
-  async run(tx, { primaryId: P, secondaryId: S }) {
+  async run(tx, { primaryId: P, secondaryId: S, secondaryWonGames }) {
     const rows = await tx.select({ gameId: savedGame.gameId, data: savedGame.data }).from(savedGame).where(hasPair(savedGame.data, S));
     for (const row of rows) {
       if (!isRecord(row.data)) continue;
-      await tx.update(savedGame).set({ data: rebindPairs(row.data, S, P) }).where(eq(savedGame.gameId, row.gameId));
+      await tx.update(savedGame).set({ data: rebindPairs(row.data, S, P, secondaryWonGames.has(row.gameId)) }).where(eq(savedGame.gameId, row.gameId));
     }
   },
 };
@@ -319,14 +324,15 @@ const savedGameRule: MergeRule = {
 /** Кімнати в базі (лише finished — живу гру відмовляє маршрут і mergeAccounts): ведучий S — P, пари — як у збереженій грі. */
 const liveRoomRule: MergeRule = {
   keys: ['live_room.data'],
-  async run(tx, { primaryId: P, secondaryId: S }) {
+  async run(tx, { primaryId: P, secondaryId: S, secondaryWonGames }) {
     const rows = await tx
-      .select({ code: liveRoom.code, data: liveRoom.data })
+      .select({ code: liveRoom.code, roomId: liveRoom.roomId, data: liveRoom.data })
       .from(liveRoom)
       .where(or(hasPair(liveRoom.data, S), sql`${liveRoom.data}->>'hostUserId' = ${S}::text`));
     for (const row of rows) {
       if (!isRecord(row.data)) continue;
-      const data = rebindPairs(row.data, S, P);
+      // room.id = id гри.
+      const data = rebindPairs(row.data, S, P, secondaryWonGames.has(row.roomId));
       if (row.data.hostUserId === S) data.hostUserId = P;
       await tx.update(liveRoom).set({ data }).where(eq(liveRoom.code, row.code));
     }
