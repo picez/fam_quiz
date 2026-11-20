@@ -34,6 +34,12 @@ describe('pushNotice', () => {
     expect(n.url).toBe('/feed/calendar#event-E');
   });
 
+  it("a broadcast shows the admin's words as they are", () => {
+    const payload = { kind: 'broadcast' as const, broadcastId: 'B', title: 'Нова вікторина', text: 'Заходь у бібліотеку', url: '/library', locale: 'en' as const };
+    expect(pushNotice(payload, zone, now)).toEqual({ title: 'Нова вікторина', body: 'Заходь у бібліотеку', url: '/library', tag: 'broadcast-B' });
+    expect(pushNotice({ ...payload, url: null }, zone, now).url).toBe('/');
+  });
+
   it('the bot push: soon with the time, then open with the code', () => {
     const soon = { kind: 'bot' as const, planId: 'P', title: 'Поліські озера', startsAt: '2026-11-20T17:00:00.000Z', code: null };
     expect(pushNotice(soon, zone, now)).toEqual({
