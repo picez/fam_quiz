@@ -42,13 +42,17 @@ export const BACKUP_RESTORE_COMMANDS = {
 
 /**
  * Лише шлях сторінки сайту: до першого `?` чи `#` (там бувають токени), до PROBLEM_PATH_MAX символів.
- * Не з `/` або з `//` (адреса іншого сайту) → `/`.
+ * Не з `/`, з `//` чи з `/\` (адреса іншого сайту) → `/`. Коди запрошень у групу й викликів → `:code`
+ * (коди кімнат у `/play`, `/host`, `/stage` лишаються — їх дозволяє план).
  */
 export function cleanPagePath(path: string): string {
   const cut = path.split(/[?#]/, 1)[0] ?? '';
-  if (!cut.startsWith('/') || cut.startsWith('//')) return '/';
-  return cut.slice(0, PROBLEM_PATH_MAX);
+  if (!cut.startsWith('/') || cut.startsWith('//') || cut.startsWith('/\\')) return '/';
+  return cut.replace(CODE_SEGMENT, '$1:code').slice(0, PROBLEM_PATH_MAX);
 }
+
+/** Сегмент-код запрошення після `/groups/join/` чи `/challenge/`. */
+const CODE_SEGMENT = /^(\/(?:groups\/join|challenge)\/)[^/]+/;
 
 export const problemPageSchema = z
   .object({

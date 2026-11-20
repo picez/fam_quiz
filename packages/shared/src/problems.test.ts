@@ -37,6 +37,16 @@ describe('problem reports (64)', () => {
     expect(cleanPagePath('https://x')).toBe('/');
     expect(cleanPagePath('')).toBe('/');
     expect(cleanPagePath('/' + 'a'.repeat(399))).toHaveLength(300);
+    expect(cleanPagePath('/\\evil.example')).toBe('/');
+  });
+
+  it('cleanPagePath hides invite and challenge codes, keeps room codes', () => {
+    expect(cleanPagePath('/groups/join/AbC123xyz')).toBe('/groups/join/:code');
+    expect(cleanPagePath('/groups/join/AbC123xyz/')).toBe('/groups/join/:code/');
+    expect(cleanPagePath('/challenge/k9Zq-77?x=1')).toBe('/challenge/:code');
+    expect(cleanPagePath('/groups/join')).toBe('/groups/join');
+    expect(cleanPagePath('/play/123456')).toBe('/play/123456');
+    expect(cleanPagePath('/profile/groups/g1')).toBe('/profile/groups/g1');
   });
 
   it('a reply is up to 500', () => {
