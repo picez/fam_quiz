@@ -73,7 +73,7 @@ const groupMemberRule: MergeRule = {
   },
 };
 
-/** 11. Запрошення S — геть, якщо P уже член групи чи вже запрошений; хто запросив — P. */
+/** 11. Запрошення S — геть, якщо P уже член групи чи вже запрошений; хто запросив — P; після — жодних запрошень P до його груп. */
 const groupInviteRule: MergeRule = {
   keys: ['group_invite.user_id', 'group_invite.invited_by'],
   async run(tx, { primaryId: P, secondaryId: S }) {
@@ -86,6 +86,10 @@ const groupInviteRule: MergeRule = {
     );
     await tx.update(groupInvite).set({ userId: P }).where(eq(groupInvite.userId, S));
     await tx.update(groupInvite).set({ invitedBy: P }).where(eq(groupInvite.invitedBy, S));
+    // Членство вже злите (правило 10 раніше): запрошення P до груп, де P тепер член (через S), — геть, хоч від кого.
+    await tx
+      .delete(groupInvite)
+      .where(and(eq(groupInvite.userId, P), sql`exists (select 1 from "group_member" m where m.group_id = ${groupInvite.groupId} and m.user_id = ${P})`));
   },
 };
 

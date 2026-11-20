@@ -58,12 +58,13 @@ const participantRule: MergeRule = {
 };
 
 /**
- * 1a (65). Події ігор: подія рядка, що став гостьовим (правило 1), — user_id null зі своїм ніком; решта подій S — P з ніком P.
+ * 1a (65). Події ігор: подія рядка, що став гостьовим (правило 1), — user_id null; решта подій S — P. Нік події лишається ніком
+ * у грі (як participant.nickname).
  * Має йти після правила 1 і до вкладеного deleteAccount (він перейменував би події S у «Видаленого гравця»).
  */
 const gameEventRule: MergeRule = {
   keys: ['game_event.user_id'],
-  async run(tx, { primaryId: P, secondaryId: S, primaryNickname }) {
+  async run(tx, { primaryId: P, secondaryId: S }) {
     await tx
       .update(gameEvent)
       .set({ userId: null })
@@ -73,10 +74,7 @@ const gameEventRule: MergeRule = {
           sql`exists (select 1 from "participant" p where p.id = ${gameEvent.participantId} and p.user_id is null)`,
         ),
       );
-    await tx
-      .update(gameEvent)
-      .set(primaryNickname === null ? { userId: P } : { userId: P, nickname: primaryNickname })
-      .where(eq(gameEvent.userId, S));
+    await tx.update(gameEvent).set({ userId: P }).where(eq(gameEvent.userId, S));
   },
 };
 

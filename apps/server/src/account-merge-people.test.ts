@@ -277,6 +277,26 @@ describe('people rules', () => {
     );
   });
 
+  it('an invite of the primary to a group it joins through the merge is dropped', async () => {
+    const { primary, secondary, ctx } = await pair();
+    const petro = await person('Петро');
+    const secondaryOwn = await group([{ userId: secondary, role: 'owner', joinedAt: EARLY }]);
+    const secondaryIn = await group([
+      { userId: petro, role: 'owner', joinedAt: EARLY },
+      { userId: secondary, role: 'member', joinedAt: PAST },
+    ]);
+    await db.insert(groupInvite).values([
+      { groupId: secondaryOwn, userId: primary, invitedBy: secondary, createdAt: NOW },
+      { groupId: secondaryIn, userId: primary, invitedBy: petro, createdAt: NOW },
+    ]);
+
+    await merge(ctx);
+
+    expect(await db.select().from(groupInvite).where(inArray(groupInvite.groupId, [secondaryOwn, secondaryIn]))).toEqual([]);
+    const members = await db.select().from(groupMember).where(inArray(groupMember.groupId, [secondaryOwn, secondaryIn]));
+    expect(members.filter((row) => row.userId === primary).map((row) => [row.groupId, row.role]).sort()).toEqual([[secondaryOwn, 'owner'], [secondaryIn, 'member']].sort());
+  });
+
   it('group items written by the secondary keep their author as the primary', async () => {
     const { primary, secondary, ctx } = await pair();
     const groupId = await group([{ userId: secondary, role: 'owner', joinedAt: EARLY }]);

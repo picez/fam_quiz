@@ -107,10 +107,11 @@ describe('history rules', () => {
 
     const events = await db.select().from(gameEvent).where(inArray(gameEvent.gameId, [played.gameId, alone.gameId]));
     const byParticipant = new Map(events.map((row) => [row.participantId, row]));
-    expect(byParticipant.get(played.participantIds[0])).toMatchObject({ userId: primary, nickname: 'Оля' });
+    // Нік події — нік у грі, як participant.nickname: переноситься лише user_id.
+    expect(byParticipant.get(played.participantIds[0])).toMatchObject({ userId: primary, nickname: 'Ольга' });
     expect(byParticipant.get(played.participantIds[2])).toMatchObject({ userId: null, nickname: 'Оля' });
     expect(byParticipant.get(played.participantIds[1])).toMatchObject({ userId: petro, nickname: 'Петро' });
-    expect(byParticipant.get(alone.participantIds[0])).toMatchObject({ userId: primary, nickname: 'Оля' });
+    expect(byParticipant.get(alone.participantIds[0])).toMatchObject({ userId: primary, nickname: 'Ольга' });
   });
 
   it('a tie in the same game keeps the primary row and the secondary row becomes the guest', async () => {
