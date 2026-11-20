@@ -54,6 +54,8 @@ interface Form {
   auto: boolean;
   autoMin: string;
   weekly: boolean;
+  /** 62: відкрита кімната — у списку лобі (типово так). */
+  listed: boolean;
 }
 
 const known = <T extends { id: string }>(list: T[], wanted: string | null): string => (wanted !== null && list.some((item) => item.id === wanted) ? wanted : (list[0]?.id ?? ''));
@@ -68,6 +70,7 @@ const blank = (quizzes: AdminBotQuiz[], groups: AdminBotGroup[]): Form => ({
   auto: false,
   autoMin: String(AUTO_DEFAULT),
   weekly: false,
+  listed: true,
 });
 
 /** План у форму; видалена група (groupId '') чи вікторина — перша наявна, щоб форма не ламалась. */
@@ -83,6 +86,8 @@ function fromPlan(plan: AdminBotPlan, quizzes: AdminBotQuiz[], groups: AdminBotG
     auto: plan.autoStartMin !== null,
     autoMin: String(plan.autoStartMin ?? AUTO_DEFAULT),
     weekly: plan.weekly,
+    // Сервер до 62 поля не шле — такий план видимий.
+    listed: plan.listed !== false,
   };
 }
 
@@ -108,7 +113,7 @@ function toInput(form: Form): BotPlanInput | null {
           : { kind: 'people', userIds: form.people.map((person) => person.id) }
         : { kind: form.to };
   if (recipients === null) return null;
-  return { quizId: form.quizId, startsAt, recipients, autoStartMin, weekly: form.weekly };
+  return { quizId: form.quizId, startsAt, recipients, autoStartMin, weekly: form.weekly, listed: form.listed };
 }
 
 function toText(to: AdminBotPlanTo): string {
@@ -269,6 +274,7 @@ export function AdminBotSchedule({ schedule, quizzes, onChanged }: { schedule: A
               </p>
               {plan.autoStartMin !== null && <p className="meta">{t('adminBotPlanAutoShown', { minutes: plan.autoStartMin })}</p>}
               {plan.weekly && <p className="meta">{t('adminBotPlanWeeklyShown')}</p>}
+              {plan.listed === false && <p className="meta">{t('adminBotPlanUnlisted')}</p>}
               {plan.status === 'scheduled' && (
                 <div className="admin-actions">
                   <button type="button" className="btn" disabled={busy} onClick={() => change(plan)}>
@@ -377,6 +383,10 @@ export function AdminBotSchedule({ schedule, quizzes, onChanged }: { schedule: A
           <label className="field field-check" htmlFor="bot-plan-weekly">
             <input id="bot-plan-weekly" type="checkbox" checked={form.weekly} onChange={(e) => patch({ weekly: e.target.checked })} />
             {t('adminBotPlanWeekly')}
+          </label>
+          <label className="field field-check" htmlFor="bot-plan-listed">
+            <input id="bot-plan-listed" type="checkbox" checked={form.listed} onChange={(e) => patch({ listed: e.target.checked })} />
+            {t('adminBotListed')}
           </label>
           <div className="admin-actions">
             <button type="submit" className="btn btn-primary" disabled={busy || input === null} aria-describedby={input === null ? 'bot-plan-missing' : undefined}>

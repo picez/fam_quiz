@@ -63,6 +63,15 @@ describe('LobbyList', () => {
     expect(inside.getByRole('img', { name: /Ведуча/ })).toBeTruthy();
   });
 
+  it('rows: a bot room shows the bot picture and name', async () => {
+    vi.mocked(listLobbies).mockResolvedValue({ ok: true, data: [row({ title: 'Річки України 62', host: { id: 'quiz-bot', nickname: 'Квіз-бот', avatar: null, level: null } })] });
+    await show();
+    const link = screen.getByRole('link');
+    expect(link.querySelector('img[src="/quiz-bot.svg"]')).not.toBeNull();
+    expect(within(link).getByText('Квіз-бот')).toBeTruthy();
+    expect(within(link).queryByText(/^Рів\./)).toBeNull();
+  });
+
   it('rows: a lobby under a minute old says «створено щойно», and the link is named by title and host', async () => {
     vi.mocked(listLobbies).mockResolvedValue({ ok: true, data: [row({ openedAt: new Date(NOW - 20_000).toISOString() })] });
     await show();

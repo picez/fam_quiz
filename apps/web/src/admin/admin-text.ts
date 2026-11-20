@@ -30,11 +30,17 @@ export function kyivWhenText(iso: string): string {
   return t('adminBotPlanKyiv', { when: `${formatDay(iso)}, ${timeText(iso, KYIV_ZONE)}` });
 }
 
+/** 62: лобі кімнати бота словами для журналу; пароля в записі немає — лише чи він є. */
+const lobbyVars = (entry: AdminLogEntry): { listed: string; locked: string } => ({
+  listed: entry.details.listed === false ? t('adminBotLogUnlisted') : t('adminBotLogListed'),
+  locked: entry.details.locked ? t('lobbyLocked') : t('adminBotLogOpen'),
+});
+
 /** Рядок журналу; для блокування з причиною — «. Причина: …»; для збою розкладу бота — причина словами. */
 export function logLine(entry: AdminLogEntry): string {
   const when = entry.details.when === undefined ? '' : kyivWhenText(entry.details.when);
   const planReason = entry.kind === 'bot_plan_fail' ? botPlanReasonText(entry.details.reason ?? null) : '';
-  const line = t(`adminLog_${entry.kind}` as TextKey, { admin: nickText(entry.admin), target: nickText(entry.target), title: entry.details.title ?? '', text: entry.details.text ?? '', code: entry.details.code ?? '', when, reason: planReason });
+  const line = t(`adminLog_${entry.kind}` as TextKey, { admin: nickText(entry.admin), target: nickText(entry.target), title: entry.details.title ?? '', text: entry.details.text ?? '', code: entry.details.code ?? '', when, reason: planReason, ...lobbyVars(entry) });
   const reason = entry.kind === 'ban' ? entry.details.reason : null;
   if (entry.kind === 'nickname_reset' && entry.details.text) return t('adminLogWas', { line, text: entry.details.text });
   return reason ? `${line}. ${t('adminReasonShown', { reason })}` : line;
