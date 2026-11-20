@@ -4626,6 +4626,8 @@
   "wordleUnknown": "Not in the dictionary: {word}. Such a word will not be saved.",
   "wordleLetterCount": "Letters: {count}",
   "wordleOnPhone": "Guess on the phones",
+  "wordleHeadline": "Guess the {count}-letter word",
+  "wordlePlayed": "Guess the word: {word}",
   "wordleCheck": "Check",
   "wordleErase": "Erase a letter",
   "wordleHit": "in place",

@@ -4496,6 +4496,8 @@ const uk = {
   wordleUnknown: 'Немає в словнику: {word}. Таке слово не збережеться.',
   wordleLetterCount: 'Літер: {count}',
   wordleOnPhone: 'Вгадуйте на телефонах',
+  wordleHeadline: 'Вгадайте слово з {count} літер',
+  wordlePlayed: 'Вгадай слово: {word}',
   wordleCheck: 'Перевірити',
   wordleErase: 'Стерти літеру',
   wordleHit: 'на місці',

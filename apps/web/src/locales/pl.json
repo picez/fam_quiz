@@ -4710,6 +4710,8 @@
   "wordleUnknown": "Brak w słowniku: {word}. Takie słowo nie zostanie zapisane.",
   "wordleLetterCount": "Liter: {count}",
   "wordleOnPhone": "Zgadujcie na telefonach",
+  "wordleHeadline": "Zgadnij słowo z {count} liter",
+  "wordlePlayed": "Zgadnij słowo: {word}",
   "wordleCheck": "Sprawdź",
   "wordleErase": "Usuń literę",
   "wordleHit": "na miejscu",

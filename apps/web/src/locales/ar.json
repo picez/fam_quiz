@@ -4898,6 +4898,8 @@
   "wordleUnknown": "غير موجودة في القاموس: {word}. لن تُحفظ هذه الكلمة.",
   "wordleLetterCount": "عدد الحروف: {count}",
   "wordleOnPhone": "خمّنوا على الهواتف",
+  "wordleHeadline": "خمّن الكلمة المكوّنة من {count} أحرف",
+  "wordlePlayed": "خمّن الكلمة: {word}",
   "wordleCheck": "تحقق",
   "wordleErase": "امسح حرفًا",
   "wordleHit": "في مكانه",

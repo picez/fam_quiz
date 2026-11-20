@@ -4694,6 +4694,8 @@
   "wordleUnknown": "Non è nel dizionario: {word}. Questa parola non verrà salvata.",
   "wordleLetterCount": "Lettere: {count}",
   "wordleOnPhone": "Indovinate sui telefoni",
+  "wordleHeadline": "Indovina la parola di {count} lettere",
+  "wordlePlayed": "Indovina la parola: {word}",
   "wordleCheck": "Verifica",
   "wordleErase": "Cancella una lettera",
   "wordleHit": "al suo posto",

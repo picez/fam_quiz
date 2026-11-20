@@ -361,6 +361,16 @@ export function signed(value: number): string {
 }
 
 /** Номер запитання в раунді, скільки лишилося й назва раунду, коли раундів кілька. */
+/** Заголовок запитання в грі (61, 45d): у «Вгадай слово» — лише «Вгадайте слово з N літер», без тексту автора. */
+export function questionTitle(question: Pick<PublicQuestion, 'type' | 'text' | 'wordle'>): string {
+  return question.type === 'wordle' ? t('wordleHeadline', { count: question.wordle?.letters ?? 0 }) : question.text;
+}
+
+/** Назва збереженого запитання поза грою — історія, перегляд адміна, список редактора (61): «Вгадай слово: СЛОВО» замість тексту. */
+export function questionName(question: Question): string {
+  return question.type === 'wordle' ? t('wordlePlayed', { word: question.word.toLocaleUpperCase('uk') }) : question.text;
+}
+
 export function questionLabel(round: RoundInfo | null, index: number, total: number): string {
   const board = round?.type === 'board';
   const parts = [t(board ? 'cellOf' : 'questionOf', { index: index + 1, total })];
