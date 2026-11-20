@@ -702,6 +702,11 @@ export function attachSockets(
       return payload.success ? manager.lie(room, identity.playerId, payload.data.text) : INVALID;
     });
 
+    on('player:lie-edit', () => {
+      if (identity.role !== 'player' || identity.playerId === null) return FORBIDDEN;
+      return manager.lieEdit(room, identity.playerId);
+    });
+
     on('player:spy-word', (args) => {
       if (identity.role !== 'player' || identity.playerId === null) return FORBIDDEN;
       const payload = spyTextSchema.safeParse(payloadOf(args));

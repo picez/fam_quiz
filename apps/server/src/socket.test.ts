@@ -1336,6 +1336,21 @@ describe('host presence', () => {
     expect(view.role === 'player' && view.bluff?.stage).toBe('lies');
   });
 
+  it('player:lie-edit lets the player change the lie while the lies are written', async () => {
+    const { host, stage, olena, taras } = await bluffGame();
+    expect(await send(olena, 'player:lie', { text: 'Рим' })).toEqual({ ok: true });
+    await until(olena, (v) => meBluff(v)?.lie === 'Рим');
+    expect(await send(host, 'player:lie-edit')).toEqual({ ok: false, error: 'forbidden' });
+    expect(await send(stage, 'player:lie-edit')).toEqual({ ok: false, error: 'forbidden' });
+    expect(await send(olena, 'player:lie-edit')).toEqual({ ok: true });
+    await until(olena, (v) => meBluff(v)?.lie === null);
+    expect(await send(olena, 'player:lie', { text: 'Париж' })).toEqual({ ok: true });
+    await until(olena, (v) => meBluff(v)?.lie === 'Париж');
+    expect(await send(taras, 'player:lie', { text: 'Мілан' })).toEqual({ ok: true });
+    await until(olena, choiceOf);
+    expect(await send(olena, 'player:lie-edit')).toEqual({ ok: false, error: 'wrong_phase' });
+  });
+
   it('player:lie: bad payload — invalid; the host cannot send it', async () => {
     const { host, olena } = await bluffGame();
     expect(await send(host, 'player:lie', { text: 'Рим' })).toEqual({ ok: false, error: 'forbidden' });

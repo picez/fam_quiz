@@ -3,6 +3,7 @@ import { LIMITS, type HostThink, type Phase, type PlayerThink, type PublicQuesti
 import { num, questionClass, signed } from '../format';
 import { errorText, t } from '../i18n';
 import { RowReaction } from '../live/Reactions';
+import { useAnswerFocus } from '../live/useAnswerFocus';
 import { Timer, timerStatus } from '../live/Timer';
 import type { Send } from '../live/types';
 import type { DraftInput } from './TeamWatch';
@@ -72,6 +73,8 @@ export function ThinkInput({
   const [sent, setSent] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const busy = useRef(false);
+  const field = useRef<HTMLInputElement>(null);
+  useAnswerFocus(field);
   if (think.status === 'spectator') return <p className="lead think-status">{t(author ? 'thinkSpectatorAuthor' : 'thinkSpectator')}</p>;
   if (think.status === 'out') return <p className="lead think-status">{t('thinkOutNow')}</p>;
   const mine = answer ?? sent;
@@ -111,6 +114,7 @@ export function ThinkInput({
       </label>
       <input
         id={id}
+        ref={field}
         className="think-field"
         dir="auto"
         value={value}

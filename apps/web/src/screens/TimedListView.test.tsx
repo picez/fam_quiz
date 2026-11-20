@@ -328,3 +328,31 @@ describe('TimedListReveal', () => {
     expect(container.innerHTML).toBe('');
   });
 });
+
+describe('TimedListPlay keyboard scroll', () => {
+  afterEach(() => {
+    cleanup();
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+    delete (HTMLElement.prototype as { scrollIntoView?: unknown }).scrollIntoView;
+  });
+
+  it('the autofocus does not scroll while no keyboard opens, an opened keyboard does', () => {
+    vi.useFakeTimers();
+    const viewport = { height: 700 };
+    vi.stubGlobal('visualViewport', viewport);
+    const scroll = vi.fn();
+    HTMLElement.prototype.scrollIntoView = scroll;
+    render(<TimedListPlay list={listOf()} question={question} paused={false} send={vi.fn<Send>()} />);
+    // Курсор після заставки (програмний фокус): видима область та сама — сторінка не їде.
+    expect(document.activeElement).toBe(field());
+    act(() => void vi.advanceTimersByTime(400));
+    expect(scroll).not.toHaveBeenCalled();
+    // Гравець торкається поля — клавіатура відкривається, видима область нижчає: поле підіймається.
+    field().blur();
+    field().focus();
+    viewport.height = 400;
+    act(() => void vi.advanceTimersByTime(400));
+    expect(scroll).toHaveBeenCalledWith({ block: 'nearest' });
+  });
+});

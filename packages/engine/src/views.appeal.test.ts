@@ -67,6 +67,13 @@ describe('the phone appeal button', () => {
     expect(decided.appeals?.[0].outcome).toBe('tie');
     expect(me(decided, 'p1')).toMatchObject({ left: 1, reasons: [] });
   });
+
+  it('the left count comes back after an accepted appeal', () => {
+    expect(me(voted, 'p1')).toMatchObject({ left: 1 });
+    const decided = must(castAppealVote(voted, 'p3', 1, true, T1 + 2000));
+    expect(decided.appeals?.[0].outcome).toBe('yes');
+    expect(me(decided, 'p1')).toMatchObject({ left: 2 });
+  });
 });
 
 describe('an open appeal', () => {

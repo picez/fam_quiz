@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { BUFF_KINDS, DEFAULT_RULES, type Question, type RoundRules } from '@quiz/shared';
 import { adjustTime, limitMsOf } from './timing';
 import { nextDeadline } from './blitz';
-import { bluffOrder, bluffPlayOf, bluffShown, pickBluff, removeBluffOption, revealBluffAll, seededRng, writeLie } from './bluff';
+import { bluffOrder, bluffPlayOf, bluffShown, editLie, pickBluff, removeBluffOption, revealBluffAll, seededRng, writeLie } from './bluff';
 import { buffBlock, takeBuff } from './buffs';
 import { setDebuff } from './debuffs';
 import {
@@ -226,6 +226,59 @@ describe('bluff: the lies', () => {
     expect(b.picks).toEqual({});
     expect(b.options.find((o) => o.id === rome.id)?.authors).toEqual(['p1']);
     expect(b.options).toHaveLength(5);
+  });
+
+  it('editLie takes the lie back: the stage waits until the player writes again', () => {
+    let s = openClassic([bluff, single]);
+    s = must(writeLie(s, 'p1', 'Рим', at(s, 1000)));
+    s = must(writeLie(s, 'p2', 'Мілан', at(s, 2000)));
+    s = must(editLie(s, 'p1', at(s, 2500)));
+    expect(s.plays[0].bluff?.lies).not.toHaveProperty('p1');
+    expect(s.plays[0].bluff?.lies.p2).toEqual({ text: 'Мілан', at: at(s, 2000) });
+    expect(s.plays[0].bluff?.stage).toBe('lies');
+    s = must(writeLie(s, 'p3', 'Париж', at(s, 3000)));
+    expect(s.plays[0].bluff?.stage).toBe('lies');
+    s = must(writeLie(s, 'p1', 'Відень', at(s, 4000)));
+    expect(s.plays[0].bluff?.stage).toBe('choice');
+    const lies = s.plays[0].bluff!.options.filter((o) => o.kind === 'lie').map((o) => o.text);
+    expect([...lies].sort()).toEqual(['Відень', 'Мілан', 'Париж'].sort());
+    expect(lies).not.toContain('Рим');
+    expect(s.plays[0].bluff?.options.find((o) => o.text === 'Відень')?.authors).toEqual(['p1']);
+  });
+
+  it('the new lie has the same checks', () => {
+    let s = openClassic([bluff, single]);
+    s = must(writeLie(s, 'p1', 'Рим', at(s, 1000)));
+    expect(writeLie(s, 'p1', 'Мілан', at(s, 1500))).toEqual({ ok: false, error: 'already_answered' });
+    s = must(editLie(s, 'p1', at(s, 2000)));
+    expect(writeLie(s, 'p1', ' барселоні ', at(s, 2500))).toEqual({ ok: false, error: 'bluff_truth' });
+    expect(writeLie(s, 'p1', '   ', at(s, 2500))).toEqual({ ok: false, error: 'type_mismatch' });
+    s = must(writeLie(s, 'p1', ' Мілан ', at(s, 3000)));
+    expect(s.plays[0].bluff?.lies.p1).toEqual({ text: 'Мілан', at: at(s, 3000) });
+  });
+
+  it('editLie refuses: no lie, the choice, a pause, after the time', () => {
+    const open = openClassic([bluff, single]);
+    expect(editLie(open, 'p1', at(open, 1000))).toEqual({ ok: false, error: 'not_found' });
+    const s = must(writeLie(open, 'p1', 'Рим', at(open, 1000)));
+    expect(editLie(s, 'nobody', at(s, 2000))).toEqual({ ok: false, error: 'not_found' });
+    expect(editLie(must(pause(s, at(s, 1500))), 'p1', at(s, 2000))).toEqual({ ok: false, error: 'paused' });
+    expect(editLie(s, 'p1', s.endsAt! + 1)).toEqual({ ok: false, error: 'time_over' });
+    const choice = toChoice();
+    expect(editLie(choice, 'p1', at(choice, 4000))).toEqual({ ok: false, error: 'wrong_phase' });
+    expect(s.plays[0].bluff?.lies.p1).toEqual({ text: 'Рим', at: at(s, 1000) });
+    expect(choice.plays[0].bluff?.lies.p1).toEqual({ text: 'Рим', at: at(choice, 1000) });
+  });
+
+  it('a removed lie of a player who left does not block', () => {
+    let s = openClassic([bluff, single]);
+    s = must(writeLie(s, 'p1', 'Рим', at(s, 1000)));
+    s = must(editLie(s, 'p1', at(s, 1500)));
+    s = must(removePlayer(s, 'p1'));
+    s = must(writeLie(s, 'p2', 'Мілан', at(s, 2000)));
+    expect(s.plays[0].bluff?.stage).toBe('lies');
+    s = must(writeLie(s, 'p3', 'Париж', at(s, 3000)));
+    expect(s.plays[0].bluff?.stage).toBe('choice');
   });
 
   it('kicking a player in the lies does not switch the stage by itself', () => {

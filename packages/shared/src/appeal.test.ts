@@ -10,9 +10,9 @@ describe('appeal basics (12f)', () => {
     expect(appealDecision(1, 1)).toBe('tie');
     expect(appealDecision(0, 0)).toBe('tie');
   });
-  it('an open appeal and every hall decision count toward the limit; the host and the end do not', () => {
+  it('only a rejected appeal (no, tie) uses the limit; an open one holds its place; yes, host and cancelled do not', () => {
     const hall: (AppealOutcome | null)[] = [null, 'yes', 'no', 'tie'];
-    expect(hall.map((o) => appealCounted(o))).toEqual([true, true, true, true]);
+    expect(hall.map((o) => appealCounted(o))).toEqual([true, false, true, true]);
     expect(appealCounted('host')).toBe(false);
     expect(appealCounted('cancelled')).toBe(false);
     expect([APPEAL_MS.vote, APPEALS_PER_GAME]).toEqual([30_000, 2]);

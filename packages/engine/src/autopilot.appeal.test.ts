@@ -85,6 +85,28 @@ describe('the autopilot and the appeal (12f)', () => {
     expect(atOf(s)).toBe(R + AUTOPILOT_MS.reveal);
   });
 
+  it('after an accepted appeal the window is open again on the next wrong answer', () => {
+    const quiz = classicQuiz(single, withId(single, 'q2'), withId(single, 'q3'));
+    let { s, R } = toReveal({ a: RIGHT, p2: WRONG }, quiz);
+    // Петро оскаржує на першому («ні» — рахується) і на другому («так» — не рахується, 45a): на третьому в нього ще одна.
+    for (const yes of [false, true]) {
+      s = act(s, openAppeal(s, 'p2', 'grade', R + 1000), R + 1000);
+      s = act(s, castAppealVote(s, 'a', appealOpen(s)!.id, yes, R + 2000), R + 2000);
+      expect(s.appeals?.at(-1)?.outcome).toBe(yes ? 'yes' : 'no');
+      for (let guard = 0; s.phase !== 'question'; guard++) {
+        if (guard > 10) throw new Error('the autopilot did not reach the next question');
+        s = go(s);
+      }
+      const t = s.startedAt! + 1000;
+      s = plan(s, must(submitAnswer(must(submitAnswer(s, 'a', RIGHT, t)), 'p2', WRONG, t)), t);
+      s = go(s);
+      expect(s.phase).toBe('reveal');
+      R = t + 1500;
+    }
+    expect(s.questionIndex).toBe(2);
+    expect(atOf(s)).toBe(R + AUTOPILOT_MS.appealWindow);
+  });
+
   it('waits while the hall votes; the decision shows appealShown more', () => {
     let { s, R } = toReveal({ a: RIGHT, p2: WRONG });
     s = act(s, openAppeal(s, 'p2', 'grade', R + 2000), R + 2000);

@@ -175,3 +175,26 @@ describe('SpyPhone', () => {
     expect(rule('.spy-vote .btn')).toMatch(/white-space:\s*normal/);
   });
 });
+
+describe('SpyPhone: the cursor (45b)', () => {
+  it('the association field gets the cursor', () => {
+    render(<SpyPhone info={info()} mine={mine()} meId="p1" send={ok()} />);
+    expect(document.activeElement).toBe(screen.getByRole('textbox', { name: t('spyWordPrompt') }));
+  });
+
+  it('a field under a disabled fieldset (pause, splash) gets no cursor until it opens', () => {
+    const { rerender } = render(
+      <fieldset disabled>
+        <SpyPhone info={info()} mine={mine()} meId="p1" send={ok()} />
+      </fieldset>,
+    );
+    const field = screen.getByRole('textbox', { name: t('spyWordPrompt') });
+    expect(document.activeElement).not.toBe(field);
+    rerender(
+      <fieldset disabled={false}>
+        <SpyPhone info={info()} mine={mine()} meId="p1" send={ok()} />
+      </fieldset>,
+    );
+    expect(document.activeElement).toBe(field);
+  });
+});

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { AppealView, PublicQuestion, Question } from '@quiz/shared';
-import { appealAsk, appealButtonText, appealPresented, appealCountText, appealResultText, appealTitle, historyAppealText } from './appeal-text';
+import { appealAsk, appealButtonText, appealKeptText, appealPresented, appealCountText, appealResultText, appealTitle, historyAppealText } from './appeal-text';
 
 const appeal = (over: Partial<AppealView> = {}): AppealView => ({
   id: 1,
@@ -118,6 +118,14 @@ describe('appeal texts', () => {
     expect(historyAppealText({ reason: 'away', yes: 0, no: 2, outcome: 'no' })).toBe('⚖️ штраф лишився 0:2');
     expect(historyAppealText({ reason: 'away', yes: 0, no: 0, outcome: 'tie' })).toBe('⚖️ штраф лишився 0:0');
     expect(historyAppealText({ reason: 'away', yes: 0, no: 0, outcome: 'host' })).toBe('⚖️ зараховано ведучим');
+  });
+
+  it('45a: only the appellant whose appeal the hall accepted reads that it is kept', () => {
+    const kept = 'Оскарження прийнято — воно лишається у вас';
+    expect(appealKeptText(appeal({ outcome: 'yes', waiting: 0 }), 'p1')).toBe(kept);
+    expect(appealKeptText(appeal({ outcome: 'yes', waiting: 0 }), 'p2')).toBeNull();
+    expect(appealKeptText(appeal({ outcome: 'yes', waiting: 0, undone: true }), 'p1')).toBeNull();
+    for (const outcome of ['no', 'tie', 'host', null] as const) expect(appealKeptText(appeal({ outcome, waiting: 0 }), 'p1'), String(outcome)).toBeNull();
   });
 
   it('never uses gendered past forms', () => {

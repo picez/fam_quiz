@@ -89,6 +89,7 @@ import {
   answerTrial,
   pickDoor,
   writeLie,
+  editLie,
   writeSpyWord,
   voteSpy,
   guessSpy,
@@ -2226,6 +2227,14 @@ export class RoomManager {
     const who = this.act(room, playerId, 'answerer');
     if (!who.ok) return who;
     return this.apply(room, writeLie(room.state, who.id, text, this.now()));
+  }
+
+  /** Блеф (45c): «Змінити» — забрати свою вигадку (у командній грі — вигадку команди, відповідач чи капітан). */
+  lieEdit(room: Room, playerId: string): AckResult {
+    if (!this.alive(room)) return this.gone();
+    const who = this.act(room, playerId, 'answerer');
+    if (!who.ok) return who;
+    return this.apply(room, editLie(room.state, who.id, this.now()));
   }
 
   /** «Шпигун» (38): асоціація, голос і останній шанс — усе фаза question, різні етапи. */

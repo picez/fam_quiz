@@ -1,6 +1,7 @@
-import { useRef, useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { LIMITS } from '@quiz/shared';
 import { errorText, t } from '../i18n';
+import { useAnswerFocus } from '../live/useAnswerFocus';
 import type { Send } from '../live/types';
 import type { DraftInput } from './TeamWatch';
 
@@ -9,20 +10,32 @@ export function BluffLieInput({
   send,
   autoFocus = true,
   onDraft,
+  initial = '',
 }: {
   send: Send;
   autoFocus?: boolean;
   /** Живий вибір (12b): надрукована вигадка до «Надіслати»; порожньо — null. */
   onDraft?: DraftInput;
+  /** Змінити вигадку: поле відкривається зі старим текстом. */
+  initial?: string;
 }) {
-  const [text, setText] = useState('');
+  const [text, setText] = useState(initial);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  const field = useRef<HTMLInputElement>(null);
+  useAnswerFocus(field, autoFocus);
   // Останній надрукований текст: поки чекали відповіді, гравець міг його змінити.
   const typed = useRef('');
   typed.current = text.trim();
   const draftRef = useRef(onDraft);
   draftRef.current = onDraft;
+  // «Змінити»: поле відкрилося зі старим текстом — пульт команди одразу бачить його як чернетку.
+  useEffect(() => {
+    const old = initial.trim();
+    if (old !== '') draftRef.current?.({ type: 'lie', text: old });
+    // Лише при відкритті поля.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const submit = (event?: FormEvent) => {
     event?.preventDefault();
@@ -55,7 +68,7 @@ export function BluffLieInput({
         maxLength={LIMITS.bluffLie}
         enterKeyHint="send"
         autoComplete="off"
-        autoFocus={autoFocus}
+        ref={field}
       />
       <button type="submit" className="btn btn-primary" disabled={text.trim() === '' || pending}>
         {t('bluffLieSend')}

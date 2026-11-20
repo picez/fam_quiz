@@ -345,6 +345,8 @@ export interface ClientToServerEvents {
   'player:wall': (payload: z.infer<typeof wallSchema>, ack: Ack) => void;
   /** Блеф: вигадка гравця (10f). */
   'player:lie': (payload: z.infer<typeof lieSchema>, ack: Ack) => void;
+  /** Блеф (45c): забрати свою вигадку, поки вигадки пишуть, щоб написати іншу. */
+  'player:lie-edit': (ack: Ack) => void;
   /** Блеф: вибір варіанта (10f). */
   'player:bluff': (payload: z.infer<typeof bluffOptionSchema>, ack: Ack) => void;
   /** «Шпигун» (38): асоціація до свого слова (етап words); ack ok чи think_word / spy_word / spy_spectator / already_answered / wrong_phase. */

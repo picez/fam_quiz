@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { LIMITS, type PlayerWordLadder, type PublicQuestion, type WordLadderInfo } from '@quiz/shared';
 import type { Send, SendResult } from '../live/types';
@@ -214,5 +214,33 @@ describe('WordLadderBoard', () => {
   it('shows the host the words of every player live', () => {
     render(<WordLadderBoard info={infoOf([row('p1', 'Олена', 1, false, { words: ['пора'] })], ['поле', 'пора', 'тара'])} reveal={false} />);
     expect(document.querySelector('.wordladder-words')?.textContent).toBe('пора');
+  });
+});
+
+describe('WordLadderPlay keyboard scroll', () => {
+  afterEach(() => {
+    cleanup();
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+    delete (HTMLElement.prototype as { scrollIntoView?: unknown }).scrollIntoView;
+  });
+
+  it('the autofocus does not scroll while no keyboard opens, an opened keyboard does', () => {
+    vi.useFakeTimers();
+    const viewport = { height: 700 };
+    vi.stubGlobal('visualViewport', viewport);
+    const scroll = vi.fn();
+    HTMLElement.prototype.scrollIntoView = scroll;
+    play(ladderOf());
+    // Курсор після заставки (програмний фокус): видима область та сама — сторінка не їде.
+    expect(document.activeElement).toBe(field());
+    act(() => void vi.advanceTimersByTime(400));
+    expect(scroll).not.toHaveBeenCalled();
+    // Гравець торкається поля — клавіатура відкривається, видима область нижчає: поле підіймається.
+    field().blur();
+    field().focus();
+    viewport.height = 400;
+    act(() => void vi.advanceTimersByTime(400));
+    expect(scroll).toHaveBeenCalledWith({ block: 'nearest' });
   });
 });

@@ -238,7 +238,7 @@ async function appeal12f() {
   await pickOption(ira, 'Говерла');
   await host.getByText('Запитання закрите').waitFor();
   await click(host, 'Показати відповідь');
-  await expect.poll(() => textOf(appealButton(olya)), POLL).toBe('⚖️ Оскаржити (лишилось 1)');
+  await expect.poll(() => textOf(appealButton(olya)), POLL).toBe('⚖️ Оскаржити (лишилось 2)');
   expect(await appealButton(petro).count()).toBe(0);
   expect(await appealButton(ira).count()).toBe(0);
   await appealButton(olya).click();
@@ -277,7 +277,7 @@ async function appeal12f() {
   await step(next);
   await expect.poll(() => textOf(standing('Оля')), POLL).toBe('200');
 
-  // 6. p3: ліміт вичерпано — у Олі третьої кнопки немає, в Іри (правильно) теж.
+  // 6. p3: перша апеляція Олі прийнята й не згоріла, нічия згоріла — у Олі третя кнопка «лишилось 1», вона її не тисне; в Іри (правильно) кнопки немає.
   await step(nextQuestion);
   await afterSplash(...all);
   await stage.getByText('Дунай впадає в Чорне море', exact).waitFor();
@@ -287,8 +287,9 @@ async function appeal12f() {
   await host.getByText('Запитання закрите').waitFor();
   await click(host, 'Показати відповідь');
   await olya.locator('section.result').first().waitFor();
+  await expect.poll(() => textOf(appealButton(olya)), POLL).toBe('⚖️ Оскаржити (лишилось 1)');
   for (let i = 0; i < 4; i += 1) {
-    expect(await appealButton(olya).count(), 'Оля got a third appeal').toBe(0);
+    expect(await textOf(appealButton(olya)), 'Оля lost the third button').toBe('⚖️ Оскаржити (лишилось 1)');
     expect(await appealButton(ira).count(), 'Іра answered right and got the button').toBe(0);
     await olya.waitForTimeout(250);
   }
@@ -363,7 +364,7 @@ async function appeal12f() {
   expect(problems).toEqual([]);
 }
 
-it('part 12f: the player appeal — Оля appeals «Шевченко» from a 375 phone, Петро and Іра vote on a bottom sheet (Іра changes «Ні» to «Так») while the 1280 × 720 stage and the 375 host show only «так · ні · ще думають» and «Голосує зал», two yes add 200 and the table and stage update, a pause stops the countdown, the second appeal ends in a tie and changes nothing, there is no third button, the host sheet lists «Оля +200 (апеляція)», the history shows ⚖️, and no frame names a voter', async () => {
+it('part 12f: the player appeal — Оля appeals «Шевченко» from a 375 phone, Петро and Іра vote on a bottom sheet (Іра changes «Ні» to «Так») while the 1280 × 720 stage and the 375 host show only «так · ні · ще думають» and «Голосує зал», two yes add 200 and the table and stage update, a pause stops the countdown, the second appeal ends in a tie and changes nothing, the accepted appeal is kept, so after the tie Оля still has one left, the host sheet lists «Оля +200 (апеляція)», the history shows ⚖️, and no frame names a voter', async () => {
   try {
     await appeal12f();
   } catch (error) {

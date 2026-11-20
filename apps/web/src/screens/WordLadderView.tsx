@@ -2,6 +2,8 @@ import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { collapseLadder, LIMITS, type PlayerWordLadder, type PublicQuestion, type WordLadderInfo } from '@quiz/shared';
 import { signed } from '../format';
 import { countText, errorText, t } from '../i18n';
+import { keyboardOpened, viewportHeight } from '../live/keyboard';
+import { useAnswerFocus } from '../live/useAnswerFocus';
 import type { Send, SendResult } from '../live/types';
 
 /** Скільки чекати, поки телефонна клавіатура відкриється, перш ніж прокрутити поле у видиму частину. */
@@ -51,6 +53,7 @@ export function WordLadderPlay({ ladder, question, paused, send }: { ladder: Pla
   const [word, setWord] = useState('');
   const [error, setError] = useState<string | null>(null);
   const input = useRef<HTMLInputElement>(null);
+  useAnswerFocus(input);
   const status = useRef<HTMLParagraphElement>(null);
   const done = useRef<HTMLHeadingElement>(null);
   const busy = useRef(false);
@@ -68,10 +71,13 @@ export function WordLadderPlay({ ladder, question, paused, send }: { ladder: Pla
   const off = paused || !ladder.canAdd;
 
   /** Поле й повідомлення під ним — над клавіатурою. Уже заплановане (клавіатура ще відкривається) не скасовується. */
-  const keepVisible = (delay: number) => {
+  const keepVisible = (delay: number, onlyIfKeyboard = false) => {
     if (timer.current !== null) return;
+    const before = viewportHeight();
     timer.current = setTimeout(() => {
       timer.current = null;
+      // Фокус без відкритої клавіатури (курсор після заставки) сторінку не прокручує: запитання лишається на екрані.
+      if (onlyIfKeyboard && !keyboardOpened(before)) return;
       status.current?.scrollIntoView?.({ block: 'nearest' });
     }, delay);
   };
@@ -136,7 +142,7 @@ export function WordLadderPlay({ ladder, question, paused, send }: { ladder: Pla
               enterKeyHint="go"
               value={word}
               disabled={off}
-              onFocus={() => keepVisible(KEYBOARD_MS)}
+              onFocus={() => keepVisible(KEYBOARD_MS, true)}
               onChange={(event) => setWord(event.target.value)}
             />
           </label>

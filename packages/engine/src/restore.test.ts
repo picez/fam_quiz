@@ -9,7 +9,7 @@ import { placeWager } from './final';
 import { nextDeadline } from './blitz';
 import { authorTeamForm, autopilotStart, createAutopilotGame, pilotStep, planAutopilot } from './autopilot';
 import { awayEnd, awayStart, awayStep } from './away';
-import { castAppealVote, openAppeal } from './appeal';
+import { appealsLeft, castAppealVote, openAppeal } from './appeal';
 import {
   addPlayer,
   end,
@@ -102,7 +102,7 @@ import { GAME_STATE_VERSION, READABLE_STATE_VERSIONS, suspend } from './restore'
 import { openClue } from './clues';
 import { sortMarks, sortOf, sortWord } from './sort';
 import type { Splash } from './splash';
-import { seededRng, writeLie } from './bluff';
+import { editLie, seededRng, writeLie } from './bluff';
 import { T0, buffQuiz, toBuffCell, toBuffQuestion, toOthersQuestion } from './testing/buffs';
 import { T0 as DUEL_T0, T1 as DUEL_T1, toDeclarableWith, toDuelQuestion } from './testing/duel';
 import { answerDuel, betDuel, declareDuel, duelQuestionOf, pickDuelCategory } from './duel';
@@ -2902,5 +2902,41 @@ describe('52 snapshots', () => {
     expect(s.plays[k].answers.p3?.grade).toBe('correct');
     expect(s.plays[k].answers.p2?.grade).toBe('wrong');
     expect(Object.keys(s.plays[k].answers).sort()).toEqual(['p1', 'p2', 'p3']);
+  });
+});
+
+describe('60 snapshots', () => {
+  it('an old snapshot with an accepted appeal counts by the new rule without a new version', () => {
+    expect(GAME_STATE_VERSION).toBe(22);
+    const t100 = { ...text, points: 100 };
+    const wrong = { type: 'text', value: 'Одеська' } as const;
+    let open = openAt(lobbyWith(makeRoundsQuiz([classicRound('r1', [t100, withId(t100, 't2')], { speedBonus: false })]), 'Оля', 'Петро', 'Іра'), T0, () => 0);
+    for (const id of ['p1', 'p2', 'p3']) open = must(submitAnswer(open, id, wrong, T0 + 1000));
+    open = must(next(open, T0 + 2000, () => 0));
+    expect(open.phase).toBe('reveal');
+    // знімок до плану 60: Олину першу апеляцію зал прийняв, другу — відхилив; лічильника в стані немає
+    const appeals: Appeal[] = [
+      { id: 1, by: 'p1', questionIndex: 0, reason: 'grade', openedAt: T0 + 3000, endsAt: T0 + 33_000, votes: {}, yes: 2, no: 0, outcome: 'yes' },
+      { id: 2, by: 'p1', questionIndex: 1, reason: 'grade', openedAt: T0 + 40_000, endsAt: T0 + 70_000, votes: {}, yes: 0, no: 2, outcome: 'no' },
+    ];
+    const s: GameState = { ...open, appeals };
+    const back = roundTrip(suspend(roundTrip(s), T0 + 80_000));
+    expect(back.appeals).toEqual(appeals);
+    expect(appealsLeft(back, 'p1')).toBe(1);
+    const v22 = 'adjustmentSeq,adjustments,appealQueue,appeals,autopilot,awaiting,board,buffSeq,debuffs,deferredCharges,drawTurns,duel,duelUsed,duelsDeclared,endsAt,final,guidePage,heldAt,ladder,paused,pausedAt,perks,phase,players,plays,presented,quest,questBuffs,questionIndex,quiz,remainingMs,roundIndex,soundsOff,sparesUsed,splash,startedAt,stealth,stepAt,teams,transitions,truth'.split(',');
+    expect(Object.keys(back).filter((k) => !v22.includes(k))).toEqual([]);
+  });
+
+  it('a bluff snapshot in the lies restores and the player can change the lie', () => {
+    expect(GAME_STATE_VERSION).toBe(22);
+    let open = openAt(lobbyWith(makeRoundsQuiz([classicRound('r1', [bluff])]), 'Оля', 'Петро', 'Іра'), T0, () => 0);
+    open = must(writeLie(open, 'p1', 'Рим', T0 + 1000));
+    const back = backAt(roundTrip(suspend(roundTrip(open), T0 + 2000)), T0 + 2000 + HOUR);
+    expect(back.plays[0].bluff?.lies.p1).toEqual({ text: 'Рим', at: T0 + 1000 });
+    const edited = must(editLie(back, 'p1', T0 + 3000 + HOUR));
+    expect(edited.plays[0].bluff?.lies).not.toHaveProperty('p1');
+    const rewritten = must(writeLie(edited, 'p1', 'Мілан', T0 + 4000 + HOUR));
+    expect(rewritten.plays[0].bluff?.lies.p1).toEqual({ text: 'Мілан', at: T0 + 4000 + HOUR });
+    expect(rewritten.plays[0].bluff?.stage).toBe('lies');
   });
 });

@@ -3,6 +3,7 @@ import type { BlitzPlayer, DuelBets, DuelInfo, HostView, Phase, PlayerDuel, Play
 import { num, questionClass } from '../format';
 import { countText, errorText, t, type TextKey } from '../i18n';
 import { useSplash } from '../live/Splash';
+import { useAnswerFocus } from '../live/useAnswerFocus';
 import { Timer, timerStatus } from '../live/Timer';
 import type { Send } from '../live/types';
 import { reducedMotion } from '../motion';
@@ -158,6 +159,7 @@ function DuelAnswer({ enabled, send, onError }: { enabled: boolean; send: Send; 
   const [text, setText] = useState('');
   const sending = useRef(false);
   const input = useRef<HTMLInputElement>(null);
+  useAnswerFocus(input);
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();

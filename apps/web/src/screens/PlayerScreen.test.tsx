@@ -3289,6 +3289,57 @@ describe('PlayerScreen: «Who am I?» and pin (10c)', () => {
       expect(screen.queryByLabelText('Твоя вигадка')).toBeNull();
     });
 
+    it('a sent lie can be changed: «Змінити» reopens the field with the old text and the cursor in it', async () => {
+      const send: Send = vi.fn(async () => ({ ok: true as const }));
+      const node = (v: PlayerView) => <PlayerScreen view={v} hostOnline offsetMs={0} send={send} />;
+      const { rerender } = render(node(onQuestion({ question: bluffPublic, bluff: info({ written: 1 }), me: mine({ lie: 'Рим' }) })));
+      expect(screen.getByText('Твоя вигадка: «Рим». Чекаємо на інших.')).toBeTruthy();
+      await act(async () => void fireEvent.click(screen.getByRole('button', { name: 'Змінити' })));
+      expect(send).toHaveBeenCalledWith('player:lie-edit', undefined);
+      rerender(node(onQuestion({ question: bluffPublic, bluff: info({ written: 0 }), me: mine({ lie: null }) })));
+      const field = screen.getByLabelText('Твоя вигадка') as HTMLInputElement;
+      expect(field.value).toBe('Рим');
+      expect(document.activeElement).toBe(field);
+    });
+
+    it('the next bluff question starts with an empty field, not the lie of the last one', () => {
+      const send: Send = vi.fn(async () => ({ ok: true as const }));
+      const node = (v: PlayerView) => <PlayerScreen view={v} hostOnline offsetMs={0} send={send} />;
+      const { rerender } = render(node(onQuestion({ questionIndex: 0, question: bluffPublic, bluff: info({ written: 1 }), me: mine({ lie: 'Рим' }) })));
+      rerender(node(onQuestion({ questionIndex: 1, question: bluffPublic, bluff: info({ written: 0 }), me: mine({ lie: null }) })));
+      expect((screen.getByLabelText('Твоя вигадка') as HTMLInputElement).value).toBe('');
+    });
+
+    it('a team answerer changes the lie: the reopened old text goes to the team pult as a draft', () => {
+      vi.useFakeTimers();
+      try {
+        const send: Send = vi.fn(async () => ({ ok: true as const }));
+        const petro = { captain: false, memberId: 'u3', nickname: 'Петро', answererId: 'u3', answerer: true, answererMode: 'chosen' as const, canAct: true };
+        const teamBluff = (lie: string | null, written: number) =>
+          teamPlayerView({ phase: 'question', questionIndex: 0, question: bluffPublic, endsAt: Date.now() + 20_000, bluff: info({ written }), me: { ...baseMe, bluff: { lie, own: [], pick: null, truth: null, fooled: null } } } as Partial<PlayerView>, petro);
+        const node = (v: PlayerView) => <PlayerScreen view={v} hostOnline offsetMs={0} send={send} />;
+        const { rerender } = render(node(teamBluff('Рим', 1)));
+        fireEvent.click(screen.getByRole('button', { name: 'Змінити' }));
+        expect(send).toHaveBeenCalledWith('player:lie-edit', undefined);
+        rerender(node(teamBluff(null, 0)));
+        expect((screen.getByLabelText('Твоя вигадка') as HTMLInputElement).value).toBe('Рим');
+        act(() => void vi.advanceTimersByTime(500));
+        expect(send).toHaveBeenCalledWith('player:draft', { draft: { type: 'lie', text: 'Рим' } });
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('«Змінити» is disabled on a pause, and a refusal is read under it', async () => {
+      show(onQuestion({ question: bluffPublic, bluff: info(), me: mine({ lie: 'Рим' }), paused: true, endsAt: null, remainingMs: 9000 }));
+      expect((screen.getByRole('button', { name: 'Змінити' }) as HTMLButtonElement).disabled).toBe(true);
+      cleanup();
+      const send: Send = vi.fn(async () => ({ ok: false as const, error: 'time_over' as const }));
+      show(onQuestion({ question: bluffPublic, bluff: info(), me: mine({ lie: 'Рим' }) }), { send });
+      await act(async () => void fireEvent.click(screen.getByRole('button', { name: 'Змінити' })));
+      expect(screen.getByRole('alert').textContent).toBe(errorText('time_over'));
+    });
+
     it('the choice phase: the list with the own lie disabled; after picking, the pick', () => {
       show(onQuestion({ question: bluffPublic, bluff: info({ stage: 'choice', options }), me: mine({ lie: 'Мілан', own: ['b2'] }) }));
       expect(screen.getByText('Що з цього правда?')).toBeTruthy();
@@ -4574,6 +4625,28 @@ describe('PlayerScreen appeal (12f)', () => {
     expect(screen.getByRole('button', { name: '⚖️ Оскаржити штраф (лишилось 1)' })).toBeTruthy();
   });
 
+  it('45a: the appellant whose appeal passed reads that it is kept; others do not', () => {
+    const kept = 'Оскарження прийнято — воно лишається у вас';
+    show(revealOf({ appeal: { ...open, outcome: 'yes', waiting: 0 } }, mine()));
+    expect(screen.getByText(kept).classList.contains('appeal-kept')).toBe(true);
+    cleanup();
+    show(revealOf({ appeal: { ...open, by: { playerId: 'p2', nickname: 'Тарас' }, outcome: 'yes', waiting: 0 } }, mine()));
+    expect(screen.queryByText(kept)).toBeNull();
+    cleanup();
+    show(revealOf({ appeal: { ...open, outcome: 'no', waiting: 0 } }, mine()));
+    expect(screen.queryByText(kept)).toBeNull();
+  });
+
+  it('45a: in a team game the whole team reads it', () => {
+    const kept = 'Оскарження прийнято — воно лишається у вас';
+    const current = teamPlayerView({ phase: 'reveal', questionIndex: 0, question: publicQuestion, reveal: fullQuestion, appeal: { ...open, by: { playerId: 'team-b', nickname: 'Сині' }, outcome: 'yes', waiting: 0 } });
+    show(current);
+    expect(screen.getByText(kept)).toBeTruthy();
+    cleanup();
+    show({ ...current, appeal: { ...open, by: { playerId: 'team-a', nickname: 'Червоні' }, outcome: 'yes', waiting: 0 } });
+    expect(screen.queryByText(kept)).toBeNull();
+  });
+
   it('says the hall votes on another appeal, without a button', () => {
     show(revealOf({}, mine({ block: 'appeal_open' })));
     expect(screen.getByText('Зал голосує за іншу апеляцію — потім зможете й ви').classList.contains('appeal-block')).toBe(true);
@@ -5744,5 +5817,51 @@ describe('sticky timer (55)', () => {
     scrollAway(false, -10);
     expect(observers.some((observer) => observer.observed.length > 0)).toBe(false);
     expect(strip()).toBeNull();
+  });
+});
+
+describe('PlayerScreen: the answer field gets the cursor (45b)', () => {
+  const text = { ...publicQuestion, choices: [] };
+  const numeric = { ...publicQuestion, type: 'numeric' as const, text: 'Скільки?', choices: [] };
+  const thinkQ = { ...publicQuestion, type: 'think' as const, text: 'Напишіть колір веселки', points: 0, choices: [] };
+  const field = () => screen.getByLabelText('Ваша відповідь');
+  afterEach(() => vi.useRealTimers());
+
+  it('a text question under the splash focuses the field when the splash ends', () => {
+    vi.useFakeTimers();
+    const now = Date.now();
+    const splash = { kind: 'question' as const, at: now, until: now + 3000 };
+    const current = onQuestion({ question: { ...text, type: 'text' as const }, splash });
+    const { rerender } = render(<PlayerScreen view={current} hostOnline offsetMs={0} send={vi.fn(async () => ({ ok: true as const }))} />);
+    expect(document.activeElement).not.toBe(field());
+    act(() => void vi.advanceTimersByTime(3100));
+    rerender(<PlayerScreen view={{ ...current, splash: null }} hostOnline offsetMs={0} send={vi.fn(async () => ({ ok: true as const }))} />);
+    expect(document.activeElement).toBe(field());
+  });
+
+  it('a numeric question focuses the field', () => {
+    show(onQuestion({ question: numeric }));
+    expect(document.activeElement).toBe(field());
+  });
+
+  it('no focus after the answer is sent', () => {
+    show(onQuestion({ question: { ...text, type: 'text' as const }, me: { ...me, answer: { type: 'text', value: 'Київ' } } as never }));
+    expect(screen.queryByLabelText('Ваша відповідь')).toBeNull();
+    expect(document.activeElement).toBe(document.body);
+  });
+
+  it('no focus on a pause; focus once it goes on', () => {
+    const send = vi.fn(async () => ({ ok: true as const }));
+    const paused = onQuestion({ question: numeric, paused: true, endsAt: null, remainingMs: 15_000 });
+    const { rerender } = render(<PlayerScreen view={paused} hostOnline offsetMs={0} send={send} />);
+    expect(document.activeElement).not.toBe(field());
+    rerender(<PlayerScreen view={{ ...paused, paused: false, endsAt: Date.now() + 15_000, remainingMs: null }} hostOnline offsetMs={0} send={send} />);
+    expect(document.activeElement).toBe(field());
+  });
+
+  it('a think spectator gets no field and no focus', () => {
+    const think = { lives: 3, points: 10000, index: 0, total: 5, rows: [], words: null, places: null, vote: null };
+    show(onQuestion({ question: thinkQ as never, think, me: { ...me, think: { lives: 0, status: 'spectator', verdict: null, off: null, vote: null, place: null } } as never }));
+    expect(document.activeElement).toBe(document.body);
   });
 });
