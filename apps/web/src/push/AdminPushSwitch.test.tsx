@@ -22,7 +22,7 @@ function server(me: object, saveStatus = 200) {
 }
 
 const OLENA = { id: 'u1', name: 'Олена', email: 'olena@example.com', admin: false, locale: 'uk' };
-const box = () => screen.getByRole('checkbox', { name: 'Оголошення від адміністраторів' }) as HTMLInputElement;
+const box = () => screen.getByRole('checkbox', { name: 'Отримувати' }) as HTMLInputElement;
 
 beforeEach(() => forgetAccount());
 afterEach(() => {

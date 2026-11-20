@@ -324,6 +324,27 @@ describe('broadcast (59)', () => {
     expect(await service.deliverCounted([], broadcast)).toEqual({ sent: 0, delivered: 0, failed: 0 });
   });
 
+  it('sends in chunks of 50 at a time', async () => {
+    // saveSubscription держить лише PUSH_MAX_SUBSCRIPTIONS на людину, тож рядки — напряму.
+    await db.insert(pushSubscription).values(Array.from({ length: 120 }, (_, i) => ({ endpoint: URL + 'many' + i, userId: o, p256dh: 'x' + i, auth: 'y', createdAt: at(1) })));
+    let running = 0;
+    let peak = 0;
+    const chunked = createPushService({
+      db,
+      publicKey: 'pub',
+      send: async () => {
+        running += 1;
+        peak = Math.max(peak, running);
+        await new Promise((resolve) => setTimeout(resolve, 2));
+        running -= 1;
+        return { status: 201 };
+      },
+      log,
+    });
+    expect(await chunked.deliverCounted([o], broadcast)).toEqual({ sent: 121, delivered: 121, failed: 0 });
+    expect(peak).toBe(50);
+  });
+
   it('two devices of one person count twice', async () => {
     await saveSubscription(db, o, { endpoint: URL + 'second', keys: { p256dh: 'x', auth: 'y' } }, at(1));
     expect(await service.deliverCounted([o], broadcast)).toEqual({ sent: 2, delivered: 2, failed: 0 });

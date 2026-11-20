@@ -28101,3 +28101,12 @@ a.library-card:focus-visible {
 .admin-broadcast .admin-mark.is-muted {
   color: var(--dim);
 }
+
+/* 59: вимкнена основна кнопка читається в обох темах: без прозорості всієї кнопки, а приглушена заливка акценту й звичайний текст.
+   Стоїть останньою й має .btn.btn-primary:not(.is-pacing), тож перемагає .btn:disabled, легкий режим і .admin-card .btn:disabled; інших кнопок не чіпає. */
+.btn.btn-primary:not(.is-pacing):disabled {
+  opacity: 1;
+  border-color: color-mix(in srgb, var(--accent) 35%, var(--surface));
+  background-color: color-mix(in srgb, var(--accent) 35%, var(--surface));
+  color: var(--paper);
+}

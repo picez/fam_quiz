@@ -5039,7 +5039,8 @@
   "adminBroadcastShownGroup": "Gruppe „{name}“",
   "adminBroadcastGroupGone": "Die Gruppe wurde gelöscht",
   "adminBroadcastShownPeople": "Ausgewählt: {names}",
-  "adminBroadcastCounts": "Zugestellt: {delivered}, Fehler: {failed}",
+  "adminBroadcastCounts": "Auf Geräten zugestellt: {delivered}, Fehler: {failed}",
+  "adminBroadcastRecipients": "Empfänger: {count}",
   "adminBroadcastSending": "Wird gesendet…",
   "adminBroadcastInterrupted": "Abgebrochen: Der Server wurde neu gestartet",
   "err_broadcast_too_soon": "Höchstens eine Rundsendung alle 10 Minuten.",
@@ -5048,6 +5049,7 @@
   "err_push_off": "Benachrichtigungen sind auf dem Server nicht eingerichtet.",
   "adminLog_push_broadcast": "{admin} hat die Rundsendung „{title}“ verschickt, Empfänger: {count}",
   "adminPushLabel": "Ankündigungen der Admins",
+  "adminPushToggle": "Erhalten",
   "adminPushHint": "Seltene Benachrichtigungen der Admins der Website: Neuigkeiten und wichtige Änderungen. Andere Benachrichtigungen betrifft dieser Schalter nicht.",
   "adminPushSaveFailed": "Speichern fehlgeschlagen. Versuch es noch einmal."
 }

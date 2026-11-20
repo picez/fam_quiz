@@ -37,7 +37,7 @@ export function AdminPushSwitch({ className }: { className?: string }): JSX.Elem
       <h2 id={`${boxId}-heading`}>{t('adminPushLabel')}</h2>
       <label className="field field-check" htmlFor={boxId}>
         <input id={boxId} type="checkbox" checked={on} disabled={busy} aria-describedby={hintId} onChange={(event) => toggle(event.target.checked)} />
-        <span>{t('adminPushLabel')}</span>
+        <span>{t('adminPushToggle')}</span>
       </label>
       <p className="meta" id={hintId}>
         {t('adminPushHint')}

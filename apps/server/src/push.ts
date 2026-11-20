@@ -19,6 +19,9 @@ export type PushSend = (target: PushTarget, payload: string, options: PushOption
 
 export const PUSH_TTL = { reminder: 3600, opened: 21_600, cancelled: 86_400, bot: 3600, broadcast: 86_400 } as const;
 /** Повільні види (не терміново): скасування й розсилка адміна. */
+/** Скільки пушів летить одночасно (8). */
+const PUSH_CHUNK = 50;
+
 const NORMAL_URGENCY: ReadonlySet<PushPayload['kind']> = new Set(['cancelled', 'broadcast']);
 
 /** Підсумок відправки у пристроях (підписках): delivered — 2xx, failed — усе інше (404/410, інший статус, виняток). */
@@ -89,18 +92,21 @@ export function createPushService(deps: {
       return body;
     };
     let delivered = 0;
-    await Promise.allSettled(
-      subs.map(async (sub) => {
-        try {
-          const { status } = await send({ endpoint: sub.endpoint, keys: sub.keys }, bodyFor(sub.locale), options);
-          if (status >= 200 && status < 300) delivered += 1;
-          else if (status === 404 || status === 410) await dropEndpoint(db, sub.endpoint);
-          else log(`push ${payload.kind} answered ${status}`);
-        } catch (error) {
-          log('push send failed', error);
-        }
-      }),
-    );
+    // Порціями по 50, щоб розсилка всім не відкривала сотні з'єднань одразу.
+    for (let from = 0; from < subs.length; from += PUSH_CHUNK) {
+      await Promise.allSettled(
+        subs.slice(from, from + PUSH_CHUNK).map(async (sub) => {
+          try {
+            const { status } = await send({ endpoint: sub.endpoint, keys: sub.keys }, bodyFor(sub.locale), options);
+            if (status >= 200 && status < 300) delivered += 1;
+            else if (status === 404 || status === 410) await dropEndpoint(db, sub.endpoint);
+            else log(`push ${payload.kind} answered ${status}`);
+          } catch (error) {
+            log('push send failed', error);
+          }
+        }),
+      );
+    }
     return { sent: subs.length, delivered, failed: subs.length - delivered };
   }
 

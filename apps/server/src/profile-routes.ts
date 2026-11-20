@@ -23,8 +23,7 @@ const MAX_QUERY_LENGTH = 100;
 /** Перемикач «Ховати антидосягнення від інших» (12j). */
 const hideAntiSchema = z.object({ hide: z.boolean() }).strict();
 /** Перемикач «Легкий режим» (31). */
-const easySchema = z.object({ on: z.boolean() }).strict();
-const adminPushSchema = z.object({ on: z.boolean() }).strict();
+const onSchema = z.object({ on: z.boolean() }).strict();
 
 export async function registerProfileRoutes(app: FastifyInstance, deps: ProfileDeps): Promise<void> {
   const { db, currentUser } = deps;
@@ -73,7 +72,7 @@ export async function registerProfileRoutes(app: FastifyInstance, deps: ProfileD
   app.put('/api/me/easy', { config: { rateLimit: { max: 30, timeWindow: '1 minute' } } }, async (request, reply) => {
     const user = await currentUser(request);
     if (user === null) return reply.code(401).send(UNAUTHORIZED);
-    const body = easySchema.safeParse(request.body);
+    const body = onSchema.safeParse(request.body);
     if (!body.success) return reply.code(400).send({ error: 'invalid_payload' });
     const easyMode = await saveEasy(db, user.id, body.data.on);
     if (easyMode === null) return reply.code(404).send(NOT_FOUND);
@@ -83,7 +82,7 @@ export async function registerProfileRoutes(app: FastifyInstance, deps: ProfileD
   app.put('/api/me/admin-push', { config: { rateLimit: { max: 30, timeWindow: '1 minute' } } }, async (request, reply) => {
     const user = await currentUser(request);
     if (user === null) return reply.code(401).send(UNAUTHORIZED);
-    const body = adminPushSchema.safeParse(request.body);
+    const body = onSchema.safeParse(request.body);
     if (!body.success) return reply.code(400).send({ error: 'invalid_payload' });
     const adminPush = await saveAdminPush(db, user.id, body.data.on);
     if (adminPush === null) return reply.code(404).send(NOT_FOUND);

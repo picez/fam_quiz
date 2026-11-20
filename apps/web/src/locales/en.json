@@ -5039,7 +5039,8 @@
   "adminBroadcastShownGroup": "Group “{name}”",
   "adminBroadcastGroupGone": "The group was deleted",
   "adminBroadcastShownPeople": "Chosen: {names}",
-  "adminBroadcastCounts": "Delivered: {delivered}, failed: {failed}",
+  "adminBroadcastCounts": "Delivered to devices: {delivered}, failed: {failed}",
+  "adminBroadcastRecipients": "Recipients: {count}",
   "adminBroadcastSending": "Sending…",
   "adminBroadcastInterrupted": "Interrupted: the server restarted",
   "err_broadcast_too_soon": "No more than one broadcast every 10 minutes.",
@@ -5048,6 +5049,7 @@
   "err_push_off": "Notifications are not set up on the server.",
   "adminLog_push_broadcast": "{admin} sent the broadcast “{title}”, recipients: {count}",
   "adminPushLabel": "Announcements from the admins",
+  "adminPushToggle": "Receive them",
   "adminPushHint": "Rare notifications from the site admins: news and important changes. This switch does not affect any other notifications.",
   "adminPushSaveFailed": "Couldn't save it. Please try again."
 }

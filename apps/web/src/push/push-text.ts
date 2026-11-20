@@ -1,4 +1,4 @@
-import type { PushPayload } from '@quiz/shared';
+import { isAnnouncementUrl, type PushPayload } from '@quiz/shared';
 import { dayHeading, KYIV_ZONE, timeText } from '../calendar/calendar-time';
 import { pushLocale, pushStringsFor } from './push-strings';
 
@@ -14,7 +14,7 @@ export function pushNotice(payload: PushPayload, zone: string, now: Date = new D
   const locale = pushLocale(payload.locale);
   const t = pushStringsFor(locale);
   if (payload.kind === 'broadcast') {
-    return { title: payload.title, body: payload.text, url: payload.url ?? '/', tag: `broadcast-${payload.broadcastId}` };
+    return { title: payload.title, body: payload.text, url: payload.url !== null && isAnnouncementUrl(payload.url) ? payload.url : '/', tag: `broadcast-${payload.broadcastId}` };
   }
   const title = payload.title;
   if (payload.kind === 'bot') {

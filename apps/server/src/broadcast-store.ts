@@ -108,10 +108,8 @@ export async function createBroadcast(db: Db, args: { adminId: string; input: Br
     await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext('push_broadcast'))`);
     const limits = await broadcastLimits(tx, now);
     if (limits.nextAt !== null) {
-      // Спершу 10 хв (broadcast_too_soon), далі доба.
-      const [newest] = await tx.select({ at: pushBroadcast.createdAt }).from(pushBroadcast).orderBy(desc(pushBroadcast.createdAt)).limit(1);
-      const tooSoon = newest !== undefined && newest.at.getTime() + BROADCAST_GAP_MS > now.getTime();
-      return { ok: false, error: tooSoon ? 'broadcast_too_soon' : 'broadcast_day_limit', nextAt: limits.nextAt };
+      // Доба вичерпана — це й причина (nextAt тоді її кінець); інакше це 10 хв.
+      return { ok: false, error: limits.lastDay >= BROADCAST_DAY_MAX ? 'broadcast_day_limit' : 'broadcast_too_soon', nextAt: limits.nextAt };
     }
     const target = toOf(input.recipients);
     let groupName: string | null = null;

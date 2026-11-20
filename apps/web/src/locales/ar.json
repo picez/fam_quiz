@@ -5343,7 +5343,8 @@
   "adminBroadcastShownGroup": "المجموعة «{name}»",
   "adminBroadcastGroupGone": "حُذفت المجموعة",
   "adminBroadcastShownPeople": "المختارون: {names}",
-  "adminBroadcastCounts": "وصل: {delivered}، أخطاء: {failed}",
+  "adminBroadcastCounts": "وصل إلى الأجهزة: {delivered}، أخطاء: {failed}",
+  "adminBroadcastRecipients": "المستلمون: {count}",
   "adminBroadcastSending": "جارٍ الإرسال…",
   "adminBroadcastInterrupted": "توقف: أُعيد تشغيل الخادم",
   "err_broadcast_too_soon": "لا أكثر من إرسال واحد كل 10 دقائق.",
@@ -5352,6 +5353,7 @@
   "err_push_off": "الإشعارات غير مُعدّة على الخادم.",
   "adminLog_push_broadcast": "أرسل {admin} الإرسال الجماعي «{title}»، المستلمون: {count}",
   "adminPushLabel": "إعلانات المشرفين",
+  "adminPushToggle": "استلام",
   "adminPushHint": "إشعارات نادرة من مشرفي الموقع: أخبار وتغييرات مهمة. لا يؤثر هذا المفتاح على الإشعارات الأخرى.",
   "adminPushSaveFailed": "تعذّر الحفظ. حاول مرة أخرى."
 }

@@ -5115,7 +5115,8 @@
   "adminBroadcastShownGroup": "Gruppo «{name}»",
   "adminBroadcastGroupGone": "Il gruppo è stato eliminato",
   "adminBroadcastShownPeople": "Scelti: {names}",
-  "adminBroadcastCounts": "Consegnate: {delivered}, errori: {failed}",
+  "adminBroadcastCounts": "Consegnate ai dispositivi: {delivered}, errori: {failed}",
+  "adminBroadcastRecipients": "Destinatari: {count}",
   "adminBroadcastSending": "Invio in corso…",
   "adminBroadcastInterrupted": "Interrotto: il server si è riavviato",
   "err_broadcast_too_soon": "Non più di un invio ogni 10 minuti.",
@@ -5124,6 +5125,7 @@
   "err_push_off": "Le notifiche non sono configurate sul server.",
   "adminLog_push_broadcast": "{admin} ha inviato «{title}» a tutti, destinatari: {count}",
   "adminPushLabel": "Annunci degli amministratori",
+  "adminPushToggle": "Riceverli",
   "adminPushHint": "Rare notifiche dagli amministratori del sito: novità e cambiamenti importanti. Questo interruttore non tocca le altre notifiche.",
   "adminPushSaveFailed": "Salvataggio non riuscito. Riprova."
 }

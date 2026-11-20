@@ -193,9 +193,9 @@ describe('AdminBroadcast', () => {
     open();
     await screen.findByText('Історія розсилок');
     const card = (title: string) => screen.getByText(title).closest('li') as HTMLElement;
-    expect(within(card('Перша')).getByText('Доставлено: 5, помилок: 1')).toBeTruthy();
+    expect(within(card('Перша')).getByText('Доставлено на пристрої: 5, помилок: 1')).toBeTruthy();
     expect(within(card('Перша')).getByText('Усім')).toBeTruthy();
-    expect(within(card('Перша')).getByText('Отримають 6 людей')).toBeTruthy();
+    expect(within(card('Перша')).getByText('Адресатів: 6')).toBeTruthy();
     expect(within(card('Перша')).getByText('Оля')).toBeTruthy();
     expect(within(card('Друга')).getByText('Надсилається…')).toBeTruthy();
     expect(within(card('Третя')).getByText(/^Перервано/)).toBeTruthy();

@@ -5115,7 +5115,8 @@
   "adminBroadcastShownGroup": "Grupo «{name}»",
   "adminBroadcastGroupGone": "El grupo se eliminó",
   "adminBroadcastShownPeople": "Elegidos: {names}",
-  "adminBroadcastCounts": "Entregadas: {delivered}, errores: {failed}",
+  "adminBroadcastCounts": "Entregadas en dispositivos: {delivered}, errores: {failed}",
+  "adminBroadcastRecipients": "Destinatarios: {count}",
   "adminBroadcastSending": "Enviando…",
   "adminBroadcastInterrupted": "Interrumpida: el servidor se reinició",
   "err_broadcast_too_soon": "No más de una difusión cada 10 minutos.",
@@ -5124,6 +5125,7 @@
   "err_push_off": "Las notificaciones no están configuradas en el servidor.",
   "adminLog_push_broadcast": "{admin} envió la difusión «{title}», destinatarios: {count}",
   "adminPushLabel": "Anuncios de los administradores",
+  "adminPushToggle": "Recibirlos",
   "adminPushHint": "Notificaciones poco frecuentes de los administradores del sitio: novedades y cambios importantes. Este interruptor no afecta a las demás notificaciones.",
   "adminPushSaveFailed": "No se pudo guardar. Inténtalo de nuevo."
 }

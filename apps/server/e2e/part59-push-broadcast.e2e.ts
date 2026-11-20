@@ -3,7 +3,7 @@ import { resolve } from 'node:path';
 import { classicRound, makeRoundsQuiz, single } from '@quiz/engine/testing';
 import { type AdminBroadcasts, type PushPayload } from '@quiz/shared';
 import { eq } from 'drizzle-orm';
-import { type Page } from 'playwright-core';
+import { type Locator, type Page } from 'playwright-core';
 import { expect, it } from 'vitest';
 import webpush from 'web-push';
 import { adminEmails } from '../src/config';
@@ -46,6 +46,7 @@ const light = async (page: Page) => {
   await page.context().addInitScript(() => localStorage.setItem('quiz:theme', 'light'));
   return page;
 };
+const opacityOf = (button: Locator) => button.evaluate((el) => getComputedStyle(el).opacity);
 const isLight = (page: Page) => page.evaluate(() => document.documentElement.classList.contains('is-light'));
 /** Кадр лише видимої частини екрана 360 × 740: що бачить людина без прокручування. */
 const viewportShot = async (page: Page, name: string) => {
@@ -105,7 +106,7 @@ async function broadcast59() {
   for (const page of [petro, hanna]) await db.insert(groupMember).values({ groupId, userId: ids.get(page)!, role: 'member', joinedAt: new Date() });
 
   // ── 1. Ганна вимикає «Оголошення від адміністраторів»; після перезавантаження — вимкнено. ──
-  const adminPush = hanna.getByRole('checkbox', { name: 'Оголошення від адміністраторів', ...exact });
+  const adminPush = hanna.getByRole('checkbox', { name: 'Отримувати', ...exact });
   await hanna.goto(`${base}/profile/settings`);
   expect(await isLight(hanna)).toBe(true);
   await adminPush.waitFor();
@@ -163,11 +164,11 @@ async function broadcast59() {
       await history.waitFor();
       return history.innerText();
     }, { timeout: 15_000 })
-    .toContain('Доставлено: 1, помилок: 1');
+    .toContain('Доставлено на пристрої: 1, помилок: 1');
   const card = await history.innerText();
   expect(card).toContain(`Група «${GROUP}»`);
   expect(card).toContain('Адмін 59');
-  expect(card).toContain('Отримають 2 людини');
+  expect(card).toContain('Адресатів: 2');
   await history.scrollIntoViewIfNeeded();
   await view(admin, 'broadcast59-history-360');
 
@@ -178,7 +179,8 @@ async function broadcast59() {
   await expect.poll(() => audience.innerText(), POLL).toBe('Отримають 2 людини');
   await form.getByText(/^Наступну розсилку можна о \d{2}:\d{2}\.$/).waitFor();
   expect(await sendButton.isDisabled(), 'the send button during the 10-minute gap').toBe(true);
-  await form.scrollIntoViewIfNeeded();
+  await sendButton.scrollIntoViewIfNeeded();
+  expect(await opacityOf(sendButton), 'the disabled primary button is not faded (light)').toBe('1');
   await viewportShot(admin, 'broadcast59-limit-360');
   const before = outbox.length;
   const tooSoon = await admin.request.post(`${base}/api/admin/broadcasts`, { data: { title: 'Ще одна новина', text: 'Сьогодні ввечері — гра для всіх.', url: null, recipients: { kind: 'all' } } });
@@ -199,6 +201,11 @@ async function broadcast59() {
   await dark.locator('#broadcast-title').fill(TITLE);
   await dark.locator('#broadcast-text').fill(TEXT);
   await dark.locator('.broadcast-preview').waitFor();
+  const darkSend = dark.getByRole('button', { name: 'Надіслати', ...exact });
+  expect(await darkSend.isDisabled(), 'the send button is disabled in the dark theme too').toBe(true);
+  expect(await opacityOf(darkSend), 'the disabled primary button is not faded (dark)').toBe('1');
+  await darkSend.scrollIntoViewIfNeeded();
+  await viewportShot(dark, 'broadcast59-disabled-dark-360');
   await view(dark, 'broadcast59-form-dark-360');
   await dark.locator('section[aria-labelledby="broadcast-history"]').scrollIntoViewIfNeeded();
   await view(dark, 'broadcast59-history-dark-360');

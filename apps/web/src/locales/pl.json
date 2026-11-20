@@ -5138,7 +5138,8 @@
   "adminBroadcastShownGroup": "Grupa „{name}”",
   "adminBroadcastGroupGone": "Grupę usunięto",
   "adminBroadcastShownPeople": "Wybrani: {names}",
-  "adminBroadcastCounts": "Dostarczono: {delivered}, błędów: {failed}",
+  "adminBroadcastCounts": "Dostarczono na urządzenia: {delivered}, błędów: {failed}",
+  "adminBroadcastRecipients": "Odbiorców: {count}",
   "adminBroadcastSending": "Wysyłanie…",
   "adminBroadcastInterrupted": "Przerwano: serwer był restartowany",
   "err_broadcast_too_soon": "Nie częściej niż jedna rozsyłka na 10 minut.",
@@ -5147,6 +5148,7 @@
   "err_push_off": "Powiadomienia nie są skonfigurowane na serwerze.",
   "adminLog_push_broadcast": "{admin} wysłał(-a) rozsyłkę „{title}”, adresatów: {count}",
   "adminPushLabel": "Ogłoszenia od administratorów",
+  "adminPushToggle": "Otrzymuj je",
   "adminPushHint": "Rzadkie powiadomienia od administratorów strony: nowości i ważne zmiany. Ten przełącznik nie wpływa na inne powiadomienia.",
   "adminPushSaveFailed": "Nie udało się zapisać. Spróbuj jeszcze raz."
 }

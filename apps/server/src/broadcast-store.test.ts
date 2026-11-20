@@ -92,6 +92,8 @@ describe('createBroadcast and the history', () => {
     const day = await go(OLYA, at(100 * MIN));
     expect(day).toEqual({ ok: false, error: 'broadcast_day_limit', nextAt: at(24 * 60 * MIN).toISOString() });
     expect(await counts()).toEqual({ rows: 10, logs: 10 });
+    // Обидва ліміти разом: причина — доба, і час теж її.
+    expect(await go(OLYA, at(95 * MIN))).toEqual({ ok: false, error: 'broadcast_day_limit', nextAt: at(24 * 60 * MIN).toISOString() });
     expect((await go(OLYA, at(24 * 60 * MIN + 1))).ok).toBe(true);
   });
 
