@@ -291,7 +291,7 @@ function currentQuestion(state: GameState): Question | null {
 
 /** Ключ запитання для пульта; у «Пам'яті» до reveal без карток і seed (пульт часто видно залі), на reveal - пари без seed. */
 function hostKey(state: GameState, question: Question | null): Question | null {
-  if (question === null || question.type !== 'memory') return question === null ? null : withoutSpyWord(question);
+  if (question === null || question.type !== 'memory') return question === null ? null : withoutWordleText(withoutSpyWord(question));
   return state.phase === 'reveal' ? { ...question, seed: 0 } : { ...question, seed: 0, pairs: question.pairs.map(() => ({ a: { text: '' }, b: { text: '' } })) };
 }
 
@@ -340,6 +340,13 @@ function withoutThinkWords(question: Question): Question {
   return question.type === 'think' ? { ...question, words: [] } : question;
 }
 
+/** «Вгадай слово» (61, 45d): у грі лише сітка — текст автора й підказка лишаються в даних, але нікому не йдуть. */
+function withoutWordleText(question: Question): Question {
+  if (question.type !== 'wordle') return question;
+  const { hint: _hint, ...rest } = question;
+  return { ...rest, text: '' };
+}
+
 /** «Шпигун» (50): старе слово шпигуна (до 50) не грається й ніде не показується — мертвий секрет у кадрах, тож його немає ні в розкритті, ні в ключі пульта. */
 function withoutSpyWord(question: Question): Question {
   if (question.type !== 'spy' || question.spyWord === undefined) return question;
@@ -382,7 +389,7 @@ function publicQuestion(question: Question, presented: string[], clues: PublicCl
   const right = question.type === 'match' ? shown(question.pairs.map((pair) => pair.right)) : [];
   return {
     type: question.type,
-    text: question.text,
+    text: question.type === 'wordle' ? '' : question.text,
     imageUrl: question.imageUrl,
     timeLimit: isTimed(question) ? question.timeLimit : null,
     video: question.video,
@@ -3758,7 +3765,7 @@ export function playerView(state: GameState, playerId: string, now?: number): Pl
 
 function stageViewOf(state: GameState): StageView {
   const shown = isRevealed(state) ? shownQuestion(state) : null;
-  const revealed = shown === null ? null : withoutSpyWord(withoutThinkWords(withoutBluffSecrets(withoutSurveyRows(withoutHint(shown.question)))));
+  const revealed = shown === null ? null : withoutWordleText(withoutSpyWord(withoutThinkWords(withoutBluffSecrets(withoutSurveyRows(withoutHint(shown.question))))));
   return {
     ...base(state, false),
     role: 'stage',
@@ -4043,7 +4050,7 @@ function buildOwnView(state: GameState, playerId: string): Omit<PlayerView, 'tea
       // Командна гра: зріз спільний для команди, а апеляція людини (свій голос) — у playerView поверх нього.
       appeal: teamsOn(state) ? null : playerAppeal(state, playerId, playerId),
     },
-    reveal: revealed && seen !== null ? withoutSpyWord(withoutThinkWords(withoutBluffSecrets(withoutSurveyRows(withoutHint(seen.question))))) : null,
+    reveal: revealed && seen !== null ? withoutWordleText(withoutSpyWord(withoutThinkWords(withoutBluffSecrets(withoutSurveyRows(withoutHint(seen.question)))))) : null,
     standings,
     table: liveTable(state, playerId),
     // Свій банк у вікні «Ва-банк» видно собі, як і в liveTable.
