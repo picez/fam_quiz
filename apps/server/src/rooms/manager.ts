@@ -175,7 +175,7 @@ import {
   type Result,
   type TeamAct,
 } from '@quiz/engine';
-import { ANSWERER_PICKS_PER_SECOND, REACTION_GAP_MS, reactionAllowed, type Reaction, type ReactionItem, APPEAL_VOTES_PER_SECOND, AWAY_EVENTS_PER_SECOND, awayGapMs, draftQuestionType, DRAFTS_PER_SECOND, isAnswerDraft, isUnscored, SORT_TILT_GAP_MS, LIST_WORDS_PER_SECOND, MORELESS_PICKS_PER_SECOND, PUZZLE_BATCHES_PER_SECOND, JIGSAW_MOVES_PER_SECOND, SPOTDIFF_TAPS_PER_SECOND, MEMORY_FLIPS_PER_SECOND, DRAW_GUESSES_PER_SECOND, DRAW_OPS_PER_SECOND, type DrawingEvent, type DrawOp, type AckResult, type Answer, type MoreLessSide, type AnswererScope, type AppealReason, type BuffKind, type DebuffKind, type DraftValue, type DuelSide, type ErrorCode, type GameView, type Grade, type HostDrafts, type HostUndoTarget, type LifelineKind, type Phase, type PlayerView, type Question, type Quiz, type ResumeSetup, RESUME_POINTS_MAX, clamp, isObjectLike, type ContinuedView, type PlacedPrize, placedPrizeSchema, type SlotsResponse, type Role, type SortTilt, type SubmittedAnswer, type TeamForm, type ThinkWord, type ActivePerk, type NickLevel, type StickerExtra, stickerOpen, LIKE_RATE, type LikePayload, LOBBY_VISIBILITIES, lobbyPasswordSchema, type LobbySettings, type LobbyVisibility, type AchievementId, type HostLeagueView, type PlayerLeagueView, type GameXpMoment, BOT_ROOMS_MAX, BOT_USER_ID, isBotUser, type BotAction } from '@quiz/shared';
+import { ANSWERER_PICKS_PER_SECOND, REACTION_GAP_MS, reactionAllowed, type Reaction, type ReactionItem, APPEAL_VOTES_PER_SECOND, AWAY_EVENTS_PER_SECOND, awayGapMs, draftQuestionType, DRAFTS_PER_SECOND, isAnswerDraft, isUnscored, SORT_TILT_GAP_MS, LIST_WORDS_PER_SECOND, MORELESS_PICKS_PER_SECOND, PUZZLE_BATCHES_PER_SECOND, JIGSAW_MOVES_PER_SECOND, SPOTDIFF_TAPS_PER_SECOND, MEMORY_FLIPS_PER_SECOND, DRAW_GUESSES_PER_SECOND, DRAW_OPS_PER_SECOND, type DrawingEvent, type DrawOp, type AckResult, type Answer, type MoreLessSide, type AnswererScope, type AppealReason, type BuffKind, type DebuffKind, type DraftValue, type DuelSide, type ErrorCode, type GameView, type Grade, type HostDrafts, type HostUndoTarget, type LifelineKind, type Phase, type PlayerView, type Question, type Quiz, type ResumeSetup, RESUME_POINTS_MAX, clamp, isObjectLike, type ContinuedView, type PlacedPrize, placedPrizeSchema, type SlotsResponse, type Role, type SortTilt, type SubmittedAnswer, type TeamForm, type ThinkWord, type ActivePerk, type NickLevel, type StickerExtra, stickerOpen, LIKE_RATE, type LikePayload, LOBBY_VISIBILITIES, lobbyPasswordSchema, type LobbySettings, type LobbyVisibility, type AchievementId, type HostLeagueView, type PlayerLeagueView, type GameXpMoment, BOT_ROOMS_MAX, BOT_USER_ID, isBotUser, type BotAction, type BotCommand, BOT_TIME_SECONDS, type AdminBotLobby } from '@quiz/shared';
 import type { LeagueGameResult } from '../league-store';
 import type { LikeChange, LikeKey } from '../like-store';
 import { SAVED_GAME_VERSION, type ContinueResult, type RestartInput, type SavedGameData } from './continuation';
@@ -837,12 +837,15 @@ export class RoomManager {
 
   /**
    * Кімната бота (54): автопілот, чий ведучий — акаунт Квіз-бота, а автор (BOT_PLAYER_ID) не гравець; токена автора немає,
-   * лобі «Приховане» (open). Не більше BOT_ROOMS_MAX незавершених кімнат бота водночас; frozen → restarting.
+   * лобі «Для всіх» (open, 62), а listed false — «Приховане». Не більше BOT_ROOMS_MAX незавершених кімнат бота водночас; frozen → restarting.
    */
-  createBotRoom(quiz: Quiz, quizId: string): { ok: true; room: Room } | { ok: false; error: 'restarting' | 'bot_rooms_full' } {
+  createBotRoom(quiz: Quiz, quizId: string, listed = true): { ok: true; room: Room } | { ok: false; error: 'restarting' | 'bot_rooms_full' } {
     if (this.isFrozen) return { ok: false, error: 'restarting' };
     if (this.botRooms().filter((room) => room.state.phase !== 'finished').length >= BOT_ROOMS_MAX) return { ok: false, error: 'bot_rooms_full' };
-    return { ok: true, room: this.open(createBotGame(quiz, this.gameOptions(quiz)), BOT_USER_ID, quizId) };
+    const room = this.open(createBotGame(quiz, this.gameOptions(quiz)), BOT_USER_ID, quizId);
+    // До першого commit: подій не треба.
+    if (!listed) room.lobby = { ...room.lobby, visibility: 'hidden' };
+    return { ok: true, room };
   }
 
   private gameOptions(quiz: Quiz): { transitions: boolean; teamIds: string[] } {
@@ -850,7 +853,7 @@ export class RoomManager {
     return { transitions: this.transitions, teamIds: Array.from({ length: quiz.settings.teams?.count ?? 0 }, () => randomUUID()) };
   }
 
-  /** challenge — позначка спроби виклику (44): ставиться тут, до першого commit; лобі такої кімнати завжди «Прихована». */
+  /** challenge — позначка спроби виклику (44): ставиться тут, до першого commit; лобі такої кімнати завжди «Прихована»; кімната бота (62) — «Для всіх». */
   private open(state: GameState, hostUserId: string | null, quizId: string | null, id: string = randomUUID(), challenge: RoomChallenge | null = null): Room {
     const room: Room = {
       id,
@@ -883,7 +886,7 @@ export class RoomManager {
       awayCredit: new Set(),
       checkpoint: null,
       continued: null,
-      lobby: { visibility: hostUserId === null || challenge !== null || isBotUser(hostUserId) ? 'hidden' : 'friends', password: null, openedAt: this.now() },
+      lobby: { visibility: hostUserId === null || challenge !== null ? 'hidden' : isBotUser(hostUserId) ? 'all' : 'friends', password: null, openedAt: this.now() },
       challenge,
       league: null,
       leagueResult: null,
@@ -2462,16 +2465,45 @@ export class RoomManager {
   /**
    * Дія адміна в кімнаті бота (54): немає кімнати чи вона не бота → game_not_found; інакше як дія автора,
    * лише end у лобі закриває кімнату (end рушія там не діє), як closeHostedBy.
+   * 62: skip («Закрити запитання» ведучого), time (+BOT_TIME_SECONDS) і end-round — кроки рушія ведучого, лише не на паузі
+   * (пауза бота тримає hold 'author', а endRound знімає paused); автор-гравець звичайного автопілота їх не має (AUTHOR_ACTIONS).
    */
-  botAct(code: string, action: BotAction): AckResult {
+  botAct(code: string, action: BotAction | BotCommand): AckResult {
     const room = this.live.get(code);
     if (room === undefined || !isBotUser(room.hostUserId) || room.state.autopilot === undefined) return GONE;
     if (!this.alive(room)) return this.gone();
-    if (action === 'end' && room.state.phase === 'lobby') {
-      this.close(room);
-      return { ok: true };
+    const command: BotCommand = typeof action === 'string' ? { type: action } : action;
+    const state = room.state;
+    switch (command.type) {
+      case 'end':
+        if (state.phase !== 'lobby') return this.authorAct(room, null, { type: 'end' });
+        this.close(room);
+        return { ok: true };
+      case 'skip':
+      case 'time':
+      case 'end-round':
+        // Затримки 11b немає, як у authorAct.
+        if (state.paused) return { ok: false, error: 'paused' };
+        if (command.type === 'skip') return this.apply(room, lock(state, this.now()));
+        if (command.type === 'time') return this.apply(room, adjustTime(state, BOT_TIME_SECONDS, this.now()));
+        return this.apply(room, endRound(state, this.now()));
+      case 'start':
+      case 'pause':
+      case 'resume':
+        return this.authorAct(room, null, { type: command.type });
+      case 'kick':
+      case 'release':
+        return this.authorAct(room, null, { type: command.type, playerId: command.playerId });
+      case 'team-form':
+        return this.authorAct(room, null, { type: 'team-form', form: command.form });
     }
-    return this.authorAct(room, null, { type: action });
+  }
+
+  /** Лобі кімнати бота (62): немає кімнати чи вона не бота → game_not_found; інакше setLobby (лише лобі → wrong_phase, frozen → restarting). */
+  botLobby(code: string, input: AdminBotLobby): AckResult {
+    const room = this.live.get(code);
+    if (room === undefined || !isBotUser(room.hostUserId)) return GONE;
+    return this.setLobby(room, { visibility: input.listed ? 'all' : 'hidden', password: input.password });
   }
 
   /** Тіло дії автора (11g) для author і botAct; playerId — автор-гравець (null — адмін за бота), для kick/release. */

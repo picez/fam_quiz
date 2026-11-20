@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { isAuthor } from '@quiz/engine';
 import { classicRound, makeRoundsQuiz, single, text } from '@quiz/engine/testing';
-import type { Quiz } from '@quiz/shared';
+import { defaultTeams, type Quiz } from '@quiz/shared';
 import { FakeScheduler } from '../testing/fake-scheduler';
 import { likesView } from './likes';
 import { AUTOPILOT_EMPTY_MS, HOST_ABSENCE_MS, RoomManager, type Identity, type Room, type RoomEvent } from './manager';
@@ -16,8 +16,12 @@ function setup() {
   return { scheduler, manager, events };
 }
 
-function botRoom(manager: RoomManager): Room {
-  const created = manager.createBotRoom(quiz(), 'q-bot');
+// 62: запитання на 60 с — «+30 с» двічі доходить до межі 120 с.
+const slowQuiz = (): Quiz => makeRoundsQuiz([classicRound('r1', [{ ...single, timeLimit: 60 }, { ...text, timeLimit: 60 }])]);
+const teamQuiz = (): Quiz => makeRoundsQuiz([classicRound('r1', [{ ...single, timeLimit: 30 }])], { teams: defaultTeams(2) });
+
+function botRoom(manager: RoomManager, listed?: boolean, of: Quiz = quiz()): Room {
+  const created = manager.createBotRoom(of, 'q-bot', listed);
   if (!created.ok) throw new Error(created.error);
   return created.room;
 }
@@ -38,17 +42,20 @@ function playing(manager: RoomManager): { room: Room; olya: { playerId: string; 
 }
 
 describe('bot rooms (54)', () => {
-  it('a bot room has the bot as host, a hidden lobby and no seat', () => {
+  it('a bot room has the bot as host, a listed lobby and no seat', () => {
     const { manager } = setup();
     const room = botRoom(manager);
     expect(room.hostUserId).toBe('quiz-bot');
     expect(room.quizId).toBe('q-bot');
-    expect(room.lobby.visibility).toBe('hidden');
+    expect(room.lobby.visibility).toBe('all');
+    expect(room.lobby.password).toBeNull();
     expect(room.state.players).toEqual([]);
     expect(room.state.autopilot?.authorId).toBe('quiz-bot');
     expect(room.playerUsers.size).toBe(0);
     expect(room.playerTokens.size).toBe(0);
     expect(manager.botRooms()).toEqual([room]);
+    expect(botRoom(manager, false).lobby.visibility).toBe('hidden');
+    expect(botRoom(manager, true).lobby.visibility).toBe('all');
   });
 
   it('at most three unfinished bot rooms', () => {
@@ -173,7 +180,9 @@ describe('bot rooms (54)', () => {
 
   it('a restart keeps the bot room', () => {
     const { manager } = setup();
-    const { room } = playing(manager);
+    const room = botRoom(manager, false);
+    enter(manager, room, 'Оля', 'u-olya');
+    expect(manager.botAct(room.code, 'start')).toEqual({ ok: true });
     const saved = manager.snapshot(room);
     const next = setup().manager;
     const back = next.restore(saved);
@@ -182,5 +191,120 @@ describe('bot rooms (54)', () => {
     expect(back!.state.autopilot?.authorId).toBe('quiz-bot');
     expect(back!.lobby.visibility).toBe('hidden');
     expect(next.botRooms()).toEqual([back]);
+    // 62: видима кімната після відновлення — і далі видима.
+    const listed = playing(manager).room;
+    expect(next.restore(manager.snapshot(listed))!.lobby.visibility).toBe('all');
+  });
+});
+
+function toQuestion(scheduler: FakeScheduler, room: Room): void {
+  for (let i = 0; i < 20 && room.state.phase !== 'question'; i++) scheduler.advance(1000);
+  expect(room.state.phase).toBe('question');
+}
+
+function slowPlaying(manager: RoomManager, scheduler: FakeScheduler): Room {
+  const room = botRoom(manager, true, slowQuiz());
+  enter(manager, room, 'Оля', 'u-olya');
+  expect(manager.botAct(room.code, 'start')).toEqual({ ok: true });
+  toQuestion(scheduler, room);
+  return room;
+}
+
+describe('bot room controls (62)', () => {
+  it('the bot lobby takes a password and visibility, only in the lobby', () => {
+    const { manager } = setup();
+    const room = botRoom(manager);
+    expect(manager.botLobby(room.code, { listed: false, password: 'сова62' })).toEqual({ ok: true });
+    expect(room.lobby.visibility).toBe('hidden');
+    expect(room.lobby.password).toBe('сова62');
+    expect(manager.botLobby(room.code, { listed: true, password: null })).toEqual({ ok: true });
+    expect(room.lobby).toMatchObject({ visibility: 'all', password: null });
+    enter(manager, room, 'Оля');
+    expect(manager.botAct(room.code, 'start')).toEqual({ ok: true });
+    expect(manager.botLobby(room.code, { listed: false, password: null })).toEqual({ ok: false, error: 'wrong_phase' });
+    expect(room.lobby.visibility).toBe('all');
+    const hosted = manager.create(quiz(), 'u1', 'q1');
+    expect(manager.botLobby(hosted.code, { listed: true, password: null })).toEqual({ ok: false, error: 'game_not_found' });
+    expect(manager.botLobby('999999', { listed: true, password: null })).toEqual({ ok: false, error: 'game_not_found' });
+  });
+
+  it('skip closes the open question and the autopilot goes on', () => {
+    const { manager, scheduler } = setup();
+    const room = slowPlaying(manager, scheduler);
+    expect(manager.botAct(room.code, 'skip')).toEqual({ ok: true });
+    expect(room.state.phase).toBe('locked');
+    expect(manager.botAct(room.code, 'skip')).toEqual({ ok: false, error: 'wrong_phase' });
+    expect(manager.botAct(room.code, { type: 'skip' })).toEqual({ ok: false, error: 'wrong_phase' });
+    // Автопілот іде далі сам: розкриття, потім наступне запитання.
+    for (let i = 0; i < 60 && room.state.questionIndex === 0; i++) scheduler.advance(1000);
+    expect(room.state.questionIndex).toBe(1);
+  });
+
+  it('+30 s adds thirty seconds, within the 120 s cap', () => {
+    const { manager, scheduler } = setup();
+    const room = slowPlaying(manager, scheduler);
+    const before = room.state.endsAt!;
+    expect(manager.botAct(room.code, 'time')).toEqual({ ok: true });
+    expect(room.state.endsAt).toBe(before + 30_000);
+    const more = [1, 2, 3].map(() => manager.botAct(room.code, 'time'));
+    expect(more.at(-1)).toEqual({ ok: false, error: 'time_limit' });
+  });
+
+  it('end round ends the round', () => {
+    const { manager, scheduler } = setup();
+    const room = slowPlaying(manager, scheduler);
+    expect(manager.botAct(room.code, 'end-round')).toEqual({ ok: true });
+    expect(['round_end', 'finished']).toContain(room.state.phase);
+  });
+
+  it('skip, time and end round wait while the bot room is paused', () => {
+    const { manager, scheduler } = setup();
+    const room = slowPlaying(manager, scheduler);
+    expect(manager.botAct(room.code, 'pause')).toEqual({ ok: true });
+    for (const action of ['skip', 'time', 'end-round'] as const) expect(manager.botAct(room.code, action), action).toEqual({ ok: false, error: 'paused' });
+    expect(room.state.paused).toBe(true);
+    expect(room.state.phase).toBe('question');
+    expect(room.state.autopilot?.hold).toBe('author');
+  });
+
+  it('kick removes a player, also a member without a team in the lobby', () => {
+    const { manager, events } = setup();
+    const room = botRoom(manager);
+    const olya = enter(manager, room, 'Оля');
+    enter(manager, room, 'Петро');
+    events.length = 0;
+    expect(manager.botAct(room.code, { type: 'kick', playerId: olya.playerId })).toEqual({ ok: true });
+    expect(room.state.players.map((p) => p.nickname)).toEqual(['Петро']);
+    expect(events.some((e) => e.event.type === 'kicked' && e.event.playerId === olya.playerId)).toBe(true);
+    expect(manager.botAct(room.code, { type: 'kick', playerId: 'nobody' })).toEqual({ ok: false, error: 'not_found' });
+
+    const teams = botRoom(manager, true, teamQuiz());
+    const ira = enter(manager, teams, 'Іра');
+    expect(teams.state.teams!.members.find((m) => m.id === ira.playerId)?.teamId ?? null).toBeNull();
+    expect(manager.botAct(teams.code, { type: 'kick', playerId: ira.playerId })).toEqual({ ok: true });
+    expect(teams.state.teams!.members).toEqual([]);
+    expect(manager.botAct(teams.code, { type: 'kick', playerId: 'nobody' })).toEqual({ ok: false, error: 'not_found' });
+  });
+
+  it('release needs a continued game', () => {
+    const { manager } = setup();
+    const { room, olya } = playing(manager);
+    expect(manager.botAct(room.code, { type: 'release', playerId: olya.playerId })).toEqual({ ok: false, error: 'not_allowed' });
+  });
+
+  it('team form is the author\'s choice', () => {
+    const { manager } = setup();
+    const room = botRoom(manager, true, teamQuiz());
+    expect(manager.botAct(room.code, { type: 'team-form', form: 'dice' })).toEqual({ ok: true });
+    expect(room.state.teams!.form).toBe('dice');
+  });
+
+  it('a plain autopilot author still cannot skip', () => {
+    const { manager } = setup();
+    const pilot = manager.createAutopilot(quiz(), 'u-marta', 'q2', 'Марта');
+    if (!pilot.ok) throw new Error(pilot.error);
+    expect(manager.author(pilot.room, pilot.playerId, { type: 'lock' })).toEqual({ ok: false, error: 'not_allowed' });
+    expect(manager.author(pilot.room, pilot.playerId, { type: 'end-round' })).toEqual({ ok: false, error: 'not_allowed' });
+    expect(manager.author(pilot.room, pilot.playerId, { type: 'time', seconds: 15 })).toEqual({ ok: false, error: 'not_allowed' });
   });
 });
