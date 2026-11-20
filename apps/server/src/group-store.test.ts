@@ -412,14 +412,34 @@ describe('hidden groups (63)', () => {
     expect(await membership(db, id, taras)).toBe('member');
   });
 
-  it('hidden groups still count toward the ten groups of a person', async () => {
+  it('a hidden group does not take one of the ten group slots', async () => {
     const { setGroupHidden } = await import('./moderation-store');
     const admin = await person('Адмін');
     const busy = await person('Дана');
     const first = await newGroup(busy);
     for (let i = 1; i < 10; i++) await newGroup(busy);
+    expect(await createGroup(db, busy, kvitkovi, later(1))).toEqual({ ok: false, error: 'too_many_groups' });
     await setGroupHidden(db, { adminId: admin, groupId: first, hidden: true, reason: null, now: later(1) });
-    expect(await createGroup(db, busy, kvitkovi, later(2))).toEqual({ ok: false, error: 'too_many_groups' });
+    expect(await createGroup(db, busy, kvitkovi, later(2))).toMatchObject({ ok: true });
     expect((await listGroups(db, busy)).groups.find((g) => g.id === first)).toMatchObject({ hidden: { reason: null } });
+    // Після відновлення людина може бути в 11 групах — так і задумано; нову вже не створить.
+    await setGroupHidden(db, { adminId: admin, groupId: first, hidden: false, reason: null, now: later(3) });
+    expect((await listGroups(db, busy)).groups).toHaveLength(11);
+    expect(await createGroup(db, busy, kvitkovi, later(4))).toEqual({ ok: false, error: 'too_many_groups' });
+  });
+
+  it('a member may leave a hidden group, its owner may not leave, delete or pass it on', async () => {
+    const { setGroupHidden } = await import('./moderation-store');
+    const admin = await person('Адмін');
+    const olia = await person('Оля');
+    const petro = await person('Петро');
+    const id = await newGroup(olia);
+    await joinByCode(db, await codeOf(id), petro, later(1));
+    await setGroupHidden(db, { adminId: admin, groupId: id, hidden: true, reason: null, now: later(2) });
+    expect(await leaveGroup(db, id, olia)).toEqual({ ok: false, error: 'owner_must_transfer' });
+    expect(await leaveGroup(db, id, petro)).toEqual({ ok: true });
+    await setGroupHidden(db, { adminId: admin, groupId: id, hidden: false, reason: null, now: later(3) });
+    expect(await membership(db, id, petro)).toBeNull();
+    expect(await membership(db, id, olia)).toBe('owner');
   });
 });

@@ -35,6 +35,7 @@ import {
   membership,
   refreshCode,
   removeMember,
+  roleIn,
   transferOwner,
   updateGroup,
 } from './group-store';
@@ -215,9 +216,14 @@ export async function registerGroupRoutes(app: FastifyInstance, deps: GroupDeps)
   });
 
   app.post<GroupParams>('/api/groups/:id/leave', write, async (request, reply) => {
-    const ok = await member(request, reply);
-    if (ok === null) return reply;
-    const left = await leaveGroup(db, ok.groupId, ok.user.id);
+    const user = await signedIn(request, reply);
+    if (user === null) return reply;
+    const groupId = request.params.id;
+    // 63: з прихованої групи учасник вийти може (вона не займає місця, але й не тримає); власник — ні, як і досі (404).
+    const role = UUID.test(groupId) ? await membership(db, groupId, user.id) : null;
+    const hiddenMember = role === null && UUID.test(groupId) && (await roleIn(db, groupId, user.id)) === 'member';
+    if (role === null && !hiddenMember) return reply.code(404).send(GROUP_NOT_FOUND);
+    const left = await leaveGroup(db, groupId, user.id);
     if (!left.ok) return fail(reply, left.error);
     return reply.code(204).send();
   });

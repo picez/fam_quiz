@@ -385,4 +385,23 @@ describe('hidden groups through the routes (63)', () => {
     await setGroupHidden(db, { adminId: olia.id, groupId: id, hidden: false, reason: null, now: new Date() });
     expect((await call('GET', `/api/groups/${id}`, petro.cookie)).statusCode).toBe(200);
   });
+
+  it('a member may leave a hidden group; its owner can not leave, delete or pass it on', async () => {
+    const { setGroupHidden } = await import('./moderation-store');
+    const { olia, petro, id } = await family();
+    await setGroupHidden(db, { adminId: olia.id, groupId: id, hidden: true, reason: null, now: new Date() });
+    const at = (rest: string) => `/api/groups/${id}${rest}`;
+    for (const [method, url, payload] of [
+      ['POST', at('/leave'), undefined],
+      ['DELETE', at(''), undefined],
+      ['POST', at('/owner'), { userId: petro.id }],
+    ] as const) {
+      const got = await call(method, url, olia.cookie, payload);
+      expect([got.statusCode, got.json()]).toEqual([404, { error: 'group_not_found' }]);
+    }
+    expect((await call('POST', at('/leave'), petro.cookie)).statusCode).toBe(204);
+    await setGroupHidden(db, { adminId: olia.id, groupId: id, hidden: false, reason: null, now: new Date() });
+    expect((await call('GET', at(''), petro.cookie)).statusCode).toBe(404);
+    expect((await call('GET', at(''), olia.cookie)).statusCode).toBe(200);
+  });
 });

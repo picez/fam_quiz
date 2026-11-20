@@ -139,8 +139,13 @@ async function lockPerson(tx: Tx, userId: string): Promise<void> {
   await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${`groups:${userId}`}))`);
 }
 
+/** Групи людини для межі в 10; прихована адміністратором не займає місця (63; після відновлення може стати 11). */
 async function groupsOf(db: Db | Tx, userId: string): Promise<number> {
-  const [row] = await db.select({ n: count() }).from(groupMember).where(eq(groupMember.userId, userId));
+  const [row] = await db
+    .select({ n: count() })
+    .from(groupMember)
+    .innerJoin(familyGroup, eq(familyGroup.id, groupMember.groupId))
+    .where(and(eq(groupMember.userId, userId), groupShown));
   return Number(row?.n ?? 0);
 }
 
