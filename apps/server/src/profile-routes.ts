@@ -9,7 +9,7 @@ import type { Db } from './db/client';
 import { givenLikes, receivedLikes } from './like-store';
 import { versusOf } from './versus';
 import { saveLooks, stickerAccessOne } from './xp-store';
-import { ensureProfile, favoriteStickers, findByNickname, friendsOf, ownProfile, publicProfile, saveEasy, saveFavoriteStickers, saveLocale, saveProfile, searchProfiles, setFollow } from './profiles';
+import { ensureProfile, favoriteStickers, findByNickname, friendsOf, ownProfile, publicProfile, saveAdminPush, saveEasy, saveFavoriteStickers, saveLocale, saveProfile, searchProfiles, setFollow } from './profiles';
 
 export interface ProfileDeps {
   db: Db;
@@ -24,6 +24,7 @@ const MAX_QUERY_LENGTH = 100;
 const hideAntiSchema = z.object({ hide: z.boolean() }).strict();
 /** Перемикач «Легкий режим» (31). */
 const easySchema = z.object({ on: z.boolean() }).strict();
+const adminPushSchema = z.object({ on: z.boolean() }).strict();
 
 export async function registerProfileRoutes(app: FastifyInstance, deps: ProfileDeps): Promise<void> {
   const { db, currentUser } = deps;
@@ -77,6 +78,16 @@ export async function registerProfileRoutes(app: FastifyInstance, deps: ProfileD
     const easyMode = await saveEasy(db, user.id, body.data.on);
     if (easyMode === null) return reply.code(404).send(NOT_FOUND);
     return { easyMode };
+  });
+
+  app.put('/api/me/admin-push', { config: { rateLimit: { max: 30, timeWindow: '1 minute' } } }, async (request, reply) => {
+    const user = await currentUser(request);
+    if (user === null) return reply.code(401).send(UNAUTHORIZED);
+    const body = adminPushSchema.safeParse(request.body);
+    if (!body.success) return reply.code(400).send({ error: 'invalid_payload' });
+    const adminPush = await saveAdminPush(db, user.id, body.data.on);
+    if (adminPush === null) return reply.code(404).send(NOT_FOUND);
+    return { adminPush };
   });
 
   app.put('/api/me/looks', { config: { rateLimit: { max: 30, timeWindow: '1 minute' } } }, async (request, reply) => {

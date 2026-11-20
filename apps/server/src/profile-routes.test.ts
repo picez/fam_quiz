@@ -470,3 +470,26 @@ describe('achievement shares route (49)', () => {
     expect(typeof body.holders).toBe('object');
   });
 });
+
+describe('admin announcements in the profile (59)', () => {
+  it('admin announcements are on by default and can be switched off', async () => {
+    const yana = await signUp(ctx.app, 'Яна');
+    expect((await request('GET', '/api/me', yana.cookie)).json().adminPush).toBe(true);
+    const off = await request('PUT', '/api/me/admin-push', yana.cookie, { on: false });
+    expect(off.statusCode).toBe(200);
+    expect(off.json()).toEqual({ adminPush: false });
+    expect((await request('GET', '/api/me', yana.cookie)).json().adminPush).toBe(false);
+    const on = await request('PUT', '/api/me/admin-push', yana.cookie, { on: true });
+    expect(on.json()).toEqual({ adminPush: true });
+    expect((await request('GET', '/api/me', yana.cookie)).json().adminPush).toBe(true);
+  });
+
+  it('needs a session and a plain { on: boolean }', async () => {
+    expect((await request('PUT', '/api/me/admin-push', undefined, { on: false })).statusCode).toBe(401);
+    for (const body of [{ on: 'no' }, { on: false, x: 1 }, {}]) {
+      const response = await request('PUT', '/api/me/admin-push', olena.cookie, body);
+      expect(response.statusCode).toBe(400);
+      expect(response.json()).toEqual({ error: 'invalid_payload' });
+    }
+  });
+});

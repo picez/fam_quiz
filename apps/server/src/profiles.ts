@@ -330,6 +330,19 @@ export async function saveEasy(db: Db, userId: string, on: boolean): Promise<boo
   return row?.easyMode ?? null;
 }
 
+/** «Оголошення від адміністраторів» (59) з профілю; немає профілю — увімкнено. */
+export async function profileAdminPush(db: Db, userId: string): Promise<boolean> {
+  const [row] = await db.select({ adminPush: profile.adminPush }).from(profile).where(eq(profile.userId, userId));
+  return row?.adminPush ?? true;
+}
+
+/** Зберігає «Оголошення від адміністраторів» (59), як saveEasy; null — профілю не створити (немає користувача). */
+export async function saveAdminPush(db: Db, userId: string, on: boolean): Promise<boolean | null> {
+  if ((await ensureProfile(db, userId)) === null) return null;
+  const [row] = await db.update(profile).set({ adminPush: on }).where(eq(profile.userId, userId)).returning({ adminPush: profile.adminPush });
+  return row?.adminPush ?? null;
+}
+
 /** Зберігає мову; профілю ще немає — його створює ensureProfile. false — профілю не створити (немає користувача). */
 export async function saveLocale(db: Db, userId: string, locale: Locale): Promise<boolean> {
   if ((await ensureProfile(db, userId)) === null) return false;
