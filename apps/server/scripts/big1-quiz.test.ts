@@ -176,7 +176,7 @@ describe('the big «Велика гра І» quiz', () => {
     const norm = (s: string) => key(s).replace(/[«»"'.,!?]/g, '');
     const leaks: string[] = [];
     // Справи «хто бреше / хто винен»: підозрюваних неминуче названо в умові.
-    const named = ['Пана Грея', 'Ігор, Петро й Сашко', 'Фінальна справа'];
+    const named = ['Із сейфа пана Левка','Ігор, Петро й Сашко', 'Фінальна справа'];
     for (const q of everything) {
       if (named.some((p) => q.text.startsWith(p))) continue;
       const where = norm(`${q.text} ${q.hint ?? ''} ${q.type === 'clues' ? q.clues.join(' ') : ''}`);
