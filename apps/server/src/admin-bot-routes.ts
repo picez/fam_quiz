@@ -1,4 +1,19 @@
-import { BOT_ACTIONS, BOT_PLANS_MAX, BOT_ROOMS_MAX, BOT_USER_ID, adminBotCopySchema, type AdminBot, type AdminBotRoom, type AdminBotStatus, type BotAction } from '@quiz/shared';
+import { memberOf, teamsOn } from '@quiz/engine';
+import {
+  BOT_COMMAND_TYPES,
+  BOT_PLANS_MAX,
+  BOT_ROOMS_MAX,
+  BOT_USER_ID,
+  adminBotCopySchema,
+  adminBotLobbySchema,
+  botCommandSchema,
+  type AdminActionKind,
+  type AdminBot,
+  type AdminBotRoom,
+  type AdminBotRoomPerson,
+  type AdminBotStatus,
+  type BotCommand,
+} from '@quiz/shared';
 import { eq } from 'drizzle-orm';
 import type { FastifyInstance, FastifyRequest, RouteShorthandOptions } from 'fastify';
 import type { CurrentUser } from './account-routes';
@@ -35,9 +50,34 @@ function botStatus(room: Room): AdminBotStatus {
   return paused ? 'paused' : 'playing';
 }
 
+/** Рядок журналу для кожної успішної дії адміна в кімнаті бота (62). */
+const BOT_ROOM_LOG: Record<BotCommand['type'], AdminActionKind> = {
+  start: 'bot_room_start',
+  pause: 'bot_room_pause',
+  resume: 'bot_room_resume',
+  end: 'bot_room_end',
+  skip: 'bot_room_skip',
+  time: 'bot_room_time',
+  'end-round': 'bot_room_end_round',
+  kick: 'bot_room_kick',
+  release: 'bot_room_release',
+  'team-form': 'bot_room_teams',
+};
+
+/** Картка кімнати бота: нічого із запитань і відповідей — лише прапорець відкритого запитання. */
 function botRoomView(room: Room): AdminBotRoom {
-  const online = room.state.players.filter((p) => (room.connections.get(p.id) ?? 0) > 0).length;
+  const { state } = room;
+  const isOnline = (id: string) => (room.connections.get(id) ?? 0) > 0;
+  const online = state.players.filter((p) => isOnline(p.id)).length;
+  const people: AdminBotRoomPerson[] = teamsOn(state)
+    ? state.teams.members.map((m) => ({ id: m.id, nickname: m.nickname, online: isOnline(m.id), team: state.teams.list.find((t) => t.id === m.teamId)?.name ?? null }))
+    : state.players.map((p) => ({ id: p.id, nickname: p.nickname, online: isOnline(p.id), team: null }));
   return {
+    question: state.phase === 'question',
+    lobby: { listed: room.lobby.visibility !== 'hidden', password: room.lobby.password },
+    people,
+    teams: teamsOn(state) ? { form: state.teams.form } : null,
+    continued: room.continued !== null,
     code: room.code,
     title: room.state.quiz.title,
     status: botStatus(room),
@@ -115,11 +155,59 @@ export async function registerAdminBotRoutes(app: FastifyInstance, deps: AdminDe
     const me = await adminOf(request);
     if (me === null) return reply.code(404).send(NOT_FOUND);
     const { code, action } = request.params;
-    if (!ROOM_CODE.test(code) || !(BOT_ACTIONS as readonly string[]).includes(action)) return reply.code(404).send(NOT_FOUND);
+    if (!ROOM_CODE.test(code) || !(BOT_COMMAND_TYPES as readonly string[]).includes(action)) return reply.code(404).send(NOT_FOUND);
     if (manager.frozen) return reply.code(503).send(RESTARTING);
-    const done = manager.botAct(code, action as BotAction);
-    if (done.ok) return reply.code(204).send();
-    return done.error === 'game_not_found' ? reply.code(404).send(NOT_FOUND) : reply.code(409).send({ error: done.error });
+    const raw = typeof request.body === 'object' && request.body !== null && !Array.isArray(request.body) ? request.body : {};
+    const parsed = botCommandSchema.safeParse({ ...raw, type: action });
+    if (!parsed.success) return reply.code(400).send(INVALID);
+    const command = parsed.data;
+    const room = manager.get(code);
+    // Нік людини — до дії: після вилучення її в кімнаті вже немає.
+    let text: string | undefined;
+    if (room !== undefined && (command.type === 'kick' || command.type === 'release')) {
+      const { state } = room;
+      const who = teamsOn(state) ? memberOf(state, command.playerId) : state.players.find((p) => p.id === command.playerId);
+      text = who?.nickname;
+    }
+    const done = manager.botAct(code, command);
+    if (!done.ok) return done.error === 'game_not_found' ? reply.code(404).send(NOT_FOUND) : reply.code(409).send({ error: done.error });
+    await logAction(db, {
+      adminId: me.id,
+      kind: BOT_ROOM_LOG[command.type],
+      targetUserId: BOT_USER_ID,
+      details: { title: room?.state.quiz.title, code, ...(text === undefined ? {} : { text }) },
+      now: now(),
+    });
+    return reply.code(204).send();
+  });
+
+  app.put<{ Params: { code: string } }>('/api/admin/bot/rooms/:code/lobby', write, async (request, reply) => {
+    const me = await adminOf(request);
+    if (me === null) return reply.code(404).send(NOT_FOUND);
+    const { code } = request.params;
+    if (!ROOM_CODE.test(code)) return reply.code(404).send(NOT_FOUND);
+    if (manager.frozen) return reply.code(503).send(RESTARTING);
+    const body = adminBotLobbySchema.safeParse(request.body ?? {});
+    if (!body.success) return reply.code(400).send(INVALID);
+    const room = manager.get(code);
+    const before = room === undefined ? null : { listed: room.lobby.visibility !== 'hidden', password: room.lobby.password };
+    const done = manager.botLobby(code, body.data);
+    if (!done.ok) {
+      if (done.error === 'game_not_found') return reply.code(404).send(NOT_FOUND);
+      return reply.code(done.error === 'restarting' ? 503 : 409).send({ error: done.error });
+    }
+    const { listed, password } = body.data;
+    const changed = before === null || before.listed !== listed || before.password !== password;
+    if (changed) {
+      await logAction(db, {
+        adminId: me.id,
+        kind: 'bot_room_lobby',
+        targetUserId: BOT_USER_ID,
+        details: { title: room?.state.quiz.title, code, listed, locked: password !== null },
+        now: now(),
+      });
+    }
+    return reply.code(200).send({ listed, password });
   });
 
   await registerAdminBotScheduleRoutes(app, deps, guards);
