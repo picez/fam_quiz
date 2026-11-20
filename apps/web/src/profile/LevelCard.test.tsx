@@ -14,12 +14,14 @@ const at16: OwnLevel = {
   unlocked: rewardsUpTo(16).map((r) => ({ level: r.level, reward: r.reward, at: null })),
   next: nextRewards(16).slice(0, 3),
   looks: { color: null, frame: null, badge: null, photo: null, font: null, effect: null },
+  adminXp: [],
 };
 const level: OwnLevel = {
   progress: levelProgress(600),
   unlocked: rewardsUpTo(3).map((r, i) => ({ level: r.level, reward: r.reward, at: i === 0 ? null : '2026-10-12T12:00:00.000Z' })),
   next: nextRewards(3).slice(0, 3),
   looks: { color: null, frame: null, badge: null, photo: null, font: null, effect: null },
+  adminXp: [],
 };
 
 beforeEach(() => {

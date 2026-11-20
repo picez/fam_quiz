@@ -1,6 +1,7 @@
 import { useEffect, useRef, type JSX } from 'react';
 import { LEVEL_REWARDS, LEVEL_REWARDS_TOP, type LevelReward, type NickFont, type NickLevel, type OwnProfile } from '@quiz/shared';
-import { num } from '../../format';
+import { signedXp } from '../../admin/admin-text';
+import { formatDate, num } from '../../format';
 import { t } from '../../i18n';
 import { loadNickFont } from '../../nick-fonts';
 import { reducedMotion } from '../../motion';
@@ -71,6 +72,18 @@ function LevelMap({ profile }: { profile: OwnProfile }): JSX.Element {
   return (
     <>
       <LevelBar progress={progress} />
+      {profile.level.adminXp.length > 0 && (
+        <section className="level-admin-xp">
+          <h3>{t('levelAdminTitle')}</h3>
+          <ul>
+            {profile.level.adminXp.map((line, at) => (
+              <li key={at}>
+                <strong>{signedXp(line.amount)}</strong> <span>{t('levelAdminLine', { note: line.note })}</span> <span className="meta">{formatDate(line.at)}</span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
       <ol className="level-map">
         {Array.from({ length: LEVEL_REWARDS_TOP }, (_, index) => {
           const level = index + 1;

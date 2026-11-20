@@ -79,8 +79,9 @@ describe('AdminUsers', () => {
 const detail = (over: Partial<AdminUserDetail> = {}): AdminUserDetail => ({
   user: row({}),
   stock: [{ id: 'p1', content, status: 'free', createdAt: '2026-10-02T10:00:00.000Z' }],
-  awards: [{ id: 'a1', place: 1, content, quizTitle: 'Карпати', awardedAt: '2026-10-03T10:00:00.000Z' }],
+  awards: [{ id: 'a1', place: 1, content, quizTitle: 'Карпати', awardedAt: '2026-10-03T10:00:00.000Z', gift: null }],
   title: null,
+  card: { overview: { avatar: null, registeredAt: '2026-09-01T10:00:00.000Z', lastSeenAt: null, level: 1, xp: 0, games: 0, wins: 0, quizzes: 0, friends: 0, groups: 0 }, achievements: [], blocked: [], games: [], quizzes: [], bans: [], xp: [] },
   ...over,
 });
 

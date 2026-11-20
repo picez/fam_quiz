@@ -23,6 +23,7 @@ export function feedText(data: FeedData, zone: string = viewerZone()): string {
     case 'level':
       return t('feedLevel', { level: data.level });
     case 'prize':
+      if (data.gift === true) return t('feedPrizeGift', { name: data.name });
       return (
         t('feedPrize', { name: data.name, place: data.place, title: data.title }) +
         (data.nickTitle === null ? '' : t('feedPrizeTitle', { nickTitle: data.nickTitle }))

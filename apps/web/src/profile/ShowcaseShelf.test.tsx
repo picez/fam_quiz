@@ -21,6 +21,7 @@ const award = (id: string, over: Omit<Partial<AwardCard>, 'content'> & { content
   quizTitle: `Вікторина ${id}`,
   nickname: 'Оля',
   awardedAt: '2026-10-30T10:00:00.000Z',
+  gift: null,
   ...over,
   content: { trophy: { kind: 'cup', material: 'gold' }, engraving: null, real: null, title: null, diploma: false, ...over.content },
 });

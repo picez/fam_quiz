@@ -27,6 +27,7 @@ const mine = {
     unlocked: [{ level: 2, reward: LEVEL_REWARDS.find((r) => r.level === 2)!.reward, at: '2026-11-04T12:00:00.000Z' }],
     next: [],
     looks: { color: null, frame: null, badge: null, photo: null, font: null, effect: null },
+    adminXp: [],
   },
   achievements: ACHIEVEMENTS.map((id) => ({ id, earned: false, earnedAt: null })),
 } as unknown as OwnProfile;
@@ -115,6 +116,24 @@ describe('ProfileLevels', () => {
     expect(art.querySelector('.nick-name')?.textContent).toBe('Ол');
     const photo = LEVEL_REWARDS.find((row) => row.reward.kind === 'photo');
     if (photo !== undefined) expect(rows()[photo.level - 1]!.querySelector('.reward-art .avatar-small')).toBeTruthy();
+  });
+
+  it('shows the manual experience from the administrator with its sign and reasons; no section when there is none', async () => {
+    vi.mocked(getMyProfile).mockResolvedValue({
+      ok: true,
+      data: { ...mine, level: { ...mine.level, adminXp: [{ amount: 300, note: 'Допомога з вікториною', at: '2026-11-05T10:00:00.000Z' }, { amount: -50, note: 'Помилка', at: '2026-11-04T10:00:00.000Z' }] } } as OwnProfile,
+    });
+    await open();
+    const section = screen.getByRole('heading', { name: 'Від адміністратора' }).closest('section')!;
+    expect(within(section).getByText('+300')).toBeTruthy();
+    expect(within(section).getByText('−50')).toBeTruthy();
+    expect(within(section).getByText('Від адміністратора: Допомога з вікториною')).toBeTruthy();
+    expect(within(section).getByText('Від адміністратора: Помилка')).toBeTruthy();
+    cleanup();
+    vi.mocked(getMyProfile).mockResolvedValue({ ok: true, data: mine });
+    forgetMyProfile();
+    await open();
+    expect(screen.queryByRole('heading', { name: 'Від адміністратора' })).toBeNull();
   });
 
   it('shows the level bar on top without the link to itself', async () => {

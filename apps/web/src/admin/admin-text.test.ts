@@ -26,6 +26,15 @@ describe('logLine', () => {
     expect(logLine(entry({ details: { reason: null } }))).toBe('Адмін заблокував(-ла) Богдан');
     expect(logLine(entry({ kind: 'unban' }))).toBe('Адмін розблокував(-ла) Богдан');
   });
+  it('writes the player card lines: manual experience with its sign and reason, grants, revokes, gifts, deletion', () => {
+    expect(logLine(entry({ kind: 'xp_adjust', target: 'Оля', details: { amount: -50, reason: 'Помилка' } }))).toBe('Адмін змінив(-ла) досвід Оля: −50. Причина: Помилка');
+    expect(logLine(entry({ kind: 'xp_adjust', target: 'Оля', details: { amount: 300, reason: 'Нагорода' } }))).toBe('Адмін змінив(-ла) досвід Оля: +300. Причина: Нагорода');
+    expect(logLine(entry({ kind: 'achievement_grant', target: 'Оля', details: { achievementId: 'first_win' } }))).toBe('Адмін видав(-ла) Оля досягнення «Перша перемога»');
+    expect(logLine(entry({ kind: 'achievement_revoke', target: 'Оля', details: { achievementId: 'first_win' } }))).toBe('Адмін забрав(-ла) у Оля досягнення «Перша перемога»');
+    expect(logLine(entry({ kind: 'prize_gift', target: 'Оля', details: { title: 'Кубок' } }))).toBe('Адмін подарував(-ла) Оля приз «Кубок»');
+    expect(logLine(entry({ kind: 'gift_revoke', target: 'Оля', details: { title: 'Кубок' } }))).toBe('Адмін забрав(-ла) у Оля подарунок «Кубок»');
+    expect(logLine(entry({ kind: 'account_delete', target: 'Оля' }))).toBe('Адмін видалив(-ла) акаунт Оля');
+  });
   it('writes a quiz view', () => {
     expect(logLine(entry({ kind: 'quiz_view', target: 'Оля', details: { title: 'Карпати' } }))).toBe('Адмін переглянув(-ла) вікторину «Карпати» (Оля)');
   });

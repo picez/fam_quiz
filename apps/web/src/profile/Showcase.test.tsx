@@ -25,6 +25,7 @@ const award = (over: Omit<Partial<AwardCard>, 'content'> & { content?: Partial<A
   quizTitle: 'Столиці',
   nickname: 'Оля',
   awardedAt: '2026-10-30T10:00:00.000Z',
+  gift: null,
   ...over,
   content: { trophy: { kind: 'cup', material: 'gold' }, engraving: null, real: null, title: null, diploma: false, ...over.content },
 });
@@ -50,6 +51,22 @@ describe('Showcase', () => {
     expect(items[0]?.textContent).toContain('1 місце · Нова');
     expect(items[0]?.textContent).toContain('Чемпіон');
     expect(items[1]?.textContent).toContain('2 місце · Стара');
+  });
+
+  it('a gift shows the administrator mark and the caption instead of the place line', () => {
+    render(<Showcase showcase={{ pins: { prizes: [], achievements: [] }, title: null, awards: [award({ gift: { note: 'Для Олі' } })] }} own={false} />);
+    const card = document.querySelector('.award-card')!;
+    expect(card.textContent).toContain('Подарунок від адміністратора · 30 жовтня 2026');
+    expect(card.textContent).toContain('Для Олі');
+    expect(card.textContent).not.toContain('місце');
+  });
+
+  it('a gift without a caption shows only the mark; an ordinary award keeps its place line', () => {
+    render(<Showcase showcase={{ pins: { prizes: [], achievements: [] }, title: null, awards: [award({ id: 'g', gift: { note: null } }), award({ id: 'o' })] }} own={false} />);
+    const cards = document.querySelectorAll('.award-card');
+    expect(cards[0]?.textContent).toContain('Подарунок від адміністратора');
+    expect(cards[0]?.querySelector('.award-gift-note')).toBeNull();
+    expect(cards[1]?.textContent).toContain('1 місце · Столиці');
   });
 
   it('an award without a trophy has no 3D view and shows the real prize record', () => {
