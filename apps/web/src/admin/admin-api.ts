@@ -1,7 +1,7 @@
 import { isObjectLike } from '@quiz/shared';
 import type { AdminBroadcast, AdminBroadcasts, BroadcastInput, BroadcastPreview, BroadcastRecipients } from '@quiz/shared';
 import type { AchievementId, AdminBot, AdminBotLobby, AdminBotPerson, AdminBotPlan, BotCommand, BotPlanInput, GameDetail } from '@quiz/shared';
-import type { Announcement, AnnouncementInput, AdminCharts, AdminHealth, AdminLiveList, AdminList, AdminReportItem, AdminLogEntry, AdminQuizCheck, AdminQuizRow, AdminQuizView, AdminStats, AdminUserDetail, AdminUserRow } from '@quiz/shared';
+import type { Announcement, AnnouncementInput, AdminCharts, AdminHealth, AdminLiveList, AdminList, AdminReportItem, AdminLogExport, AdminLogGroup, AdminLogPage, AdminQuizCheck, AdminQuizRow, AdminQuizView, AdminStats, AdminUserDetail, AdminUserRow } from '@quiz/shared';
 import type { AdminFeedKind, AdminFeedRow, AdminGroupDetail, AdminGroupRow } from '@quiz/shared';
 import { fetchData, request, type ApiData, type ApiResult } from '../api';
 
@@ -23,7 +23,26 @@ export const deleteQuestionAsAdmin = (quizId: string, questionId: string): Promi
   fetchData<AdminQuizView>(`/api/admin/quizzes/${id(quizId)}/questions/${id(questionId)}`, { method: 'DELETE' });
 export const deletePrizeAsAdmin = (prizeId: string): Promise<ApiResult<object>> => request<object>(`/api/admin/prizes/${id(prizeId)}`, { method: 'DELETE' });
 export const deleteAwardAsAdmin = (awardId: string): Promise<ApiResult<object>> => request<object>(`/api/admin/awards/${id(awardId)}`, { method: 'DELETE' });
-export const adminLog = (page: number): Promise<ApiData<AdminList<AdminLogEntry>>> => fetchData(`/api/admin/log?page=${page}`);
+/** Фільтри журналу (63): у запиті лише задані; groups — без порожнього значення (сервер його відхиляє). */
+export interface LogFilter { admin?: string; groups: readonly AdminLogGroup[]; from?: string; to?: string; q?: string }
+export function logParams(filter: LogFilter): URLSearchParams {
+  const params = new URLSearchParams();
+  if (filter.admin) params.set('admin', filter.admin);
+  if (filter.groups.length > 0) params.set('groups', filter.groups.join(','));
+  if (filter.from) params.set('from', filter.from);
+  if (filter.to) params.set('to', filter.to);
+  if (filter.q) params.set('q', filter.q);
+  return params;
+}
+export function adminLog(filter: LogFilter, page: number): Promise<ApiData<AdminLogPage>> {
+  const params = logParams(filter);
+  params.set('page', String(page));
+  return fetchData(`/api/admin/log?${params.toString()}`);
+}
+export function adminLogExport(filter: LogFilter): Promise<ApiData<AdminLogExport>> {
+  const query = logParams(filter).toString();
+  return fetchData(`/api/admin/log/export${query === '' ? '' : `?${query}`}`);
+}
 export const adminReports = (page: number): Promise<ApiData<AdminList<AdminReportItem>>> => fetchData(`/api/admin/reports?page=${page}`);
 /** Знімок із каталогу, на який скаржаться (не поточна вікторина автора); лише для перегляду. */
 export const adminReportedQuiz = (entryId: string): Promise<ApiData<AdminQuizView>> => fetchData<AdminQuizView>(`/api/admin/reports/quiz/${id(entryId)}`);
