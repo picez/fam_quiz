@@ -142,6 +142,8 @@ describe('hiding the admin panel (Review Focus 3)', () => {
     ['GET', '/api/admin/problems?status=open&page=1'],
     ['POST', `/api/admin/problems/${UUID}/resolve`],
     ['POST', `/api/admin/problems/${UUID}/reply`],
+    ['GET', '/api/admin/backups'],
+    ['POST', '/api/admin/backups'],
   ];
 
   it('answers anyone but an admin exactly like an unknown route', async () => {

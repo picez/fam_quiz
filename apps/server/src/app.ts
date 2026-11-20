@@ -44,6 +44,7 @@ import { registerLetterWordsRoutes } from './letterwords-routes';
 import { lazyNouns, type NounDictionary } from './wordladder/nouns';
 import { log, reportError, setErrorSink } from './log';
 import { createErrorStore } from './error-store';
+import type { DbBackups } from './db-backup';
 import type { StoredObject } from './storage/r2-objects';
 
 export interface AppOptions {
@@ -84,6 +85,8 @@ export interface AppOptions {
   adminEmails?: ReadonlySet<string>;
   /** Список копій бази в сховищі для блоку «Стан» адмінки; без нього — «сховище не налаштоване». */
   backupList?: () => Promise<StoredObject[]>;
+  /** Копія на вимогу (64): лише там, де ввімкнено щотижневі копії; без неї кнопка «Зробити копію зараз» — 503 backup_off. */
+  backups?: Pick<DbBackups, 'runNow' | 'status'>;
   /** Словник «Словесної драбини» (26c); типово lazyNouns() — закомічений файл читається при першому слові чи перевірці. */
   nouns?: NounDictionary;
   /** Хвилинний тікер розкладу ігор бота (56); типово вимкнено — тести рухають час викликом botSchedule.tick(). main.ts вмикає. */
@@ -168,7 +171,7 @@ export async function buildApp(options: AppOptions) {
   await registerProblemRoutes(app, { db: options.db, currentUser });
   await registerAnnouncementRoutes(app, { cache: announcements });
   const push = options.push === undefined ? null : createPushService({ db: options.db, ...options.push, log: (message, error) => log.error({ err: error }, message) });
-  await registerAdminRoutes(app, { db: options.db, manager, adminEmails: options.adminEmails ?? new Set<string>(), currentUser, backupList: options.backupList, announcements, maxRooms, storage: imageStorage, checkFetch: options.checkFetch ?? offlineFetch, checkResolve: options.checkResolve ?? offlineResolve, push });
+  await registerAdminRoutes(app, { db: options.db, manager, adminEmails: options.adminEmails ?? new Set<string>(), currentUser, backupList: options.backupList, backups: options.backups, announcements, maxRooms, storage: imageStorage, checkFetch: options.checkFetch ?? offlineFetch, checkResolve: options.checkResolve ?? offlineResolve, push });
   const invites = new Invites(manager);
   await registerInviteRoutes(app, { db: options.db, manager, invites, currentUser });
   const gate = new LobbyGate(options.db, invites, () => manager.now());

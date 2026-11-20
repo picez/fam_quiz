@@ -102,6 +102,24 @@ describe('backup schedule rules', () => {
     const objects = [...keys, 'backups/db/readme.txt'].reverse().map(object);
     expect(expiredBackups(objects).sort()).toEqual(keys.slice(KEEP_BACKUPS).sort());
     expect(expiredBackups(objects.slice(0, 5))).toEqual([]);
+    // 30 щотижневих: видаляються 18 найстаріших.
+    const thirty = Array.from({ length: 30 }, (_, week) => backupKey(new Date(now.getTime() - week * BACKUP_EVERY_MS), 37));
+    expect(expiredBackups(thirty.map(object)).sort()).toEqual(thirty.slice(12).sort());
+  });
+
+  it('retention keeps the 12 newest and the newest of each of 12 weeks, so manual copies never push weekly ones out', () => {
+    const HOUR = 60 * 60 * 1000;
+    const newest = now.getTime();
+    // 12 ручних за останню добу.
+    const manual = Array.from({ length: 12 }, (_, n) => backupKey(new Date(newest - n * 2 * HOUR), 40));
+    // Щотижневі: 11 штук, по одній у кожному з вікон 1…11, і одна — у 13-му (старша за 12 тижнів).
+    const weekly = Array.from({ length: 11 }, (_, w) => backupKey(new Date(newest - (w + 1) * BACKUP_EVERY_MS - 2 * HOUR), 39));
+    const ancient = backupKey(new Date(newest - 12 * BACKUP_EVERY_MS - 2 * HOUR), 30);
+    const objects = [...manual, ...weekly, ancient].map(object);
+    expect(expiredBackups(objects)).toEqual([ancient]);
+    // Дублі в одному вікні: лишається найновіша з вікна, якщо вона не серед найновіших.
+    const twin = backupKey(new Date(newest - 7 * BACKUP_EVERY_MS - 5 * HOUR), 39);
+    expect(expiredBackups([...objects, object(twin)]).sort()).toEqual([ancient, twin].sort());
   });
 });
 
@@ -281,6 +299,131 @@ describe('scheduled backups', () => {
     expect(r2.uploads.size).toBe(0);
     // З'єднання повернуто: база відповідає.
     expect(await writeBackup(db, { open: (key) => r2BackupStore(r2.settings).upload(key), pauseMs: 0 })).not.toBeNull();
+  });
+
+  it('runNow takes a copy the same way as the weekly one', async () => {
+    const r2 = fakeR2();
+    const backups = dbBackups({ db, store: r2BackupStore(r2.settings), scheduler: new FakeScheduler(), pauseMs: 0 });
+    expect(backups.status()).toEqual({ running: false, last: null });
+    expect(await backups.runNow()).toEqual({ started: true });
+    expect(backups.status().running).toBe(true);
+    await backups.idle();
+    const keys = backupsIn(r2);
+    expect(keys).toHaveLength(1);
+    expect(keys[0]).toMatch(/^backups\/db\/.*-m00\d\d\.jsonl\.gz$/);
+    const status = backups.status();
+    expect(status.running).toBe(false);
+    expect(status.last).toMatchObject({ by: 'admin', outcome: 'ok', key: keys[0], bytes: r2.objects.get(keys[0]!)!.bytes.byteLength });
+    expect(reported).toEqual([]);
+  });
+
+  it('the scheduled check records itself as the last attempt', async () => {
+    const r2 = fakeR2();
+    const backups = dbBackups({ db, store: r2BackupStore(r2.settings), scheduler: new FakeScheduler(), pauseMs: 0 });
+    await backups.check();
+    expect(backups.status().last).toMatchObject({ by: 'schedule', outcome: 'ok', key: backupsIn(r2)[0] });
+  });
+
+  it('runNow refuses within an hour, even after a restart', async () => {
+    const r2 = fakeR2();
+    const scheduler = new FakeScheduler();
+    const copyAt = new Date(scheduler.now() - 30 * 60_000);
+    r2.objects.set(backupKey(copyAt, 37), { bytes: new Uint8Array([1]), lastModified: copyAt });
+    const restarted = dbBackups({ db, store: r2BackupStore(r2.settings), scheduler, pauseMs: 0 });
+    expect(await restarted.runNow()).toEqual({ started: false, reason: 'recent', nextAt: new Date(copyAt.getTime() + 3_600_000).toISOString() });
+    expect(backupsIn(r2)).toHaveLength(1);
+    scheduler.advance(31 * 60_000);
+    expect(await restarted.runNow()).toEqual({ started: true });
+    await restarted.idle();
+    expect(backupsIn(r2)).toHaveLength(2);
+  });
+
+  it('runNow while a copy runs is busy; a second instance gets the lock refusal', async () => {
+    const r2 = fakeR2();
+    const store = r2BackupStore(r2.settings);
+    const one = dbBackups({ db, store, scheduler: new FakeScheduler(), pauseMs: 0 });
+    expect(await one.runNow()).toEqual({ started: true });
+    expect(await one.runNow()).toEqual({ started: false, reason: 'busy' });
+    expect(await one.check()).toBe('busy');
+    await one.idle();
+    expect(backupsIn(r2)).toHaveLength(1);
+
+    const locked = dbBackups({ db, store, scheduler: new FakeScheduler(), pauseMs: 0, tryLock: async () => false });
+    expect(await locked.runNow()).toEqual({ started: false, reason: 'recent', nextAt: expect.any(String) });
+    const empty = fakeR2();
+    const blocked = dbBackups({ db, store: r2BackupStore(empty.settings), scheduler: new FakeScheduler(), pauseMs: 0, tryLock: async () => false });
+    expect(await blocked.runNow()).toEqual({ started: true });
+    await blocked.idle();
+    expect(blocked.status().last).toMatchObject({ by: 'admin', outcome: 'locked', key: null, bytes: null });
+    expect(empty.objects.size).toBe(0);
+  });
+
+  it('two instances over one database take one copy; the other reports locked', async () => {
+    const r2 = fakeR2();
+    const store = r2BackupStore(r2.settings);
+    const one = dbBackups({ db, store, scheduler: new FakeScheduler(), pauseMs: 0 });
+    const two = dbBackups({ db, store, scheduler: new FakeScheduler(), pauseMs: 0 });
+    expect(await one.runNow()).toEqual({ started: true });
+    expect(await two.runNow()).toEqual({ started: true });
+    await Promise.all([one.idle(), two.idle()]);
+    expect(backupsIn(r2)).toHaveLength(1);
+    expect([one.status().last?.outcome, two.status().last?.outcome].sort()).toEqual(['locked', 'ok']);
+  });
+
+  it('stop aborts a manual copy and leaves nothing half-written', async () => {
+    const r2 = fakeR2();
+    const backups = dbBackups({ db, store: r2BackupStore(r2.settings, 64), scheduler: new FakeScheduler(), pauseMs: 0 });
+    expect(await backups.runNow()).toEqual({ started: true });
+    backups.stop();
+    await backups.idle();
+    expect(backups.status()).toMatchObject({ running: false, last: { by: 'admin', outcome: 'failed' } });
+    expect(reported).toEqual([]);
+    expect(r2.objects.size).toBe(0);
+    expect(r2.uploads.size).toBe(0);
+  });
+
+  it('retention never runs after a failed or refused copy, and never while a copy is running', async () => {
+    const r2 = fakeR2();
+    const scheduler = new FakeScheduler();
+    const old = Array.from({ length: 14 }, (_, week) => backupKey(new Date(scheduler.now() - (week + 1) * BACKUP_EVERY_MS), 37));
+    for (const key of old) r2.objects.set(key, { bytes: new Uint8Array([1]), lastModified: new Date() });
+    const store = r2BackupStore(r2.settings);
+    const removed: string[] = [];
+    const watching = { ...store, remove: async (key: string) => (removed.push(key), store.remove(key)) };
+    // Збій: нічого не видаляється.
+    const failing = dbBackups({ db, store: { ...watching, upload: () => { throw new Error('r2 down'); } }, scheduler, pauseMs: 0 });
+    expect(await failing.check()).toBe('failed');
+    // Блокування в іншого екземпляра: нічого не видаляється.
+    expect(await dbBackups({ db, store: watching, scheduler, pauseMs: 0, tryLock: async () => false }).check()).toBe('locked');
+    expect(removed).toEqual([]);
+    // Видалення — лише після того, як копію дописано й закрито (жодного відкритого вивантаження), і лише старі за нову.
+    let during = '';
+    const backups = dbBackups({
+      db,
+      store: {
+        ...watching,
+        remove: async (key) => {
+          during += `${r2.uploads.size}${[...r2.objects.keys()].filter((k) => k > key).length > 0 ? 'n' : 'x'}${(await backups.runNow()).started ? 'S' : 'b'};`;
+          removed.push(key);
+        },
+      },
+      scheduler,
+      pauseMs: 0,
+    });
+    const made = await backups.check();
+    expect(made).toMatchObject({ key: expect.any(String) });
+    expect(removed.length).toBeGreaterThan(0);
+    // Жодного відкритого вивантаження, є новіша копія, нова копія під час видалення не стартує (задача ще не завершена).
+    expect(during).toBe(removed.map(() => '0nb;').join(''));
+  });
+
+  it('retention never deletes the only copy or the newest', () => {
+    const only = [object(backupKey(new Date('2020-01-01T00:00:00Z'), 37))];
+    expect(expiredBackups(only)).toEqual([]);
+    expect(expiredBackups(only, 0)).toEqual([]);
+    const two = [object(backupKey(new Date('2020-01-01T00:00:00Z'), 37)), object(backupKey(new Date('2026-01-01T00:00:00Z'), 37))];
+    expect(expiredBackups(two, 0)).toEqual([two[0]!.key]);
+    expect(expiredBackups([])).toEqual([]);
   });
 
   it('a backup into a stream yields JSON lines (smoke)', async () => {

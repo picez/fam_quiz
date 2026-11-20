@@ -7,6 +7,7 @@ import { adminCharts } from './admin-charts';
 import type { PushService } from './push';
 import { registerAdminBotRoutes } from './admin-bot-routes';
 import { registerAdminBroadcastRoutes } from './admin-broadcast-routes';
+import { registerAdminBackupRoutes } from './admin-backup-routes';
 import { registerAdminProblemRoutes } from './admin-problem-routes';
 import { registerPlayerCardRoutes } from './admin-card-routes';
 import { liveRooms } from './admin-live';
@@ -18,7 +19,7 @@ import { prize } from './db/schema';
 import { actOnProfile, actOnQuiz, reportQueue, reportedQuiz } from './report-store';
 import { deleteAward, deletePrize } from './prizes';
 import { deleteQuestionAsAdmin, deleteQuiz } from './quizzes';
-import { latestBackup, parseBackupKey } from './db-backup';
+import { latestBackup, parseBackupKey, type DbBackups } from './db-backup';
 import { reportError } from './log';
 import { quizChecker } from './quiz-check';
 import type { CheckFetch } from './quiz-check';
@@ -35,6 +36,8 @@ export interface AdminDeps {
   currentUser: (request: FastifyRequest) => Promise<CurrentUser | null>;
   /** Список копій бази (53); без нього блок «Стан» каже, що сховища немає. */
   backupList?: () => Promise<StoredObject[]>;
+  /** Копія на вимогу й стан останньої (64); без неї (немає R2 чи копії вимкнені) POST /api/admin/backups — 503 backup_off. */
+  backups?: Pick<DbBackups, 'runNow' | 'status'>;
   /** Кеш публічного оголошення (53): кожен запис адміна його скидає. */
   announcements: AnnouncementCache;
   /** Межа кімнат процесу (54): запуск гри бота так само питає manager.size. */
@@ -370,4 +373,5 @@ export async function registerAdminRoutes(app: FastifyInstance, deps: AdminDeps)
   await registerPlayerCardRoutes(app, deps, { read, write, adminOf });
   await registerAdminBroadcastRoutes(app, deps, { read, write, adminOf });
   await registerAdminProblemRoutes(app, deps, { read, write, adminOf });
+  await registerAdminBackupRoutes(app, deps, { read, write, adminOf });
 }
