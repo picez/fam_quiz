@@ -107,6 +107,17 @@ describe('Home', () => {
     await enter('123456');
     expect((await screen.findByRole('alert')).textContent).toBe('Гру з таким кодом не знайдено. Перевірте код.');
   });
+
+  it('64: a guest sees «Повідомити про проблему» linking to /report from the home page', async () => {
+    render(
+      <MemoryRouter initialEntries={['/']}>
+        <Home />
+      </MemoryRouter>,
+    );
+    const link = await screen.findByRole('link', { name: 'Повідомити про проблему' });
+    expect(link.getAttribute('href')).toBe('/report?from=%2F');
+    expect(link.getAttribute('target')).toBeNull();
+  });
 });
 
 describe('Home for a signed-in person', () => {
@@ -143,6 +154,10 @@ describe('Home for a signed-in person', () => {
     expect(actions.compareDocumentPosition(nav) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(screen.queryByLabelText('Код гри')).toBeNull();
     expect(screen.queryByRole('link', { name: 'Я ведучий' })).toBeNull();
+    // 64: посилання на скаргу — під плитками, не серед них.
+    const report = screen.getByRole('link', { name: 'Повідомити про проблему' });
+    expect(report.getAttribute('href')).toBe('/report?from=%2F');
+    expect(nav.contains(report)).toBe(false);
   });
 
   it('«Приєднатися» opens the code form under the buttons', async () => {

@@ -365,6 +365,16 @@ describe('PlayerScreen «Прослухати» (16b)', () => {
 });
 
 describe('PlayerScreen', () => {
+  it('64: «Повідомити про проблему» opens in a new tab at the bottom of the screen', () => {
+    show(onQuestion());
+    const link = screen.getByRole('link', { name: 'Повідомити про проблему' });
+    expect(link.getAttribute('href')).toBe(`/report?from=${encodeURIComponent(window.location.pathname)}`);
+    expect(link.getAttribute('target')).toBe('_blank');
+    expect(link.getAttribute('rel')).toBe('noopener');
+    expect(link.closest('.bar')).toBeNull();
+    expect(link.closest('main')?.lastElementChild).toBe(link);
+  });
+
   it('a debuffed question wraps the answer area; other phones get the same zone without a debuff', () => {
     const classes = () => [...document.querySelector('.app.player')!.children].map((el) => el.className);
     show(onQuestion({ me: { ...me, debuff: { kind: 'mirror', since: Date.now(), by: null } } }));
@@ -378,9 +388,9 @@ describe('PlayerScreen', () => {
     expect(document.querySelector('.debuff-zone')).not.toBeNull();
     expect(document.querySelector('[data-debuff]')).toBeNull();
     expect(document.querySelector('.debuff-zone h1.question')).not.toBeNull();
-    // Спершу — постійний (порожній) стовпчик сповіщень і живий регіон аркуша голосування (невидимий).
-    expect(classes()).toEqual(['live-notices', 'sr-only vote-live', 'bar', 'question-head', 'debuff-zone']);
-    expect(debuffed).toEqual(['live-notices', 'sr-only vote-live', 'bar', 'question-head', 'debuff-zone is-mirror']);
+    // Спершу — постійний (порожній) стовпчик сповіщень і живий регіон аркуша голосування (невидимий); унизу — посилання на скаргу (64).
+    expect(classes()).toEqual(['live-notices', 'sr-only vote-live', 'bar', 'question-head', 'debuff-zone', 'problem-link game-problem-link']);
+    expect(debuffed).toEqual(['live-notices', 'sr-only vote-live', 'bar', 'question-head', 'debuff-zone is-mirror', 'problem-link game-problem-link']);
   });
 
   it('no clock hides the timer behind ⌛ in the same place; without a debuff the timer is there', () => {

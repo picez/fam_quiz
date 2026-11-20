@@ -110,6 +110,16 @@ function show(current: HostView, send: Send = vi.fn(async () => ({ ok: true as c
 const button = (name: string | RegExp) => screen.getByRole('button', { name }) as HTMLButtonElement;
 
 describe('HostScreen', () => {
+  it('64: the last element is «Повідомити про проблему» in a new tab, outside the header', () => {
+    show(view({ phase: 'question', questionIndex: 0, question: publicOf(single), correct: single }));
+    const link = screen.getByRole('link', { name: 'Повідомити про проблему' });
+    expect(link.getAttribute('href')).toBe(`/report?from=${encodeURIComponent(window.location.pathname)}`);
+    expect(link.getAttribute('target')).toBe('_blank');
+    expect(link.getAttribute('rel')).toBe('noopener');
+    expect(link.closest('.bar')).toBeNull();
+    expect(link.closest('main')?.lastElementChild).toBe(link);
+  });
+
   it('a video question has the player, the close button and no ±15 s', () => {
     const untimed = { ...publicOf(single), video: { id: 'dQw4w9WgXcQ', start: 0 }, timeLimit: null };
     show(view({ phase: 'question', questionIndex: 0, question: untimed, correct: single, endsAt: null, remainingMs: null }));

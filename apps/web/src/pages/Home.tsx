@@ -4,6 +4,7 @@ import { feedBadgeLabel, feedBadgeTotal } from '@quiz/shared';
 import { checkCode } from '../api';
 import { errorText, t, type TextKey } from '../i18n';
 import { MotifHero } from '../motifs/Motifs';
+import { ProblemLink } from '../problems/ProblemLink';
 import { ThemeSwitch } from '../ThemeSwitch';
 import { loadPlayer } from '../storage';
 import { HomeActions, JOIN_FORM, NextUpCard } from './HomeTop';
@@ -151,6 +152,7 @@ function StartMenu({ initialCode }: { initialCode: string }): JSX.Element {
           name={invites.length > 0 ? `${t('menuProfile')}, ${t('invitesBadge', { count: invites.length })}` : undefined}
         />
       </nav>
+      <ProblemLink className="quiet-link problem-link" />
     </main>
   );
 }
@@ -195,6 +197,8 @@ export function Home() {
       )}
       {/* Гість обирає тему просто тут (повний вибір, з «Як у системі»); швидкий ☀/☾ — ще й у меню. */}
       {known && <ThemeSwitch className="home-theme" />}
+      {/* Скаргу (64) може надіслати й гість. */}
+      {known && <ProblemLink className="quiet-link problem-link" />}
     </main>
   );
 }

@@ -43,6 +43,7 @@ import { HostLadder } from './HostLadder';
 import { SurveyBoard } from './SurveyBoard';
 import { answerText, correctText, markText, num, questionClass, questionLabel, questionTitle, roundLabel, seriesOf, signed, streaksOf } from '../format';
 import { countText as countLabel, errorText, t, type TextKey } from '../i18n';
+import { ProblemLink } from '../problems/ProblemLink';
 import { RoundBriefing, RoundFacts } from './RoundBriefing';
 import type { Send } from '../live/types';
 import { BlitzCellNotes, Board, BoardLegend } from './Board';
@@ -1731,6 +1732,8 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
           </button>
         )}
       </footer>
+      {/* «Повідомити про проблему» (64) — у новій вкладці, щоб пульт не обірвався; під липкою панеллю дій. */}
+      <ProblemLink newTab className="problem-link game-problem-link" />
       </StickyTimerProvider>
     </ReactionMain>
   );
