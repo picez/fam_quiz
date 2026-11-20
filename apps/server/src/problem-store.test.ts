@@ -1,6 +1,6 @@
 import { eq } from 'drizzle-orm';
 import { beforeAll, describe, expect, it } from 'vitest';
-import { adminAction, problemReport, user } from './db/schema';
+import { adminAction, problemReport, profile, user } from './db/schema';
 import { createProblemReport, listProblemReports, myProblemReports, resolveProblem } from './problem-store';
 import { ensureProfile } from './profiles';
 import { createTestDb } from './testing/test-db';
@@ -49,10 +49,15 @@ describe('problem store (64)', () => {
 
   it('shows only the nickname as the author, never the Google full name', async () => {
     await db.insert(user).values({ id: 'prob-full', name: 'Ольга Повне Імʼя', email: 'prob-full@example.com' });
-    // Без профілю (ніка ще немає): лише підставка, не ім'я з Google.
+    await db.insert(user).values({ id: 'prob-nonick', name: 'Тарас Повне Імʼя', email: 'prob-nonick@example.com' });
+    await db.insert(profile).values({ userId: 'prob-nonick', nickname: null, nicknameKey: null });
+    const empty = (await createProblemReport(db, { userId: 'prob-nonick', input: input('порожній нік'), now: NOW })) as { id: string };
+    // Без профілю: нік за замовчуванням, як деінде в адмінці (перше слово), не повне ім'я з Google.
     const made = (await createProblemReport(db, { userId: 'prob-full', input: input('без ніка'), now: NOW })) as { id: string };
     const list = await listProblemReports(db, { status: 'open', page: 1 });
-    expect(list.rows.find((r) => r.id === made.id)?.who).toEqual({ kind: 'account', id: 'prob-full', nickname: '', push: false });
+    expect(list.rows.find((r) => r.id === made.id)?.who).toEqual({ kind: 'account', id: 'prob-full', nickname: 'Ольга', push: false });
+    // Ніку немає (порожній у профілі): підставка, не ім'я.
+    expect(list.rows.find((r) => r.id === empty.id)?.who).toEqual({ kind: 'account', id: 'prob-nonick', nickname: '', push: false });
     expect(JSON.stringify(list)).not.toContain('Повне');
   });
 });

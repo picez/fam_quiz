@@ -15,6 +15,7 @@ import { logAction } from './bans';
 import type { Db } from './db/client';
 import { problemReport, profile, pushSubscription } from './db/schema';
 import { truncateChars } from './error-mask';
+import { ensureProfile } from './profiles';
 
 /**
  * Скарги гравців (64). Текст і відомості про сторінку лежать як є й показуються лише як текст.
@@ -62,7 +63,7 @@ export async function listProblemReports(db: Db, query: { status: 'open' | 'reso
   const [{ n }] = await db.select({ n: count() }).from(problemReport).where(where);
   const total = Number(n);
   const rows = await db
-    .select({ row: problemReport, nickname: profile.nickname })
+    .select({ row: problemReport, nickname: profile.nickname, hasProfile: profile.userId })
     .from(problemReport)
     .leftJoin(profile, eq(profile.userId, problemReport.userId))
     .where(where)
@@ -80,10 +81,16 @@ export async function listProblemReports(db: Db, query: { status: 'open' | 'reso
   if (resolvers.length > 0) {
     for (const r of await db.select({ id: profile.userId, nickname: profile.nickname }).from(profile).where(inArray(profile.userId, resolvers))) names.set(r.id, r.nickname ?? '');
   }
+  // Автор — лише нікнейм (як в інших списках адмінки): без профілю — нік за замовчуванням з ensureProfile, ніколи не user.name.
+  const nicknames = new Map<string, string>();
+  for (const { row, nickname, hasProfile } of rows) {
+    if (row.userId === null || nicknames.has(row.userId)) continue;
+    nicknames.set(row.userId, hasProfile !== null ? (nickname ?? '') : ((await ensureProfile(db, row.userId))?.nickname ?? ''));
+  }
   return {
-    rows: rows.map(({ row, nickname }): AdminProblemReport => {
+    rows: rows.map(({ row }): AdminProblemReport => {
       const who: ProblemAuthor =
-        row.userId !== null ? { kind: 'account', id: row.userId, nickname: nickname ?? '', push: subscribed.has(row.userId) } : row.fromAccount ? { kind: 'deleted' } : { kind: 'guest' };
+        row.userId !== null ? { kind: 'account', id: row.userId, nickname: nicknames.get(row.userId) ?? '', push: subscribed.has(row.userId) } : row.fromAccount ? { kind: 'deleted' } : { kind: 'guest' };
       return {
         id: row.id,
         at: row.createdAt.toISOString(),
