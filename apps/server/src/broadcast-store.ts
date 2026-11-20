@@ -10,12 +10,19 @@ import {
   type BroadcastInput,
   type BroadcastRecipients,
 } from '@quiz/shared';
-import { and, asc, desc, eq, gt, inArray, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gt, inArray, isNull, sql } from 'drizzle-orm';
 import { logAction } from './bans';
 import { recipientsFor } from './bot-plan-store';
 import type { Db } from './db/client';
 import { familyGroup, profile, pushBroadcast, pushSubscription, user } from './db/schema';
 import { notHidden } from './feed-store';
+
+/** 63: адресат-група є й не прихована адміністратором; інші адресати — завжди так. */
+export async function groupTargetOk(db: Db, to: BroadcastRecipients): Promise<boolean> {
+  if (to.kind !== 'group') return true;
+  const [row] = await db.select({ id: familyGroup.id }).from(familyGroup).where(and(eq(familyGroup.id, to.groupId), isNull(familyGroup.hiddenAt)));
+  return row !== undefined;
+}
 
 /**
  * Хто отримає розсилку (59): адресати 56, з них — лише ті, хто має хоч одну підписку

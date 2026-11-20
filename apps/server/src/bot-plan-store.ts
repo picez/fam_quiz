@@ -10,7 +10,7 @@ import {
   type BotPlanInput,
   type BotPlanRecipients,
 } from '@quiz/shared';
-import { and, asc, count, desc, eq, inArray, notInArray, sql } from 'drizzle-orm';
+import { and, asc, count, desc, eq, inArray, isNull, notInArray, sql } from 'drizzle-orm';
 import { logAction } from './bans';
 import type { Db } from './db/client';
 import { botPlan, familyGroup, groupMember, profile, pushSubscription, user } from './db/schema';
@@ -19,8 +19,10 @@ import { kyivWallTime } from './kyiv-time';
 import { getQuiz } from './quizzes';
 
 type Tx = Parameters<Parameters<Db['transaction']>[0]>[0];
+/** Група не прихована адміністратором (63); те саме, що groupShown у group-store, без циклу імпортів. */
+const groupShown = isNull(familyGroup.hiddenAt);
 export type BotPlanRow = typeof botPlan.$inferSelect;
-export type BotPlanError = 'not_found' | 'invalid_payload' | 'plan_time' | 'plans_full' | 'plan_locked';
+export type BotPlanError = 'not_found' | 'group_not_found' | 'invalid_payload' | 'plan_time' | 'plans_full' | 'plan_locked';
 export type BotPlanResult = { ok: true; plan: AdminBotPlan } | { ok: false; error: BotPlanError };
 
 const ACTIVE = ['scheduled', 'opened'] as const;
@@ -49,8 +51,9 @@ async function validate(db: Db | Tx, input: BotPlanInput, now: Date): Promise<{ 
   if (quiz === null) return fail('not_found');
   const to = input.recipients;
   if (to.kind === 'group') {
-    const [group] = await db.select({ id: familyGroup.id }).from(familyGroup).where(eq(familyGroup.id, to.groupId));
-    if (group === undefined) return fail('invalid_payload');
+    // 63: прихована адміністратором група — як неіснуюча.
+    const [group] = await db.select({ id: familyGroup.id }).from(familyGroup).where(and(eq(familyGroup.id, to.groupId), groupShown));
+    if (group === undefined) return fail('group_not_found');
   }
   if (to.kind === 'people') {
     const found = await db
@@ -123,7 +126,7 @@ export async function listPlans(db: Db): Promise<AdminBotPlan[]> {
   return views(db, [...active, ...finished]);
 }
 
-/** Усі родинні групи з кількістю видимих учасників, за назвою. */
+/** Усі родинні групи, крім прихованих адміністратором (63), з кількістю видимих учасників, за назвою. */
 export async function botGroups(db: Db): Promise<AdminBotGroup[]> {
   const rows = await db
     .select({
@@ -133,6 +136,7 @@ export async function botGroups(db: Db): Promise<AdminBotGroup[]> {
       members: sql<number>`(select count(*)::int from ${groupMember} where ${groupMember.groupId} = ${familyGroup.id} and ${notHidden(groupMember.userId)})`,
     })
     .from(familyGroup)
+    .where(groupShown)
     .orderBy(asc(familyGroup.name), asc(familyGroup.id));
   return rows.map((row) => ({ ...row, members: Number(row.members) }));
 }
@@ -231,7 +235,8 @@ export async function recipientsFor(db: Db, to: BotPlanRecipients): Promise<stri
       const rows = await db
         .select({ id: groupMember.userId })
         .from(groupMember)
-        .where(and(eq(groupMember.groupId, to.groupId), notHidden(groupMember.userId)));
+        .innerJoin(familyGroup, eq(familyGroup.id, groupMember.groupId))
+        .where(and(eq(groupMember.groupId, to.groupId), groupShown, notHidden(groupMember.userId)));
       return rows.map((row) => row.id);
     }
     case 'people': {
