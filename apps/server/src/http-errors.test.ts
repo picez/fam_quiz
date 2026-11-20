@@ -2,7 +2,7 @@ import { afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { buildApp } from './app';
 import type { Db } from './db/client';
 import { listServerErrors } from './error-store';
-import { log, reportError, setErrorReporter, type ErrorContext } from './log';
+import { log, reportError, setErrorReporter, setErrorSink, type ErrorContext } from './log';
 import { TEST_AUTH } from './testing/accounts';
 import { createTestDb } from './testing/test-db';
 
@@ -84,15 +84,21 @@ describe('HTTP 5xx (30a)', () => {
     const off = await buildApp({ db, auth: TEST_AUTH, errorLog: false });
     expect(off.errors).toBeNull();
     await off.app.close();
+    // Слот-шпигун до застосунку: після close застосунок має повернути саме його.
+    const outer: string[] = [];
+    const unOuter = setErrorSink((error) => outer.push((error as Error).message));
     const on = await buildApp({ db, auth: TEST_AUTH });
+    reportError(new Error('while open'), { where: 'process' });
+    expect(outer).toEqual([]);
     await on.app.close();
     try {
-      // Після close застосунку слот знято: збій більше нікуди не пишеться.
+      // Після close застосунку його слот знято: збій іде попередньому слоту, не в сховище застосунку.
       reportError(new Error('after close'), { where: 'process' });
-      await on.errors!.flush();
+      expect(outer).toEqual(['after close']);
       const listed = await listServerErrors(db, { status: 'new', page: 1 }, new Date());
       expect(listed.rows.some((r) => r.message === 'after close')).toBe(false);
     } finally {
+      unOuter();
       log.level = level;
     }
   });
