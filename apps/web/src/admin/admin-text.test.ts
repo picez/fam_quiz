@@ -87,6 +87,9 @@ describe('logLine for games and announcements', () => {
     expect(logLine(entry({ kind: 'announcement_set', details: { text: 'Субота — гра' } }))).toContain('«Субота — гра»');
     expect(logLine(entry({ kind: 'announcement_clear', details: { text: 'Субота — гра' } }))).toBe('Адмін прибрав(-ла) оголошення «Субота — гра»');
   });
+  it('writes a push broadcast with its title and how many people get it', () => {
+    expect(logLine(entry({ kind: 'push_broadcast', target: '', details: { title: 'Нова вікторина', count: 3 } }))).toBe('Адмін надіслав(-ла) розсилку «Нова вікторина», адресатів: 3');
+  });
 });
 
 describe('durationText', () => {

@@ -39,7 +39,7 @@ export function logLine(entry: AdminLogEntry): string {
   const when = entry.details.when === undefined ? '' : kyivWhenText(entry.details.when);
   const planReason = entry.kind === 'bot_plan_fail' ? botPlanReasonText(entry.details.reason ?? null) : '';
   const text = entry.details.text ?? (entry.kind === 'account_delete' ? nickText(entry.target) : '');
-  const line = t(`adminLog_${entry.kind}` as TextKey, { admin: nickText(entry.admin), target: nickText(entry.target), title: entry.details.title ?? '', text, code: entry.details.code ?? '', when, reason: planReason, amount: signedXp(entry.details.amount ?? 0), achievement: entry.details.achievementId === undefined ? '' : t(`achievement_${entry.details.achievementId}` as TextKey) });
+  const line = t(`adminLog_${entry.kind}` as TextKey, { admin: nickText(entry.admin), target: nickText(entry.target), title: entry.details.title ?? '', text, code: entry.details.code ?? '', count: String(entry.details.count ?? ''), when, reason: planReason, amount: signedXp(entry.details.amount ?? 0), achievement: entry.details.achievementId === undefined ? '' : t(`achievement_${entry.details.achievementId}` as TextKey) });
   const reason = entry.kind === 'ban' || entry.kind === 'xp_adjust' ? entry.details.reason : null;
   if (entry.kind === 'nickname_reset' && entry.details.text) return t('adminLogWas', { line, text: entry.details.text });
   if (entry.kind === 'prize_gift' && entry.details.text) return t('adminLogGiftNote', { line, text: entry.details.text });

@@ -1,15 +1,14 @@
 import { useEffect, useRef, useState, type FormEvent, type JSX } from 'react';
-import { BOT_PLAN_AUTO_MAX, BOT_PLAN_AUTO_MIN, BOT_PLAN_PEOPLE_MAX, type AdminBot, type AdminBotGroup, type AdminBotPerson, type AdminBotPlan, type AdminBotPlanTo, type AdminBotQuiz, type BotPlanInput, type BotPlanStatus } from '@quiz/shared';
+import { BOT_PLAN_AUTO_MAX, BOT_PLAN_AUTO_MIN, BOT_PLAN_PEOPLE_MAX, type AdminBot, type AdminBotGroup, type AdminBotPlan, type AdminBotPlanTo, type AdminBotQuiz, type BotPlanInput, type BotPlanStatus } from '@quiz/shared';
 import type { ApiResult } from '../api';
 import { isoToLocalInput, KYIV_ZONE, localInputToIso } from '../calendar/calendar-time';
 import { errorText, t, type TextKey } from '../i18n';
 import { nickText } from '../nick';
-import { cancelBotPlan, createBotPlan, searchBotPeople, updateBotPlan } from './admin-api';
+import { cancelBotPlan, createBotPlan, updateBotPlan } from './admin-api';
 import { botPlanReasonText, kyivWhenText } from './admin-text';
+import { PeoplePicker, type PickedPerson } from './PeoplePicker';
 
 const AUTO_DEFAULT = 10;
-const SEARCH_MIN = 2;
-const SEARCH_DELAY_MS = 300;
 
 const STATUS_KEY: Record<BotPlanStatus, TextKey> = {
   scheduled: 'adminBotPlan_scheduled',
@@ -38,11 +37,6 @@ const TO_KINDS: { kind: ToKind; key: TextKey }[] = [
   { kind: 'people', key: 'adminBotPlanToPeople' },
 ];
 
-interface Person {
-  id: string;
-  nickname: string;
-}
-
 /** Стан форми; `editing` — id плану, який змінюють (null — новий план). `when` — значення datetime-local у Києві. */
 interface Form {
   editing: string | null;
@@ -50,7 +44,7 @@ interface Form {
   when: string;
   to: ToKind;
   groupId: string;
-  people: Person[];
+  people: PickedPerson[];
   auto: boolean;
   autoMin: string;
   weekly: boolean;
@@ -134,36 +128,11 @@ function statusText(plan: AdminBotPlan): string {
 
 const toneOf = (plan: AdminBotPlan): string => (notStarted(plan) ? 'is-muted' : STATUS_TONE[plan.status]);
 
-/** Пошук людей за ніком: від двох символів, із затримкою; помилка — текстом. */
-function usePeopleSearch(query: string): { found: AdminBotPerson[]; error: string | null } {
-  const [state, setState] = useState<{ found: AdminBotPerson[]; error: string | null }>({ found: [], error: null });
-  useEffect(() => {
-    const q = query.trim();
-    if (q.length < SEARCH_MIN) {
-      setState({ found: [], error: null });
-      return;
-    }
-    let current = true;
-    const timer = setTimeout(() => {
-      void searchBotPeople(q).then((result) => {
-        if (current) setState(result.ok ? { found: result.data, error: null } : { found: [], error: errorText(result.error) });
-      });
-    }, SEARCH_DELAY_MS);
-    return () => {
-      current = false;
-      clearTimeout(timer);
-    };
-  }, [query]);
-  return state;
-}
-
 export function AdminBotSchedule({ schedule, quizzes, onChanged }: { schedule: AdminBot['schedule']; quizzes: AdminBotQuiz[]; onChanged: () => void }): JSX.Element {
   const { plans, groups, max } = schedule;
   const [draft, setForm] = useState<Form>(() => blank(quizzes, groups));
   /** Після перечитування вікторина чи група могла зникнути — тоді форма бере першу наявну. */
   const form: Form = { ...draft, quizId: known(quizzes, draft.quizId), groupId: known(groups, draft.groupId) };
-  const [query, setQuery] = useState('');
-  const search = usePeopleSearch(form.to === 'people' ? query : '');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -175,7 +144,6 @@ export function AdminBotSchedule({ schedule, quizzes, onChanged }: { schedule: A
   const patch = (change: Partial<Form>) => setForm((prev) => ({ ...prev, ...change }));
   const reset = () => {
     setForm(blank(quizzes, groups));
-    setQuery('');
     setOpen(false);
   };
   /** Форму щойно відкрили («Запланувати гру» чи «Змінити») — фокус на її заголовок. */
@@ -195,8 +163,6 @@ export function AdminBotSchedule({ schedule, quizzes, onChanged }: { schedule: A
   }, [stale]);
   const input = toInput(form);
   const active = plans.filter((plan) => plan.status === 'scheduled').length;
-  const found = search.found.filter((person) => !form.people.some((chosen) => chosen.id === person.id));
-  const peopleFull = form.people.length >= BOT_PLAN_PEOPLE_MAX;
   const autoBad = form.auto && autoMinutes(form) === undefined;
 
   /** Одна дія за раз; після будь-якої відповіді вкладка перечитує розклад. */
@@ -221,7 +187,6 @@ export function AdminBotSchedule({ schedule, quizzes, onChanged }: { schedule: A
   };
   const change = (plan: AdminBotPlan) => {
     setForm(fromPlan(plan, quizzes, groups));
-    setQuery('');
     setError(null);
     setNotice(null);
     setOpen(true);
@@ -331,38 +296,7 @@ export function AdminBotSchedule({ schedule, quizzes, onChanged }: { schedule: A
                 </select>
               </label>
             )}
-            {form.to === 'people' && (
-              <>
-                {form.people.length > 0 && (
-                  <ul className="admin-bot-people">
-                    {form.people.map((person) => (
-                      <li key={person.id}>
-                        <span dir="auto">{nickText(person.nickname)}</span>
-                        <button type="button" className="btn btn-small" aria-label={t('adminBotPlanRemove', { name: nickText(person.nickname) })} onClick={() => patch({ people: form.people.filter((chosen) => chosen.id !== person.id) })}>
-                          <span aria-hidden="true">×</span>
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-                <label className="field compact" htmlFor="bot-plan-search">
-                  <span>{t('adminBotPlanSearch')}</span>
-                  <input id="bot-plan-search" type="search" value={query} maxLength={40} autoComplete="off" onChange={(e) => setQuery(e.target.value)} />
-                </label>
-                {search.error !== null && <p className="error">{search.error}</p>}
-                {found.length > 0 && (
-                  <ul className="admin-bot-found">
-                    {found.map((person) => (
-                      <li key={person.id}>
-                        <button type="button" className="btn btn-small" dir="auto" disabled={peopleFull} onClick={() => patch({ people: [...form.people, { id: person.id, nickname: person.nickname }] })}>
-                          {nickText(person.nickname)}
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </>
-            )}
+            {form.to === 'people' && <PeoplePicker key={form.editing ?? ''} id="bot-plan" value={form.people} max={BOT_PLAN_PEOPLE_MAX} onChange={(people) => patch({ people })} />}
           </fieldset>
           <label className="field field-check" htmlFor="bot-plan-auto">
             <input id="bot-plan-auto" type="checkbox" checked={form.auto} onChange={(e) => patch({ auto: e.target.checked })} />

@@ -11,6 +11,7 @@ import { Avatar } from '../../profile/Avatar';
 import { ProfileEditor } from '../../profile/ProfileEditor';
 import { SubpageData } from '../../profile/ProfileSubpage';
 import { useMyProfile } from '../../profile/useMyProfile';
+import { AdminPushSwitch } from '../../push/AdminPushSwitch';
 import { PushSettings } from '../../push/PushSettings';
 import { disablePush } from '../../push/push-client';
 
@@ -64,6 +65,7 @@ export function ProfileSettings(): JSX.Element {
           </section>
           <ThemeSwitch className="profile-section" />
           <PushSettings />
+          <AdminPushSwitch className="profile-section" />
           <section className="profile-section settings-row">
             <h2>{t('settingsEmail')}</h2>
             <p className="meta">{profile.email}</p>
