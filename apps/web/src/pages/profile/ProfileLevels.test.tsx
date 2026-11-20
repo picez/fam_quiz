@@ -121,14 +121,17 @@ describe('ProfileLevels', () => {
   it('shows the manual experience from the administrator with its sign and reasons; no section when there is none', async () => {
     vi.mocked(getMyProfile).mockResolvedValue({
       ok: true,
-      data: { ...mine, level: { ...mine.level, adminXp: [{ amount: 300, note: 'Допомога з вікториною', at: '2026-11-05T10:00:00.000Z' }, { amount: -50, note: 'Помилка', at: '2026-11-04T10:00:00.000Z' }] } } as OwnProfile,
+      data: { ...mine, level: { ...mine.level, adminXp: [{ amount: 300, note: 'Допомога з вікториною', at: '2026-11-05T10:00:00.000Z' }, { amount: -50, note: 'Помилка', at: '2026-11-04T10:00:00.000Z' }, { amount: 80, note: '', at: '2026-11-03T10:00:00.000Z', balance: true }] } } as OwnProfile,
     });
     await open();
     const section = screen.getByRole('heading', { name: 'Від адміністратора' }).closest('section')!;
     expect(within(section).getByText('+300')).toBeTruthy();
     expect(within(section).getByText('−50')).toBeTruthy();
-    expect(within(section).getByText('Від адміністратора: Допомога з вікториною')).toBeTruthy();
-    expect(within(section).getByText('Від адміністратора: Помилка')).toBeTruthy();
+    // Заголовок уже каже «Від адміністратора»: рядок — лише причина, своєю мовою й напрямком; вирівнювання — перекладений текст.
+    expect(within(section).getByText('Допомога з вікториною').getAttribute('dir')).toBe('auto');
+    expect(within(section).getByText('Помилка')).toBeTruthy();
+    expect(within(section).getByText('Вирівнювання до нуля після зняття досягнення')).toBeTruthy();
+    expect(within(section).queryByText(/Від адміністратора:/)).toBeNull();
     cleanup();
     vi.mocked(getMyProfile).mockResolvedValue({ ok: true, data: mine });
     forgetMyProfile();

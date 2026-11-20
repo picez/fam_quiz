@@ -1,7 +1,6 @@
 import { useEffect, useRef, type JSX } from 'react';
 import { LEVEL_REWARDS, LEVEL_REWARDS_TOP, type LevelReward, type NickFont, type NickLevel, type OwnProfile } from '@quiz/shared';
-import { signedXp } from '../../admin/admin-text';
-import { formatDate, num } from '../../format';
+import { formatDate, num, signedXp } from '../../format';
 import { t } from '../../i18n';
 import { loadNickFont } from '../../nick-fonts';
 import { reducedMotion } from '../../motion';
@@ -78,7 +77,7 @@ function LevelMap({ profile }: { profile: OwnProfile }): JSX.Element {
           <ul>
             {profile.level.adminXp.map((line, at) => (
               <li key={at}>
-                <strong>{signedXp(line.amount)}</strong> <span>{t('levelAdminLine', { note: line.note })}</span> <span className="meta">{formatDate(line.at)}</span>
+                <strong dir="ltr">{signedXp(line.amount)}</strong> <span dir="auto">{line.balance ? t('levelAdminBalance') : line.note}</span> <span className="meta">{formatDate(line.at)}</span>
               </li>
             ))}
           </ul>

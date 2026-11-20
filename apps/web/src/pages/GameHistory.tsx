@@ -5,6 +5,7 @@ import { getGame } from '../api';
 import { answerText, choicesOf, correctText, formatDate, markText, num, pairTexts, questionName, roundLabel, secondsText, signed } from '../format';
 import { DEBUFF_ICONS, debuffName } from '../debuff-meta';
 import { t, type TextKey } from '../i18n';
+import { deletedShown } from '../nick';
 import { compareText } from '../locales/grammar';
 import { PairList } from '../screens/MatchView';
 import { BuffBadge, SpareMark } from '../screens/Buffs';
@@ -360,13 +361,17 @@ export function GameHistory() {
   );
 }
 
-/** Тіло сторінки гри після завантаження: гравцеві (історія) й адмінові (картка гравця, 58); `back` — посилання над назвою. */
-export function GameDetailView({ game, back }: { game: GameDetail; back: JSX.Element }): JSX.Element {
+/**
+ * Тіло сторінки гри після завантаження: гравцеві (історія) й адмінові (картка гравця, 58); `back` — посилання над назвою,
+ * `heading` — рівень назви (адмінка вже має свій h1). Маркери видаленого гравця з бази показано мовою інтерфейсу (deletedShown).
+ */
+export function GameDetailView({ game: stored, back, heading: Heading = 'h1' }: { game: GameDetail; back: JSX.Element; heading?: 'h1' | 'h2' }): JSX.Element {
+  const game = deletedShown(stored);
   const ledger = undoLedger(game.adjustments.map((a) => ({ seq: a.seq, who: a.nickname, source: a.source, undoes: a.undoes })));
   return (
     <>
       {back}
-      <h1 className="brand" dir="auto">{game.title}</h1>
+      <Heading className="brand" dir="auto">{game.title}</Heading>
       <p className="meta">{`${formatDate(game.startedAt)}, ${t(`status_${game.status}`)}`}</p>
       {game.teams && <p className="meta team-game-mark">{t('historyTeamGame')}</p>}
       {game.autopilot && <p className="meta autopilot-mark">{t('historyAutopilot')}</p>}

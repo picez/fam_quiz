@@ -1,8 +1,9 @@
 // @vitest-environment jsdom
 import { cleanup, render, screen } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
-import type { GameDetail } from '@quiz/shared';
+import { DELETED_NICKNAME, type GameDetail } from '@quiz/shared';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { activateLocaleForTests } from '../i18n';
 import { AdminGame } from './AdminGame';
 
 const game: GameDetail = {
@@ -55,11 +56,25 @@ describe('AdminGame (58)', () => {
   it('loads the game through the admin route and shows it like the history page', async () => {
     stub(200, game);
     open();
-    expect(await screen.findByRole('heading', { name: 'Карпати' })).toBeTruthy();
+    // Адмінка вже має h1: назва гри тут — h2 (сторінка історії гравця лишає h1).
+    expect(await screen.findByRole('heading', { name: 'Карпати', level: 2 })).toBeTruthy();
+    expect(screen.queryByRole('heading', { level: 1 })).toBeNull();
     expect(urls).toEqual([`/api/admin/games/${game.id}`]);
     expect(screen.getByText('Оля')).toBeTruthy();
     expect(screen.getByRole('heading', { name: 'Підсумки' })).toBeTruthy();
     expect(screen.queryByRole('main')).toBeNull();
+  });
+
+  it('shows the stored deleted-player mark in the active language', async () => {
+    activateLocaleForTests('en', { ui: { deletedPlayer: 'Deleted player', deletedFact: '(fact deleted)' } });
+    try {
+      stub(200, { ...game, standings: [{ ...game.standings[0]!, nickname: DELETED_NICKNAME }] });
+      open();
+      expect(await screen.findByText('Deleted player')).toBeTruthy();
+      expect(screen.queryByText(DELETED_NICKNAME)).toBeNull();
+    } finally {
+      activateLocaleForTests('uk');
+    }
   });
 
   it('goes home on 404', async () => {

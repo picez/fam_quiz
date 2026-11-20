@@ -16,7 +16,8 @@ import { CardXp } from './card/CardXp';
 
 /**
  * Дія картки: підтвердження → запит → після успіху картка перечитується (`reread: false` — ні, напр. після видалення);
- * not_found веде на головну, інша помилка — у `report` (рядок-тривога свого розділу). Повертає, чи вдалося.
+ * not_found веде на головну, інша помилка — у `report` (рядок-тривога свого розділу). Досягнення чи подарунка вже немає
+ * (друга вкладка, другий адмін) — помилка в розділі й картка перечитується. Повертає, чи вдалося.
  */
 export type CardAct = (confirmText: string, run: () => Promise<ApiResult<object>>, report: (error: string | null) => void, reread?: boolean) => Promise<boolean>;
 
@@ -45,10 +46,13 @@ export function AdminUser(): JSX.Element {
       </>
     );
   }
-  return <UserView detail={state.data} reload={state.reload} />;
+  return <UserView detail={state.data} reload={state.reload} stale={state.stale === true} />;
 }
 
-function UserView({ detail, reload }: { detail: AdminUserDetail; reload: () => void }): JSX.Element {
+/** Помилки дії, після яких картка застаріла, а не зникла: перечитати. */
+const STALE_ERRORS = new Set(['achievement_not_owned', 'gift_not_found']);
+
+function UserView({ detail, reload, stale }: { detail: AdminUserDetail; reload: () => void; stale: boolean }): JSX.Element {
   const [busy, setBusy] = useState(false);
   const [gone, setGone] = useState(false);
 
@@ -64,6 +68,7 @@ function UserView({ detail, reload }: { detail: AdminUserDetail; reload: () => v
     }
     if (result.error === 'not_found') setGone(true);
     else report(errorText(result.error));
+    if (STALE_ERRORS.has(result.error)) reload();
     return false;
   };
 
@@ -74,6 +79,11 @@ function UserView({ detail, reload }: { detail: AdminUserDetail; reload: () => v
       <Link className="quiet-link" to="/admin/users">
         {t('adminBack')}
       </Link>
+      {stale && (
+        <p className="meta" role="status">
+          {t('adminLiveStale')}
+        </p>
+      )}
       <ul className="admin-list">
         <UserCard row={detail.user} link={false} />
       </ul>

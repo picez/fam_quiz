@@ -1,10 +1,9 @@
 import { useState, type JSX } from 'react';
 import { ADMIN_XP_MAX, ADMIN_XP_REASON_MAX } from '@quiz/shared';
-import { formatDate, num } from '../../format';
+import { formatDate, num, signedXp } from '../../format';
 import { t } from '../../i18n';
 import { nickText } from '../../nick';
 import { adjustXp } from '../admin-api';
-import { signedXp } from '../admin-text';
 import type { CardProps } from '../AdminUser';
 
 /** Ціле від −ADMIN_XP_MAX до ADMIN_XP_MAX, не 0; інакше null (кнопка неактивна). */
@@ -49,7 +48,7 @@ export function CardXp({ detail, act, busy }: CardProps): JSX.Element {
         <ul className="admin-card-lines">
           {card.xp.map((line) => (
             <li key={line.id}>
-              <strong dir="ltr">{signedXp(line.amount)}</strong> <span dir="auto">{line.note}</span> <span className="meta">{formatDate(line.at)}</span>
+              <strong dir="ltr">{signedXp(line.amount)}</strong> <span dir="auto">{line.balance ? t('levelAdminBalance') : line.note}</span> <span className="meta">{formatDate(line.at)}</span>
             </li>
           ))}
         </ul>

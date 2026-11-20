@@ -279,4 +279,44 @@ describe('AdminUser: the player card (58)', () => {
     await waitFor(() => expect(within(box).getByRole('alert').textContent).toBe('Нік не збігається — акаунт не видалено.'));
     expect(screen.queryByText('список гравців')).toBeNull();
   });
+
+  it('an achievement or gift already taken in another tab keeps the card, says so and rereads it', async () => {
+    reply = (call) =>
+      call.method === 'DELETE' && call.url === '/api/admin/users/u2/achievements/first_game'
+        ? { status: 404, data: { error: 'achievement_not_owned' } }
+        : call.method === 'DELETE' && call.url === '/api/admin/gifts/a2'
+          ? { status: 404, data: { error: 'gift_not_found' } }
+          : undefined;
+    open();
+    const box = await section('Досягнення');
+    fireEvent.click(within(box).getByRole('button', { name: 'Відібрати' }));
+    expect(await within(box).findByText('Цього досягнення в гравця вже немає — картку оновлено.')).toBeTruthy();
+    await waitFor(() => expect(sent('GET', '/api/admin/users/u2')).toHaveLength(2));
+    const prizes = await section('Призи');
+    fireEvent.click(within(prizes).getByRole('button', { name: 'Забрати подарунок' }));
+    expect(await within(prizes).findByText('Цього подарунка вже немає — картку оновлено.')).toBeTruthy();
+    await waitFor(() => expect(sent('GET', '/api/admin/users/u2')).toHaveLength(3));
+    expect(screen.queryByText('головна')).toBeNull();
+  });
+
+  it('a failed reread after an action says the card is stale', async () => {
+    let reads = 0;
+    reply = (call) => {
+      if (call.method !== 'GET' || call.url !== '/api/admin/users/u2') return undefined;
+      reads += 1;
+      return reads === 1 ? { status: 200, data: current } : { status: 500, data: { error: 'internal' } };
+    };
+    open();
+    const box = await section('Досягнення');
+    expect(screen.queryByText('Не вдалося оновити; показано останні дані.')).toBeNull();
+    fireEvent.click(within(box).getByRole('button', { name: 'Відібрати' }));
+    expect((await screen.findByText('Не вдалося оновити; показано останні дані.')).getAttribute('role')).toBe('status');
+  });
+
+  it('a balancing xp line is named in the interface language, not by the server', async () => {
+    current = detail({ card: card({ xp: [{ id: 'x2', amount: 80, note: '', at: '2026-10-12T10:00:00.000Z', balance: true }] }) });
+    open();
+    const box = await section('Досвід');
+    expect(within(box).getByText('Вирівнювання до нуля після зняття досягнення')).toBeTruthy();
+  });
 });

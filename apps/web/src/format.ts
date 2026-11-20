@@ -349,6 +349,11 @@ export function monthText(month: string): string {
   return dropYearMark(new Intl.DateTimeFormat(intlTag(), { month: 'long', year: 'numeric', timeZone: 'UTC' }).format(date));
 }
 
+/** Зміна досвіду зі знаком: «+300», «−50» (справжній мінус). */
+export function signedXp(amount: number): string {
+  return amount < 0 ? `−${-amount}` : `+${amount}`;
+}
+
 /** Число зі справжнім мінусом «−», а не дефісом: рахунок може бути від’ємним. */
 export function num(value: number): string {
   return value < 0 ? `−${Math.abs(value)}` : String(value);

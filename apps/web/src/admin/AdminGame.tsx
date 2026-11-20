@@ -43,5 +43,5 @@ export function AdminGame(): JSX.Element {
       </>
     );
   }
-  return <GameDetailView game={state.data} back={back} />;
+  return <GameDetailView game={state.data} back={back} heading="h2" />;
 }
