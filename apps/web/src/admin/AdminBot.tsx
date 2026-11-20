@@ -1,38 +1,15 @@
 import { useCallback, useEffect, useState, type JSX } from 'react';
 import { Link, Navigate } from 'react-router-dom';
-import { BOT_NICKNAME, BOT_USER_ID, type AdminBotQuiz, type AdminBotRoom, type AdminBotStatus, type BotAction } from '@quiz/shared';
+import { BOT_NICKNAME, BOT_USER_ID, type AdminBotLobby, type AdminBotQuiz, type AdminBotRoom, type BotCommand } from '@quiz/shared';
 import { listQuizzes, type ApiResult, type QuizSummary } from '../api';
 import { formatDay, quizSizeText } from '../format';
 import { countText, errorText, t, type TextKey } from '../i18n';
 import { Avatar } from '../profile/Avatar';
-import { adminBot, botRoomAct, copyToBot, deleteBotQuiz, startBotGame } from './admin-api';
+import { adminBot, botRoomCommand, copyToBot, deleteBotQuiz, saveBotLobby, startBotGame } from './admin-api';
+import { AdminBotRoomCard } from './AdminBotRoomCard';
 import { AdminBotSchedule } from './AdminBotSchedule';
 import { QuizCheckButton } from './QuizCheck';
 import { useAdminData } from './useAdminData';
-
-const STATUS_KEY: Record<AdminBotStatus, TextKey> = {
-  lobby: 'adminBotLobby',
-  playing: 'adminBotPlaying',
-  paused: 'adminBotPaused',
-  finished: 'adminBotFinished',
-};
-
-/** Кнопки кімнати за станом; «Завершити гру» в лобі закриває лобі. Кінець — без кнопок. */
-const ROOM_ACTIONS: Record<AdminBotStatus, { action: BotAction; key: TextKey }[]> = {
-  lobby: [
-    { action: 'start', key: 'adminBotStart' },
-    { action: 'end', key: 'adminBotEnd' },
-  ],
-  playing: [
-    { action: 'pause', key: 'adminBotPause' },
-    { action: 'end', key: 'adminBotEnd' },
-  ],
-  paused: [
-    { action: 'resume', key: 'adminBotResume' },
-    { action: 'end', key: 'adminBotEnd' },
-  ],
-  finished: [],
-};
 
 const sizeText = (quiz: AdminBotQuiz): string =>
   t('adminBotSize', { rounds: countText('adminBotRounds', quiz.rounds, { count: quiz.rounds }), questions: quizSizeText(countText('questionCount', quiz.questions, { count: quiz.questions }), quiz.questions, quiz.truth) });
@@ -82,10 +59,9 @@ export function AdminBot(): JSX.Element {
     if (!result.ok && result.error === 'not_found') mine.reload();
   };
 
-  const act = (room: AdminBotRoom, action: BotAction) => {
-    if (action === 'end' && !window.confirm(t('adminBotEndConfirm', { code: room.code, title: room.title }))) return;
-    void run(() => botRoomAct(room.code, action), 'err_game_not_found', () => null);
-  };
+  /** Команди картки кімнати (підтвердження питає сама картка); лобі після збереження — «Збережено». */
+  const command = (room: AdminBotRoom, sent: BotCommand) => void run(() => botRoomCommand(room.code, sent), 'err_game_not_found', () => null);
+  const lobby = (room: AdminBotRoom, input: AdminBotLobby) => void run(() => saveBotLobby(room.code, input), 'err_game_not_found', () => t('lobbySaved'));
   const launch = (quiz: AdminBotQuiz) => {
     // Остання перевірка знайшла помилки: питаємо, чи справді запускати (без перевірки чи без помилок — без питань).
     const errors = quiz.check?.errors ?? 0;
@@ -122,11 +98,10 @@ export function AdminBot(): JSX.Element {
           {error}
         </p>
       )}
-      {notice !== null && (
-        <p className="meta" role="status">
-          {notice}
-        </p>
-      )}
+      {/* Один живий рядок стану з першого показу (порожній) — програми читання екрана чують кожну зміну. */}
+      <p className="meta admin-bot-notice" role="status">
+        {notice ?? ''}
+      </p>
       {state.status === 'loading' && <p className="meta">{t('loading')}</p>}
       {state.status === 'error' && (
         <>
@@ -148,27 +123,7 @@ export function AdminBot(): JSX.Element {
             ) : (
               <ul className="admin-list">
                 {state.data.rooms.map((room) => (
-                  <li key={room.code} className="admin-card">
-                    <p className="admin-bot-code">{t('adminBotCode', { code: room.code })}</p>
-                    <h3 dir="auto">{room.title}</h3>
-                    <p className="admin-mark">{t(STATUS_KEY[room.status])}</p>
-                    <p>{t('adminBotPlayers', { online: room.players.online, total: room.players.total })}</p>
-                    <div className="admin-actions">
-                      <a className="btn" href={room.stageUrl} target="_blank" rel="noopener noreferrer">
-                        {t('adminBotStage')}
-                      </a>
-                      {room.status !== 'finished' && (
-                        <Link className="btn" to={`/play/${encodeURIComponent(room.code)}`}>
-                          {t('adminBotJoin')}
-                        </Link>
-                      )}
-                      {ROOM_ACTIONS[room.status].map(({ action, key }) => (
-                        <button key={action} type="button" className={action === 'end' ? 'btn btn-danger' : action === 'start' ? 'btn btn-primary' : 'btn'} disabled={busy} onClick={() => act(room, action)}>
-                          {t(key)}
-                        </button>
-                      ))}
-                    </div>
-                  </li>
+                  <AdminBotRoomCard key={room.code} room={room} busy={busy} onCommand={(sent) => command(room, sent)} onLobby={(input) => lobby(room, input)} />
                 ))}
               </ul>
             )}

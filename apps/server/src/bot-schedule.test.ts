@@ -33,6 +33,7 @@ const input = (extra: Partial<BotPlanInput> = {}): BotPlanInput => ({
   recipients: { kind: 'people', userIds: ['olya'] },
   autoStartMin: null,
   weekly: false,
+  listed: true,
   ...extra,
 });
 
@@ -216,6 +217,21 @@ describe('bot schedule (56)', () => {
     expect((await cancelPlan(db, 'adm', cancelled, NOW)).ok).toBe(true);
     await run(service(), T);
     expect(await db.select().from(botPlan).where(eq(botPlan.previousId, cancelled))).toEqual([]);
+  });
+
+  it('a hidden plan opens a hidden room, a listed one a listed room (62)', async () => {
+    const hidden = await plan({ listed: false });
+    const shown = await plan({ startsAt: at(MIN).toISOString() });
+    await run(service(), at(MIN));
+    expect(manager.get((await row(hidden)).roomCode!)?.lobby.visibility).toBe('hidden');
+    expect(manager.get((await row(shown)).roomCode!)?.lobby.visibility).toBe('all');
+  });
+
+  it('a weekly successor keeps listed (62)', async () => {
+    const hidden = await plan({ weekly: true, listed: false });
+    await run(service(), T);
+    const [next] = await db.select().from(botPlan).where(eq(botPlan.previousId, hidden));
+    expect(next).toMatchObject({ status: 'scheduled', weekly: true, listed: false });
   });
 
   it('a successor is made even with 20 scheduled, and a create racing with it stays refused', async () => {

@@ -74,6 +74,16 @@ describe('logLine for moderation', () => {
     expect(logLine(entry({ admin: 'Квіз-бот', kind: 'bot_plan_run', target: 'Квіз-бот', details: { title: 'Поліські озера 56', code: '123456' } }))).toBe('Розклад: бот відкрив гру «Поліські озера 56» (код 123456)');
     expect(logLine(entry({ admin: 'Квіз-бот', kind: 'bot_plan_fail', target: 'Квіз-бот', details: { title: 'Поліські озера 56', reason: 'server_down' } }))).toBe('Розклад: гру бота «Поліські озера 56» не відкрито — сервер був недоступний');
   });
+  it('62: writes the bot room lines with the code, the person and the lobby without a password', () => {
+    const room = { title: 'Річки України 62', code: '123456' };
+    expect(logLine(entry({ kind: 'bot_room_kick', target: 'Квіз-бот', details: { ...room, text: 'Оля' } }))).toBe('Адмін вилучив(-ла) Оля з гри бота (код 123456)');
+    expect(logLine(entry({ kind: 'bot_room_release', target: 'Квіз-бот', details: { ...room, text: 'Оля' } }))).toBe('Адмін звільнив(-ла) місце Оля у грі бота (код 123456)');
+    expect(logLine(entry({ kind: 'bot_room_skip', target: 'Квіз-бот', details: room }))).toBe('Адмін пропустив(-ла) запитання в грі бота (код 123456)');
+    expect(logLine(entry({ kind: 'bot_room_time', target: 'Квіз-бот', details: room }))).toBe('Адмін додав(-ла) 30 с у грі бота (код 123456)');
+    expect(logLine(entry({ kind: 'bot_room_end_round', target: 'Квіз-бот', details: room }))).toBe('Адмін завершив(-ла) раунд у грі бота (код 123456)');
+    expect(logLine(entry({ kind: 'bot_room_lobby', target: 'Квіз-бот', details: { ...room, listed: false, locked: true } }))).toBe('Адмін змінив(-ла) лобі гри бота (код 123456): лише за кодом, з паролем');
+    expect(logLine(entry({ kind: 'bot_room_lobby', target: 'Квіз-бот', details: { ...room, listed: true, locked: false } }))).toBe('Адмін змінив(-ла) лобі гри бота (код 123456): у списку лобі, без пароля');
+  });
   it('shows a player without a nickname as the default name', () => {
     expect(logLine(entry({ kind: 'avatar_reset', target: '' }))).toBe('Адмін скинув(-ла) аватар Гравець');
   });

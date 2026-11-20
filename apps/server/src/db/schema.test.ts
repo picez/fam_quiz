@@ -961,12 +961,29 @@ describe('player card (58)', () => {
   });
 });
 
+describe('bot plan listed (62)', () => {
+  it('migration 0044 adds listed over an older database, old plans stay listed', async () => {
+    const { botPlan } = await import('./schema');
+    const { db, migrateRest } = await createTestDbUpTo('0043_player_card');
+    const T = new Date('2026-11-20T10:00:00.000Z');
+    await db.insert(user).values({ id: 'a', name: 'Адмін', email: 'a@example.com' });
+    await db.execute(sql`
+      INSERT INTO "bot_plan" ("title", "starts_at", "recipients", "created_by", "created_at", "updated_at")
+      VALUES ('Старий план', ${T.toISOString()}, 'none', 'a', now(), now())`);
+
+    await migrateRest();
+
+    const [kept] = await db.select().from(botPlan);
+    expect(kept).toMatchObject({ title: 'Старий план', status: 'scheduled', listed: true });
+  });
+});
+
 describe('push broadcast (59)', () => {
   const T = new Date('2026-11-20T10:00:00.000Z');
 
   it('migration 0045 adds the push_broadcast table and admin announcements on for an existing profile', async () => {
     const { profile, pushBroadcast } = await import('./schema');
-    const { db, migrateRest } = await createTestDbUpTo('0043_player_card');
+    const { db, migrateRest } = await createTestDbUpTo('0044_bot_plan_listed');
     await db.insert(user).values({ id: 'u1', name: 'Олена', email: 'olena@example.com' });
     await db.execute(sql`INSERT INTO "profile" ("user_id", "nickname", "easy_mode") VALUES ('u1', 'Олена', true)`);
 

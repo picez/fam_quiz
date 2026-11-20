@@ -1,6 +1,6 @@
 {
-  "id": "3f15211c-59f5-49af-b2cc-8fa6a0c91316",
-  "prevId": "c5860422-c181-4b51-9ef2-7ca756c1d80a",
+  "id": "1f030f7d-9701-4ddc-b35c-dc9d36a45f55",
+  "prevId": "75273748-ecd4-4f4d-a597-1e16300a77ca",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -645,6 +645,13 @@
           "primaryKey": false,
           "notNull": true,
           "default": false
+        },
+        "listed": {
+          "name": "listed",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
         },
         "wall_time": {
           "name": "wall_time",

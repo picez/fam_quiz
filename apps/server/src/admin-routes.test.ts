@@ -124,6 +124,8 @@ describe('hiding the admin panel (Review Focus 3)', () => {
     ['GET', '/api/admin/bot/people?q=ol'],
     ['DELETE', `/api/admin/bot/quizzes/${UUID}`],
     ['POST', '/api/admin/bot/rooms/123456/start'],
+    ['POST', '/api/admin/bot/rooms/123456/kick'],
+    ['PUT', '/api/admin/bot/rooms/123456/lobby'],
     ['GET', '/api/admin/live'],
     ['POST', '/api/admin/live/123456/close'],
     ['GET', '/api/admin/charts'],

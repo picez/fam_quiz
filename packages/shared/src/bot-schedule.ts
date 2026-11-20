@@ -47,6 +47,8 @@ export const botPlanInputSchema = z
     recipients: botPlanRecipientsSchema,
     autoStartMin: z.number().int().min(BOT_PLAN_AUTO_MIN).max(BOT_PLAN_AUTO_MAX).nullable(),
     weekly: z.boolean(),
+    /** 62: show the opened room in the lobby list; old clients without the field get true. */
+    listed: z.boolean().default(true),
   })
   .strict();
 export type BotPlanInput = z.infer<typeof botPlanInputSchema>;

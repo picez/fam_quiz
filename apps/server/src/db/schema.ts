@@ -1048,6 +1048,8 @@ export const botPlan = pgTable(
     /** null — без автостарту. */
     autoStartMin: integer('auto_start_min'),
     weekly: boolean('weekly').notNull().default(false),
+    /** 62: відкрита кімната бота — у списку лобі (false — схована, лише за кодом). */
+    listed: boolean('listed').notNull().default(true),
     /** Київська година серії «HH:MM»: наступник після весняної «дірки» (03:30 → 04:30) повертається до неї; null — з starts_at. */
     wallTime: text('wall_time'),
     status: text('status').$type<BotPlanStatus>().notNull().default('scheduled'),
