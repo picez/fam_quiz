@@ -94,6 +94,11 @@ describe('logLine for games and announcements', () => {
   it('writes the game close with its title and code', () => {
     expect(logLine(entry({ admin: 'Оля', kind: 'game_close', details: { title: 'Карпати', code: '123456' } }))).toBe('Оля закрив(-ла) гру «Карпати» (код 123456)');
   });
+  it('writes the replay view with the game title (65)', () => {
+    const line = logLine(entry({ admin: 'Оля', kind: 'game_replay_view', target: 'Богдан', details: { title: 'Осінній квіз', code: '123456' } }));
+    expect(line).toContain('повтор гри «Осінній квіз»');
+    expect(line).toBe('Оля переглянув(-ла) повтор гри «Осінній квіз» (Богдан)');
+  });
   it('writes the announcement set and clear with the text', () => {
     expect(logLine(entry({ kind: 'announcement_set', details: { text: 'Субота — гра' } }))).toContain('«Субота — гра»');
     expect(logLine(entry({ kind: 'announcement_clear', details: { text: 'Субота — гра' } }))).toBe('Адмін прибрав(-ла) оголошення «Субота — гра»');

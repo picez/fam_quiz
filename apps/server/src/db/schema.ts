@@ -15,6 +15,8 @@ import type {
   Duels,
   FeedData,
   FeedKind,
+  GameEventDetails,
+  GameEventKind,
   GameStatus,
   GroupAboutStored,
   GroupEmoji,
@@ -371,6 +373,33 @@ export const appeal = pgTable(
   },
   (table) => [primaryKey({ columns: [table.gameId, table.seq] })],
 );
+
+/**
+ * Події гри (65), яких немає в answer/score_adjustment/appeal: старт (позначка «гра записує події»), приєднання, вилучення з рахунком,
+ * пауза й продовження, оцінка до ручного рішення ведучого. id генерує рекордер: повтор запису нічого не дублює.
+ */
+export const gameEvent = pgTable(
+  'game_event',
+  {
+    id: uuid('id').primaryKey(),
+    gameId: uuid('game_id')
+      .notNull()
+      .references(() => game.id, { onDelete: 'cascade' }),
+    /** Мить, коли рекордер побачив зміну (manager.now()). */
+    at: at('at').notNull(),
+    /** state.plays.length − 1 на ту мить; −1 — до першого запитання. */
+    questionIndex: integer('question_index').notNull(),
+    kind: text('kind').$type<GameEventKind>().notNull(),
+    /** Без зовнішнього ключа: рядки вилучених учасників стираються, а подія лишається. null — пауза й старт. */
+    participantId: uuid('participant_id'),
+    userId: text('user_id').references(() => user.id, { onDelete: 'set null' }),
+    /** '' — пауза й старт; видалений акаунт — DELETED_NICKNAME. */
+    nickname: text('nickname').notNull(),
+    details: jsonb('details').$type<GameEventDetails>(),
+  },
+  (table) => [index('game_event_game_idx').on(table.gameId, table.at)],
+);
+export type GameEventRow = typeof gameEvent.$inferInsert;
 
 /** Профіль гравця: окремо від user Better Auth, створюється під час першого читання. */
 export const profile = pgTable('profile', {

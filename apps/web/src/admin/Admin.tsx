@@ -16,6 +16,7 @@ import { AdminLive } from './AdminLive';
 import { AdminLog } from './AdminLog';
 import { AdminBotQuizView, AdminQuiz, AdminReportedQuiz } from './AdminQuiz';
 import { AdminQuizzes } from './AdminQuizzes';
+import { AdminReplay } from './AdminReplay';
 import { AdminReports } from './AdminReports';
 import { AdminStats } from './AdminStats';
 import { AdminUser } from './AdminUser';
@@ -108,6 +109,7 @@ export function Admin(): JSX.Element | null {
         <Route path="users" element={<AdminUsers />} />
         <Route path="users/:id" element={<AdminUser />} />
         <Route path="games/:id" element={<AdminGame />} />
+        <Route path="games/:id/replay" element={<AdminReplay />} />
         <Route path="quizzes" element={<AdminQuizzes />} />
         <Route path="quizzes/:id" element={<AdminQuiz />} />
         <Route path="reports" element={<AdminReports />} />

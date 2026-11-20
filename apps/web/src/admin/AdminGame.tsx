@@ -8,7 +8,7 @@ import { useAdminData } from './useAdminData';
 /** Є куди повертатися в межах застосунку (react-router пише idx у history.state); інакше «Назад» — до списку гравців. */
 const cameHere = (): boolean => ((window.history.state as { idx?: number } | null)?.idx ?? 0) > 0;
 
-/** Адмінський перегляд будь-якої гри (58): та сама сторінка, що й в історії гравця; «Назад» — туди, звідки прийшли. */
+/** Адмінський перегляд будь-якої гри (58): та сама сторінка, що й в історії гравця; «Назад» — туди, звідки прийшли; завершеної — «Повтор по кроках» (65). */
 export function AdminGame(): JSX.Element {
   const { id = '' } = useParams();
   const navigate = useNavigate();
@@ -27,6 +27,11 @@ export function AdminGame(): JSX.Element {
       >
         {t('adminGameBack')}
       </Link>
+      {state.status === 'ready' && state.data.status !== 'running' && (
+        <Link className="quiet-link" to={`/admin/games/${encodeURIComponent(id)}/replay`}>
+          {t('adminReplayOpen')}
+        </Link>
+      )}
     </header>
   );
   if (state.status === 'loading') return <p className="meta">{t('loading')}</p>;

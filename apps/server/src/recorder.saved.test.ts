@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { GAME_STATE_VERSION, type GameState } from '@quiz/engine';
 import { makeQuiz, single, text } from '@quiz/engine/testing';
 import * as store from './achievement-store';
-import { answer, appeal, game, participant, savedGame, scoreAdjustment, user } from './db/schema';
+import { answer, appeal, game, gameEvent, participant, savedGame, scoreAdjustment, user } from './db/schema';
 import { attachRecorder, saveSavedGame, trimToCheckpoint, type SavedWrite } from './recorder';
 import { exactSaved, isSavedGameData, SAVED_GAME_VERSION, type SavedGameData } from './rooms/continuation';
 import { RoomManager, type Room } from './rooms/manager';
@@ -205,6 +205,8 @@ describe('saved games in the database', () => {
     await trimToCheckpoint(ctx.db, g.room.id, checkpoint);
     expect(await ctx.db.select().from(answer)).toHaveLength(2);
     expect(await ctx.db.select().from(scoreAdjustment)).toHaveLength(1);
+    // 65: подія старту — до першого запитання, лишається.
+    expect((await ctx.db.select().from(gameEvent)).map((e) => [e.kind, e.questionIndex])).toEqual([['start', -1]]);
   });
 
   it('saving by hand in the middle of question 2 writes the game as saved with question 1 only (manager + recorder)', async () => {

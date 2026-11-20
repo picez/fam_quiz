@@ -334,6 +334,11 @@ export interface Continued {
   carry: ResumeSetup | null;
   /** Шлях 12r: id старого збереженого запису. */
   replaces: string | null;
+  /**
+   * 65: мить відкриття точного продовження (годинник менеджера). Перший запис прибирає лише події, давніші за неї, — кімната,
+   * піднята після перезапуску, не стирає своїх же подій відкритого запитання. Немає (знімок до 65) — подій не прибирає.
+   */
+  openedAt?: number;
 }
 
 /**
@@ -551,7 +556,7 @@ export interface SavedRoom {
   /** Контрольна точка (13b); немає — ще не було (старий сервер поле ігнорує). */
   checkpoint?: { state: GameState; at: number };
   /** Продовження збереженої гри (13b); немає — звичайна кімната (старий сервер поле ігнорує: кімната встає без слотів). */
-  continued?: { bound: string[]; carry: ResumeSetup | null; replaces: string | null };
+  continued?: { bound: string[]; carry: ResumeSetup | null; replaces: string | null; openedAt?: number };
   /** Призи на місцях (14a); немає — призів немає (старий сервер поле ігнорує: кімната встає без призів, резерв знімає закриття чи прибирач). */
   prizes?: PlacedPrize[];
   /** Видимість і пароль лобі (24c); немає чи зіпсовано — типові значення. */
@@ -608,7 +613,8 @@ function continuedOf(raw: unknown): Continued | null {
   const replaces = typeof raw.replaces === 'string' ? raw.replaces : null;
   const carry = raw.carry;
   const readable = isObjectLike(carry) && typeof carry.roundIndex === 'number' && isObjectLike(carry.points) && !Array.isArray(carry.points);
-  return { bound: new Set(bound), carry: readable ? (carry as unknown as ResumeSetup) : null, replaces };
+  const openedAt = typeof raw.openedAt === 'number' && Number.isFinite(raw.openedAt) ? { openedAt: raw.openedAt } : {};
+  return { bound: new Set(bound), carry: readable ? (carry as unknown as ResumeSetup) : null, replaces, ...openedAt };
 }
 
 /** Позначка виклику з рядка бази (44): лише об'єкт з рядками id, code і title, інакше null. */
@@ -930,7 +936,7 @@ export class RoomManager {
       tickedTo: room.tickedTo,
       savedAt: this.now(),
       ...(room.checkpoint === null ? {} : { checkpoint: room.checkpoint }),
-      ...(room.continued === null ? {} : { continued: { bound: [...room.continued.bound], carry: room.continued.carry, replaces: room.continued.replaces } }),
+      ...(room.continued === null ? {} : { continued: { bound: [...room.continued.bound], carry: room.continued.carry, replaces: room.continued.replaces, ...(room.continued.openedAt === undefined ? {} : { openedAt: room.continued.openedAt }) } }),
       ...(room.prizes.length === 0 ? {} : { prizes: room.prizes }),
       lobby: room.lobby,
       ...(room.challenge === null ? {} : { challenge: room.challenge }),
@@ -1360,7 +1366,7 @@ export class RoomManager {
     for (const [playerId, userId] of saved.playerUsers) room.playerUsers.set(playerId, userId);
     const forgotten = forgottenOf(saved.forgotten);
     if (forgotten.size > 0) room.forgotten = forgotten;
-    room.continued = { bound: new Set(), carry: null, replaces: null };
+    room.continued = { bound: new Set(), carry: null, replaces: null, openedAt: this.now() };
     // Та сама гра — ті самі призи (14a): резерв за id гри лишився після збереження.
     room.prizes = prizesOf(saved.prizes);
     room.tickedTo = this.now();

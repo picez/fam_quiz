@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { eq, sql } from 'drizzle-orm';
 import { describe, expect, it } from 'vitest';
 import { makeQuiz, single } from '@quiz/engine/testing';
@@ -1068,5 +1069,30 @@ describe('moderation (63)', () => {
     expect((await db.select({ hiddenAt: groupItem.hiddenAt }).from(groupItem))).toEqual([{ hiddenAt: null }]);
     const indexes = (await db.execute(sql`SELECT "indexname" FROM "pg_indexes" WHERE "indexname" = 'admin_action_admin_idx'`)) as unknown as { rows: unknown[] };
     expect(indexes.rows).toHaveLength(1);
+  });
+});
+
+describe('game events (65)', () => {
+  const T = new Date('2026-11-20T10:00:00.000Z');
+
+  it('an event needs no participant and no account; deleting the game removes its events; deleting the account keeps the event without it', async () => {
+    const { game, gameEvent } = await import('./schema');
+    const { seedGame } = await import('../testing/history-rows');
+    const db = await createTestDb();
+    await db.insert(user).values([
+      { id: 'host', name: 'Ведуча', email: 'host@example.com' },
+      { id: 'u1', name: 'Олена', email: 'olena@example.com' },
+    ]);
+    const { gameId } = await seedGame(db, { hostId: 'host', startedAt: T, players: [{ userId: 'u1', nickname: 'Олена', score: 0, rank: null }] });
+    const [start] = await db.insert(gameEvent).values({ id: randomUUID(), gameId, at: T, questionIndex: -1, kind: 'start', nickname: '' }).returning();
+    expect(start).toMatchObject({ participantId: null, userId: null, details: null });
+    await db.insert(gameEvent).values({ id: randomUUID(), gameId, at: T, questionIndex: 0, kind: 'leave', participantId: randomUUID(), userId: 'u1', nickname: 'Олена', details: { score: 300 } });
+
+    await db.delete(user).where(eq(user.id, 'u1'));
+    const kept = await db.select().from(gameEvent).where(eq(gameEvent.kind, 'leave'));
+    expect(kept).toMatchObject([{ userId: null, nickname: 'Олена', details: { score: 300 } }]);
+
+    await db.delete(game).where(eq(game.id, gameId));
+    expect(await db.select().from(gameEvent)).toEqual([]);
   });
 });
