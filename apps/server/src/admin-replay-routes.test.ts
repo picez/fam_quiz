@@ -64,8 +64,8 @@ describe('GET /api/admin/games/:id/replay (65)', () => {
     expect(replay).toMatchObject({ id: gameId, title: 'Повтор для адміна', status: 'finished', recorded: false });
     expect(replay.steps[0].question?.id).toBe(single.id);
     expect(replay.steps[0].scores).toEqual([
-      { nickname: 'Гравчиня', score: 1000 },
-      { nickname: 'Сторонній', score: 0 },
+      { key: 'p1', nickname: 'Гравчиня', score: 1000 },
+      { key: 'p2', nickname: 'Сторонній', score: 0 },
     ]);
     expect(response.body).not.toContain('@');
     for (const id of [player.id, other.id, hostPerson.id]) expect(response.body).not.toContain(id);

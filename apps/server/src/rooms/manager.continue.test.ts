@@ -84,7 +84,7 @@ describe('an exact continuation (13b)', () => {
     expect(scoreOf(room, ctx.taras)).toBe(ctx.scores[ctx.taras]);
     expect(room.playerTokens.size).toBe(0);
     expect(room.playerUsers.get(ctx.olena)).toBe('u2');
-    expect(room.continued).toEqual({ bound: new Set(), carry: null, replaces: null });
+    expect(room.continued).toEqual({ bound: new Set(), carry: null, replaces: null, openedAt: ctx.manager.now() });
     expect(ctx.manager.slots(room.code, null)).toEqual({ slots: [{ id: ctx.taras, nickname: 'Тарас', team: null }], mine: null });
   });
 
@@ -562,10 +562,10 @@ describe('a restart of the server (13b)', () => {
     const { manager, room } = ctx;
     expect(manager.claim(room.code, ctx.taras, 'u3')).toMatchObject({ ok: true });
     const snap = viaJson(manager.snapshot(room)) as SavedRoom;
-    expect(snap.continued).toEqual({ bound: [ctx.taras], carry: null, replaces: null });
+    expect(snap.continued).toEqual({ bound: [ctx.taras], carry: null, replaces: null, openedAt: room.continued!.openedAt });
     const other = new RoomManager(new FakeScheduler(), () => 0.5);
     const restored = other.restore(snap);
-    expect(restored?.continued).toEqual({ bound: new Set([ctx.taras]), carry: null, replaces: null });
+    expect(restored?.continued).toEqual({ bound: new Set([ctx.taras]), carry: null, replaces: null, openedAt: room.continued!.openedAt });
     expect(other.openFor(ctx.old.id)).toBe(true);
 
     const plain = ctx.manager.create(quiz(), 'u1', null);

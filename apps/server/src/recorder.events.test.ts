@@ -4,7 +4,7 @@ import { DELETED_NICKNAME } from '@quiz/shared';
 import { asc, eq } from 'drizzle-orm';
 import { describe, expect, it, vi } from 'vitest';
 import type { Db } from './db/client';
-import { gameEvent, user } from './db/schema';
+import { gameEvent, savedGame, user } from './db/schema';
 import { attachRecorder, trimToCheckpoint } from './recorder';
 import type { SavedGameData } from './rooms/continuation';
 import { RoomManager, type Room } from './rooms/manager';
@@ -117,6 +117,8 @@ describe('recorder: game events (65)', () => {
     const rows = await ctx.events();
     expect(rows.map((r) => [r.kind, r.nickname, r.questionIndex])).toEqual([
       ['start', '', -1],
+      // «Зберегти» на таблиці після запитання 1.
+      ['save', '', 0],
       ['join', 'Марко', 0],
       // Продовження відкривається на паузі (мить контрольної точки).
       ['resume', '', 0],
@@ -160,7 +162,7 @@ describe('recorder: game events (65)', () => {
     const rows = await ctx.events();
     expect(ctx.errors).toHaveLength(1);
     expect(rows.find((r) => r.kind === 'join')).toMatchObject({ userId: null, nickname: DELETED_NICKNAME });
-    expect(rows.map((r) => r.kind)).toEqual(['start', 'join', 'resume']);
+    expect(rows.map((r) => r.kind)).toEqual(['start', 'save', 'join', 'resume']);
   });
 
   it('a pause alone is written', async () => {
@@ -264,6 +266,95 @@ describe('recorder: game events (65)', () => {
 
     await trimToCheckpoint(ctx.db, ctx.room.id, checkpoint);
     expect((await ctx.events()).map((r) => r.kind)).toEqual(['start']);
+  });
+
+  it('a continued room raised after a restart keeps the open question’s kick and pause', async () => {
+    const ctx = await setup();
+    const room = await ctx.continued();
+    ctx.tick();
+    const marko = ctx.enterIn(room, 'Марко');
+    ctx.tick();
+    ctx.host({ type: 'resume' }, room);
+    ctx.tick();
+    ctx.host({ type: 'next' }, room);
+    expect(room.state.phase).toBe('question');
+    ctx.tick();
+    ctx.host({ type: 'kick', playerId: marko }, room);
+    ctx.tick();
+    ctx.host({ type: 'pause' }, room);
+    await ctx.recorder.idle();
+    expect((await ctx.events()).map((r) => [r.kind, r.questionIndex])).toEqual(expect.arrayContaining([['leave', 1], ['pause', 1]]));
+
+    // Розгортання посеред запитання: свіжий менеджер і записувач над тією самою базою; годинник іде далі.
+    const saved = JSON.parse(JSON.stringify(ctx.manager.snapshot(room)));
+    ctx.manager.freeze();
+    const scheduler = new FakeScheduler();
+    scheduler.advance(600_000);
+    const manager = new RoomManager(scheduler, () => 0.5);
+    const errors: unknown[] = [];
+    const recorder = attachRecorder(manager, ctx.db, (error) => errors.push(error));
+    const raised = manager.restore(saved);
+    expect(raised).not.toBeNull();
+    scheduler.advance(100);
+    expect(manager.host(raised!, { type: 'resume' })).toEqual({ ok: true });
+    scheduler.advance(100);
+    expect(manager.host(raised!, { type: 'end' })).toEqual({ ok: true });
+    await recorder.idle();
+    expect(errors).toEqual([]);
+
+    const after = await ctx.db.select().from(gameEvent).where(eq(gameEvent.gameId, room.id)).orderBy(asc(gameEvent.at));
+    expect(after.filter((r) => r.kind === 'leave').map((r) => [r.nickname, r.questionIndex])).toEqual([['Марко', 1]]);
+    expect(after.filter((r) => r.kind === 'pause').map((r) => r.questionIndex)).toEqual([1]);
+  });
+
+  it('a fresh exact continuation still trims events a crashed continuation left', async () => {
+    const ctx = await setup();
+    const first = await ctx.continued();
+    ctx.tick();
+    ctx.host({ type: 'resume' }, first);
+    ctx.tick();
+    ctx.host({ type: 'next' }, first);
+    ctx.tick();
+    ctx.host({ type: 'pause' }, first);
+    await ctx.recorder.idle();
+    expect((await ctx.events()).filter((r) => r.kind === 'pause').map((r) => r.questionIndex)).toEqual([1]);
+
+    // Процес упав без live_room: нове продовження з того самого збереження.
+    ctx.manager.freeze();
+    const scheduler = new FakeScheduler();
+    scheduler.advance(600_000);
+    const manager = new RoomManager(scheduler, () => 0.5);
+    const errors: unknown[] = [];
+    const recorder = attachRecorder(manager, ctx.db, (error) => errors.push(error));
+    const [row] = await ctx.db.select().from(savedGame).where(eq(savedGame.gameId, ctx.room.id));
+    const again = manager.continueSaved(ctx.room.id, HOST, row.data as SavedGameData);
+    if (!again.ok) throw new Error(again.error);
+    await recorder.idle();
+    expect(errors).toEqual([]);
+    const after = await ctx.db.select().from(gameEvent).where(eq(gameEvent.gameId, ctx.room.id));
+    expect(after.filter((r) => r.kind === 'pause')).toEqual([]);
+  });
+
+  it('a save writes a save mark after a pause on the resting point', async () => {
+    const ctx = await setup();
+    firstQuestion(ctx);
+    ctx.manager.answer(ctx.room, ctx.olia, correct);
+    ctx.manager.answer(ctx.room, ctx.petro, wrong);
+    ctx.host({ type: 'next' });
+    ctx.host({ type: 'next' });
+    expect(ctx.room.state.phase).toBe('leaderboard');
+    ctx.tick();
+    ctx.host({ type: 'pause' });
+    await ctx.recorder.idle();
+    ctx.tick();
+    ctx.host({ type: 'save' });
+    const rows = await ctx.events();
+    expect(rows.map((r) => [r.kind, r.questionIndex])).toEqual([
+      ['start', -1],
+      ['pause', 0],
+      ['save', 0],
+    ]);
+    expect(ctx.errors).toEqual([]);
   });
 
   it('GAME_STATE_VERSION stays 22', () => {

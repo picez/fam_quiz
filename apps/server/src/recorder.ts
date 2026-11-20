@@ -1,6 +1,7 @@
 import { answeredByOf, appealTally, cluesAnswered, debuffOn, isSilentRisk, memberOf, packedStrokes, rankPlayers, recordOf, teamMembers, teamsOn, thinkOffOf, thinkPlaces, thinkVerdicts, voteTally, type DrawingPlay, type GameState, type LadderPlay, type SurvivalPlay, type ThinkPlay, type TruthPlay } from '@quiz/engine';
 import { AWAY_MS, DELETED_NICKNAME, isUnscored, type Answer, type BuffKind, type DebuffKind, type GameXpMoment, type LeagueEntry, type Question } from '@quiz/shared';
-import { and, eq, gt, gte, inArray, max, notInArray, sql } from 'drizzle-orm';
+import { randomUUID } from 'node:crypto';
+import { and, eq, gt, gte, inArray, lt, max, notInArray, sql } from 'drizzle-orm';
 import { antiHidden, awardedIn, awardGame } from './achievement-store';
 import type { Db } from './db/client';
 import { answer, appeal, AWAY_ATTEMPT, game, gameEvent, participant, PENALTY_ATTEMPT, savedGame, scoreAdjustment, VOTE_ATTEMPT, type GameEventRow, type PlayRef } from './db/schema';
@@ -41,6 +42,11 @@ interface Snapshot {
   replaces: string | null;
   /** Точне продовження (13b): перший запис прибирає рядки після стану (trimToCheckpoint) — їх могло лишити продовження, що впало. */
   trim?: boolean;
+  /**
+   * 65: межа обрізання подій першого запису точного продовження — мить його відкриття: події самого продовження (і кімнати,
+   * піднятої з live_room) лишаються. Немає — подій не прибирати (знімок до 65).
+   */
+  eventsBefore?: Date;
   /** Сімейна ліга (45): лише фініш гри для ліги, що дає бали (finished, plays > 0, не виклик); null — нічого не писати. */
   league?: LeagueSnapshot | null;
   /** Події гри (65), побачені рекордером і ще не записані; ключ id — повтор нічого не дублює. */
@@ -60,7 +66,7 @@ interface LeagueSnapshot {
 }
 
 /** Знімок запису рекордера: поза save ще й призи фінішу (14a). */
-interface RecordSnapshot extends Omit<Snapshot, 'fromQuestion' | 'trim'> {
+interface RecordSnapshot extends Omit<Snapshot, 'fromQuestion' | 'trim' | 'eventsBefore'> {
   /** Що дають місця (prizeOutcome) у finished — навіть [] (тоді awardPrizes повертає залишки резервів); поза finished — null. */
   prizes: PrizeOutcome[] | null;
   quizTitle: string;
@@ -510,7 +516,7 @@ async function save(db: Db, snapshot: Snapshot): Promise<LeagueGameResult | null
   return db.transaction(async (tx) => {
     await writeGame(tx, snapshot, false);
     // Точне продовження: рядки після стану (запитання, коригування, апеляції продовження, що впало без live_room) — геть.
-    if (snapshot.trim === true) await trimToCheckpoint(tx, snapshot.id, snapshot.state);
+    if (snapshot.trim === true) await trimToCheckpoint(tx, snapshot.id, snapshot.state, snapshot.eventsBefore === undefined ? 'keep' : { before: snapshot.eventsBefore });
     // Події (65) — після рядка гри (зовнішній ключ) і після обрізання: подій цього продовження воно не зачіпає.
     await writeEvents(tx, snapshot.events ?? []);
     // Фініш: гра більше не «Не завершена».
@@ -566,6 +572,8 @@ export interface SavedWrite {
   saved: SavedGameData;
   /** Шлях 12r: старий збережений запис, який ця гра замінює; null — немає. */
   replaces: string | null;
+  /** 65: подія save (мить «Зберегти»); id сталий — повтор запису не дублює. */
+  mark?: GameEventRow;
 }
 
 /**
@@ -592,6 +600,8 @@ export async function saveSavedGame(db: Db, write: SavedWrite): Promise<void> {
   await db.transaction(async (tx) => {
     await writeGame(tx, snapshot, true);
     await trimToCheckpoint(tx, write.id, saved.state);
+    // 65: позначка збереження — після обрізання (вона на останньому закритому запитанні): пауза до неї має невідому тривалість.
+    if (write.mark !== undefined) await tx.insert(gameEvent).values(write.mark).onConflictDoNothing({ target: gameEvent.id });
     const savedAt = new Date();
     await tx
       .insert(savedGame)
@@ -603,14 +613,17 @@ export async function saveSavedGame(db: Db, write: SavedWrite): Promise<void> {
 
 /**
  * Видаляє рядки після контрольної точки: answer з question_index ≥ closedQuestions(state),
- * score_adjustment з seq > state.adjustmentSeq, appeal з seq > (state.appeals?.length ?? 0), game_event (65) з question_index ≥ closedQuestions(state).
+ * score_adjustment з seq > state.adjustmentSeq, appeal з seq > (state.appeals?.length ?? 0), game_event (65) з question_index ≥ closedQuestions(state):
+ * events 'all' — усі такі, { before } — лише давніші за мить before, 'keep' — жодної.
  */
-export async function trimToCheckpoint(db: Db | Tx, gameId: string, state: GameState): Promise<void> {
+export async function trimToCheckpoint(db: Db | Tx, gameId: string, state: GameState, events: 'all' | 'keep' | { before: Date } = 'all'): Promise<void> {
   const people = db.select({ id: participant.id }).from(participant).where(eq(participant.gameId, gameId));
   await db.delete(answer).where(and(inArray(answer.participantId, people), gte(answer.questionIndex, closedQuestions(state))));
   await db.delete(scoreAdjustment).where(and(inArray(scoreAdjustment.participantId, people), gt(scoreAdjustment.seq, state.adjustmentSeq)));
   await db.delete(appeal).where(and(eq(appeal.gameId, gameId), gt(appeal.seq, state.appeals?.length ?? 0)));
-  await db.delete(gameEvent).where(and(eq(gameEvent.gameId, gameId), gte(gameEvent.questionIndex, closedQuestions(state))));
+  if (events === 'keep') return;
+  const later = and(eq(gameEvent.gameId, gameId), gte(gameEvent.questionIndex, closedQuestions(state)));
+  await db.delete(gameEvent).where(events === 'all' ? later : and(later, lt(gameEvent.at, events.before)));
 }
 
 const MAX_RETRY_DELAY_MS = 60_000;
@@ -768,7 +781,9 @@ export function attachRecorder(
       // (точне продовження), а збереження після нього обрізало б їх до контрольної точки.
       // Акаунт, видалений, поки події чекали (повтор після збою), — у них уже «Видалений гравець» без акаунта.
       const events = ownsEvents(room) ? refreshEvents(watcher.pending(room.id), { users: room.playerUsers, forgotten: room.forgotten ?? new Set() }) : [];
-      const leagueResult = await save(db, { ...snapshot, fromQuestion, trim, league: leagueNow, events });
+      const openedAt = room.continued?.openedAt;
+      const eventsBefore = trim && openedAt !== undefined ? { eventsBefore: new Date(openedAt) } : {};
+      const leagueResult = await save(db, { ...snapshot, fromQuestion, trim, ...eventsBefore, league: leagueNow, events });
       watcher.written(room.id, events.map((event) => event.id));
       if (trim) untrimmed.delete(room.id);
       savedQuestions.set(room.id, closed);
@@ -855,7 +870,7 @@ export function attachRecorder(
   };
 
   /** Збереження (13b): та сама черга й ті самі повтори, що в record; запис цілий (fromQuestion 0), тож давніший збій він заступає. */
-  const persistSaved = (room: Room, saved: SavedGameData) => {
+  const persistSaved = (room: Room, saved: SavedGameData, mark?: GameEventRow) => {
     const hostId = room.hostUserId;
     // Повтор збереження кімнати, яку вже заступило продовження, переписав би новіші рядки старою точкою.
     if (hostId === null || superseded.has(room)) return;
@@ -867,6 +882,7 @@ export function attachRecorder(
       playerUsers: new Map(saved.playerUsers),
       saved,
       replaces: room.continued?.replaces ?? null,
+      ...(mark === undefined ? {} : { mark }),
     };
     const queued: Promise<void> = (queues.get(room.id) ?? Promise.resolve())
       .then(async () => {
@@ -881,7 +897,7 @@ export function attachRecorder(
           failures.delete(room.id);
           return;
         }
-        const timer = setTimeout(guarded({ where: 'recorder', room: room.code, what: 'retry-saved' }, () => persistSaved(room, saved)), Math.min(retryMs * 2 ** (attempt - 1), MAX_RETRY_DELAY_MS));
+        const timer = setTimeout(guarded({ where: 'recorder', room: room.code, what: 'retry-saved' }, () => persistSaved(room, saved, mark)), Math.min(retryMs * 2 ** (attempt - 1), MAX_RETRY_DELAY_MS));
         timer.unref();
       })
       .then(() => {
@@ -932,7 +948,18 @@ export function attachRecorder(
         // Події (65), ще не записані до збереження (пауза перед «Зберегти»), окремого запису не варті.
         watcher.reset(room.id);
         covered.delete(room.id);
-        persistSaved(room, event.saved);
+        const mark: GameEventRow = {
+          id: randomUUID(),
+          gameId: room.id,
+          at: new Date(manager.now()),
+          questionIndex: closedQuestions(event.saved.state) - 1,
+          kind: 'save',
+          participantId: null,
+          userId: null,
+          nickname: '',
+          details: null,
+        };
+        persistSaved(room, event.saved, mark);
       } else if (event.type === 'closed' && room.state.phase !== 'finished' && room.hostUserId !== null) {
         // Збережена гра (вище) лишає призи в резерві: продовження грає за них же.
         releaseLater(room);

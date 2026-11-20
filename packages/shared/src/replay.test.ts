@@ -18,6 +18,6 @@ describe('game replay (65)', () => {
   });
 
   it('event kinds', () => {
-    expect([...GAME_EVENT_KINDS]).toEqual(['start', 'join', 'leave', 'pause', 'resume', 'verdict']);
+    expect([...GAME_EVENT_KINDS]).toEqual(['start', 'join', 'leave', 'pause', 'resume', 'verdict', 'save']);
   });
 });

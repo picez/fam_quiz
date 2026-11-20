@@ -4,8 +4,11 @@ import type { GameAppeal, GameStatus } from './history';
 import type { Question, RoundType } from './quiz';
 import type { UndoTarget } from './undo';
 
-/** 65: види подій гри, які рекордер пише в game_event. start — позначка «ця гра записує події». */
-export const GAME_EVENT_KINDS = ['start', 'join', 'leave', 'pause', 'resume', 'verdict'] as const;
+/**
+ * 65: види подій гри, які рекордер пише в game_event. start — позначка «ця гра записує події»;
+ * save — «Зберегти»: пауза, не знята до збереження, далі має невідому тривалість.
+ */
+export const GAME_EVENT_KINDS = ['start', 'join', 'leave', 'pause', 'resume', 'verdict', 'save'] as const;
 export type GameEventKind = (typeof GAME_EVENT_KINDS)[number];
 
 /** Подробиці події: verdict — оцінка до й після рішення ведучого; leave — рахунок і команда на мить вилучення. */
@@ -34,6 +37,8 @@ export function replayVerdict(
 }
 
 export interface ReplayRow {
+  /** Ключ учасника в межах повтору (p1, p2, …): не id акаунта; той самий у ReplayScore. */
+  key: string;
   nickname: string;
   /** Нікнейм людини, що відповідала за команду; null — соло чи невідомо. */
   answeredBy: string | null;
@@ -50,6 +55,7 @@ export interface ReplayRow {
 }
 
 export interface ReplayScore {
+  key: string;
   nickname: string;
   score: number;
 }
@@ -62,8 +68,8 @@ export type ReplayEvent =
   | { kind: 'buff'; nickname: string; buff: BuffKind }
   | { kind: 'debuff'; nickname: string; debuff: DebuffKind }
   | { kind: 'join' | 'leave'; nickname: string; at: string; team?: string; score?: number }
-  /** ms: null — пауза не знята до кінця гри. */
-  | { kind: 'pause'; at: string; ms: number | null };
+  /** ended: resume — знята (ms — тривалість); game — не знята до кінця гри; unknown — гру збережено на паузі, тривалість невідома. ms: null — не resume. */
+  | { kind: 'pause'; at: string; ms: number | null; ended: 'resume' | 'game' | 'unknown' };
 
 export interface ReplayStep {
   index: number;
@@ -90,6 +96,8 @@ export interface GameReplay {
   rounds: { title: string; type: RoundType }[];
   /** Є подія start: гра записувала події (65). */
   recorded: boolean;
+  /** Найменший question_index події start (−1 — з початку); кроки з меншим index записано без подій. null — подій немає. */
+  recordedFrom: number | null;
   start: { scores: ReplayScore[]; events: ReplayEvent[] };
   steps: ReplayStep[];
 }

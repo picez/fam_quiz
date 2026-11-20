@@ -77,32 +77,44 @@ export async function gameReplay(db: Db, id: string): Promise<GameReplay | 'runn
   const voters = teams
     ? standings.flatMap((s) => participants.filter((p) => p.teamId === s.id).sort((a, b) => a.nickname.localeCompare(b.nickname)))
     : standings;
+  // Ключ учасника в межах повтору: порядковий, не id рядка й не акаунт (ніки можуть повторюватись — видалені акаунти, нік вилученого).
+  const keys = new Map([...standings, ...(teams ? voters : [])].map((p, i) => [p.id, `p${i + 1}`]));
+  const keyOf = (participantId: string) => keys.get(participantId) ?? '';
 
   const quiz = snapshotOf(row.quizSnapshot);
   const spares = quiz === null ? [] : allSpares(quiz);
   const played = quiz === null ? [] : playedQuestions(quiz, row.plays, row.questionsPlayed);
   const total = row.questionsPlayed;
-  // Крок рядка: −1 — перед першим запитанням; пізніші за останній закритий (дописані на фініші) — на останньому кроці.
+  // Крок рядка для рахунку й подій: −1 — перед першим запитанням; пізніші за останній закритий (дописані на фініші) — на останньому кроці.
+  // Рядки відповідей, ручні рішення, бафи й дебафи беруть точний індекс: у таблицю кроку чужі рядки не потрапляють.
   const stepOf = (index: number) => Math.min(Math.max(index, -1), total - 1);
   // Коригування з afterQuestion = k зроблено після закриття запитання k − 1.
   const adjustmentStep = (afterQuestion: number) => stepOf(afterQuestion - 1);
 
   const events = withoutRepeats(stored.filter((e) => e.kind !== 'start'));
+  const starts = stored.filter((e) => e.kind === 'start').map((e) => e.questionIndex);
   const timeline = new Map<number, ReplayEvent[]>();
   const later = (step: number, event: ReplayEvent) => timeline.set(step, [...(timeline.get(step) ?? []), event]);
   // Пауза — пара pause + resume; зняття без пари (продовження відкривається на паузі) і повторна пауза без зняття — пропускаємо.
-  let open: { step: number; event: { kind: 'pause'; at: string; ms: number | null }; at: Date } | null = null;
+  // «Зберегти» на паузі: тривалість невідома (продовження могло відкритися за кілька днів), його зняття — без пари.
+  type PauseEvent = { kind: 'pause'; at: string; ms: number | null; ended: 'resume' | 'game' | 'unknown' };
+  let open: { step: number; event: PauseEvent; at: Date } | null = null;
   for (const e of events) {
     const step = stepOf(e.questionIndex);
     const details: GameEventDetails = e.details ?? {};
     if (e.kind === 'pause') {
       if (open !== null) continue;
-      const event = { kind: 'pause' as const, at: e.at.toISOString(), ms: null };
+      const event: PauseEvent = { kind: 'pause', at: e.at.toISOString(), ms: null, ended: 'game' };
       open = { step, event, at: e.at };
       later(step, event);
     } else if (e.kind === 'resume') {
       if (open === null) continue;
       open.event.ms = e.at.getTime() - open.at.getTime();
+      open.event.ended = 'resume';
+      open = null;
+    } else if (e.kind === 'save') {
+      if (open === null) continue;
+      open.event.ended = 'unknown';
       open = null;
     } else if (e.kind === 'join' || e.kind === 'leave') {
       const nickname = e.participantId === null ? e.nickname : (nicknames.get(e.participantId) ?? e.nickname);
@@ -115,9 +127,9 @@ export async function gameReplay(db: Db, id: string): Promise<GameReplay | 'runn
       });
     }
   }
-  /** Оцінка до останнього ручного рішення ведучого з подій; немає події (стара гра) — null, запису не було — 'none'. */
+  /** Оцінка програми до першого ручного рішення ведучого на кроці з подій; немає події (стара гра) — null, запису не було — 'none'. */
   const verdictBefore = (participantId: string, step: number): ReplayVerdict | null => {
-    const found = events.filter((e) => e.kind === 'verdict' && e.participantId === participantId && stepOf(e.questionIndex) === step).at(-1);
+    const found = events.find((e) => e.kind === 'verdict' && e.participantId === participantId && e.questionIndex === step);
     if (found === undefined) return null;
     return found.details?.from ?? 'none';
   };
@@ -139,7 +151,7 @@ export async function gameReplay(db: Db, id: string): Promise<GameReplay | 'runn
     const current = running.get(participantId);
     if (current !== undefined) running.set(participantId, current + points);
   };
-  const scores = (): ReplayScore[] => standings.map((p) => ({ nickname: p.nickname, score: running.get(p.id) ?? 0 }));
+  const scores = (): ReplayScore[] => standings.map((p) => ({ key: keyOf(p.id), nickname: p.nickname, score: running.get(p.id) ?? 0 }));
   for (const a of adjustments) if (adjustmentStep(a.afterQuestion) === -1) add(a.participantId, a.points);
   const start = {
     scores: scores(),
@@ -152,7 +164,7 @@ export async function gameReplay(db: Db, id: string): Promise<GameReplay | 'runn
     const ref: PlayRef | undefined = entry?.ref ?? row.plays[index];
     const question: Question | null = entry?.question ?? null;
     const roundIndex = entry?.roundIndex ?? ref?.roundIndex ?? 0;
-    const given = answers.filter((a) => stepOf(a.questionIndex) === index);
+    const given = answers.filter((a) => a.questionIndex === index);
     const unscored = question === null ? given.some((a) => a.attempt === VOTE_ATTEMPT) : isUnscored(question);
     const cell = quiz === null || question === null ? null : cellPriceOf(quiz, ref);
     const priced = cell ?? (question === null ? { price: 0, multiplier: 1 } : { price: questionPrice(question), multiplier: 1 });
@@ -162,9 +174,10 @@ export async function gameReplay(db: Db, id: string): Promise<GameReplay | 'runn
       const shown = own.filter((a) => a.attempt !== AWAY_ATTEMPT).sort((a, b) => a.attempt - b.attempt);
       if (shown.length === 0) {
         const mark = own.find((a) => a.attempt === AWAY_ATTEMPT)?.awayMs ?? null;
-        return [{ nickname: p.nickname, answeredBy: null, attempt: 0, answer: null, spare: null, timeMs: null, verdict: 'none', manual: false, points: 0, wager: null, awayMs: mark }];
+        return [{ key: keyOf(p.id), nickname: p.nickname, answeredBy: null, attempt: 0, answer: null, spare: null, timeMs: null, verdict: 'none', manual: false, points: 0, wager: null, awayMs: mark }];
       }
       return shown.map((a) => ({
+        key: keyOf(p.id),
         nickname: p.nickname,
         answeredBy: a.answeredBy === null ? null : (nicknames.get(a.answeredBy) ?? null),
         attempt: a.attempt,
@@ -179,7 +192,7 @@ export async function gameReplay(db: Db, id: string): Promise<GameReplay | 'runn
       }));
     });
 
-    for (const a of given) add(a.participantId, a.points);
+    for (const a of answers) if (stepOf(a.questionIndex) === index) add(a.participantId, a.points);
     const after = adjustments.filter((a) => adjustmentStep(a.afterQuestion) === index);
     for (const a of after) add(a.participantId, a.points);
 
@@ -221,7 +234,8 @@ export async function gameReplay(db: Db, id: string): Promise<GameReplay | 'runn
     autopilot: row.autopilot,
     teams,
     rounds: (quiz?.rounds ?? []).map((round) => ({ title: round.title, type: round.type })),
-    recorded: stored.some((e) => e.kind === 'start'),
+    recorded: starts.length > 0,
+    recordedFrom: starts.length === 0 ? null : Math.min(...starts),
     start,
     steps,
   };
