@@ -37,9 +37,10 @@ export const MERGE_RULES: readonly MergeRule[] = [...HISTORY_RULES, ...PEOPLE_RU
 /** Колонки й JSON з id акаунтів без зовнішнього ключа. */
 export const MERGE_JSON_KEYS: readonly string[] = MERGE_JSON_RULES.flatMap((rule) => rule.keys);
 
-/** Правила по порядку в одній транзакції: збій будь-якого — нічого не перенесено. */
-export async function applyMergeRules(db: Db, ctx: MergeContext, rules: readonly MergeRule[]): Promise<void> {
-  await db.transaction(async (tx) => {
-    for (const rule of rules) await rule.run(tx, ctx);
-  });
+/**
+ * Правила по порядку в транзакції того, хто викликає (mergeAccounts — під замком обох рядків user): власної не відкриває,
+ * тож збій будь-якого правила відкочує все об'єднання.
+ */
+export async function applyMergeRules(tx: Tx, ctx: MergeContext, rules: readonly MergeRule[]): Promise<void> {
+  for (const rule of rules) await rule.run(tx, ctx);
 }

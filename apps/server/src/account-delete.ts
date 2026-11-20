@@ -11,8 +11,8 @@ import { ensureProfile } from './profiles';
 
 type Tx = Parameters<Parameters<Db['transaction']>[0]>[0];
 
-/** Пара [id гравця, id акаунта] з цим акаунтом є в масиві playerUsers колонки JSON. */
-const hasPair = (column: typeof savedGame.data | typeof liveRoom.data, userId: string) =>
+/** Пара [id гравця, id акаунта] з цим акаунтом є в масиві playerUsers колонки JSON (і в правилах об'єднання 66). */
+export const hasPair = (column: typeof savedGame.data | typeof liveRoom.data, userId: string) =>
   sql`jsonb_typeof(${column}->'playerUsers') = 'array' and ${column}->'playerUsers' @> jsonb_build_array(jsonb_build_array(${userId}::text))`;
 
 /**
@@ -25,12 +25,14 @@ const hasPair = (column: typeof savedGame.data | typeof liveRoom.data, userId: s
  * з адресатів планів бота — її id; групи, де вона власник, — найранішому іншому учаснику, група без інших — геть;
  * токени входу (verification зі значенням id) — геть; далі delete user, решта — каскадом (див. звіт задачі 5).
  * Завантажені файли в сховищі не видаляються: прив'язки файл → акаунт немає.
+ * log: false (66, об'єднання) — без рядка account_delete: журнал пише mergeAccounts одним рядком account_merge; решта та сама.
+ * Викликана з транзакцією як db — вкладена транзакція drizzle (savepoint): її збій відкочує й зовнішню.
  */
 export async function deleteAccount(
   db: Db,
-  input: { adminId: string; userId: string; now: Date; adminEmails: ReadonlySet<string> },
+  input: { adminId: string; userId: string; now: Date; adminEmails: ReadonlySet<string>; log?: boolean },
 ): Promise<'deleted' | 'not_found' | 'cannot_delete_admin'> {
-  const { adminId, userId, now, adminEmails } = input;
+  const { adminId, userId, now, adminEmails, log = true } = input;
   if (isBotUser(userId) || userId === adminId) return 'cannot_delete_admin';
   await ensureBotAccount(db);
   return db.transaction(async (tx) => {
@@ -38,7 +40,7 @@ export async function deleteAccount(
     if (target === undefined) return 'not_found' as const;
     if (await isAdmin(tx, adminEmails, userId)) return 'cannot_delete_admin' as const;
     const label = (await ensureProfile(tx as Db, userId))?.nickname ?? target.email;
-    await logAction(tx, { adminId, kind: 'account_delete', targetUserId: userId, details: { text: label }, now });
+    if (log) await logAction(tx, { adminId, kind: 'account_delete', targetUserId: userId, details: { text: label }, now });
 
     // Ціль дебафу зберігається ніком без id: лише в іграх, де цей нік — саме її рядок, і до перейменування рядків.
     await tx

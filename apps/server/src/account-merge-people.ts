@@ -309,7 +309,8 @@ const sessionRule: MergeRule = {
   },
 };
 
-const loginOf = (providerId: string): MergeLogin => (providerId === 'google' ? 'google' : providerId === 'credential' ? 'credential' : 'other');
+/** Спосіб входу рядка account (провайдер Better Auth). */
+export const loginOf = (providerId: string): MergeLogin => (providerId === 'google' ? 'google' : providerId === 'credential' ? 'credential' : 'other');
 
 /**
  * 22b. Способи входу. Google тощо — user_id = P (Better Auth шукає власника за (provider_id, account_id)); такий самий рядок у P — рядок S геть.

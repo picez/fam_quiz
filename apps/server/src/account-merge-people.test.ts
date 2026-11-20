@@ -100,7 +100,7 @@ async function pair(): Promise<{ primary: string; secondary: string; ctx: MergeC
   return { primary, secondary, ctx: mergeContext(primary, secondary, 'Оля') };
 }
 
-const merge = (ctx: MergeContext) => applyMergeRules(db, ctx, PEOPLE_RULES);
+const merge = (ctx: MergeContext) => db.transaction((tx) => applyMergeRules(tx, ctx, PEOPLE_RULES));
 
 const accountsOf = (userId: string) => db.select().from(account).where(eq(account.userId, userId));
 

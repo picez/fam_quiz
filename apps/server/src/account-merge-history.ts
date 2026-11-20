@@ -1,5 +1,6 @@
 import { FAVORITE_STICKERS_MAX, isRecord, type AchievementId } from '@quiz/shared';
 import { and, eq, inArray, or, sql } from 'drizzle-orm';
+import { hasPair } from './account-delete';
 import type { MergeRule } from './account-merge-rules';
 import type { Db } from './db/client';
 import {
@@ -292,10 +293,6 @@ export const HISTORY_RULES: readonly MergeRule[] = [
   profileRule,
 ];
 
-/** Пара [id гравця, id акаунта] з цим акаунтом є в масиві playerUsers (як hasPair у account-delete). */
-const hasPair = (column: typeof savedGame.data | typeof liveRoom.data, userId: string) =>
-  sql`jsonb_typeof(${column}->'playerUsers') = 'array' and ${column}->'playerUsers' @> jsonb_build_array(jsonb_build_array(${userId}::text))`;
-
 /**
  * Пари S — на P. Обидва в цій грі — лишається те саме місце, що й у рядках гри (правило 1): місце S, якщо гра в
  * secondaryWonGames (воно й переходить на P), інакше місце P; друге місце стає гостьовим зі своїм ніком (не forgotten).
@@ -321,14 +318,17 @@ const savedGameRule: MergeRule = {
   },
 };
 
-/** Кімнати в базі (лише finished — живу гру відмовляє маршрут і mergeAccounts): ведучий S — P, пари — як у збереженій грі. */
+/**
+ * Кімнати в базі (лише finished — живу гру відмовляє маршрут і mergeAccounts до правил; фільтр фази — про всяк випадок):
+ * ведучий S — P, пари — як у збереженій грі.
+ */
 const liveRoomRule: MergeRule = {
   keys: ['live_room.data'],
   async run(tx, { primaryId: P, secondaryId: S, secondaryWonGames }) {
     const rows = await tx
       .select({ code: liveRoom.code, roomId: liveRoom.roomId, data: liveRoom.data })
       .from(liveRoom)
-      .where(or(hasPair(liveRoom.data, S), sql`${liveRoom.data}->>'hostUserId' = ${S}::text`));
+      .where(and(or(hasPair(liveRoom.data, S), sql`${liveRoom.data}->>'hostUserId' = ${S}::text`), sql`${liveRoom.data}->'state'->>'phase' = 'finished'`));
     for (const row of rows) {
       if (!isRecord(row.data)) continue;
       // room.id = id гри.

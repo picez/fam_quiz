@@ -58,8 +58,8 @@ async function pair(): Promise<{ primary: string; secondary: string; ctx: MergeC
   return { primary, secondary, ctx: mergeContext(primary, secondary, 'Оля') };
 }
 
-const history = (ctx: MergeContext) => applyMergeRules(db, ctx, HISTORY_RULES);
-const json = (ctx: MergeContext) => applyMergeRules(db, ctx, MERGE_JSON_RULES);
+const history = (ctx: MergeContext) => db.transaction((tx) => applyMergeRules(tx, ctx, HISTORY_RULES));
+const json = (ctx: MergeContext) => db.transaction((tx) => applyMergeRules(tx, ctx, MERGE_JSON_RULES));
 
 async function group(members: string[]): Promise<string> {
   const [row] = await db.insert(familyGroup).values({ name: 'Родина', emoji: '👪', inviteCode: `code-${randomUUID()}` }).returning();
@@ -421,7 +421,7 @@ describe('json rules', () => {
       saved.participantIds.map((participantId, i) => ({ id: randomUUID(), gameId: saved.gameId, at: PAST, questionIndex: -1, kind: 'join' as const, participantId, userId: players[i].userId, nickname: players[i].nickname, details: null })),
     );
 
-    await applyMergeRules(db, ctx, [...HISTORY_RULES, ...MERGE_JSON_RULES]);
+    await db.transaction((tx) => applyMergeRules(tx, ctx, [...HISTORY_RULES, ...MERGE_JSON_RULES]));
 
     expect(ctx.secondaryWonGames).toEqual(new Set([saved.gameId, roomGame.gameId]));
     const [savedRow] = await db.select().from(savedGame).where(eq(savedGame.gameId, saved.gameId));
