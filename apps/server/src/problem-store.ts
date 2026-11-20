@@ -13,7 +13,7 @@ import {
 import { and, count, desc, eq, gt, inArray, isNull } from 'drizzle-orm';
 import { logAction } from './bans';
 import type { Db } from './db/client';
-import { problemReport, profile, pushSubscription, user } from './db/schema';
+import { problemReport, profile, pushSubscription } from './db/schema';
 import { truncateChars } from './error-mask';
 
 /**
@@ -62,10 +62,9 @@ export async function listProblemReports(db: Db, query: { status: 'open' | 'reso
   const [{ n }] = await db.select({ n: count() }).from(problemReport).where(where);
   const total = Number(n);
   const rows = await db
-    .select({ row: problemReport, nickname: profile.nickname, name: user.name })
+    .select({ row: problemReport, nickname: profile.nickname })
     .from(problemReport)
     .leftJoin(profile, eq(profile.userId, problemReport.userId))
-    .leftJoin(user, eq(user.id, problemReport.userId))
     .where(where)
     .orderBy(desc(problemReport.createdAt), problemReport.id)
     .limit(ADMIN_PAGE_SIZE)
@@ -82,9 +81,9 @@ export async function listProblemReports(db: Db, query: { status: 'open' | 'reso
     for (const r of await db.select({ id: profile.userId, nickname: profile.nickname }).from(profile).where(inArray(profile.userId, resolvers))) names.set(r.id, r.nickname ?? '');
   }
   return {
-    rows: rows.map(({ row, nickname, name }): AdminProblemReport => {
+    rows: rows.map(({ row, nickname }): AdminProblemReport => {
       const who: ProblemAuthor =
-        row.userId !== null ? { kind: 'account', id: row.userId, nickname: nickname ?? name ?? '', push: subscribed.has(row.userId) } : row.fromAccount ? { kind: 'deleted' } : { kind: 'guest' };
+        row.userId !== null ? { kind: 'account', id: row.userId, nickname: nickname ?? '', push: subscribed.has(row.userId) } : row.fromAccount ? { kind: 'deleted' } : { kind: 'guest' };
       return {
         id: row.id,
         at: row.createdAt.toISOString(),
