@@ -80,6 +80,17 @@ function framesOnly(stack: string): string {
     .join('\n');
 }
 
+/** Обмежений: значення в лапках після «: » не довше за 512 символів. */
+const QUOTED_VALUE = /: "(?:[^"\\\n]|\\.){0,512}"/g;
+
+/**
+ * Postgres кладе значення рядка в повідомлення (`invalid input syntax for type uuid: "<текст>"`,
+ * `invalid input value for enum …: "<текст>"`): ховаємо його, щоб не зберігати й не розбивати групу.
+ */
+function quotedValuesHidden(message: string): string {
+  return message.replace(QUOTED_VALUE, ': "?"');
+}
+
 /**
  * Помилка запиту drizzle (DrizzleQueryError чи будь-яке повідомлення з `\nparams:`) несе параметри запиту —
  * імена, email, тексти. Лишаємо лише SQL і повідомлення бази (cause.message, без detail); параметрів не беремо ніколи.
@@ -90,7 +101,7 @@ function queryMessage(error: Error, message: string): string | null {
   if (at < 0 && !(error instanceof DrizzleQueryError)) return null;
   const sqlText = typeof query === 'string' ? `Failed query: ${query}` : at < 0 ? message : message.slice(0, at);
   const cause = (error as { cause?: unknown }).cause;
-  const causeMessage = cause instanceof Error && typeof cause.message === 'string' ? cause.message.split(PARAMS_MARK)[0] : '';
+  const causeMessage = cause instanceof Error && typeof cause.message === 'string' ? quotedValuesHidden(truncateChars(cause.message, ERROR_TEXT_READ_MAX).split(PARAMS_MARK)[0]!) : '';
   return causeMessage === '' ? sqlText : `${causeMessage}\n${sqlText}`;
 }
 

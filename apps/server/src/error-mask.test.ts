@@ -121,6 +121,25 @@ describe('error masking (64)', () => {
     expect(p2.stack).toContain('at q (apps/server/src/x.ts:1:1)');
   });
 
+  it('a database message drops the quoted row value after «: », so it neither leaks nor splits the group', () => {
+    const sqlText = 'select * from "user" where "id" = $1';
+    const bad = (value: string) => new DrizzleQueryError(sqlText, [value], new Error(`invalid input syntax for type uuid: "${value}"`));
+    const a = errorParts(bad('Ольга Малинська'));
+    expect(a.message + a.stack).not.toContain('Ольга');
+    expect(a.message).toContain('invalid input syntax for type uuid: "?"');
+    expect(errorFingerprint(bad('Ольга Малинська'), { where: 'store' })).toBe(errorFingerprint(bad('Тарас \\"x\\" Шевчук'), { where: 'store' }));
+    const enumError = errorParts(new DrizzleQueryError(sqlText, ['x'], new Error('invalid input value for enum role: "superboss"')));
+    expect(enumError.message).toContain('invalid input value for enum role: "?"');
+    expect(enumError.message).not.toContain('superboss');
+    // A constraint name is not after «: » and stays.
+    const unique = errorParts(new DrizzleQueryError(sqlText, ['x'], new Error('duplicate key value violates unique constraint "user_email_unique"')));
+    expect(unique.message).toContain('"user_email_unique"');
+    // Many unclosed quotes stay fast.
+    const started = performance.now();
+    errorParts(new DrizzleQueryError(sqlText, ['x'], new Error(': "'.repeat(20000))));
+    expect(performance.now() - started).toBeLessThan(50);
+  });
+
   it('masks Basic auth, every cookie and URL-encoded emails', () => {
     expect(maskPersonal('Authorization: Basic dXNlcjpwYXNzd29yZA==')).not.toContain('dXNlcjpwYXNzd29yZA');
     expect(maskPersonal('auth=Basic dXNlcjpwYXNz')).not.toContain('dXNlcjpwYXNz');
