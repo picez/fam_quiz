@@ -1,10 +1,12 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { eq } from 'drizzle-orm';
 import { classicRound, makeQuiz, makeRoundsQuiz, single, withId } from '@quiz/engine/testing';
-import type { ContinueResponse, LobbyRow, SlotsResponse } from '@quiz/shared';
+import { BOT_USER_ID, type ContinueResponse, type LobbyRow, type SlotsResponse } from '@quiz/shared';
 import { buildApp } from './app';
+import { ensureBotAccount } from './bot-account';
 import type { Db } from './db/client';
 import { follow, user, userBan } from './db/schema';
+import { createQuiz } from './quizzes';
 import { TEST_AUTH, signUp, startGame } from './testing/accounts';
 import { createTestDb } from './testing/test-db';
 import { toQuestion } from './testing/team-game';
@@ -318,5 +320,85 @@ describe('GET /api/lobbies (24c)', () => {
     expect(rows[0].code).toBe(newer);
     filler();
     expect(await rowsFor(w.taras.cookie)).toHaveLength(50);
+  });
+});
+
+describe('bot rooms in the lobby list (62)', () => {
+  let w: Awaited<ReturnType<typeof botWorld>>;
+  const rowsFor = async (cookie?: string) => (await call('GET', '/api/lobbies', cookie, undefined, w.ctx.app)).json() as LobbyRow[];
+  const quizOf = () => ({ ...makeQuiz([{ ...single, timeLimit: 30 }]), title: 'Озера України 62' });
+
+  async function botWorld() {
+    const wdb = await createTestDb();
+    const wctx = await buildApp({ db: wdb, auth: TEST_AUTH });
+    await ensureBotAccount(wdb);
+    const made = await signUp(wctx.app, 'Оля');
+    const [row] = await wdb.select().from(user).where(eq(user.email, made.email));
+    return { db: wdb, ctx: wctx, olya: { ...made, id: row.id } };
+  }
+
+  async function botRoom() {
+    const quiz = quizOf();
+    const quizId = await createQuiz(w.db, BOT_USER_ID, quiz);
+    const created = w.ctx.manager.createBotRoom(quiz, quizId);
+    if (!created.ok) throw new Error(created.error);
+    return created.room.code;
+  }
+
+  beforeEach(async () => {
+    w = await botWorld();
+  });
+  afterEach(async () => {
+    await w.ctx.app.close();
+  });
+
+  it('a bot room is in the list for guests and accounts', async () => {
+    const code = await botRoom();
+    for (const cookie of [undefined, w.olya.cookie]) {
+      const rows = await rowsFor(cookie);
+      expect(rows).toHaveLength(1);
+      expect(rows[0]).toMatchObject({
+        code,
+        title: 'Озера України 62',
+        host: { id: 'quiz-bot', nickname: 'Квіз-бот', avatar: null, level: null },
+        locked: false,
+        late: false,
+      });
+    }
+  });
+
+  it('a hidden bot room is not listed', async () => {
+    const code = await botRoom();
+    expect(w.ctx.manager.botLobby(code, { listed: false, password: null })).toEqual({ ok: true });
+    for (const cookie of [undefined, w.olya.cookie]) expect(await rowsFor(cookie)).toEqual([]);
+  });
+
+  it('a bot room with a password shows the lock and asks for it', async () => {
+    const code = await botRoom();
+    expect(w.ctx.manager.botLobby(code, { listed: true, password: 'сова62' })).toEqual({ ok: true });
+    const response = await call('GET', '/api/lobbies', w.olya.cookie, undefined, w.ctx.app);
+    expect(response.body).not.toContain('сова62');
+    expect((response.json() as LobbyRow[])[0]).toMatchObject({ code, locked: true });
+    const join = (password?: string) => call('POST', `/api/games/by-code/${code}/join`, w.olya.cookie, { nickname: 'Оля', ...(password === undefined ? {} : { password }) }, w.ctx.app);
+    const bare = await join();
+    expect(bare.statusCode).toBe(403);
+    expect(bare.json()).toEqual({ error: 'password_required' });
+    const wrong = await join('хибний');
+    expect(wrong.statusCode).toBe(403);
+    expect(wrong.json()).toEqual({ error: 'password_wrong' });
+    expect((await join('сова62')).statusCode).toBe(201);
+  });
+
+  it('the bot host stays hidden elsewhere', async () => {
+    await botRoom();
+    expect(await rowsFor()).toHaveLength(1);
+    expect((await call('GET', '/api/profiles/quiz-bot', w.olya.cookie, undefined, w.ctx.app)).statusCode).toBe(404);
+  });
+
+  it('a started bot room leaves the list', async () => {
+    const code = await botRoom();
+    expect(w.ctx.manager.join(code, 'Оля', w.olya.id).ok).toBe(true);
+    expect(w.ctx.manager.botAct(code, 'start')).toEqual({ ok: true });
+    expect(await rowsFor(w.olya.cookie)).toEqual([]);
   });
 });

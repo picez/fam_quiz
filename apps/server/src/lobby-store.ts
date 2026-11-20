@@ -1,4 +1,4 @@
-import { hasTruthRound, LIMITS, LOBBY_LIST_LIMIT, roundQuestions, type LobbyRow } from '@quiz/shared';
+import { BOT_NICKNAME, BOT_USER_ID, hasTruthRound, isBotUser, LIMITS, LOBBY_LIST_LIMIT, roundQuestions, type LobbyRow } from '@quiz/shared';
 import { slotsOf } from '@quiz/engine';
 import { and, eq, inArray } from 'drizzle-orm';
 import type { Db } from './db/client';
@@ -31,12 +31,22 @@ export async function lobbyRows(db: Db, rooms: Room[], viewerId: string | null):
     .slice(0, LOBBY_LIST_LIMIT);
   if (shown.length === 0) return [];
 
-  const shownHosts = [...new Set(shown.map((room) => room.hostUserId as string))];
-  const hosts = await db
-    .select({ id: profile.userId, nickname: profile.nickname, avatar: profile.avatar })
-    .from(profile)
-    .where(and(inArray(profile.userId, shownHosts), notHidden(profile.userId)));
+  // Ведучий-бот — окрема картка: без «не схований», без ліниво створюваного профілю й без рівня.
+  const botShown = shown.some((room) => isBotUser(room.hostUserId));
+  const shownHosts = [...new Set(shown.map((room) => room.hostUserId as string))].filter((id) => !isBotUser(id));
+  const hosts =
+    shownHosts.length === 0
+      ? []
+      : await db
+          .select({ id: profile.userId, nickname: profile.nickname, avatar: profile.avatar })
+          .from(profile)
+          .where(and(inArray(profile.userId, shownHosts), notHidden(profile.userId)));
   const hostById = new Map(hosts.map((host) => [host.id, host]));
+  let botNickname = BOT_NICKNAME;
+  if (botShown) {
+    const [bot] = await db.select({ nickname: profile.nickname }).from(profile).where(eq(profile.userId, BOT_USER_ID));
+    botNickname = bot?.nickname ?? BOT_NICKNAME;
+  }
   // Профіль створюється ліниво: ведучому, що його ще не має, роблять його тут (бан — не показуємо й не створюємо).
   const missing = shownHosts.filter((id) => !hostById.has(id));
   if (missing.length > 0) {
@@ -60,13 +70,13 @@ export async function lobbyRows(db: Db, rooms: Room[], viewerId: string | null):
 
   const out: LobbyRow[] = [];
   for (const room of shown) {
-    const host = hostById.get(room.hostUserId as string);
+    const host = isBotUser(room.hostUserId) ? { id: BOT_USER_ID, nickname: botNickname, avatar: null } : hostById.get(room.hostUserId as string);
     if (host === undefined) continue;
     const slots = slotsOf(room.state);
     out.push({
       code: room.code,
       title: room.state.quiz.title,
-      host: { id: host.id, nickname: host.nickname, avatar: host.avatar, level: levels.get(host.id) ?? null },
+      host: { id: host.id, nickname: host.nickname, avatar: host.avatar, level: isBotUser(host.id) ? null : (levels.get(host.id) ?? null) },
       players: slots.length,
       maxPlayers: LIMITS.maxPlayers,
       rounds: room.state.quiz.rounds.length,
