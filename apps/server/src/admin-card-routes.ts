@@ -99,9 +99,11 @@ export async function registerPlayerCardRoutes(app: FastifyInstance, deps: Admin
     if (found === undefined) return reply.code(404).send(NOT_FOUND);
     const label = (await ensureProfile(db, id))?.nickname ?? found.email;
     if (body.data.confirm.trim() !== label) return reply.code(400).send({ error: 'confirm_mismatch' });
-    manager.closeHostedBy(id);
+    // Кімнати, які він веде, переходять до бота й закриваються (як closeHostedBy) ще до видалення: фініш пишеться з ведучим-ботом.
     manager.forgetUser(id);
-    return (await deleteAccount(db, { adminId: me.id, userId: id, now: now() })) ? reply.code(204).send() : reply.code(404).send(NOT_FOUND);
+    const result = await deleteAccount(db, { adminId: me.id, userId: id, now: now(), adminEmails });
+    if (result === 'cannot_delete_admin') return reply.code(409).send({ error: 'cannot_delete_admin' });
+    return result === 'deleted' ? reply.code(204).send() : reply.code(404).send(NOT_FOUND);
   });
 
   app.get<UserParams>('/api/admin/games/:id', read, async (request, reply) => {

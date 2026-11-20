@@ -30,6 +30,7 @@ import {
   libraryEntry,
   liveRoom,
   participant,
+  scoreAdjustment,
   prize,
   prizeAward,
   profile,
@@ -85,7 +86,8 @@ async function group(owner: string, members: { userId: string; joinedAt: Date }[
   return row.id;
 }
 
-const del = (userId: string) => deleteAccount(db, { adminId: ADMIN, userId, now: NOW });
+const ADMIN_EMAILS = new Set(['ad-admin@example.com', 'ad-second@example.com']);
+const del = (userId: string, adminId = ADMIN) => deleteAccount(db, { adminId, userId, now: NOW, adminEmails: ADMIN_EMAILS });
 
 /** Кожна таблиця з посиланням на user: скільки рядків ще посилаються на userId. */
 async function referencing(userId: string): Promise<Record<string, number>> {
@@ -129,7 +131,7 @@ async function referencing(userId: string): Promise<Record<string, number>> {
   await add('announcement', db.select().from(announcement).where(eq(announcement.createdBy, userId)));
   await add('bot_plan', db.select().from(botPlan).where(eq(botPlan.createdBy, userId)));
   await add('saved_game.data', db.select().from(savedGame).where(sql`${savedGame.data}->'playerUsers' @> jsonb_build_array(jsonb_build_array(${userId}::text))`));
-  await add('live_room.data', db.select().from(liveRoom).where(sql`${liveRoom.data}->'playerUsers' @> jsonb_build_array(jsonb_build_array(${userId}::text))`));
+  await add('live_room.data', db.select().from(liveRoom).where(sql`${liveRoom.data}->'playerUsers' @> jsonb_build_array(jsonb_build_array(${userId}::text)) or ${liveRoom.data}->>'hostUserId' = ${userId}`));
   return counts;
 }
 
@@ -149,7 +151,7 @@ describe('deleteAccount', () => {
       { followerId: olia, followeeId: taras },
     ]);
 
-    expect(await del(taras)).toBe(true);
+    expect(await del(taras)).toBe('deleted');
 
     const left = await referencing(taras);
     expect(Object.entries(left).filter(([, count]) => count > 0)).toEqual([]);
@@ -250,19 +252,20 @@ describe('deleteAccount', () => {
     const oliaSaved = await seedGame(db, { hostId: olia, status: 'saved', startedAt: PAST, players: [{ userId: taras, nickname: 'Тарас', score: 0, rank: null }] });
     await db.insert(savedGame).values({ gameId: oliaSaved.gameId, data: { v: 1, playerUsers: [['p-taras', taras], ['p-olia', olia]] }, stateVersion: 22, savedAt: NOW });
     await db.insert(liveRoom).values({ code: `r-${n}`, roomId: randomUUID(), data: { playerUsers: [['p-taras', taras], ['p-olia', olia]], continued: { bound: ['p-taras', 'p-olia'], carry: null, replaces: null } }, updatedAt: NOW });
+    await db.insert(liveRoom).values({ code: `h-${n}`, roomId: randomUUID(), data: { hostUserId: taras, playerUsers: [['p-olia', olia]] }, updatedAt: NOW });
 
     const before = await referencing(taras);
     const tables = Object.keys(before);
     expect(tables.filter((name) => before[name] === 0)).toEqual([]);
 
-    expect(await del(taras)).toBe(true);
+    expect(await del(taras)).toBe('deleted');
 
     const after = await referencing(taras);
     expect(Object.entries(after).filter(([, count]) => count > 0)).toEqual([]);
 
     // Чуже лишилося.
     expect((await db.select().from(game).where(eq(game.id, finished.gameId)))[0]?.hostId).toBe(BOT_USER_ID);
-    expect(await db.select().from(game).where(eq(game.id, running.gameId))).toEqual([]);
+    expect((await db.select().from(game).where(eq(game.id, running.gameId)))[0]?.hostId).toBe(BOT_USER_ID);
     expect((await db.select().from(game).where(eq(game.id, played.gameId)))[0]?.hostId).toBe(olia);
     expect(await db.select().from(calendarEvent).where(eq(calendarEvent.id, oliaEvent.id))).toHaveLength(1);
     expect(await db.select().from(challenge).where(eq(challenge.id, oliaChallenge.id))).toHaveLength(1);
@@ -271,8 +274,11 @@ describe('deleteAccount', () => {
     expect((await db.select().from(libraryCopy).where(eq(libraryCopy.userId, olia)))[0]).toMatchObject({ entryId: null, authorLine: 'Автор: Тарас' });
     expect((await db.select().from(botPlan))[0]?.people).toEqual([olia]);
     expect((await db.select().from(savedGame).where(eq(savedGame.gameId, oliaSaved.gameId)))[0]?.data).toEqual({ v: 1, playerUsers: [['p-olia', olia]] });
-    const [room] = await db.select().from(liveRoom);
+    const [room] = await db.select().from(liveRoom).where(eq(liveRoom.code, `r-${n}`));
     expect(room.data).toEqual({ playerUsers: [['p-olia', olia]], continued: { bound: ['p-olia'], carry: null, replaces: null } });
+    const [hostedRoom] = await db.select().from(liveRoom).where(eq(liveRoom.code, `h-${n}`));
+    expect(hostedRoom.data).toEqual({ hostUserId: BOT_USER_ID, playerUsers: [['p-olia', olia]] });
+    expect((await db.select().from(groupItem).where(eq(groupItem.id, item.id)))[0]?.about).toEqual([{ kind: 'member', userId: taras, name: DELETED_NICKNAME }]);
     const [owner] = await db.select().from(groupMember).where(eq(groupMember.groupId, groupId));
     expect(owner).toMatchObject({ userId: olia, role: 'owner' });
   });
@@ -288,7 +294,7 @@ describe('deleteAccount', () => {
         { userId: taras, nickname: 'Тарас', score: 5, rank: 2 },
       ],
     });
-    expect(await del(taras)).toBe(true);
+    expect(await del(taras)).toBe('deleted');
     expect((await playerHistory(db, olia)).map((p) => p.gameId)).toContain(g.gameId);
     const [row] = await db.select().from(participant).where(eq(participant.id, g.participantIds[1]));
     expect(row).toMatchObject({ nickname: DELETED_NICKNAME, userId: null });
@@ -302,7 +308,7 @@ describe('deleteAccount', () => {
     const finished = await seedGame(db, { hostId: taras, startedAt: PAST, players: [{ userId: olia, nickname: 'Оля', score: 10, rank: 1 }] });
     const saved = await seedGame(db, { hostId: taras, status: 'saved', startedAt: PAST, players: [{ userId: olia, nickname: 'Оля', score: 0, rank: null }] });
     await db.insert(savedGame).values({ gameId: saved.gameId, data: null, stateVersion: null, savedAt: NOW });
-    expect(await del(taras)).toBe(true);
+    expect(await del(taras)).toBe('deleted');
     expect((await playerHistory(db, olia)).map((p) => p.gameId)).toContain(finished.gameId);
     expect((await db.select().from(game).where(eq(game.id, finished.gameId)))[0]?.hostId).toBe(BOT_USER_ID);
     expect(await db.select().from(game).where(eq(game.id, saved.gameId))).toEqual([]);
@@ -316,7 +322,7 @@ describe('deleteAccount', () => {
     const g = await seedGame(db, { hostId: olia, status: 'saved', startedAt: PAST, players: [{ userId: taras, nickname: 'Тарас', score: 0, rank: null }] });
     const data = { v: 1, stateVersion: 22, state: { players: [] }, at: 0, quizId: null, playerUsers: [['p-taras', taras], ['p-petro', petro]] };
     await db.insert(savedGame).values({ gameId: g.gameId, data, stateVersion: 22, savedAt: NOW });
-    expect(await del(taras)).toBe(true);
+    expect(await del(taras)).toBe('deleted');
     const [row] = await db.select().from(savedGame).where(eq(savedGame.gameId, g.gameId));
     expect(row.data).toEqual({ ...data, playerUsers: [['p-petro', petro]] });
     expect(row.savedAt).toEqual(NOW);
@@ -332,7 +338,7 @@ describe('deleteAccount', () => {
     ]);
     const alone = await group(taras, []);
     const member = await group(olia, [{ userId: taras, joinedAt: NOW }]);
-    expect(await del(taras)).toBe(true);
+    expect(await del(taras)).toBe('deleted');
     const rows = await db.select().from(groupMember).where(eq(groupMember.groupId, shared));
     expect(rows.map((r) => [r.userId, r.role]).sort()).toEqual([
       [olia, 'member'],
@@ -345,14 +351,55 @@ describe('deleteAccount', () => {
 
   it('the confirmation label falls back to the email without a nickname', async () => {
     const nameless = await person('Без ніку', null);
-    expect(await del(nameless)).toBe(true);
+    expect(await del(nameless)).toBe('deleted');
     const [line] = await db.select().from(adminAction).where(eq(adminAction.targetUserId, nameless));
     expect(line.details).toEqual({ text: `${nameless}@example.com` });
   });
 
-  it('unknown user → false and no log line', async () => {
+  it('refuses admins, oneself and the bot inside the procedure', async () => {
+    const second = await person('Друга');
+    await db.update(user).set({ email: 'ad-second@example.com', emailVerified: true }).where(eq(user.id, second));
     const before = (await db.select().from(adminAction)).length;
-    expect(await del('ad-nobody')).toBe(false);
+    expect(await del(second)).toBe('cannot_delete_admin');
+    expect(await del(ADMIN)).toBe('cannot_delete_admin');
+    expect(await del(BOT_USER_ID)).toBe('cannot_delete_admin');
+    const plain = await person('Звичайний');
+    expect(await del(plain, plain)).toBe('cannot_delete_admin');
+    expect(await db.select().from(user).where(eq(user.id, second))).toHaveLength(1);
+    expect(await db.select().from(user).where(eq(user.id, plain))).toHaveLength(1);
+    expect(await db.select().from(adminAction)).toHaveLength(before);
+  });
+
+  it('a debuff aimed at him in another game names the deleted player', async () => {
+    const taras = await person('Тарас');
+    const olia = await person('Оля');
+    const g = await seedGame(db, {
+      hostId: olia,
+      startedAt: PAST,
+      players: [
+        { userId: olia, nickname: 'Оля', score: 10, rank: 1, adjustments: [{ seq: 1, points: -5, source: 'debuff', debuff: 'fog', targetNickname: 'Тарас' }, { seq: 2, points: -5, source: 'debuff', debuff: 'fog', targetNickname: 'Гість' }] },
+        { userId: taras, nickname: 'Тарас', score: 5, rank: 2 },
+        { userId: null, nickname: 'Гість', score: 1, rank: 3 },
+      ],
+    });
+    const otherGame = await seedGame(db, {
+      hostId: olia,
+      startedAt: PAST,
+      players: [{ userId: olia, nickname: 'Оля', score: 1, rank: 1, adjustments: [{ seq: 1, points: -5, source: 'debuff', debuff: 'fog', targetNickname: 'Тарас' }] }],
+    });
+    expect(await del(taras)).toBe('deleted');
+    const rows = await db.select().from(scoreAdjustment).where(eq(scoreAdjustment.participantId, g.participantIds[0]));
+    expect(rows.map((r) => [r.seq, r.targetNickname]).sort()).toEqual([
+      [1, DELETED_NICKNAME],
+      [2, 'Гість'],
+    ]);
+    // Інша гра, де Тараса не було: тезка лишається.
+    expect((await db.select().from(scoreAdjustment).where(eq(scoreAdjustment.participantId, otherGame.participantIds[0])))[0]?.targetNickname).toBe('Тарас');
+  });
+
+  it('unknown user → not_found and no log line', async () => {
+    const before = (await db.select().from(adminAction)).length;
+    expect(await del('ad-nobody')).toBe('not_found');
     expect(await db.select().from(adminAction)).toHaveLength(before);
   });
 

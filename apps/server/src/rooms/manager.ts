@@ -1033,9 +1033,16 @@ export class RoomManager {
 
   /**
    * Видалення акаунта (58): у кожній живій кімнаті місця з цим акаунтом стають гостьовими — геть з playerUsers і continued.bound.
-   * Людина догравав як гість, рекордер пише user_id = null; подій немає. Повертає кількість знятих прив'язок.
+   * Людина догравав як гість, рекордер пише user_id = null. Кімнати, які вона веде, спершу переходять до прихованого бота й
+   * закриваються, як closeHostedBy (lobby → close, гра йде → end()): запис фінішу вже несе ведучим бота, тож гра лишається
+   * в історії гравців і не впирається в ключ видаленого акаунта. Повертає кількість знятих прив'язок гравців.
    */
   forgetUser(userId: string): number {
+    for (const room of [...this.live.values()]) {
+      if (room.hostUserId !== userId) continue;
+      room.hostUserId = BOT_USER_ID;
+      this.shut(room);
+    }
     let removed = 0;
     for (const room of this.live.values()) {
       for (const [playerId, bound] of [...room.playerUsers]) {

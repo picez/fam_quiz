@@ -1,9 +1,10 @@
-import { DELETED_NICKNAME } from '@quiz/shared';
+import { BOT_USER_ID, DELETED_NICKNAME } from '@quiz/shared';
 import { makeQuiz, single, text } from '@quiz/engine/testing';
 import { eq } from 'drizzle-orm';
 import { describe, expect, it } from 'vitest';
 import { deleteAccount } from '../account-delete';
 import { game, participant, profile, user } from '../db/schema';
+import { playerHistory } from '../history';
 import { attachRecorder } from '../recorder';
 import { FakeScheduler } from '../testing/fake-scheduler';
 import { createTestDb } from '../testing/test-db';
@@ -38,6 +39,71 @@ describe('forgetUser (58, account deletion)', () => {
     expect(manager.forgetUser('taras')).toBe(0);
   });
 
+  it('rooms he hosts pass to the bot: the lobby closes, a running game ends, other hosts stay', () => {
+    const manager = new RoomManager(new FakeScheduler(), () => 0.5, { pacing: false });
+    const lobby = manager.create(quiz(), 'taras', null);
+    enter(manager, lobby, 'Оля', 'olia');
+    const running = manager.create(quiz(), 'taras', null);
+    enter(manager, running, 'Оля', 'olia');
+    expect(manager.host(running, { type: 'start' })).toEqual({ ok: true });
+    const other = manager.create(quiz(), 'olia', null);
+    enter(manager, other, 'Тарас', 'taras');
+    expect(manager.forgetUser('taras')).toBe(1);
+    expect(manager.get(lobby.code)).toBeUndefined();
+    expect(running.hostUserId).toBe(BOT_USER_ID);
+    expect(running.state.phase).toBe('finished');
+    expect(other.hostUserId).toBe('olia');
+    expect(other.state.phase).toBe('lobby');
+  });
+
+  it('deleting the host mid-game keeps the game for the players and the recorder never fails', async () => {
+    const db = await createTestDb();
+    await db.insert(user).values([
+      { id: 'admin', name: 'Адмін', email: 'admin@example.com' },
+      { id: 'olia', name: 'Оля', email: 'olia@example.com' },
+      { id: 'taras', name: 'Тарас', email: 'taras@example.com' },
+    ]);
+    const manager = new RoomManager(new FakeScheduler(), () => 0.5);
+    const errors: unknown[] = [];
+    // Ворота на транзакціях рекордера: запис фінішу стоїть у черзі, доки видалення не закомітиться (гонка з рев'ю).
+    let open = (): void => undefined;
+    let gate: Promise<void> = Promise.resolve();
+    const gated = new Proxy(db, {
+      get(target, key, receiver) {
+        if (key !== 'transaction') return Reflect.get(target, key, receiver) as unknown;
+        return async (...args: Parameters<typeof db.transaction>) => {
+          await gate;
+          return target.transaction(...args);
+        };
+      },
+    });
+    const recorder = attachRecorder(manager, gated, (error) => errors.push(error));
+    const room = manager.create(quiz(), 'taras', null);
+    const olia = enter(manager, room, 'Оля', 'olia');
+    const guest = enter(manager, room, 'Олена', null);
+    const host = (command: Parameters<RoomManager['host']>[1]) => expect(manager.host(room, command)).toEqual({ ok: true });
+    host({ type: 'start' });
+    host({ type: 'next' });
+    manager.answer(room, olia, { type: 'single', optionId: 'b' });
+    manager.answer(room, guest, { type: 'single', optionId: 'a' });
+    host({ type: 'next' });
+    await recorder.idle();
+    expect((await db.select().from(game).where(eq(game.id, room.id)))[0]).toMatchObject({ status: 'running', hostId: 'taras' });
+    gate = new Promise((resolve) => {
+      open = resolve;
+    });
+    manager.forgetUser('taras');
+    expect(room.state.phase).toBe('finished');
+    expect(await deleteAccount(db, { adminId: 'admin', userId: 'taras', now: new Date(), adminEmails: new Set() })).toBe('deleted');
+    expect((await db.select().from(game).where(eq(game.id, room.id)))[0]).toMatchObject({ status: 'running', hostId: BOT_USER_ID });
+    open();
+    await recorder.idle();
+    expect(errors).toEqual([]);
+    expect((await db.select().from(game).where(eq(game.id, room.id)))[0]).toMatchObject({ status: 'finished', hostId: BOT_USER_ID });
+    expect((await playerHistory(db, 'olia')).map((g) => g.gameId)).toContain(room.id);
+    expect((await db.select().from(participant).where(eq(participant.id, olia)))[0]).toMatchObject({ userId: 'olia', nickname: 'Оля' });
+  });
+
   it('forgetUser unbinds the account in live rooms and the game still records', async () => {
     const db = await createTestDb();
     await db.insert(user).values([
@@ -63,7 +129,7 @@ describe('forgetUser (58, account deletion)', () => {
 
     expect(manager.forgetUser('taras')).toBe(1);
     expect(room.playerUsers.has(taras)).toBe(false);
-    expect(await deleteAccount(db, { adminId: 'admin', userId: 'taras', now: new Date() })).toBe(true);
+    expect(await deleteAccount(db, { adminId: 'admin', userId: 'taras', now: new Date(), adminEmails: new Set() })).toBe('deleted');
 
     host({ type: 'end' });
     expect(room.state.phase).toBe('finished');

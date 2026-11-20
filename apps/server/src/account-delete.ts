@@ -1,9 +1,10 @@
 import { BOT_USER_ID, DELETED_NICKNAME, isBotUser, isRecord } from '@quiz/shared';
-import { and, asc, eq, ne, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray, ne, sql } from 'drizzle-orm';
+import { isAdmin } from './admin';
 import { logAction } from './bans';
 import { ensureBotAccount } from './bot-account';
 import type { Db } from './db/client';
-import { botPlan, game, groupMember, liveRoom, participant, savedGame, user, verification } from './db/schema';
+import { botPlan, game, groupItem, groupMember, liveRoom, participant, savedGame, scoreAdjustment, user, verification } from './db/schema';
 import { deleteGroup } from './group-store';
 import { ensureProfile } from './profiles';
 
@@ -14,25 +15,51 @@ const hasPair = (column: typeof savedGame.data | typeof liveRoom.data, userId: s
   sql`jsonb_typeof(${column}->'playerUsers') = 'array' and ${column}->'playerUsers' @> jsonb_build_array(jsonb_build_array(${userId}::text))`;
 
 /**
- * Видалення акаунта адміном (58) — одна транзакція: збій будь-де нічого не видаляє. false — користувача немає (журналу теж).
- * Журнал першим; рядки людини в чужих іграх — «Видалений гравець» (user_id стає null ключем); незавершені ігри, які вона вела, — геть,
- * завершені — за прихованим ботом (лишаються в історії гравців); з playerUsers збережених ігор і живих кімнат у базі — її пари;
+ * Видалення акаунта адміном (58) — одна транзакція: збій будь-де нічого не видаляє. not_found — користувача немає;
+ * cannot_delete_admin — адмін, сам адмін, що діє, чи бот (в обох випадках журналу немає; маршрут перевіряє те саме раніше).
+ * Журнал першим; рядки людини в чужих іграх — «Видалений гравець» (user_id стає null ключем), так само ціль її дебафів у чужих
+ * коригуваннях і її ім'я в записах груп; збережені й перервані ігри, які вона вела, — геть (в історії гравців їх немає, а продовжити
+ * їх без ведучого нікому), завершені й ті, що ще йдуть (фініш дописує рекордер, кімнату вже віддав боту forgetUser), — за ботом;
+ * з playerUsers збережених ігор і живих кімнат у базі — її пари, ведучий знімка її кімнати — бот;
  * з адресатів планів бота — її id; групи, де вона власник, — найранішому іншому учаснику, група без інших — геть;
  * токени входу (verification зі значенням id) — геть; далі delete user, решта — каскадом (див. звіт задачі 5).
  * Завантажені файли в сховищі не видаляються: прив'язки файл → акаунт немає.
  */
-export async function deleteAccount(db: Db, input: { adminId: string; userId: string; now: Date }): Promise<boolean> {
-  const { adminId, userId, now } = input;
-  if (isBotUser(userId)) return false;
+export async function deleteAccount(
+  db: Db,
+  input: { adminId: string; userId: string; now: Date; adminEmails: ReadonlySet<string> },
+): Promise<'deleted' | 'not_found' | 'cannot_delete_admin'> {
+  const { adminId, userId, now, adminEmails } = input;
+  if (isBotUser(userId) || userId === adminId) return 'cannot_delete_admin';
   await ensureBotAccount(db);
   return db.transaction(async (tx) => {
     const [target] = await tx.select({ email: user.email }).from(user).where(eq(user.id, userId)).for('update');
-    if (target === undefined) return false;
+    if (target === undefined) return 'not_found' as const;
+    if (await isAdmin(tx, adminEmails, userId)) return 'cannot_delete_admin' as const;
     const label = (await ensureProfile(tx as Db, userId))?.nickname ?? target.email;
     await logAction(tx, { adminId, kind: 'account_delete', targetUserId: userId, details: { text: label }, now });
 
+    // Ціль дебафу зберігається ніком без id: лише в іграх, де цей нік — саме її рядок, і до перейменування рядків.
+    await tx
+      .update(scoreAdjustment)
+      .set({ targetNickname: DELETED_NICKNAME })
+      .where(
+        sql`exists (
+          select 1 from "participant" buyer join "participant" target on target.game_id = buyer.game_id
+          where buyer.id = ${scoreAdjustment.participantId} and target.user_id = ${userId} and target.nickname = ${scoreAdjustment.targetNickname}
+        )`,
+      );
     await tx.update(participant).set({ nickname: DELETED_NICKNAME }).where(eq(participant.userId, userId));
-    await tx.delete(game).where(and(eq(game.hostId, userId), ne(game.status, 'finished')));
+    await tx
+      .update(groupItem)
+      .set({
+        about: sql`(
+          select jsonb_agg(case when e.value->>'userId' = ${userId}::text then jsonb_set(e.value, '{name}', to_jsonb(${DELETED_NICKNAME}::text)) else e.value end order by e.n)
+          from jsonb_array_elements(${groupItem.about}) with ordinality as e(value, n)
+        )`,
+      })
+      .where(sql`${groupItem.about} @> jsonb_build_array(jsonb_build_object('userId', ${userId}::text))`);
+    await tx.delete(game).where(and(eq(game.hostId, userId), inArray(game.status, ['saved', 'aborted'])));
     await tx.update(game).set({ hostId: BOT_USER_ID }).where(eq(game.hostId, userId));
 
     await tx
@@ -53,18 +80,25 @@ export async function deleteAccount(db: Db, input: { adminId: string; userId: st
     await handOverGroups(tx, userId);
     await tx.delete(verification).where(eq(verification.value, userId));
     await tx.delete(user).where(eq(user.id, userId));
-    return true;
+    return 'deleted' as const;
   });
 }
 
-/** Знімки живих кімнат у базі (на випадок перезапуску до наступного запису): її місця — гостьові, як RoomManager.forgetUser. */
+/**
+ * Знімки живих кімнат у базі (на випадок перезапуску до наступного запису): її місця — гостьові, а її кімната — бота,
+ * як RoomManager.forgetUser; піднята після перезапуску кімната не пише гру з ведучим, якого вже немає.
+ */
 async function forgetInLiveRooms(tx: Tx, userId: string): Promise<void> {
-  const rows = await tx.select({ code: liveRoom.code, data: liveRoom.data }).from(liveRoom).where(hasPair(liveRoom.data, userId));
+  const rows = await tx
+    .select({ code: liveRoom.code, data: liveRoom.data })
+    .from(liveRoom)
+    .where(sql`(${hasPair(liveRoom.data, userId)}) or ${liveRoom.data}->>'hostUserId' = ${userId}::text`);
   for (const row of rows) {
-    if (!isRecord(row.data) || !Array.isArray(row.data.playerUsers)) continue;
-    const pairs = row.data.playerUsers as unknown[];
+    if (!isRecord(row.data)) continue;
+    const pairs = Array.isArray(row.data.playerUsers) ? (row.data.playerUsers as unknown[]) : [];
     const mine = new Set(pairs.flatMap((pair) => (Array.isArray(pair) && pair[1] === userId ? [pair[0]] : [])));
     const data: Record<string, unknown> = { ...row.data, playerUsers: pairs.filter((pair) => !(Array.isArray(pair) && pair[1] === userId)) };
+    if (row.data.hostUserId === userId) data.hostUserId = BOT_USER_ID;
     const continued = row.data.continued;
     if (isRecord(continued) && Array.isArray(continued.bound)) data.continued = { ...continued, bound: continued.bound.filter((id) => !mine.has(id)) };
     await tx.update(liveRoom).set({ data }).where(eq(liveRoom.code, row.code));
