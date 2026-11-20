@@ -3,7 +3,7 @@ import { makeQuiz, single } from '@quiz/engine/testing';
 import { DELETED_NICKNAME, REPLAY_VOTE_ATTEMPT, type Grade } from '@quiz/shared';
 import { describe, expect, it } from 'vitest';
 import { VOTE_ATTEMPT } from './db/schema';
-import { diffEvents, seenOf } from './game-events';
+import { diffEvents, refreshEvents, seenOf } from './game-events';
 
 const AT = new Date('2026-11-20T10:00:00.000Z');
 const OLIA = 'p-olia';
@@ -116,6 +116,19 @@ describe('game events (65)', () => {
     const before = teams([[OLIA, 'Оля', 't-red'], [PETRO, 'Петро', 't-red']]);
     const after = teams([[OLIA, 'Оля', 't-red']]);
     expect(diffEvents(seenOf(before), after, AT, nobody)).toMatchObject([{ kind: 'leave', participantId: PETRO, nickname: 'Петро', details: { score: 200, team: 'Червоні' } }]);
+  });
+
+  it('pending events follow the room at write time: a forgotten seat and an unbound account lose the account', () => {
+    const ev = (participantId: string | null, userId: string | null, nickname: string) => ({ id: participantId ?? 'p', participantId, userId, nickname });
+    const events = [ev(PETRO, 'petro-user', 'Петро'), ev(MARKO, 'marko-user', 'Марко'), ev(OLIA, 'olia-user', 'Оля'), ev(null, null, '')];
+    const fresh = refreshEvents(events, { users: new Map([[OLIA, 'olia-user']]), forgotten: new Set([PETRO]) });
+    expect(fresh).toEqual([
+      ev(PETRO, null, DELETED_NICKNAME),
+      ev(MARKO, null, 'Марко'),
+      ev(OLIA, 'olia-user', 'Оля'),
+      ev(null, null, ''),
+    ]);
+    expect(fresh[2]).toBe(events[2]);
   });
 
   it('the shared vote attempt is the server one', () => {

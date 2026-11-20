@@ -1,5 +1,6 @@
 import { GAME_STATE_VERSION } from '@quiz/engine';
 import { makeQuiz, single, text } from '@quiz/engine/testing';
+import { DELETED_NICKNAME } from '@quiz/shared';
 import { asc, eq } from 'drizzle-orm';
 import { describe, expect, it, vi } from 'vitest';
 import type { Db } from './db/client';
@@ -138,6 +139,28 @@ describe('recorder: game events (65)', () => {
     ctx.enterIn(room, 'Марко', 'marko-user');
     expect((await ctx.events()).find((r) => r.kind === 'join')).toMatchObject({ userId: 'marko-user', nickname: 'Марко', questionIndex: 0 });
     expect(ctx.errors).toEqual([]);
+  });
+
+  it('an account deleted while its event waits does not block later writes and becomes the deleted player', async () => {
+    const ctx = await setup();
+    await ctx.db.insert(user).values({ id: 'marko-user', name: 'Марко', email: 'marko@example.com' });
+    const room = await ctx.continued();
+    await ctx.recorder.idle();
+    // Запис із приєднанням Марка не вдається: подія лишається в черзі.
+    vi.spyOn(ctx.db, 'transaction').mockRejectedValueOnce(new Error('database is down'));
+    ctx.tick();
+    ctx.enterIn(room, 'Марко', 'marko-user');
+    await ctx.recorder.idle();
+    expect(ctx.errors).toHaveLength(1);
+    // Видалення акаунта (admin-card-routes): спершу кімнати, потім рядок user.
+    ctx.manager.forgetUser('marko-user');
+    await ctx.db.delete(user).where(eq(user.id, 'marko-user'));
+    ctx.tick();
+    ctx.host({ type: 'resume' }, room);
+    const rows = await ctx.events();
+    expect(ctx.errors).toHaveLength(1);
+    expect(rows.find((r) => r.kind === 'join')).toMatchObject({ userId: null, nickname: DELETED_NICKNAME });
+    expect(rows.map((r) => r.kind)).toEqual(['start', 'join', 'resume']);
   });
 
   it('a pause alone is written', async () => {

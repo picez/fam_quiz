@@ -77,6 +77,24 @@ export function diffEvents(prev: Seen, next: GameState, at: Date, who: { users: 
 }
 
 /**
+ * Події черги проти кімнати на мить запису: акаунт, видалений, поки подія чекала (forgetUser → forgotten, пара з playerUsers геть),
+ * не має лишитися в події — інакше зовнішній ключ user_id валив би кожен наступний запис гри, а нік видаленого витік би.
+ * Місце в forgotten — DELETED_NICKNAME без акаунта; акаунт, якого вже немає в playerUsers цього місця, — null. id не змінюються.
+ */
+export function refreshEvents<T extends Pick<GameEventRow, 'participantId' | 'userId' | 'nickname'>>(
+  events: T[],
+  who: { users: ReadonlyMap<string, string>; forgotten: ReadonlySet<string> },
+): T[] {
+  return events.map((event) => {
+    const id = event.participantId ?? null;
+    if (id === null) return event;
+    if (who.forgotten.has(id)) return event.userId == null && event.nickname === DELETED_NICKNAME ? event : { ...event, userId: null, nickname: DELETED_NICKNAME };
+    if (event.userId != null && who.users.get(id) !== event.userId) return { ...event, userId: null };
+    return event;
+  });
+}
+
+/**
  * Спостерігач подій рекордера (65). Перше спостереження кімнати поза лобі (і після reset — кімната, піднята після перезапуску,
  * точне продовження) лише запам'ятовує стан і ставить у чергу start: запис пише його, лише якщо start цієї гри в базі ще немає.
  */

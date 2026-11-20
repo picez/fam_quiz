@@ -5,7 +5,7 @@ import { antiHidden, awardedIn, awardGame } from './achievement-store';
 import type { Db } from './db/client';
 import { answer, appeal, AWAY_ATTEMPT, game, gameEvent, participant, PENALTY_ATTEMPT, savedGame, scoreAdjustment, VOTE_ATTEMPT, type GameEventRow, type PlayRef } from './db/schema';
 import { publishGameFeed } from './feed-publish';
-import { createEventWatcher } from './game-events';
+import { createEventWatcher, refreshEvents } from './game-events';
 import { forgetInPlays } from './forget-plays';
 import { recordLeague, type LeagueGameResult } from './league-store';
 import { awardPrizes, releaseUnsaved, type PrizeOutcome } from './prizes';
@@ -766,7 +766,8 @@ export function attachRecorder(
       // Події (65) — усі, що є на мить запису; прибираються з черги лише після успіху (повтор пише ті самі id).
       // Запізнілий запис збереженої чи заступленої кімнати подій не бере: під тим самим id вони вже нової кімнати
       // (точне продовження), а збереження після нього обрізало б їх до контрольної точки.
-      const events = ownsEvents(room) ? watcher.pending(room.id) : [];
+      // Акаунт, видалений, поки події чекали (повтор після збою), — у них уже «Видалений гравець» без акаунта.
+      const events = ownsEvents(room) ? refreshEvents(watcher.pending(room.id), { users: room.playerUsers, forgotten: room.forgotten ?? new Set() }) : [];
       const leagueResult = await save(db, { ...snapshot, fromQuestion, trim, league: leagueNow, events });
       watcher.written(room.id, events.map((event) => event.id));
       if (trim) untrimmed.delete(room.id);
