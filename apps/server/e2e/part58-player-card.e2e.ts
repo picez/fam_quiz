@@ -184,7 +184,7 @@ async function card58() {
   await olya.locator('.achievement-card.is-locked', { has: olya.getByRole('heading', { name: /^Перша перемога/ }) }).waitFor();
   expect(await earned(olya), 'revoked achievement stays gone after a reload').toBe(0);
 
-  // ── 3. Досвід: +300 з причиною → рівень 2; Оля бачить рівень 2 і рядок «Від адміністратора». ──
+  // ── 3. Досвід: +300 з причиною → рівень 2; Оля бачить рівень 2 і розділ «Від адміністратора» з причиною. ──
   const xp = section(admin, 'Досвід');
   await xp.getByLabel('Зміна (від’ємне число — відняти)', exact).fill('300');
   expect(await xp.getByRole('button', { name: 'Додати / відняти досвід', ...exact }).isDisabled(), 'no reason, no button').toBe(true);
@@ -198,7 +198,8 @@ async function card58() {
   await xp.evaluate((node) => node.scrollIntoView({ block: 'start' }));
   await view(admin, 'card58-xp-360');
   await olya.goto(`${base}/profile/levels`);
-  await olya.getByText(`Від адміністратора: ${REASON}`, exact).waitFor();
+  await olya.locator('.level-admin-xp').getByRole('heading', { name: 'Від адміністратора', ...exact }).waitFor();
+  await olya.locator('.level-admin-xp').getByText(REASON, exact).waitFor();
   await olya.locator('.level-row.is-current', { hasText: 'Рівень 2' }).waitFor();
   await olya.locator('.level-admin-xp').scrollIntoViewIfNeeded();
   await view(olya, 'card58-levels-360');
