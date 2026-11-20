@@ -4,7 +4,7 @@ import { isAdmin } from './admin';
 import { logAction } from './bans';
 import { ensureBotAccount } from './bot-account';
 import type { Db } from './db/client';
-import { botPlan, game, groupItem, groupMember, liveRoom, participant, pushBroadcast, savedGame, scoreAdjustment, user, verification } from './db/schema';
+import { botPlan, game, gameEvent, groupItem, groupMember, liveRoom, participant, pushBroadcast, savedGame, scoreAdjustment, user, verification } from './db/schema';
 import { deleteGroup } from './group-store';
 import { forgetInPlays } from './forget-plays';
 import { ensureProfile } from './profiles';
@@ -52,6 +52,8 @@ export async function deleteAccount(
       );
     await forgetInGamePlays(tx, userId);
     await tx.update(participant).set({ nickname: DELETED_NICKNAME }).where(eq(participant.userId, userId));
+    // 65: її події в іграх (приєднання, вилучення, рішення ведучого) — «Видаленим гравцем»; user_id стане null ключем.
+    await tx.update(gameEvent).set({ nickname: DELETED_NICKNAME }).where(eq(gameEvent.userId, userId));
     await tx
       .update(groupItem)
       .set({

@@ -3,8 +3,9 @@ import { AWAY_MS, DELETED_NICKNAME, isUnscored, type Answer, type BuffKind, type
 import { and, eq, gt, gte, inArray, max, notInArray, sql } from 'drizzle-orm';
 import { antiHidden, awardedIn, awardGame } from './achievement-store';
 import type { Db } from './db/client';
-import { answer, appeal, AWAY_ATTEMPT, game, participant, PENALTY_ATTEMPT, savedGame, scoreAdjustment, VOTE_ATTEMPT, type PlayRef } from './db/schema';
+import { answer, appeal, AWAY_ATTEMPT, game, gameEvent, participant, PENALTY_ATTEMPT, savedGame, scoreAdjustment, VOTE_ATTEMPT, type GameEventRow, type PlayRef } from './db/schema';
 import { publishGameFeed } from './feed-publish';
+import { createEventWatcher } from './game-events';
 import { forgetInPlays } from './forget-plays';
 import { recordLeague, type LeagueGameResult } from './league-store';
 import { awardPrizes, releaseUnsaved, type PrizeOutcome } from './prizes';
@@ -42,6 +43,8 @@ interface Snapshot {
   trim?: boolean;
   /** Сімейна ліга (45): лише фініш гри для ліги, що дає бали (finished, plays > 0, не виклик); null — нічого не писати. */
   league?: LeagueSnapshot | null;
+  /** Події гри (65), побачені рекордером і ще не записані; ключ id — повтор нічого не дублює. */
+  events?: GameEventRow[];
 }
 
 /** Що рекордер пише в лігу (45): група й рядки таблиці гри з акаунтами людей на мить фінішу. */
@@ -508,6 +511,8 @@ async function save(db: Db, snapshot: Snapshot): Promise<LeagueGameResult | null
     await writeGame(tx, snapshot, false);
     // Точне продовження: рядки після стану (запитання, коригування, апеляції продовження, що впало без live_room) — геть.
     if (snapshot.trim === true) await trimToCheckpoint(tx, snapshot.id, snapshot.state);
+    // Події (65) — після рядка гри (зовнішній ключ) і після обрізання: подій цього продовження воно не зачіпає.
+    await writeEvents(tx, snapshot.events ?? []);
     // Фініш: гра більше не «Не завершена».
     if (finished) await tx.delete(savedGame).where(eq(savedGame.gameId, snapshot.id));
     // Шлях 12r: нова гра закрила перше запитання — старий збережений запис геть (одна гра в історії).
@@ -524,6 +529,26 @@ async function save(db: Db, snapshot: Snapshot): Promise<LeagueGameResult | null
       return null;
     }
   });
+}
+
+/**
+ * Події гри (65): start — лише якщо цієї гри start ще немає (кімната, піднята після перезапуску, і точне продовження не дають другого);
+ * решта — insert … on conflict (id) do nothing.
+ */
+async function writeEvents(tx: Tx, events: GameEventRow[]): Promise<void> {
+  const rest: GameEventRow[] = [];
+  for (const event of events) {
+    if (event.kind !== 'start') {
+      rest.push(event);
+      continue;
+    }
+    await tx.execute(sql`
+      insert into ${gameEvent} ("id", "game_id", "at", "question_index", "kind", "participant_id", "user_id", "nickname", "details")
+      select ${event.id}::uuid, ${event.gameId}::uuid, ${event.at.toISOString()}::timestamptz, ${event.questionIndex}::integer, 'start', null, null, '', null
+      where not exists (select 1 from ${gameEvent} where ${gameEvent.gameId} = ${event.gameId}::uuid and ${gameEvent.kind} = 'start')
+      on conflict ("id") do nothing`);
+  }
+  if (rest.length > 0) await tx.insert(gameEvent).values(rest).onConflictDoNothing({ target: gameEvent.id });
 }
 
 /** Видаляє гру, яку замінило продовження шляхом 12r, лише якщо вона ще 'saved' (учасники й відповіді — каскадом). */
@@ -578,13 +603,14 @@ export async function saveSavedGame(db: Db, write: SavedWrite): Promise<void> {
 
 /**
  * Видаляє рядки після контрольної точки: answer з question_index ≥ closedQuestions(state),
- * score_adjustment з seq > state.adjustmentSeq, appeal з seq > (state.appeals?.length ?? 0).
+ * score_adjustment з seq > state.adjustmentSeq, appeal з seq > (state.appeals?.length ?? 0), game_event (65) з question_index ≥ closedQuestions(state).
  */
 export async function trimToCheckpoint(db: Db | Tx, gameId: string, state: GameState): Promise<void> {
   const people = db.select({ id: participant.id }).from(participant).where(eq(participant.gameId, gameId));
   await db.delete(answer).where(and(inArray(answer.participantId, people), gte(answer.questionIndex, closedQuestions(state))));
   await db.delete(scoreAdjustment).where(and(inArray(scoreAdjustment.participantId, people), gt(scoreAdjustment.seq, state.adjustmentSeq)));
   await db.delete(appeal).where(and(eq(appeal.gameId, gameId), gt(appeal.seq, state.appeals?.length ?? 0)));
+  await db.delete(gameEvent).where(and(eq(gameEvent.gameId, gameId), gte(gameEvent.questionIndex, closedQuestions(state))));
 }
 
 const MAX_RETRY_DELAY_MS = 60_000;
@@ -631,9 +657,16 @@ export function attachRecorder(
   const superseded = new WeakSet<Room>();
   /** Точні продовження, чий перший запис ще має прибрати рядки після стану (trimToCheckpoint). */
   const untrimmed = new Set<string>();
+  /** Події гри (65): що рекордер бачив у кімнаті й які події ще не записано. */
+  const watcher = createEventWatcher();
+  /** Id подій, які вже забере поставлений у чергу запис: повторний виклик record на тому самому підписі нового запису не ставить. */
+  const covered = new Map<string, Set<string>>();
+  /** Події під id кімнати належать їй, лише поки вона веде цей id і не збережена (65). */
+  const ownsEvents = (room: Room) => current.get(room.id) === room && !sealed.has(room);
 
   const forget = (roomId: string) => {
-    for (const map of [queues, lastSignature, startedAt, savedQuestions, failures, debuffsSeen, current]) map.delete(roomId);
+    watcher.reset(roomId);
+    for (const map of [queues, lastSignature, startedAt, savedQuestions, failures, debuffsSeen, current, covered]) map.delete(roomId);
     closedRooms.delete(roomId);
     awarded.delete(roomId);
     prized.delete(roomId);
@@ -656,7 +689,9 @@ export function attachRecorder(
     if (known === room) return;
     if (known !== undefined) superseded.add(known);
     current.set(room.id, room);
-    for (const map of [lastSignature, savedQuestions, failures, debuffsSeen]) map.delete(room.id);
+    // Події (65): нова кімната починає з базової лінії — без хибних join і без другого start (його відсіє запис).
+    watcher.reset(room.id);
+    for (const map of [lastSignature, savedQuestions, failures, debuffsSeen, covered]) map.delete(room.id);
     closedRooms.delete(room.id);
     awarded.delete(room.id);
     prized.delete(room.id);
@@ -688,9 +723,15 @@ export function attachRecorder(
     const hostId = room.hostUserId;
     if (hostId === null || state.phase === 'lobby' || sealed.has(room) || superseded.has(room)) return;
     seeDebuffs(room);
+    watcher.see(room, manager.now());
     const current = signature(state);
-    if (lastSignature.get(room.id) === current) return;
+    // Пауза підпису не змінює: нова подія, якої не забере вже поставлений запис, — теж привід записати.
+    const pending = watcher.pending(room.id);
+    const claimed = covered.get(room.id);
+    const unclaimed = pending.some((event) => claimed?.has(event.id) !== true);
+    if (lastSignature.get(room.id) === current && !unclaimed) return;
     lastSignature.set(room.id, current);
+    covered.set(room.id, new Set(pending.map((event) => event.id)));
     if (!startedAt.has(room.id)) startedAt.set(room.id, new Date());
 
     const closed = closedQuestions(state);
@@ -722,7 +763,12 @@ export function attachRecorder(
       const lastTry = (failures.get(room.id) ?? 0) >= maxRetries;
       const spare = (error: unknown) => onError(new Error(`Бали ліги гри ${room.id} не записано: повтори запису вичерпано`, { cause: error }));
       const leagueNow = league === null || leagued.has(room.id) ? null : { ...league, ...(lastTry ? { spare } : {}) };
-      const leagueResult = await save(db, { ...snapshot, fromQuestion, trim, league: leagueNow });
+      // Події (65) — усі, що є на мить запису; прибираються з черги лише після успіху (повтор пише ті самі id).
+      // Запізнілий запис збереженої чи заступленої кімнати подій не бере: під тим самим id вони вже нової кімнати
+      // (точне продовження), а збереження після нього обрізало б їх до контрольної точки.
+      const events = ownsEvents(room) ? watcher.pending(room.id) : [];
+      const leagueResult = await save(db, { ...snapshot, fromQuestion, trim, league: leagueNow, events });
+      watcher.written(room.id, events.map((event) => event.id));
       if (trim) untrimmed.delete(room.id);
       savedQuestions.set(room.id, closed);
       // Підсумок ліги — у кімнату (рядок «+N» на телефоні й бали на пульті); групи вже немає — гра без балів.
@@ -882,6 +928,9 @@ export function attachRecorder(
         sealed.add(room);
         // Збій попереднього запису більше не повторюється (sealed): його рядки пише збереження.
         failures.delete(room.id);
+        // Події (65), ще не записані до збереження (пауза перед «Зберегти»), окремого запису не варті.
+        watcher.reset(room.id);
+        covered.delete(room.id);
         persistSaved(room, event.saved);
       } else if (event.type === 'closed' && room.state.phase !== 'finished' && room.hostUserId !== null) {
         // Збережена гра (вище) лишає призи в резерві: продовження грає за них же.

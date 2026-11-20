@@ -22,6 +22,7 @@ import {
   feedEvent,
   follow,
   game,
+  gameEvent,
   groupInvite,
   groupItem,
   groupMember,
@@ -106,6 +107,7 @@ async function referencing(userId: string): Promise<Record<string, number>> {
   await add('quiz', db.select().from(quiz).where(eq(quiz.ownerId, userId)));
   await add('game', db.select().from(game).where(eq(game.hostId, userId)));
   await add('participant', db.select().from(participant).where(eq(participant.userId, userId)));
+  await add('game_event', db.select().from(gameEvent).where(eq(gameEvent.userId, userId)));
   await add('profile', db.select().from(profile).where(eq(profile.userId, userId)));
   await add('follow', db.select().from(follow).where(or(eq(follow.followerId, userId), eq(follow.followeeId, userId))));
   await add('user_achievement', db.select().from(userAchievement).where(eq(userAchievement.userId, userId)));
@@ -182,6 +184,11 @@ describe('deleteAccount', () => {
     const finished = await seedGame(db, { hostId: taras, startedAt: PAST, players: [{ userId: olia, nickname: 'Оля', score: 10, rank: 1 }] });
     const running = await seedGame(db, { hostId: taras, status: 'running', startedAt: PAST, players: [{ userId: olia, nickname: 'Оля', score: 0, rank: null }] });
     const played = await seedGame(db, { hostId: olia, startedAt: PAST, players: [{ userId: taras, nickname: 'Тарас', score: 5, rank: 1 }] });
+    // 65: подія гри з його акаунтом (вилучення з рахунком).
+    const [tarasEvent] = await db
+      .insert(gameEvent)
+      .values({ id: randomUUID(), gameId: played.gameId, at: PAST, questionIndex: 0, kind: 'leave', participantId: played.participantIds[0], userId: taras, nickname: 'Тарас', details: { score: 5 } })
+      .returning();
     await db.insert(follow).values([
       { followerId: taras, followeeId: olia },
       { followerId: olia, followeeId: taras },
@@ -299,6 +306,8 @@ describe('deleteAccount', () => {
     const [hostedRoom] = await db.select().from(liveRoom).where(eq(liveRoom.code, `h-${n}`));
     expect(hostedRoom.data).toEqual({ hostUserId: BOT_USER_ID, playerUsers: [['p-olia', olia]] });
     expect((await db.select().from(groupItem).where(eq(groupItem.id, item.id)))[0]?.about).toEqual([{ kind: 'member', userId: taras, name: DELETED_NICKNAME }]);
+    // 65: його подія в чужій грі лишається «Видаленим гравцем» без акаунта.
+    expect((await db.select().from(gameEvent).where(eq(gameEvent.id, tarasEvent.id)))[0]).toMatchObject({ nickname: DELETED_NICKNAME, userId: null, details: { score: 5 } });
     const [owner] = await db.select().from(groupMember).where(eq(groupMember.groupId, groupId));
     expect(owner).toMatchObject({ userId: olia, role: 'owner' });
   });
@@ -517,7 +526,7 @@ const HANDLED = [
   'group_invite.user_id', 'group_invite.invited_by', 'group_item.author_id', 'challenge.owner_id', 'challenge_attempt.user_id',
   'league_point.user_id', 'league_champion.user_id', 'library_entry.owner_id', 'library_copy.user_id', 'user_report.reporter_id',
   'user_report.target_user_id', 'announcement.created_by', 'bot_plan.created_by', 'push_broadcast.created_by',
-  'problem_report.user_id', 'problem_report.resolved_by', 'server_error.resolved_by',
+  'problem_report.user_id', 'problem_report.resolved_by', 'server_error.resolved_by', 'game_event.user_id',
 ];
 
 describe('the schema', () => {
