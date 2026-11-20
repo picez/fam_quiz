@@ -9,6 +9,7 @@
   "pushFallbackTitle": "Quiz",
   "pushOpenedBody": "Il conduttore ha aperto la partita. Tocca per partecipare.",
   "pushOpenedTitle": "La partita «{title}» è iniziata",
+  "pushProblemReplyTitle": "Risposta al tuo messaggio",
   "pushReminderBody": "Inizio alle {time}. Non fare tardi!",
   "pushReminderTitle": "Tra poco la partita «{title}»",
   "swOfflineBody": "Impossibile aprire la pagina: manca internet o il server non è raggiungibile.",

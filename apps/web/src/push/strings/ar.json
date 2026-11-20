@@ -9,6 +9,7 @@
   "pushFallbackTitle": "اختبار",
   "pushOpenedBody": "فتح المقدّم اللعبة. المس للانضمام.",
   "pushOpenedTitle": "بدأت اللعبة «{title}»",
+  "pushProblemReplyTitle": "رد على رسالتك",
   "pushReminderBody": "البداية في {time}. لا تتأخر!",
   "pushReminderTitle": "قريبًا اللعبة «{title}»",
   "swOfflineBody": "تعذّر فتح الصفحة: لا يوجد إنترنت أو الخادم غير متاح.",
