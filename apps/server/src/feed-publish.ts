@@ -140,8 +140,8 @@ export async function writePrizeEvents(db: Db, scope: Scope, history: boolean): 
   );
 }
 
-/** Для кожного акаунта: levelOf(xpTotals) > coalesce(feed_level, 1) → подія level найвищого рівня й feed_level = він, в одній транзакції. */
-export async function announceLevels(db: Db, userIds: string[], gameId: string, at: Date): Promise<void> {
+/** Для кожного акаунта: levelOf(xpTotals) > coalesce(feed_level, 1) → подія level найвищого рівня й feed_level = він, в одній транзакції. gameId null — рівень з дії адміна (58). */
+export async function announceLevels(db: Db, userIds: string[], gameId: string | null, at: Date): Promise<void> {
   const ids = [...new Set(userIds)];
   if (ids.length === 0) return;
   const totals = await xpTotals(db, ids);
