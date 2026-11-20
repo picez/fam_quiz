@@ -134,13 +134,16 @@ async function sideOf(db: Db, userId: string): Promise<MergeSide | null> {
 /**
  * 66: попередній перегляд — той самий runMerge, завершений відкатом (MergeRollback): підсумок і «після» дорівнюють тому, що
  * зробить об'єднання, а база не змінюється. null — котрогось немає чи бот; відмова — refusal без summary й after.
+ * refused — відмову вже знайшов маршрут (жива гра в пам'яті процесу): лише сторони й причина, без проходу об'єднання.
  */
-export async function previewMerge(db: Db, input: MergeInput): Promise<AccountMergePreview | null> {
+export async function previewMerge(db: Db, input: MergeInput, refused: MergeRefusal | null = null): Promise<AccountMergePreview | null> {
   const { primaryId: P, secondaryId: S } = input;
   if (isBotUser(P) || isBotUser(S)) return null;
   const primary = await sideOf(db, P);
   const secondary = await sideOf(db, S);
   if (primary === null || secondary === null) return null;
+  const confirm = secondary.nickname ?? secondary.email;
+  if (refused !== null) return { primary, secondary, confirm, refusal: refused, summary: null, after: null };
   let outcome: MergeOutcome;
   try {
     await db.transaction(async (tx) => {
@@ -151,7 +154,6 @@ export async function previewMerge(db: Db, input: MergeInput): Promise<AccountMe
     if (!(error instanceof MergeRollback)) throw error;
     outcome = error.outcome;
   }
-  const confirm = secondary.nickname ?? secondary.email;
   if (outcome.ok) return { primary, secondary, confirm, refusal: null, summary: outcome.summary, after: outcome.after };
   if (outcome.error === 'not_found') return null;
   return { primary, secondary, confirm, refusal: outcome.error, summary: null, after: null };

@@ -649,6 +649,14 @@ function playerLeagueView(room: Room, playerId: string, isAuthor: boolean): Play
   };
 }
 
+/** Бали місця, як у рядку participant рекордера: гравець рушія — свої, людина команди — бали команди; немає — 0. */
+function seatScore(state: GameState, seat: string): number {
+  const player = state.players.find((p) => p.id === seat);
+  if (player !== undefined) return player.score;
+  const teamId = state.teams?.members.find((m) => m.id === seat)?.teamId;
+  return state.players.find((p) => p.id === teamId)?.score ?? 0;
+}
+
 /** Рядок ліги на пульті (45): після підсумку — бали за спаданням або «замало учасників». */
 function hostLeagueView(room: Room): HostLeagueView | undefined {
   if (room.league === null) return undefined;
@@ -1076,6 +1084,52 @@ export class RoomManager {
       }
     }
     return removed;
+  }
+
+  /** Об'єднання акаунтів (66): чи акаунт у живій кімнаті цього процесу — фаза не finished, а він ведучий чи має місце. */
+  inLiveGame(userId: string): boolean {
+    for (const room of this.live.values()) {
+      if (room.state.phase === 'finished') continue;
+      if (room.hostUserId === userId || [...room.playerUsers.values()].includes(userId)) return true;
+    }
+    return false;
+  }
+
+  /**
+   * Об'єднання акаунтів (66), після фіксації: у кімнатах пам'яті (живу гру маршрут відмовив — тут лише завершені) ведучий from — to,
+   * пари from — to. Якщо to вже має місце в тій самій кімнаті — правило рядків гри (participant): лишається прив'язаним місце
+   * з більшими балами (рівно — місце to), воно й належить to, друге стає гостьовим зі своїм ніком (не forgotten — гравця
+   * не видалено). Так рекордер (user_id з playerUsers) повторним записом не перевертає рішення злиття. continued.bound —
+   * id місць, не змінюється. Повертає кількість змінених пар from.
+   */
+  rebindUser(from: string, to: string): number {
+    let changed = 0;
+    for (const room of this.live.values()) {
+      if (room.hostUserId === from) room.hostUserId = to;
+      const pairs = [...room.playerUsers];
+      const theirs = pairs.filter(([, userId]) => userId === from).map(([seat]) => seat);
+      if (theirs.length === 0) continue;
+      changed += theirs.length;
+      const mine = pairs.filter(([, userId]) => userId === to).map(([seat]) => seat);
+      const best = (seats: string[]) => Math.max(...seats.map((seat) => seatScore(room.state, seat)));
+      const secondaryWon = mine.length > 0 && best(theirs) > best(mine);
+      if (mine.length === 0) {
+        for (const seat of theirs) room.playerUsers.set(seat, to);
+        continue;
+      }
+      if (!secondaryWon) {
+        for (const seat of theirs) room.playerUsers.delete(seat);
+        continue;
+      }
+      for (const seat of mine) room.playerUsers.delete(seat);
+      // Як у participant: прив'язаним лишається одне, найкраще місце from; решта (не буває) — гостьові.
+      const kept = [...theirs].sort((a, b) => seatScore(room.state, b) - seatScore(room.state, a))[0]!;
+      for (const seat of theirs) {
+        if (seat === kept) room.playerUsers.set(seat, to);
+        else room.playerUsers.delete(seat);
+      }
+    }
+    return changed;
   }
 
   /**
