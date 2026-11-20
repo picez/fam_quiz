@@ -79,7 +79,8 @@ export function diffEvents(prev: Seen, next: GameState, at: Date, who: { users: 
 /**
  * Події черги проти кімнати на мить запису: акаунт, видалений, поки подія чекала (forgetUser → forgotten, пара з playerUsers геть),
  * не має лишитися в події — інакше зовнішній ключ user_id валив би кожен наступний запис гри, а нік видаленого витік би.
- * Місце в forgotten — DELETED_NICKNAME без акаунта; акаунт, якого вже немає в playerUsers цього місця, — null. id не змінюються.
+ * Місце в forgotten — DELETED_NICKNAME без акаунта; акаунт, якого вже немає в playerUsers цього місця, — поточна прив'язка місця
+ * (об'єднання 66: S → P) чи null, якщо місце тепер гостьове. id не змінюються.
  */
 export function refreshEvents<T extends Pick<GameEventRow, 'participantId' | 'userId' | 'nickname'>>(
   events: T[],
@@ -89,7 +90,8 @@ export function refreshEvents<T extends Pick<GameEventRow, 'participantId' | 'us
     const id = event.participantId ?? null;
     if (id === null) return event;
     if (who.forgotten.has(id)) return event.userId == null && event.nickname === DELETED_NICKNAME ? event : { ...event, userId: null, nickname: DELETED_NICKNAME };
-    if (event.userId != null && who.users.get(id) !== event.userId) return { ...event, userId: null };
+    // Місце перев'язане (66, об'єднання: S → P) — подія йде за місцем; відв'язане — без акаунта.
+    if (event.userId != null && who.users.get(id) !== event.userId) return { ...event, userId: who.users.get(id) ?? null };
     return event;
   });
 }

@@ -150,11 +150,16 @@ export async function registerPlayerCardRoutes(app: FastifyInstance, deps: Admin
     if (liveHere(P, S)) return reply.code(409).send({ error: 'merge_live' });
     const label = await mergeLabel(db, S);
     if (label === null) return reply.code(404).send(NOT_FOUND);
-    if (body.data.confirm.trim() !== label) return reply.code(400).send({ error: 'confirm_mismatch' });
+    // Точний збіг з регістром (план: confirm.trim() дорівнює мітці), але після NFC: «й», набране розкладеною формою, — той самий нік.
+    if (body.data.confirm.trim().normalize('NFC') !== label.normalize('NFC')) return reply.code(400).send({ error: 'confirm_mismatch' });
     let outcome: MergeOutcome;
     try {
-      // Рівень з об'єднаного досвіду (announce) — усередині mergeAccounts, після фіксації.
-      outcome = await mergeAccounts(db, { adminId: me.id, primaryId: P, secondaryId: S, now: now(), adminEmails });
+      // Одразу після фіксації, ще до рівня (announce усередині mergeAccounts): сесії S уже видалено транзакцією (його /api/me — 401);
+      // місця S у кімнатах пам'яті — до P, щоб рекордер (user_id з playerUsers, події в черзі — за місцем) лишив зв'язок з головним
+      // і жоден запис між фіксацією й перев'язкою не впирався в зовнішній ключ видаленого S.
+      outcome = await mergeAccounts(db, { adminId: me.id, primaryId: P, secondaryId: S, now: now(), adminEmails }, () => {
+        manager.rebindUser(S, P);
+      });
     } catch (error) {
       reportError(error, { where: 'admin-merge-accounts' });
       return reply.code(500).send({ error: 'merge_failed' });
@@ -163,9 +168,6 @@ export async function registerPlayerCardRoutes(app: FastifyInstance, deps: Admin
       if (outcome.error === 'not_found') return reply.code(404).send(NOT_FOUND);
       return reply.code(outcome.error === 'merge_same' ? 400 : 409).send({ error: outcome.error });
     }
-    // Після фіксації: сесії S уже видалено транзакцією (його /api/me — 401); місця S у завершених кімнатах пам'яті — до P,
-    // щоб рекордер (user_id з playerUsers) і повторний запис гри лишили зв'язок з головним акаунтом.
-    manager.rebindUser(S, P);
     return reply.code(200).send({ primaryId: P, summary: outcome.summary });
   });
 

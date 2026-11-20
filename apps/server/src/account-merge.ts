@@ -113,11 +113,14 @@ async function announce(db: Db, userId: string, now: Date): Promise<void> {
 
 /**
  * 66: об'єднати S у P однією транзакцією — збій будь-де нічого не переносить і журналу не пише. Відмова — { ok: false } без змін.
- * Кімнати в пам'яті (rebindUser) і живу гру в пам'яті — маршрут; тут — рівень після фіксації.
+ * Живу гру в пам'яті перевіряє маршрут. committed — одразу після фіксації, до рівня (маршрут: rebindUser кімнат у пам'яті —
+ * інакше запис рекордера між фіксацією й перев'язкою ще ніс би S і впирався б у зовнішній ключ); тоді — рівень.
  */
-export async function mergeAccounts(db: Db, input: MergeInput): Promise<MergeOutcome> {
+export async function mergeAccounts(db: Db, input: MergeInput, committed?: () => void | Promise<void>): Promise<MergeOutcome> {
   const outcome = await db.transaction((tx) => runMerge(tx, input));
-  if (outcome.ok) await announce(db, input.primaryId, input.now);
+  if (!outcome.ok) return outcome;
+  await committed?.();
+  await announce(db, input.primaryId, input.now);
   return outcome;
 }
 

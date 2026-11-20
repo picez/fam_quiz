@@ -131,6 +131,11 @@ describe('game events (65)', () => {
     expect(fresh[2]).toBe(events[2]);
   });
 
+  it('a pending event of a seat rebound to another account (66, merge) follows the seat', () => {
+    const ev = { id: 'e1', participantId: OLIA, userId: 'secondary', nickname: 'Оля' };
+    expect(refreshEvents([ev], { users: new Map([[OLIA, 'primary']]), forgotten: new Set() })).toEqual([{ ...ev, userId: 'primary' }]);
+  });
+
   it('the shared vote attempt is the server one', () => {
     expect(REPLAY_VOTE_ATTEMPT).toBe(VOTE_ATTEMPT);
   });

@@ -101,6 +101,9 @@ describe('merge routes on the player card (66)', () => {
     const wrong = await call('POST', `/api/admin/users/${primary.id}/merge`, { secondaryId: secondary.id, confirm: 'Петро' });
     expect(wrong.statusCode).toBe(400);
     expect(wrong.json()).toEqual({ error: 'confirm_mismatch' });
+    // Регістр має значення (точний збіг, як у видаленні 58).
+    const upper = await call('POST', `/api/admin/users/${primary.id}/merge`, { secondaryId: secondary.id, confirm: secondary.nickname.toLocaleUpperCase('uk') });
+    expect(upper.json()).toEqual({ error: 'confirm_mismatch' });
     expect((await call('POST', `/api/admin/users/${primary.id}/merge`, { secondaryId: secondary.id })).json()).toEqual({ error: 'invalid_payload' });
     expect((await call('POST', `/api/admin/users/${primary.id}/merge`, { secondaryId: secondary.id, confirm: 'x', extra: 1 })).statusCode).toBe(400);
     expect(await exists(secondary.id)).toBe(true);
@@ -142,7 +145,7 @@ describe('merge routes on the player card (66)', () => {
 
   it('a merge returns the summary, closes the secondary session (its /api/me is 401) and the primary card shows the moved game', async () => {
     const primary = await person('Головна');
-    const secondary = await person('Друга');
+    const secondary = await person('Йосип');
     const gameId = await playedOnce(secondary.id, 'Перенесена');
     // Завершена кімната в пам'яті з місцем S: після об'єднання місце прив'язане до P.
     const room = ctx.manager.create(quizOne, null, null);
@@ -151,8 +154,11 @@ describe('merge routes on the player card (66)', () => {
     expect(ctx.manager.host(room, { type: 'start' })).toEqual({ ok: true });
     expect(ctx.manager.closeByAdmin(room.code)).toBe('ended');
     const before = await logCount();
+    // Нік, набраний розкладеною формою (И + знак бреве), — той самий нік: порівняння після NFC.
+    const typed = secondary.nickname.normalize('NFD');
+    expect(typed).not.toBe(secondary.nickname);
 
-    const done = await call('POST', `/api/admin/users/${primary.id}/merge`, { secondaryId: secondary.id, confirm: ` ${secondary.nickname} ` });
+    const done = await call('POST', `/api/admin/users/${primary.id}/merge`, { secondaryId: secondary.id, confirm: ` ${typed} ` });
     expect(done.statusCode).toBe(200);
     const body = done.json() as { primaryId: string; summary: MergeSummary };
     expect(body.primaryId).toBe(primary.id);

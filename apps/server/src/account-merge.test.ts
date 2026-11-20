@@ -115,6 +115,27 @@ describe('mergeAccounts', () => {
     expect(await db.select().from(feedEvent).where(eq(feedEvent.key, `level:${primary}:${levelOf(xp)}`))).toHaveLength(1);
   });
 
+  it('the committed hook (rooms in memory) runs after the commit and before the level announcement, and not on a refusal', async () => {
+    const { primary, secondary } = await pairWithHistory();
+    const seen: { secondaryRows: number; levelEvents: number }[] = [];
+    const hook = async () => {
+      seen.push({
+        secondaryRows: (await db.select().from(user).where(eq(user.id, secondary))).length,
+        levelEvents: (await db.select().from(feedEvent).where(and(eq(feedEvent.userId, primary), eq(feedEvent.kind, 'level')))).length,
+      });
+    };
+    const result = await mergeAccounts(db, input(primary, secondary), hook);
+    expect(result.ok).toBe(true);
+    expect(seen).toEqual([{ secondaryRows: 0, levelEvents: 0 }]);
+    expect(await db.select().from(feedEvent).where(and(eq(feedEvent.userId, primary), eq(feedEvent.kind, 'level')))).not.toHaveLength(0);
+
+    let called = 0;
+    expect(await mergeAccounts(db, input(primary, primary), () => {
+      called += 1;
+    })).toEqual({ ok: false, error: 'merge_same' });
+    expect(called).toBe(0);
+  });
+
   it('the preview equals the merge and changes nothing', async () => {
     const { primary, secondary } = await pairWithHistory();
     const before = { secondary: await referencing(db, secondary), primary: await referencing(db, primary) };

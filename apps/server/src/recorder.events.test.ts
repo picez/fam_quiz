@@ -165,6 +165,30 @@ describe('recorder: game events (65)', () => {
     expect(rows.map((r) => r.kind)).toEqual(['start', 'save', 'join', 'resume']);
   });
 
+  it('an account merged while its event waits (66) is written with the primary account', async () => {
+    const ctx = await setup();
+    await ctx.db.insert(user).values([
+      { id: 'marko-user', name: 'Марко', email: 'marko@example.com' },
+      { id: 'marko-main', name: 'Марко Головний', email: 'marko-main@example.com' },
+    ]);
+    const room = await ctx.continued();
+    await ctx.recorder.idle();
+    // Запис із приєднанням Марка не вдається: подія з акаунтом marko-user лишається в черзі.
+    vi.spyOn(ctx.db, 'transaction').mockRejectedValueOnce(new Error('database is down'));
+    ctx.tick();
+    ctx.enterIn(room, 'Марко', 'marko-user');
+    await ctx.recorder.idle();
+    expect(ctx.errors).toHaveLength(1);
+    // Об'єднання (admin-card-routes): транзакція прибрала другий акаунт, тоді місця в кімнатах — на головний.
+    await ctx.db.delete(user).where(eq(user.id, 'marko-user'));
+    expect(ctx.manager.rebindUser('marko-user', 'marko-main')).toBe(1);
+    ctx.tick();
+    ctx.host({ type: 'resume' }, room);
+    const rows = await ctx.events();
+    expect(ctx.errors).toHaveLength(1);
+    expect(rows.find((r) => r.kind === 'join')).toMatchObject({ userId: 'marko-main', nickname: 'Марко' });
+  });
+
   it('a pause alone is written', async () => {
     const ctx = await setup();
     firstQuestion(ctx);
