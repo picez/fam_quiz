@@ -16,6 +16,12 @@ const room = (over: Partial<AdminBotRoom> = {}): AdminBotRoom => ({
   players: { online: 1, total: 2 },
   stageUrl: '/stage/123456#tok',
   openedAt: '2026-11-19T09:00:00.000Z',
+  question: false,
+  inRound: false,
+  lobby: { listed: true, password: null },
+  people: [],
+  teams: null,
+  continued: false,
   ...over,
 });
 const quiz = (over: Partial<AdminBotQuiz> = {}): AdminBotQuiz => ({ id: QUIZ_ID, title: 'Річки України', rounds: 2, questions: 10, truth: false, updatedAt: '2026-11-18T10:00:00.000Z', check: null, ...over });
@@ -59,6 +65,8 @@ const open = () =>
       </Routes>
     </MemoryRouter>,
   );
+/** The tab's one live status line, mounted empty from the start. */
+const notice = () => document.querySelector('.admin-bot-notice') as HTMLElement;
 const card = (code: string) => screen.getByText(`Код ${code}`).closest('li') as HTMLElement;
 
 describe('AdminBot', () => {
@@ -93,6 +101,36 @@ describe('AdminBot', () => {
     fireEvent.click(within(card('123456')).getByRole('button', { name: 'Пауза' }));
     await waitFor(() => expect(sent('GET', '/api/admin/bot')).toHaveLength(2));
     expect(sent('POST', '/api/admin/bot/rooms/123456/pause')).toHaveLength(1);
+  });
+
+  it('a room command posts its body and reloads', async () => {
+    replies['GET /api/admin/bot'] = { status: 200, body: bot({ rooms: [room({ people: [{ id: 'p1', nickname: 'Оля', online: true, team: null }] })] }) };
+    replies['POST /api/admin/bot/rooms/123456/kick'] = { status: 204 };
+    replies['PUT /api/admin/bot/rooms/123456/lobby'] = { status: 409, body: { error: 'wrong_phase' } };
+    open();
+    await screen.findByText('Код 123456');
+    expect(notice().getAttribute('role')).toBe('status');
+    expect(notice().textContent).toBe('');
+    fireEvent.click(within(card('123456')).getByRole('button', { name: 'Вилучити' }));
+    expect(window.confirm).toHaveBeenLastCalledWith('Вилучити гравця «Оля» із гри?');
+    await waitFor(() => expect(sent('GET', '/api/admin/bot')).toHaveLength(2));
+    expect(sent('POST', '/api/admin/bot/rooms/123456/kick')[0]?.body).toEqual({ playerId: 'p1' });
+    await waitFor(() => expect((within(card('123456')).getByLabelText('Показувати в списку лобі') as HTMLInputElement).disabled).toBe(false));
+    fireEvent.click(within(card('123456')).getByLabelText('Показувати в списку лобі'));
+    expect((await screen.findByRole('alert')).textContent).toBe(t('err_wrong_phase'));
+    expect(sent('PUT', '/api/admin/bot/rooms/123456/lobby')[0]?.body).toEqual({ listed: false, password: null });
+    await waitFor(() => expect(sent('GET', '/api/admin/bot')).toHaveLength(3));
+  });
+
+  it('a saved lobby says so and the bare actions post no body', async () => {
+    replies['GET /api/admin/bot'] = { status: 200, body: bot({ rooms: [room()] }) };
+    replies['PUT /api/admin/bot/rooms/123456/lobby'] = { status: 200, body: { listed: true, password: 'сова62' } };
+    open();
+    await screen.findByText('Код 123456');
+    fireEvent.change(within(card('123456')).getByLabelText('Пароль гри (необов’язково)'), { target: { value: 'сова62' } });
+    fireEvent.click(within(card('123456')).getByRole('button', { name: 'Зберегти пароль' }));
+    await waitFor(() => expect(notice().textContent).toBe('Збережено'));
+    expect(sent('PUT', '/api/admin/bot/rooms/123456/lobby')[0]?.body).toEqual({ listed: true, password: 'сова62' });
   });
 
   it('shows the empty rooms text', async () => {

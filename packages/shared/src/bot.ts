@@ -1,3 +1,6 @@
+import { z } from 'zod';
+import { lobbyPasswordSchema } from './lobby';
+
 /** The «Квіз-бот» account: a fixed user row that hosts autopilot games and can never sign in. */
 export const BOT_USER_ID = 'quiz-bot';
 /** The author id of a bot game (`state.autopilot.authorId`); players are uuids, truth fakes are `fake-N`. */
@@ -7,8 +10,26 @@ export const BOT_NICKNAME = 'Квіз-бот';
 export const BOT_EMAIL = 'quiz-bot@quiz.invalid';
 /** At most this many unfinished bot rooms at once. */
 export const BOT_ROOMS_MAX = 3;
-export const BOT_ACTIONS = ['start', 'pause', 'resume', 'end'] as const;
+/** Bare bot room actions (no payload). 62: skip closes the open question, time adds BOT_TIME_SECONDS, end-round ends the round. */
+export const BOT_ACTIONS = ['start', 'pause', 'resume', 'end', 'skip', 'time', 'end-round'] as const;
 export type BotAction = (typeof BOT_ACTIONS)[number];
+/** 62: actions on one person of a bot room, by player id. */
+export const BOT_PERSON_ACTIONS = ['kick', 'release'] as const;
+/** 62: the team forms the admin may choose for a bot room (no host: the bot cannot assign). */
+export const BOT_TEAM_FORMS = ['pick', 'random', 'dice'] as const;
+/** 62: «+30 с» in a bot room. */
+export const BOT_TIME_SECONDS = 30;
+export const botCommandSchema = z.discriminatedUnion('type', [
+  z.object({ type: z.enum(BOT_ACTIONS) }).strict(),
+  z.object({ type: z.enum(BOT_PERSON_ACTIONS), playerId: z.string().min(1).max(64) }).strict(),
+  z.object({ type: z.literal('team-form'), form: z.enum(BOT_TEAM_FORMS) }).strict(),
+]);
+export type BotCommand = z.infer<typeof botCommandSchema>;
+/** 62: every command type, for checking the `:action` of a route. */
+export const BOT_COMMAND_TYPES = [...BOT_ACTIONS, ...BOT_PERSON_ACTIONS, 'team-form'] as const;
+/** 62: the bot room lobby the admin sets: shown in the lobby list or not, and an optional password. */
+export const adminBotLobbySchema = z.object({ listed: z.boolean(), password: lobbyPasswordSchema.nullable() }).strict();
+export type AdminBotLobby = z.infer<typeof adminBotLobbySchema>;
 
 export function isBotUser(id: string | null | undefined): boolean {
   return id === BOT_USER_ID;

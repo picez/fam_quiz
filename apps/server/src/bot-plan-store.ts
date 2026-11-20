@@ -36,6 +36,7 @@ interface Fields {
   people: string[];
   autoStartMin: number | null;
   weekly: boolean;
+  listed: boolean;
   wallTime: string;
 }
 
@@ -68,6 +69,7 @@ async function validate(db: Db | Tx, input: BotPlanInput, now: Date): Promise<{ 
       people: to.kind === 'people' ? to.userIds : [],
       autoStartMin: input.autoStartMin,
       weekly: input.weekly,
+      listed: input.listed,
       wallTime: kyivWallTime(startsAt),
     },
   };
@@ -100,6 +102,7 @@ async function views(db: Db | Tx, rows: BotPlanRow[]): Promise<AdminBotPlan[]> {
       to,
       autoStartMin: row.autoStartMin,
       weekly: row.weekly,
+      listed: row.listed,
       status: row.status,
       reason: row.reason,
       code: row.roomCode,

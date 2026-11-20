@@ -1,5 +1,5 @@
 import { classicRound, makeQuiz, makeRoundsQuiz, single, think, thinkRound } from '@quiz/engine/testing';
-import { BOT_USER_ID, type AdminBot, type AdminQuizCheck, type AdminList, type AdminLogEntry, type Quiz } from '@quiz/shared';
+import { BOT_USER_ID, defaultTeams, type AdminBot, type AdminQuizCheck, type AdminList, type AdminLogEntry, type Quiz } from '@quiz/shared';
 import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { buildApp } from './app';
@@ -8,10 +8,11 @@ import { user } from './db/schema';
 import { log } from './log';
 import { createQuiz, updateQuiz } from './quizzes';
 import { TEST_AUTH, signUp } from './testing/accounts';
+import { FakeScheduler } from './testing/fake-scheduler';
 import { createTestDb } from './testing/test-db';
 
 type Ctx = Awaited<ReturnType<typeof buildApp>>;
-type Method = 'GET' | 'POST' | 'DELETE';
+type Method = 'GET' | 'POST' | 'PUT' | 'DELETE';
 
 let db: Awaited<ReturnType<typeof createTestDb>>;
 let ctx: Ctx;
@@ -158,18 +159,27 @@ describe('admin bot routes (54)', () => {
     expect(joined.ok).toBe(true);
     // Без з'єднань автопілот сам стає на паузу («нікого немає»).
     if (joined.ok) ctx.manager.connect(ctx.manager.get(code)!, { role: 'player', playerId: joined.playerId });
+    const logged = async (kind: string) => expect(await lastLog()).toMatchObject({ kind, details: { title: TITLE, code } });
     expect((await act('start')).statusCode).toBe(204);
+    await logged('bot_room_start');
     const status = async () => (await bot()).rooms.find((r) => r.code === code)?.status;
     expect(await status()).toBe('playing');
     expect((await act('pause')).statusCode).toBe(204);
+    await logged('bot_room_pause');
     expect(await status()).toBe('paused');
     expect((await act('resume')).statusCode).toBe(204);
+    await logged('bot_room_resume');
     expect((await act('end')).statusCode).toBe(204);
+    await logged('bot_room_end');
     expect(await status()).toBe('finished');
 
     const plain = ((await call('POST', '/api/games', admin.cookie, { quizId: ((await call('POST', '/api/quizzes', admin.cookie, makeQuiz([single]))).json() as { id: string }).id })).json() as { code: string }).code;
     for (const bad of ['12ab56', '999999', plain]) expect((await act('start', bad)).statusCode, bad).toBe(404);
-    expect((await act('kick')).statusCode).toBe(404);
+    expect((await act('lock')).statusCode).toBe(404);
+    // kick без тіла — 400, а не 404: дія відома, але потребує playerId.
+    const bodiless = await act('kick');
+    expect(bodiless.statusCode).toBe(400);
+    expect(bodiless.json()).toEqual({ error: 'invalid_payload' });
 
     const other = await buildApp({ db, auth: TEST_AUTH, adminEmails: emails });
     try {
@@ -214,6 +224,147 @@ describe('admin bot routes (54)', () => {
     expect((await row()).check).toEqual({ errors: 1, warnings: 0 });
     expect(await updateQuiz(db, BOT_USER_ID, id, rivers())).toBe(true);
     expect((await row()).check).toBeNull();
+  });
+
+  it('the room card lists people and lobby, never the answers', async () => {
+    const right = { ...single, timeLimit: 30, options: single.options.map((o) => (o.id === single.correctId ? { ...o, text: 'Дніпро 62' } : o)) };
+    const id = await botQuiz({ ...makeRoundsQuiz([classicRound('r0', [right, { ...right, id: 'q2' }])]), title: TITLE });
+    const scheduler = new FakeScheduler();
+    const own = await buildApp({ db, auth: TEST_AUTH, adminEmails: emails, scheduler });
+    try {
+      const { code } = (await asAdmin('POST', `/api/admin/bot/quizzes/${id}/games`, undefined, own)).json() as { code: string };
+      const joined = own.manager.join(code, 'Оля');
+      if (!joined.ok) throw new Error(joined.error);
+      own.manager.connect(own.manager.get(code)!, { role: 'player', playerId: joined.playerId });
+      const card = async () => ((await asAdmin('GET', '/api/admin/bot', undefined, own)).json() as AdminBot).rooms.find((r) => r.code === code)!;
+      expect(await card()).toMatchObject({
+        lobby: { listed: true, password: null },
+        people: [{ id: joined.playerId, nickname: 'Оля', online: true, team: null }],
+        teams: null,
+        continued: false,
+        question: false,
+        inRound: false,
+      });
+      expect((await asAdmin('POST', `/api/admin/bot/rooms/${code}/start`, undefined, own)).statusCode).toBe(204);
+      for (let i = 0; i < 20 && own.manager.get(code)!.state.phase !== 'question'; i += 1) scheduler.advance(1000);
+      expect((await card()).question).toBe(true);
+      expect((await card()).inRound).toBe(true);
+      const raw = (await asAdmin('GET', '/api/admin/bot', undefined, own)).body;
+      expect(raw).not.toContain('Дніпро 62');
+      expect(raw).not.toContain(right.text);
+      own.manager.botAct(code, 'end');
+    } finally {
+      await own.app.close();
+    }
+  });
+
+  it('skip, +30 s and end round, each logged', async () => {
+    const id = await botQuiz();
+    const scheduler = new FakeScheduler();
+    const own = await buildApp({ db, auth: TEST_AUTH, adminEmails: emails, scheduler });
+    try {
+      const { code } = (await asAdmin('POST', `/api/admin/bot/quizzes/${id}/games`, undefined, own)).json() as { code: string };
+      const act = (action: string) => asAdmin('POST', `/api/admin/bot/rooms/${code}/${action}`, undefined, own);
+      const joined = own.manager.join(code, 'Оля');
+      if (!joined.ok) throw new Error(joined.error);
+      own.manager.connect(own.manager.get(code)!, { role: 'player', playerId: joined.playerId });
+      expect((await act('start')).statusCode).toBe(204);
+      for (let i = 0; i < 20 && own.manager.get(code)!.state.phase !== 'question'; i += 1) scheduler.advance(1000);
+      expect((await act('time')).statusCode).toBe(204);
+      expect(await lastLog()).toMatchObject({ kind: 'bot_room_time', details: { title: TITLE, code } });
+      expect((await act('skip')).statusCode).toBe(204);
+      expect(await lastLog()).toMatchObject({ kind: 'bot_room_skip', details: { title: TITLE, code } });
+      const before = (await lastLog()).id;
+      const again = await act('skip');
+      expect(again.statusCode).toBe(409);
+      expect(again.json()).toEqual({ error: 'wrong_phase' });
+      expect((await lastLog()).id).toBe(before);
+
+      for (let i = 0; i < 60 && own.manager.get(code)!.state.phase !== 'question'; i += 1) scheduler.advance(1000);
+      expect((await act('pause')).statusCode).toBe(204);
+      const paused = await act('end-round');
+      expect(paused.statusCode).toBe(409);
+      expect(paused.json()).toEqual({ error: 'paused' });
+      expect((await act('resume')).statusCode).toBe(204);
+      expect((await act('end-round')).statusCode).toBe(204);
+      expect(await lastLog()).toMatchObject({ kind: 'bot_room_end_round', details: { title: TITLE, code } });
+      own.manager.botAct(code, 'end');
+    } finally {
+      await own.app.close();
+    }
+  });
+
+  it('kick by player id with the nickname in the log', async () => {
+    const id = await botQuiz();
+    const { code } = (await asAdmin('POST', `/api/admin/bot/quizzes/${id}/games`)).json() as { code: string };
+    const joined = ctx.manager.join(code, 'Оля');
+    if (!joined.ok) throw new Error(joined.error);
+    const before = (await lastLog()).id;
+    const unknown = await asAdmin('POST', `/api/admin/bot/rooms/${code}/kick`, { playerId: 'nobody' });
+    expect(unknown.statusCode).toBe(409);
+    expect((await lastLog()).id).toBe(before);
+    const release = await asAdmin('POST', `/api/admin/bot/rooms/${code}/release`, { playerId: joined.playerId });
+    expect(release.statusCode).toBe(409);
+    expect(release.json()).toEqual({ error: 'not_allowed' });
+    expect((await lastLog()).id).toBe(before);
+    expect((await asAdmin('POST', `/api/admin/bot/rooms/${code}/kick`, { playerId: joined.playerId })).statusCode).toBe(204);
+    expect(await lastLog()).toMatchObject({ kind: 'bot_room_kick', details: { title: TITLE, code, text: 'Оля' } });
+    expect(ctx.manager.get(code)!.state.players).toEqual([]);
+    ctx.manager.botAct(code, 'end');
+  });
+
+  it('team form in a team quiz', async () => {
+    const id = await botQuiz({ ...makeRoundsQuiz([classicRound('r0', [{ ...single, timeLimit: 30 }])], { teams: defaultTeams(2) }), title: TITLE });
+    const { code } = (await asAdmin('POST', `/api/admin/bot/quizzes/${id}/games`)).json() as { code: string };
+    const card = async () => (await bot()).rooms.find((r) => r.code === code)!;
+    expect((await card()).teams).toEqual({ form: 'pick' });
+    const set = await asAdmin('POST', `/api/admin/bot/rooms/${code}/team-form`, { form: 'dice' });
+    expect(set.statusCode).toBe(204);
+    expect((await card()).teams).toEqual({ form: 'dice' });
+    expect(await lastLog()).toMatchObject({ kind: 'bot_room_teams', details: { title: TITLE, code } });
+    expect((await asAdmin('POST', `/api/admin/bot/rooms/${code}/team-form`, { form: 'host' })).statusCode).toBe(400);
+    ctx.manager.botAct(code, 'end');
+  });
+
+  it('lobby: password and visibility, logged without the password', async () => {
+    const id = await botQuiz();
+    const { code } = (await asAdmin('POST', `/api/admin/bot/quizzes/${id}/games`)).json() as { code: string };
+    const put = (payload: unknown, c = code, on: Ctx = ctx) => asAdmin('PUT', `/api/admin/bot/rooms/${c}/lobby`, payload, on);
+    const saved = await put({ listed: false, password: 'сова62' });
+    expect(saved.statusCode).toBe(200);
+    expect(saved.json()).toEqual({ listed: false, password: 'сова62' });
+    const entry = await lastLog();
+    expect(entry).toMatchObject({ kind: 'bot_room_lobby', details: { title: TITLE, code, listed: false, locked: true } });
+    expect(JSON.stringify(entry)).not.toContain('сова62');
+    expect((await bot()).rooms.find((r) => r.code === code)!.lobby).toEqual({ listed: false, password: 'сова62' });
+    const same = await put({ listed: false, password: 'сова62' });
+    expect(same.statusCode).toBe(200);
+    expect((await lastLog()).id).toBe(entry.id);
+    expect((await put({ listed: true, password: 'abc' })).statusCode).toBe(400);
+    expect((await put({ listed: true })).statusCode).toBe(400);
+
+    const plain = ((await call('POST', '/api/games', admin.cookie, { quizId: ((await call('POST', '/api/quizzes', admin.cookie, makeQuiz([single]))).json() as { id: string }).id })).json() as { code: string }).code;
+    expect((await put({ listed: true, password: null }, plain)).statusCode).toBe(404);
+    expect((await put({ listed: true, password: null }, 'abc')).statusCode).toBe(404);
+
+    const other = await buildApp({ db, auth: TEST_AUTH, adminEmails: emails });
+    try {
+      other.manager.freeze();
+      const refused = await put({ listed: true, password: null }, code, other);
+      expect(refused.statusCode).toBe(503);
+      expect(refused.json()).toEqual({ error: 'restarting' });
+    } finally {
+      await other.app.close();
+    }
+
+    const joined = ctx.manager.join(code, 'Оля');
+    if (!joined.ok) throw new Error(joined.error);
+    ctx.manager.connect(ctx.manager.get(code)!, { role: 'player', playerId: joined.playerId });
+    expect((await asAdmin('POST', `/api/admin/bot/rooms/${code}/start`)).statusCode).toBe(204);
+    const late = await put({ listed: true, password: null });
+    expect(late.statusCode).toBe(409);
+    expect(late.json()).toEqual({ error: 'wrong_phase' });
+    ctx.manager.botAct(code, 'end');
   });
 
   it('gives only 404 to non-admins and guests', async () => {

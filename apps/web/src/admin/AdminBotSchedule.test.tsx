@@ -20,6 +20,7 @@ const plan = (over: Partial<AdminBotPlan> = {}): AdminBotPlan => ({
   to: { kind: 'none' },
   autoStartMin: null,
   weekly: false,
+  listed: true,
   status: 'scheduled',
   reason: null,
   code: null,
@@ -86,7 +87,7 @@ describe('AdminBotSchedule', () => {
     fireEvent.click(screen.getByLabelText('Повторювати щотижня в цей день і час'));
     fireEvent.click(screen.getByRole('button', { name: 'Запланувати' }));
     expect((await screen.findByRole('status')).textContent).toBe('Гру заплановано.');
-    expect(sent('POST', '/api/admin/bot/plans')[0]?.body).toEqual({ quizId: QUIZ_ID, startsAt: '2026-11-20T17:00:00.000Z', recipients: { kind: 'group', groupId: GROUP_ID }, autoStartMin: 10, weekly: true });
+    expect(sent('POST', '/api/admin/bot/plans')[0]?.body).toEqual({ quizId: QUIZ_ID, startsAt: '2026-11-20T17:00:00.000Z', recipients: { kind: 'group', groupId: GROUP_ID }, autoStartMin: 10, weekly: true, listed: true });
     expect(onChanged).toHaveBeenCalledTimes(1);
     // Успіх згортає форму.
     expect(screen.queryByLabelText('Вікторина')).toBeNull();
@@ -183,10 +184,32 @@ describe('AdminBotSchedule', () => {
     fireEvent.change(screen.getByLabelText('Дата й час (за київським часом)'), { target: { value: '2026-11-22T18:30' } });
     fireEvent.click(screen.getByRole('button', { name: 'Зберегти зміни' }));
     await waitFor(() => expect(sent('PUT', `/api/admin/bot/plans/${PLAN_ID}`)).toHaveLength(1));
-    expect(sent('PUT', `/api/admin/bot/plans/${PLAN_ID}`)[0]?.body).toEqual({ quizId: OTHER_QUIZ_ID, startsAt: '2026-11-22T16:30:00.000Z', recipients: { kind: 'people', userIds: [OLYA] }, autoStartMin: 15, weekly: true });
+    expect(sent('PUT', `/api/admin/bot/plans/${PLAN_ID}`)[0]?.body).toEqual({ quizId: OTHER_QUIZ_ID, startsAt: '2026-11-22T16:30:00.000Z', recipients: { kind: 'people', userIds: [OLYA] }, autoStartMin: 15, weekly: true, listed: true });
     await waitFor(() => expect(onChanged).toHaveBeenCalledTimes(1));
     expect(screen.queryByLabelText('Вікторина')).toBeNull();
     expect(screen.getByRole('button', { name: 'Запланувати гру' })).toBeTruthy();
+  });
+
+  it('62: the listed switch is on by default and sent; an unlisted plan says so and edits with the switch off', async () => {
+    replies['POST /api/admin/bot/plans'] = { status: 201, body: plan() };
+    replies[`PUT /api/admin/bot/plans/${PLAN_ID}`] = { status: 200, body: plan() };
+    open(schedule({ plans: [plan({ title: 'Карпати', listed: false }), plan({ id: 'p2', title: 'Ранкова' })] }));
+    expect(within(card('Карпати')).getByText('Лише за кодом (не в списку лобі)')).toBeTruthy();
+    expect(within(card('Ранкова')).queryByText('Лише за кодом (не в списку лобі)')).toBeNull();
+    openForm();
+    const listed = screen.getByLabelText('Показувати в списку лобі') as HTMLInputElement;
+    expect(listed.checked).toBe(true);
+    fireEvent.click(listed);
+    fireEvent.change(screen.getByLabelText('Дата й час (за київським часом)'), { target: { value: '2026-11-21T19:00' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Запланувати' }));
+    await waitFor(() => expect(sent('POST', '/api/admin/bot/plans')).toHaveLength(1));
+    expect(sent('POST', '/api/admin/bot/plans')[0]?.body).toMatchObject({ listed: false });
+    await waitFor(() => expect(onChanged).toHaveBeenCalledTimes(1));
+    fireEvent.click(within(card('Карпати')).getByRole('button', { name: 'Змінити' }));
+    expect((screen.getByLabelText('Показувати в списку лобі') as HTMLInputElement).checked).toBe(false);
+    fireEvent.click(screen.getByRole('button', { name: 'Зберегти зміни' }));
+    await waitFor(() => expect(sent('PUT', `/api/admin/bot/plans/${PLAN_ID}`)).toHaveLength(1));
+    expect(sent('PUT', `/api/admin/bot/plans/${PLAN_ID}`)[0]?.body).toMatchObject({ listed: false });
   });
 
   it('a plan whose group was deleted opens in the form without a crash', () => {

@@ -4,6 +4,7 @@ import type { PrizeContent, PrizePlace } from './prizes';
 import { pageCount } from './paging';
 import type { GroupEmoji } from './groups';
 import type { BotPlanReason, BotPlanStatus } from './bot-schedule';
+import type { TeamForm } from './teams';
 import type { AchievementId } from './achievements';
 import type { AdminPlayerCard } from './player-card';
 
@@ -16,7 +17,7 @@ export const ADMIN_LIVE_REFRESH_MS = 10_000;
 export const ADMIN_CHART_DAYS = 30;
 /** 53: скільки живуть у кеші графіки й список резервних копій. */
 export const ADMIN_CACHE_MS = 600_000;
-export const ADMIN_ACTION_KINDS = ['ban', 'unban', 'quiz_delete', 'question_delete', 'prize_delete', 'award_delete', 'library_hide', 'library_restore', 'report_dismiss', 'appeal_reject', 'nickname_reset', 'avatar_reset', 'game_close', 'announcement_set', 'announcement_clear', 'bot_game_start', 'bot_copy', 'bot_quiz_delete', 'bot_plan_create', 'bot_plan_update', 'bot_plan_cancel', 'bot_plan_run', 'bot_plan_fail', 'quiz_view', 'achievement_grant', 'achievement_revoke', 'xp_adjust', 'prize_gift', 'gift_revoke', 'account_delete'] as const;
+export const ADMIN_ACTION_KINDS = ['ban', 'unban', 'quiz_delete', 'question_delete', 'prize_delete', 'award_delete', 'library_hide', 'library_restore', 'report_dismiss', 'appeal_reject', 'nickname_reset', 'avatar_reset', 'game_close', 'announcement_set', 'announcement_clear', 'bot_game_start', 'bot_copy', 'bot_quiz_delete', 'bot_plan_create', 'bot_plan_update', 'bot_plan_cancel', 'bot_plan_run', 'bot_plan_fail', 'quiz_view', 'achievement_grant', 'achievement_revoke', 'xp_adjust', 'prize_gift', 'gift_revoke', 'account_delete', 'bot_room_start', 'bot_room_pause', 'bot_room_resume', 'bot_room_end', 'bot_room_skip', 'bot_room_time', 'bot_room_end_round', 'bot_room_kick', 'bot_room_release', 'bot_room_teams', 'bot_room_lobby'] as const;
 export type AdminActionKind = (typeof ADMIN_ACTION_KINDS)[number];
 export type RemovalEffect = 'question' | 'category' | 'round' | 'last_question' | 'not_found' | 'locked';
 
@@ -42,7 +43,7 @@ export interface AdminQuizView { id: string; author: { id: string; nickname: str
 export interface AdminPrize { id: string; content: PrizeContent; status: 'free' | 'reserved'; createdAt: string }
 export interface AdminAward { id: string; place: PrizePlace; content: PrizeContent; quizTitle: string; awardedAt: string; /** 58: подарунок адміна (не з гри); null — звичайна нагорода. */ gift: { note: string | null } | null }
 export interface AdminUserDetail { user: AdminUserRow; stock: AdminPrize[]; awards: AdminAward[]; title: { text: string; until: string } | null; card: AdminPlayerCard }
-export interface AdminLogDetails { reason?: string | null; title?: string; text?: string; content?: PrizeContent; code?: string; when?: string; achievementId?: AchievementId; amount?: number }
+export interface AdminLogDetails { reason?: string | null; title?: string; text?: string; content?: PrizeContent; code?: string; when?: string; achievementId?: AchievementId; amount?: number; /** 62: bot_room_lobby — shown in the lobby list; never the password, only whether there is one. */ listed?: boolean; locked?: boolean }
 export type AdminLiveStatus = 'lobby' | 'starting' | 'playing' | 'paused' | 'finished';
 export interface AdminLiveRoom {
   code: string;
@@ -65,7 +66,27 @@ export type AdminBackupInfo = { state: 'ok'; at: string; bytes: number } | { sta
 export interface AdminHealth { backup: AdminBackupInfo; uptimeSec: number; memory: { rss: number; heapUsed: number }; rooms: number; connections: number; checkedAt: string }
 export interface AdminBotQuiz { id: string; title: string; rounds: number; questions: number; truth: boolean; updatedAt: string; /** 57: лічильники останньої перевірки цієї версії; null — не перевіряли чи змінено після перевірки. */ check: { errors: number; warnings: number } | null }
 export type AdminBotStatus = 'lobby' | 'playing' | 'paused' | 'finished';
-export interface AdminBotRoom { code: string; title: string; status: AdminBotStatus; players: { online: number; total: number }; stageUrl: string; openedAt: string }
+/** 62: one person of a bot room on the admin card. */
+export interface AdminBotRoomPerson { id: string; nickname: string; online: boolean; team: string | null }
+export interface AdminBotRoom {
+  code: string;
+  title: string;
+  status: AdminBotStatus;
+  players: { online: number; total: number };
+  stageUrl: string;
+  openedAt: string;
+  /** Відкрите запитання (фаза question): лише тоді діють «Пропустити запитання» і «+30 с». */
+  question: boolean;
+  /** Є раунд, який можна завершити (фази раунду без паузи між раундами): лише тоді діє «Завершити раунд». */
+  inRound: boolean;
+  lobby: { listed: boolean; password: string | null };
+  /** Люди в порядку приходу; командна гра — усі учасники (і ще без команди). */
+  people: AdminBotRoomPerson[];
+  /** Командна вікторина: поточний спосіб; null — соло. */
+  teams: { form: TeamForm } | null;
+  /** Продовжена гра (13b): лише тоді має сенс «Звільнити». */
+  continued: boolean;
+}
 /** 56: кому сповістити про план; `name: null` — групу видалено. */
 export type AdminBotPlanTo =
   | { kind: 'none' }
@@ -80,6 +101,8 @@ export interface AdminBotPlan {
   to: AdminBotPlanTo;
   autoStartMin: number | null;
   weekly: boolean;
+  /** 62: the opened room is shown in the lobby list. */
+  listed: boolean;
   status: BotPlanStatus;
   reason: BotPlanReason | null;
   code: string | null;

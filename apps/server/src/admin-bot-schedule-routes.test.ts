@@ -39,6 +39,7 @@ const input = (extra: Partial<BotPlanInput> = {}): BotPlanInput => ({
   recipients: { kind: 'none' },
   autoStartMin: null,
   weekly: false,
+  listed: true,
   ...extra,
 });
 

@@ -960,3 +960,20 @@ describe('player card (58)', () => {
     expect(await db.select().from(achievementBlock)).toEqual([]);
   });
 });
+
+describe('bot plan listed (62)', () => {
+  it('migration 0044 adds listed over an older database, old plans stay listed', async () => {
+    const { botPlan } = await import('./schema');
+    const { db, migrateRest } = await createTestDbUpTo('0043_player_card');
+    const T = new Date('2026-11-20T10:00:00.000Z');
+    await db.insert(user).values({ id: 'a', name: 'Адмін', email: 'a@example.com' });
+    await db.execute(sql`
+      INSERT INTO "bot_plan" ("title", "starts_at", "recipients", "created_by", "created_at", "updated_at")
+      VALUES ('Старий план', ${T.toISOString()}, 'none', 'a', now(), now())`);
+
+    await migrateRest();
+
+    const [kept] = await db.select().from(botPlan);
+    expect(kept).toMatchObject({ title: 'Старий план', status: 'scheduled', listed: true });
+  });
+});

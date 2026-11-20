@@ -7,7 +7,7 @@ const base = { quizId, startsAt: '2026-11-20T17:00:00.000Z', recipients: { kind:
 
 describe('botPlanInputSchema', () => {
   it('a plan input: a bot quiz, a moment, recipients, an optional auto start and a weekly flag', () => {
-    expect(botPlanInputSchema.parse(base)).toEqual(base);
+    expect(botPlanInputSchema.parse(base)).toEqual({ ...base, listed: true });
     expect(botPlanInputSchema.safeParse({ ...base, recipients: { kind: 'all' } }).success).toBe(true);
     expect(botPlanInputSchema.safeParse({ ...base, recipients: { kind: 'group', groupId } }).success).toBe(true);
     expect(botPlanInputSchema.safeParse({ ...base, recipients: { kind: 'people', userIds: ['a1', 'b2'] }, autoStartMin: 10, weekly: true }).success).toBe(true);
@@ -25,6 +25,12 @@ describe('botPlanInputSchema', () => {
     expect(botPlanInputSchema.safeParse({ ...base, extra: 1 }).success).toBe(false);
     expect(botPlanInputSchema.safeParse({ ...base, startsAt: '20.11.2026 19:00' }).success).toBe(false);
     expect(botPlanInputSchema.safeParse({ ...base, quizId: 'nope' }).success).toBe(false);
+  });
+
+  it('62: listed defaults to on for old clients, takes false, rejects anything but a boolean', () => {
+    expect(botPlanInputSchema.parse(base).listed).toBe(true);
+    expect(botPlanInputSchema.parse({ ...base, listed: false }).listed).toBe(false);
+    expect(botPlanInputSchema.safeParse({ ...base, listed: 'no' }).success).toBe(false);
   });
 
   it('limits', () => {

@@ -31,6 +31,7 @@ const input = (extra: Partial<BotPlanInput> = {}): BotPlanInput => ({
   recipients: { kind: 'none' },
   autoStartMin: null,
   weekly: false,
+  listed: true,
   ...extra,
 });
 const logRows = () => db.select().from(adminAction).orderBy(desc(adminAction.at));
@@ -90,6 +91,17 @@ describe('bot plan store (56)', () => {
     }
     expect(await logRows()).toEqual([]);
     expect(await db.select().from(botPlan)).toEqual([]);
+  });
+
+  it('a plan keeps listed (62)', async () => {
+    await reset();
+    const made = await createPlan(db, 'adm', input({ listed: false }), NOW);
+    if (!made.ok) throw new Error(made.error);
+    expect(made.plan.listed).toBe(false);
+    expect((await listPlans(db))[0]!.listed).toBe(false);
+    const updated = await updatePlan(db, 'adm', made.plan.id, input({ listed: true }), NOW);
+    expect(updated).toMatchObject({ ok: true, plan: { listed: true } });
+    expect((await db.select().from(botPlan))[0]!.listed).toBe(true);
   });
 
   it('the 21st scheduled plan is refused, a cancelled one frees the place', async () => {

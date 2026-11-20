@@ -1,4 +1,4 @@
-import type { AchievementId, AdminBot, AdminBotPerson, AdminBotPlan, BotAction, BotPlanInput, GameDetail } from '@quiz/shared';
+import type { AchievementId, AdminBot, AdminBotLobby, AdminBotPerson, AdminBotPlan, BotCommand, BotPlanInput, GameDetail } from '@quiz/shared';
 import type { Announcement, AnnouncementInput, AdminCharts, AdminHealth, AdminLiveList, AdminList, AdminReportItem, AdminLogEntry, AdminQuizCheck, AdminQuizRow, AdminQuizView, AdminStats, AdminUserDetail, AdminUserRow } from '@quiz/shared';
 import { fetchData, request, type ApiData, type ApiResult } from '../api';
 
@@ -44,8 +44,14 @@ export const startBotGame = (quizId: string): Promise<ApiResult<{ code: string; 
 /** Копія своєї вікторини адміна — боту; оригінал не змінюється. */
 export const copyToBot = (quizId: string): Promise<ApiResult<{ id: string }>> => request<{ id: string }>('/api/admin/bot/copies', { method: 'POST', body: { quizId } });
 export const deleteBotQuiz = (quizId: string): Promise<ApiResult<object>> => request<object>(`/api/admin/bot/quizzes/${id(quizId)}`, { method: 'DELETE' });
-export const botRoomAct = (code: string, action: BotAction): Promise<ApiResult<object>> =>
-  request<object>(`/api/admin/bot/rooms/${id(code)}/${action}`, { method: 'POST' });
+/** 62: команда кімнаті бота — тип у шляху, решта (playerId, form) у тілі; дії без даних — без тіла. */
+export const botRoomCommand = (code: string, command: BotCommand): Promise<ApiResult<object>> => {
+  const { type, ...body } = command;
+  return request<object>(`/api/admin/bot/rooms/${id(code)}/${type}`, Object.keys(body).length === 0 ? { method: 'POST' } : { method: 'POST', body });
+};
+/** 62: лобі кімнати бота — у списку лобі чи лише за кодом, і пароль (null — без пароля). */
+export const saveBotLobby = (code: string, input: AdminBotLobby): Promise<ApiResult<AdminBotLobby>> =>
+  request<AdminBotLobby>(`/api/admin/bot/rooms/${id(code)}/lobby`, { method: 'PUT', body: input });
 /** Розклад бота (56): план гри на київську дату й час; скасування зупиняє й щотижневий повтор. */
 export const createBotPlan = (input: BotPlanInput): Promise<ApiResult<AdminBotPlan>> => request<AdminBotPlan>('/api/admin/bot/plans', { method: 'POST', body: input });
 export const updateBotPlan = (planId: string, input: BotPlanInput): Promise<ApiResult<AdminBotPlan>> =>
