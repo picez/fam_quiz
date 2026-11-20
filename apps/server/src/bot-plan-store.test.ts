@@ -6,7 +6,7 @@ import { banUser } from './bans';
 import { botGroups, cancelPlan, createPlan, listPlans, recipientsOf, updatePlan } from './bot-plan-store';
 import { ensureBotAccount } from './bot-account';
 import type { Db } from './db/client';
-import { adminAction, botPlan, groupMember, user, userBan } from './db/schema';
+import { adminAction, botPlan, familyGroup, groupMember, user, userBan } from './db/schema';
 import { createGroup, deleteGroup } from './group-store';
 import { ensureProfile } from './profiles';
 import { saveSubscription } from './push-store';
@@ -85,7 +85,7 @@ describe('bot plan store (56)', () => {
     expect(await createPlan(db, 'adm', input({ quizId: foreignQuizId }), NOW)).toEqual({ ok: false, error: 'not_found' });
     expect(await createPlan(db, 'adm', input({ quizId: '3f2b8c1e-5d4a-4e6f-9a7b-1c2d3e4f5a6b' }), NOW)).toEqual({ ok: false, error: 'not_found' });
     const noGroup = { kind: 'group' as const, groupId: '7a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d' };
-    expect(await createPlan(db, 'adm', input({ recipients: noGroup }), NOW)).toEqual({ ok: false, error: 'invalid_payload' });
+    expect(await createPlan(db, 'adm', input({ recipients: noGroup }), NOW)).toEqual({ ok: false, error: 'group_not_found' });
     for (const userIds of [['olya', 'ghost'], ['olya', 'bad'], [BOT_USER_ID]]) {
       expect(await createPlan(db, 'adm', input({ recipients: { kind: 'people', userIds } }), NOW)).toEqual({ ok: false, error: 'invalid_payload' });
     }
@@ -244,5 +244,24 @@ describe('bot plan store (56)', () => {
     await deleteGroup(db, group.id);
     expect((await listPlans(db))[1]!.to).toEqual({ kind: 'group', groupId: '', name: null });
     expect(await botGroups(db)).toEqual([]);
+  });
+
+  it('a group hidden by an admin is no target: not offered, refused, and nobody is told (63)', async () => {
+    await reset();
+    const group = await createGroup(db, 'adm', { name: 'Сховані 63', emoji: '🏡', description: '' }, NOW);
+    if (!group.ok) throw new Error(group.error);
+    await db.insert(groupMember).values({ groupId: group.id, userId: 'petro', role: 'member', joinedAt: NOW });
+    const target = { kind: 'group' as const, groupId: group.id };
+    const before = await createPlan(db, 'adm', input({ recipients: target }), NOW);
+    if (!before.ok) throw new Error(before.error);
+    await db.update(familyGroup).set({ hiddenAt: NOW, hiddenReason: null }).where(eq(familyGroup.id, group.id));
+    expect((await botGroups(db)).map((g) => g.id)).not.toContain(group.id);
+    expect(await createPlan(db, 'adm', input({ recipients: target }), NOW)).toEqual({ ok: false, error: 'group_not_found' });
+    expect(await updatePlan(db, 'adm', before.plan.id, input({ recipients: target }), NOW)).toEqual({ ok: false, error: 'group_not_found' });
+    const row = (await db.select().from(botPlan).where(eq(botPlan.id, before.plan.id)))[0]!;
+    expect(await recipientsOf(db, row)).toEqual([]);
+    await db.update(familyGroup).set({ hiddenAt: null }).where(eq(familyGroup.id, group.id));
+    expect((await recipientsOf(db, row)).sort()).toEqual(['adm', 'petro']);
+    await deleteGroup(db, group.id);
   });
 });

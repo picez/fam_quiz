@@ -155,6 +155,8 @@ export interface GroupCard {
   /** видимі мені */
   items: number;
   joinedAt: string;
+  /** 63: групу сховав адміністратор — лише в картці власника. */
+  hidden?: { reason: string | null };
 }
 export interface GroupMember extends ProfileCard {
   role: GroupRole;

@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { blitzRound, bool, classicRound, makeQuiz, makeRoundsQuiz, multi, numeric, order, single, text, withId } from '@quiz/engine/testing';
-import { BOT_USER_ID } from '@quiz/shared';
+import { ADMIN_LOG_GROUP_KINDS, BOT_USER_ID } from '@quiz/shared';
 import type { AdminQuizCheck, Announcement, AdminCharts, AdminHealth, AdminList, AdminLiveList, AdminLogEntry, AdminReportItem, LibraryPage, AdminQuizView, AdminStats, AdminUserDetail, CalendarEvent, PrizeContent, PrizeItem, PrizePlacesInfo, Question, Quiz } from '@quiz/shared';
 import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
@@ -108,6 +108,7 @@ describe('hiding the admin panel (Review Focus 3)', () => {
     ['DELETE', `/api/admin/prizes/${UUID}`],
     ['DELETE', `/api/admin/awards/${UUID}`],
     ['GET', '/api/admin/log?page=1'],
+    ['GET', '/api/admin/log/export'],
     ['POST', `/api/admin/users/${UUID}/achievements`],
     ['DELETE', `/api/admin/users/${UUID}/achievements/first_game`],
     ['POST', `/api/admin/users/${UUID}/xp`],
@@ -144,6 +145,15 @@ describe('hiding the admin panel (Review Focus 3)', () => {
     ['POST', `/api/admin/problems/${UUID}/reply`],
     ['GET', '/api/admin/backups'],
     ['POST', '/api/admin/backups'],
+    ['GET', '/api/admin/feed?page=1'],
+    ['PUT', `/api/admin/feed/${UUID}/hidden`],
+    ['GET', '/api/admin/groups?q=ab&page=1'],
+    ['GET', `/api/admin/groups/${UUID}`],
+    ['PUT', `/api/admin/groups/${UUID}/hidden`],
+    ['DELETE', `/api/admin/groups/${UUID}/members/u1`],
+    ['PUT', `/api/admin/groups/${UUID}/owner`],
+    ['DELETE', `/api/admin/groups/${UUID}`],
+    ['PUT', `/api/admin/groups/${UUID}/items/${UUID}/hidden`],
   ];
 
   it('answers anyone but an admin exactly like an unknown route', async () => {
@@ -675,6 +685,22 @@ describe('the log', () => {
     expect(response.body).not.toContain(a.email);
     expect(response.body.toLowerCase()).not.toContain(a.email.toLowerCase());
     expect((await call('GET', '/api/admin/log?page=x', a.cookie)).statusCode).toBe(400);
+    expect(page).toMatchObject({ total: expect.any(Number), page: 1, pages: expect.any(Number) });
+    expect((page as unknown as { admins: { id: string }[] }).admins.map((x) => x.id)).toContain(a.id);
+  });
+
+  it('filters, rejects bad filters, and exports the selection', async () => {
+    expect((await call('GET', '/api/admin/log?groups=nope', a.cookie)).statusCode).toBe(400);
+    expect((await call('GET', '/api/admin/log?from=2026-11-21&to=2026-11-20', a.cookie)).statusCode).toBe(400);
+    const out = await call('GET', '/api/admin/log/export?groups=moderation', a.cookie);
+    expect(out.statusCode).toBe(200);
+    const body = out.json() as { rows: AdminLogEntry[]; total: number };
+    expect(body.rows.length).toBe(body.total);
+    expect(body.rows.length).toBeGreaterThan(0);
+    expect(body.rows.every((r) => ADMIN_LOG_GROUP_KINDS.moderation.includes(r.kind))).toBe(true);
+    expect(out.body.toLowerCase()).not.toContain(a.email.toLowerCase());
+    expect((await call('GET', '/api/admin/log/export?page=2', a.cookie)).statusCode).toBe(400);
+    expect((await call('GET', '/api/admin/log/export', o.cookie)).statusCode).toBe(404);
   });
 });
 

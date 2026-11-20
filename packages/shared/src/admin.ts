@@ -7,6 +7,7 @@ import type { BotPlanReason, BotPlanStatus } from './bot-schedule';
 import type { TeamForm } from './teams';
 import type { AchievementId } from './achievements';
 import type { AdminPlayerCard } from './player-card';
+import type { FeedData } from './feed';
 
 export const ADMIN_PAGE_SIZE = 50;
 export const ADMIN_REASON_MAX = 500;
@@ -17,7 +18,7 @@ export const ADMIN_LIVE_REFRESH_MS = 10_000;
 export const ADMIN_CHART_DAYS = 30;
 /** 53: скільки живуть у кеші графіки й список резервних копій. */
 export const ADMIN_CACHE_MS = 600_000;
-export const ADMIN_ACTION_KINDS = ['ban', 'unban', 'quiz_delete', 'question_delete', 'prize_delete', 'award_delete', 'library_hide', 'library_restore', 'report_dismiss', 'appeal_reject', 'nickname_reset', 'avatar_reset', 'game_close', 'announcement_set', 'announcement_clear', 'bot_game_start', 'bot_copy', 'bot_quiz_delete', 'bot_plan_create', 'bot_plan_update', 'bot_plan_cancel', 'bot_plan_run', 'bot_plan_fail', 'quiz_view', 'achievement_grant', 'achievement_revoke', 'xp_adjust', 'prize_gift', 'gift_revoke', 'account_delete', 'bot_room_start', 'bot_room_pause', 'bot_room_resume', 'bot_room_end', 'bot_room_skip', 'bot_room_time', 'bot_room_end_round', 'bot_room_kick', 'bot_room_release', 'bot_room_teams', 'bot_room_lobby', 'push_broadcast', 'server_error_resolve', 'problem_resolve', 'problem_reply', 'backup_now'] as const;
+export const ADMIN_ACTION_KINDS = ['ban', 'unban', 'quiz_delete', 'question_delete', 'prize_delete', 'award_delete', 'library_hide', 'library_restore', 'report_dismiss', 'appeal_reject', 'nickname_reset', 'avatar_reset', 'game_close', 'announcement_set', 'announcement_clear', 'bot_game_start', 'bot_copy', 'bot_quiz_delete', 'bot_plan_create', 'bot_plan_update', 'bot_plan_cancel', 'bot_plan_run', 'bot_plan_fail', 'quiz_view', 'achievement_grant', 'achievement_revoke', 'xp_adjust', 'prize_gift', 'gift_revoke', 'account_delete', 'bot_room_start', 'bot_room_pause', 'bot_room_resume', 'bot_room_end', 'bot_room_skip', 'bot_room_time', 'bot_room_end_round', 'bot_room_kick', 'bot_room_release', 'bot_room_teams', 'bot_room_lobby', 'push_broadcast', 'feed_hide', 'feed_show', 'group_hide', 'group_restore', 'group_member_remove', 'group_owner_transfer', 'group_delete', 'group_item_hide', 'group_item_show', 'server_error_resolve', 'problem_resolve', 'problem_reply', 'backup_now'] as const;
 export type AdminActionKind = (typeof ADMIN_ACTION_KINDS)[number];
 export type RemovalEffect = 'question' | 'category' | 'round' | 'last_question' | 'not_found' | 'locked';
 
@@ -43,7 +44,7 @@ export interface AdminQuizView { id: string; author: { id: string; nickname: str
 export interface AdminPrize { id: string; content: PrizeContent; status: 'free' | 'reserved'; createdAt: string }
 export interface AdminAward { id: string; place: PrizePlace; content: PrizeContent; quizTitle: string; awardedAt: string; /** 58: подарунок адміна (не з гри); null — звичайна нагорода. */ gift: { note: string | null } | null }
 export interface AdminUserDetail { user: AdminUserRow; stock: AdminPrize[]; awards: AdminAward[]; title: { text: string; until: string } | null; card: AdminPlayerCard }
-export interface AdminLogDetails { reason?: string | null; title?: string; text?: string; content?: PrizeContent; code?: string; when?: string; achievementId?: AchievementId; amount?: number; /** 62: bot_room_lobby — shown in the lobby list; never the password, only whether there is one. */ listed?: boolean; locked?: boolean; /** 59: скільки людей отримають розсилку. */ count?: number }
+export interface AdminLogDetails { reason?: string | null; title?: string; text?: string; content?: PrizeContent; code?: string; when?: string; achievementId?: AchievementId; amount?: number; /** 62: bot_room_lobby — shown in the lobby list; never the password, only whether there is one. */ listed?: boolean; locked?: boolean; /** 59: скільки людей отримають розсилку. */ count?: number; /** 63: подія стрічки, як була на мить дії. */ feed?: FeedData }
 export type AdminLiveStatus = 'lobby' | 'starting' | 'playing' | 'paused' | 'finished';
 export interface AdminLiveRoom {
   code: string;
@@ -141,3 +142,75 @@ export const adminBotCopySchema = z.object({ quizId: z.string().uuid() }).strict
 export function adminPages(total: number): number {
   return pageCount(total, ADMIN_PAGE_SIZE);
 }
+
+/** 63: групи видів журналу для фільтра «Що». Кожен вид — рівно в одній групі. */
+export const ADMIN_LOG_GROUPS = ['moderation', 'players', 'games', 'bot', 'announcements', 'system'] as const;
+export type AdminLogGroup = (typeof ADMIN_LOG_GROUPS)[number];
+export const ADMIN_LOG_GROUP_KINDS: Record<AdminLogGroup, readonly AdminActionKind[]> = {
+  moderation: ['ban', 'unban', 'quiz_delete', 'question_delete', 'library_hide', 'library_restore', 'report_dismiss', 'appeal_reject', 'nickname_reset', 'avatar_reset', 'feed_hide', 'feed_show', 'group_hide', 'group_restore', 'group_member_remove', 'group_owner_transfer', 'group_delete', 'group_item_hide', 'group_item_show'],
+  players: ['quiz_view', 'prize_delete', 'award_delete', 'achievement_grant', 'achievement_revoke', 'xp_adjust', 'prize_gift', 'gift_revoke', 'account_delete'],
+  games: ['game_close'],
+  bot: ['bot_game_start', 'bot_copy', 'bot_quiz_delete', 'bot_plan_create', 'bot_plan_update', 'bot_plan_cancel', 'bot_plan_run', 'bot_plan_fail', 'bot_room_start', 'bot_room_pause', 'bot_room_resume', 'bot_room_end', 'bot_room_skip', 'bot_room_time', 'bot_room_end_round', 'bot_room_kick', 'bot_room_release', 'bot_room_teams', 'bot_room_lobby'],
+  announcements: ['announcement_set', 'announcement_clear', 'push_broadcast'],
+  /** 64: збої, звернення, резервні копії. */
+  system: ['server_error_resolve', 'problem_resolve', 'problem_reply', 'backup_now'],
+};
+/** 63: скільки рядків журналу йде у вивантаження CSV щонайбільше. */
+export const ADMIN_LOG_EXPORT_MAX = 10_000;
+
+const DAY = /^\d{4}-\d{2}-\d{2}$/;
+/** 63: 'YYYY-MM-DD' — і справжня календарна дата (не 2026-02-30). */
+export function isDay(text: string): boolean {
+  if (!DAY.test(text)) return false;
+  const ms = Date.parse(`${text}T00:00:00Z`);
+  return !Number.isNaN(ms) && new Date(ms).toISOString().slice(0, 10) === text;
+}
+
+const logDay = z.string().refine(isDay, 'bad_day').optional();
+
+const adminLogFields = z
+  .object({
+    /** admin_action.admin_id */
+    admin: z.string().min(1).max(64).optional(),
+    /** 'moderation,bot' → ['moderation', 'bot'] без повторів; невідома група — помилка. */
+    groups: z
+      .string()
+      .max(200)
+      .transform((text, ctx) => {
+        const out: AdminLogGroup[] = [];
+        for (const part of text.split(',')) {
+          if (!(ADMIN_LOG_GROUPS as readonly string[]).includes(part)) {
+            ctx.addIssue({ code: 'custom', message: 'bad_group' });
+            return z.NEVER;
+          }
+          if (!out.includes(part as AdminLogGroup)) out.push(part as AdminLogGroup);
+        }
+        return out;
+      })
+      .optional(),
+    /** київський день, включно */
+    from: logDay,
+    /** київський день, включно */
+    to: logDay,
+    q: z
+      .string()
+      .trim()
+      .max(ADMIN_QUERY_MAX)
+      .optional()
+      .transform((q) => (q ? q : undefined)),
+  })
+  .strict();
+
+function dayOrder(filter: { from?: string; to?: string }): boolean {
+  return !filter.from || !filter.to || filter.from <= filter.to;
+}
+
+export const adminLogFilterSchema = adminLogFields.refine(dayOrder, { message: 'bad_range', path: ['to'] });
+export const adminLogQuerySchema = adminLogFields
+  .extend({ page: z.coerce.number().int().min(1).max(100000).default(1) })
+  .strict()
+  .refine(dayOrder, { message: 'bad_range', path: ['to'] });
+export type AdminLogFilter = z.output<typeof adminLogFilterSchema>;
+export type AdminLogQuery = z.output<typeof adminLogQuerySchema>;
+export interface AdminLogPage extends AdminList<AdminLogEntry> { admins: { id: string; nickname: string }[] }
+export interface AdminLogExport { rows: AdminLogEntry[]; total: number }

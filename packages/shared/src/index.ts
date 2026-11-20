@@ -54,6 +54,7 @@ export * from './calendar';
 export * from './groups';
 export * from './push';
 export * from './admin';
+export * from './moderation';
 export * from './player-card';
 export * from './bot';
 export * from './bot-schedule';

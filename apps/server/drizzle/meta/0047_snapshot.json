@@ -1,6 +1,6 @@
 {
-  "id": "86f28fdf-50c1-4430-8bf1-10e7d01eb651",
-  "prevId": "1f030f7d-9701-4ddc-b35c-dc9d36a45f55",
+  "id": "7e27e1e1-b39d-411b-a753-66198998cb21",
+  "prevId": "2bff77bd-9d80-4723-b001-6ca58dcc4f0e",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -238,6 +238,27 @@
         "admin_action_at_idx": {
           "name": "admin_action_at_idx",
           "columns": [
+            {
+              "expression": "at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "admin_action_admin_idx": {
+          "name": "admin_action_admin_idx",
+          "columns": [
+            {
+              "expression": "admin_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
             {
               "expression": "at",
               "isExpression": false,
@@ -1314,6 +1335,18 @@
           "primaryKey": false,
           "notNull": true
         },
+        "hidden_at": {
+          "name": "hidden_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "hidden_reason": {
+          "name": "hidden_reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp with time zone",
@@ -1397,6 +1430,12 @@
           "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": true
+        },
+        "hidden_at": {
+          "name": "hidden_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
         }
       },
       "indexes": {
@@ -1870,6 +1909,12 @@
           "primaryKey": false,
           "notNull": true,
           "default": false
+        },
+        "hidden_at": {
+          "name": "hidden_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
         },
         "created_at": {
           "name": "created_at",

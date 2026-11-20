@@ -6,6 +6,8 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import type { Db } from './db/client';
 import { feedEvent, follow, game, profile, user, userLike } from './db/schema';
 import { feedBadge, feedCutoff, feedPage, markFeedSeen, pruneFeed, visibleEvent } from './feed-store';
+import { likeTotals } from './like-store';
+import { setFeedHidden } from './moderation-store';
 import { createTestDb } from './testing/test-db';
 
 const DAY = 86_400_000;
@@ -451,5 +453,63 @@ describe('deleted account', () => {
     await db.delete(user).where(eq(user.id, p));
     expect((await page(o)).events).toHaveLength(0);
     expect((await feedBadge(db, o, NOW)).events).toBe(0);
+  });
+});
+
+describe('hidden by a moderator (63)', () => {
+  const hide = async (eventId: string, hidden: boolean) => {
+    const result = await setFeedHidden(db, { adminId: 'h', eventId, hidden, now: NOW });
+    expect(result).toEqual({ ok: true, changed: true });
+  };
+
+  it("a hidden event leaves friends' feeds and the badge, the author sees it marked", async () => {
+    const { o, p } = await people();
+    await mutual(o, p);
+    const ea = await event(o, { kind: 'achievement', createdAt: NOW });
+    await like(p, 'event', o, { eventKey: ea.key });
+    expect(await idsOf(p)).toContain(ea.id);
+    expect((await feedBadge(db, p, NOW)).events).toBe(1);
+
+    await hide(ea.id, true);
+    expect(await idsOf(p)).not.toContain(ea.id);
+    expect((await feedBadge(db, p, NOW)).events).toBe(0);
+    expect(await visibleEvent(db, p, ea.id, NOW)).toBeNull();
+    const own = (await page(o)).events.find((e) => e.id === ea.id);
+    expect(own).toMatchObject({ hidden: true, likes: { count: 0, liked: false } });
+    expect((await visibleEvent(db, o, ea.id, NOW))?.id).toBe(ea.id);
+
+    await hide(ea.id, false);
+    const back = (await page(p)).events.find((e) => e.id === ea.id);
+    expect(back).toBeDefined();
+    expect(back).not.toHaveProperty('hidden');
+    expect(back?.likes).toEqual({ count: 1, liked: true });
+    expect((await page(o)).events.find((e) => e.id === ea.id)).not.toHaveProperty('hidden');
+    expect((await feedBadge(db, p, NOW)).events).toBe(1);
+  });
+
+  it('likes under a hidden event do not count and come back on show', async () => {
+    const { o, p } = await people();
+    await mutual(o, p);
+    const gameId = randomUUID();
+    const eg = await event(o, { kind: 'game', gameId });
+    const el = await event(o, { kind: 'level', gameId: null });
+    await like(p, 'event', o, { eventKey: el.key });
+    await like(p, 'player', o, { gameId });
+    expect((await likeTotals(db, o)).player).toBe(2);
+
+    await hide(el.id, true);
+    await hide(eg.id, true);
+    expect((await likeTotals(db, o)).player).toBe(0);
+    await hide(el.id, false);
+    await hide(eg.id, false);
+    expect((await likeTotals(db, o)).player).toBe(2);
+
+    // лайк Петра на іншу гру Олі ховання цієї гри не зачіпає
+    const otherGame = randomUUID();
+    await like(p, 'player', o, { gameId: otherGame });
+    await hide(eg.id, true);
+    const [other] = await db.select().from(userLike).where(and(eq(userLike.gameId, otherGame), eq(userLike.userId, p)));
+    expect(other.hidden).toBe(false);
+    expect((await likeTotals(db, o)).player).toBe(2);
   });
 });

@@ -4,7 +4,7 @@ import { makeQuiz, single, text, withId } from '@quiz/engine/testing';
 import type { ChallengeAttemptStart, ChallengeMine, GroupDetail, LeaguePickInfo } from '@quiz/shared';
 import { buildApp } from './app';
 import type { Db } from './db/client';
-import { user } from './db/schema';
+import { familyGroup, user } from './db/schema';
 import { TEST_AUTH, signUp, startGame } from './testing/accounts';
 import { createTestDb } from './testing/test-db';
 
@@ -141,5 +141,18 @@ describe('the league pick of a lobby (45)', () => {
     const set = await call('PUT', league(code), host.cookie, { groupId: friends.id });
     expect(set.statusCode).toBe(200);
     expect(ctx.manager.get(code)!.league).toEqual({ groupId: friends.id, groupName: 'Друзі з двору' });
+  });
+});
+
+describe('a hidden group in the league pick (63)', () => {
+  it('is not offered to its owner and cannot be picked', async () => {
+    const hidden = await newGroup(host.cookie, 'Сховані', '🌊');
+    await db.update(familyGroup).set({ hiddenAt: new Date(), hiddenReason: 'назва' }).where(eq(familyGroup.id, hidden.id));
+    const code = await newGame();
+    const info = (await call('GET', league(code), host.cookie)).json() as LeaguePickInfo;
+    expect(info.groups.map((g) => g.id).sort()).toEqual([family.id, friends.id].sort());
+    const put = await call('PUT', league(code), host.cookie, { groupId: hidden.id });
+    expect(put.statusCode).toBe(404);
+    expect(ctx.manager.get(code)!.league).toBeNull();
   });
 });

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { kyivWallTime, nextWeekKyiv } from './kyiv-time';
+import { kyivDayStart, kyivWallTime, nextWeekKyiv } from './kyiv-time';
 
 describe('nextWeekKyiv', () => {
   it('the same Kyiv wall clock a week later across both clock changes', () => {
@@ -29,5 +29,15 @@ describe('nextWeekKyiv', () => {
     expect(nextWeekKyiv(gap, '03:30').toISOString()).toBe('2027-04-04T00:30:00.000Z');
     // Без настінного часу серія лишилася б о 04:30.
     expect(nextWeekKyiv(gap).toISOString()).toBe('2027-04-04T01:30:00.000Z');
+  });
+});
+
+describe('kyivDayStart', () => {
+  it('kyivDayStart is midnight in Kyiv', () => {
+    expect(kyivDayStart('2026-11-20').toISOString()).toBe('2026-11-19T22:00:00.000Z');
+    expect(kyivDayStart('2026-07-01').toISOString()).toBe('2026-06-30T21:00:00.000Z');
+    // День переходу на зимовий час: північ ще літня (+3), наступна вже зимова (+2).
+    expect(kyivDayStart('2026-10-25').toISOString()).toBe('2026-10-24T21:00:00.000Z');
+    expect(kyivDayStart('2026-10-26').toISOString()).toBe('2026-10-25T22:00:00.000Z');
   });
 });

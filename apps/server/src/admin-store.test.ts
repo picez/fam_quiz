@@ -3,8 +3,8 @@ import { BOT_USER_ID, questionsOf } from '@quiz/shared';
 import { bool, makeQuiz, single, text } from '@quiz/engine/testing';
 import { eq } from 'drizzle-orm';
 import { beforeAll, describe, expect, it } from 'vitest';
-import { adminLog, adminQuiz, adminQuizzes, adminStats, adminUser, adminUsers, kyivMidnight } from './admin-store';
-import { banUser, logAction } from './bans';
+import { adminQuiz, adminQuizzes, adminStats, adminUser, adminUsers, kyivMidnight } from './admin-store';
+import { banUser } from './bans';
 import { ensureBotAccount } from './bot-account';
 import type { Db } from './db/client';
 import { game, participant, prize, prizeAward, profile, quiz, user, userTitle } from './db/schema';
@@ -180,24 +180,6 @@ describe('admin store', () => {
     expect(await adminQuiz(db, randomUUID())).toBeNull();
     expect(await adminQuiz(db, 'not-a-uuid')).toBeNull();
     void bool;
-  });
-
-  it('reads the action log newest first, 50 per page', async () => {
-    const own = await createTestDb();
-    await own.insert(user).values({ id: 'ad', name: 'Адмін', email: 'ad@example.com' });
-    await own.insert(user).values({ id: 'tg', name: 'Ціль', email: 'tg@example.com' });
-    const base = NOW.getTime();
-    await logAction(own, { adminId: 'ad', kind: 'ban', targetUserId: 'tg', details: { reason: 'спам' }, now: new Date(base) });
-    await logAction(own, { adminId: 'ad', kind: 'unban', targetUserId: 'tg', details: {}, now: new Date(base + 1000) });
-    await logAction(own, { adminId: 'ad', kind: 'quiz_delete', targetUserId: 'tg', details: { title: 'Q' }, now: new Date(base + 2000) });
-    const log = await adminLog(own, 1);
-    expect(log.rows.map((r) => r.kind)).toEqual(['quiz_delete', 'unban', 'ban']);
-    expect(log.rows[2]).toMatchObject({ admin: 'Адмін', target: 'Ціль', details: { reason: 'спам' }, at: new Date(base).toISOString() });
-    expect([log.total, log.pages]).toEqual([3, 1]);
-    for (let i = 0; i < 50; i += 1) await logAction(own, { adminId: 'ad', kind: 'ban', targetUserId: 'tg', details: {}, now: new Date(base + 10_000 + i) });
-    const page1 = await adminLog(own, 1);
-    expect([page1.rows.length, page1.total, page1.pages]).toEqual([50, 53, 2]);
-    expect((await adminLog(own, 2)).rows.length).toBe(3);
   });
 });
 

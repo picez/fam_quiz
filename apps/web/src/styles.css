@@ -17396,20 +17396,41 @@ button.wall-tile:disabled {
 
 /* ---------- 21a: адмінка ---------- */
 
+/* 63: на телефоні — один рядок, що гортається вбік (активна вкладка прокручується в поле зору); на ширшому — переноситься. */
 .admin-tabs {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 0.5rem;
   margin-block: 1rem;
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x proximity;
+  scroll-padding-inline: 1rem;
+  padding-block: 0.25rem;
+  scrollbar-width: thin;
 }
 
 .admin-tabs a.btn {
+  flex: none;
+  white-space: nowrap;
+  scroll-snap-align: start;
   min-height: 2.75rem;
   padding: 0.5rem 1rem;
 }
 
 .admin-tabs a.btn[aria-current='page'] {
-  border-color: var(--paper);
+  border-color: var(--accent);
+  background: var(--spot);
+  color: var(--paper);
+}
+
+@media (min-width: 48rem) {
+  .admin-tabs {
+    flex-wrap: wrap;
+    overflow-x: visible;
+  }
 }
 
 .admin-stats {
@@ -28364,4 +28385,74 @@ a.library-card:focus-visible {
   border-color: color-mix(in srgb, var(--accent) 35%, var(--surface));
   background-color: color-mix(in srgb, var(--accent) 35%, var(--surface));
   color: var(--paper);
+}
+
+/* 63: модерація стрічки й груп — фільтри переносяться, на 360 px без бічного скролу; лише змінні теми. */
+.admin-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 0.75rem 1rem;
+  min-width: 0;
+  margin-bottom: 1rem;
+}
+
+.admin-filters > * {
+  flex: 1 1 14rem;
+  min-width: 0;
+}
+
+.admin-filters fieldset {
+  display: grid;
+  gap: 0.35rem;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.admin-filters legend {
+  margin-bottom: 0.35rem;
+  padding: 0;
+  font-weight: 700;
+}
+
+.admin-filters select {
+  max-width: 100%;
+}
+
+.admin-feed-row p,
+.admin-group-card h2,
+.admin-group-card p {
+  overflow-wrap: anywhere;
+}
+
+.admin-group-delete input {
+  max-width: 100%;
+}
+
+/* Рядок тривоги стоїть з першого показу; порожній не додає проміжку. */
+.admin-action-line {
+  margin: 0 0 0.75rem;
+}
+
+.admin-action-line:empty {
+  margin: 0;
+}
+
+.feed-hidden {
+  color: var(--signal);
+  font-weight: 700;
+}
+
+.group-card.is-hidden {
+  border-style: dashed;
+}
+
+.group-card.is-hidden:hover {
+  border-color: var(--line);
+}
+
+.group-card .group-hidden {
+  color: var(--signal);
+  font-weight: 700;
 }

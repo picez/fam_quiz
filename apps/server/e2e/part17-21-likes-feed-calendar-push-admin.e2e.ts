@@ -1346,9 +1346,9 @@ async function admin21a() {
     await admin.setViewportSize({ width: 375, height: 812 });
     expect(await noSideScroll(admin)).toBe(true);
     const tabs = admin.locator('.admin-tabs a');
-    // Вісім вкладок: «Бот» додано в 54.
+    // Одинадцять вкладок: «Скарги» (47), «Живі ігри» (53), «Бот» (54), «Розсилка» (59), «Стрічка» й «Групи» (63).
     const tabCount = await tabs.count();
-    expect(tabCount).toBe(8);
+    expect(tabCount).toBe(11);
     for (let i = 0; i < tabCount; i++) expect((await tabs.nth(i).boundingBox())!.height, `tab ${i}`).toBeGreaterThanOrEqual(44);
     await shot(admin, 'p21a-stats');
 
@@ -1381,7 +1381,8 @@ async function admin21a() {
     await tab('Вікторини').click();
     await field(admin, 'Пошук за назвою чи автором').fill(BAN_QUIZ);
     await click(admin, 'Шукати');
-    await admin.locator('.admin-card', { hasText: BAN_QUIZ }).getByRole('link', { name: 'Переглянути', ...exact }).click();
+    // Посилання несе назву вікторини в доступному імені (57).
+    await admin.locator('.admin-card', { hasText: BAN_QUIZ }).getByRole('link', { name: 'Переглянути: ' + BAN_QUIZ, ...exact }).click();
     const questionCard = (text: string) => admin.locator('.admin-card', { hasText: text });
     await questionCard(CITY).getByRole('button', { name: 'Видалити запитання', ...exact }).click();
     await questionCard(CITY).waitFor({ state: 'detached' });
@@ -1410,8 +1411,10 @@ async function admin21a() {
     const logText = await logResponse.text();
     expect(logText).not.toContain(ADMIN_EMAIL);
     const { rows } = JSON.parse(logText) as { rows: { kind: string; admin: string; details: { reason?: string } }[] };
-    expect(rows.slice(0, 4).map((r) => r.kind)).toEqual(['prize_delete', 'quiz_delete', 'question_delete', 'ban']);
-    expect(rows[3]!.details.reason).toBe('спам');
+    // Перегляд вікторини адміном теж іде в журнал (quiz_view, 57) — тут лише дії.
+    const acts = rows.filter((r) => r.kind !== 'quiz_view');
+    expect(acts.slice(0, 4).map((r) => r.kind)).toEqual(['prize_delete', 'quiz_delete', 'question_delete', 'ban']);
+    expect(acts[3]!.details.reason).toBe('спам');
     expect(rows[0]!.admin).toBe('Адмін 21a');
     await tab('Журнал').click();
     await admin.getByText('Адмін 21a заблокував(-ла) Богдан 21a. Причина: спам', exact).waitFor();

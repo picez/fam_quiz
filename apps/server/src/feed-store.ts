@@ -37,13 +37,14 @@ export function notHidden(column: AnyPgColumn): SQL {
   return sql`(${column} is distinct from ${BOT_USER_ID} and not exists (select 1 from ${userBan} where ${userBan.userId} = ${column}))`;
 }
 
-/** feed_event, які бачить viewer: свої чи взаємних друзів (planned — ще й ті, кого user_id додав у друзі), notHidden(user_id), at >= cutoff. */
+/** feed_event, які бачить viewer: свої чи взаємних друзів (planned — ще й ті, кого user_id додав у друзі), notHidden(user_id), at >= cutoff; сховану адміністратором (63) — лише автор. */
 export function feedVisibility(db: Db, viewerId: string, now: Date): SQL {
   // Взаємні друзі покривають і planned (вони теж мене додали), тож planned лише розширює коло: ті, хто додав мене.
   const followers = sql`(select ${follow.followerId} from ${follow} where ${follow.followeeId} = ${viewerId})`;
   const planned = sql`(${feedEvent.kind} = 'planned' and ${feedEvent.userId} in ${followers})`;
   const whose = sql`(${feedEvent.userId} = ${viewerId} or ${feedEvent.userId} in ${mutualFriendIds(db, viewerId)} or ${planned})`;
-  return sql`(${whose} and ${notHidden(feedEvent.userId)} and ${feedEvent.at} >= ${iso(feedCutoff(now))})`;
+  const unmoderated = sql`(${feedEvent.hiddenAt} is null or ${feedEvent.userId} = ${viewerId})`;
+  return sql`(${whose} and ${unmoderated} and ${notHidden(feedEvent.userId)} and ${feedEvent.at} >= ${iso(feedCutoff(now))})`;
 }
 
 /** (мітка до мс, id побайтно) нижче курсора. */
@@ -166,6 +167,7 @@ export async function feedPage(db: Db, viewerId: string, cursor: Cursor | null, 
       mine: event.userId === viewerId,
       data: event.data,
       likes: null as FeedEvent['likes'],
+      ...(event.hiddenAt === null ? {} : { hidden: true as const }),
     })),
     ...groups.map(
       (g): FeedEvent => ({
@@ -189,7 +191,8 @@ export async function feedPage(db: Db, viewerId: string, cursor: Cursor | null, 
   const byId = new Map(rows.map((r) => [r.event.id, r.event]));
   for (const item of shown) {
     const source = byId.get(item.id);
-    if (source) item.likes = likesOf(source);
+    // Прихована (63): вподобайки під нею сховані разом з нею, тож лічильник порожній.
+    if (source) item.likes = source.hiddenAt === null ? likesOf(source) : { count: 0, liked: false };
   }
 
   const page: FeedPage = {

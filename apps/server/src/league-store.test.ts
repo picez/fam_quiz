@@ -3,7 +3,7 @@ import { eq } from 'drizzle-orm';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { makeQuiz, single } from '@quiz/engine/testing';
 import type { Db } from './db/client';
-import { game, groupMember, leagueChampion, leagueGame, leagueMonth, leaguePoint, user } from './db/schema';
+import { familyGroup, game, groupMember, leagueChampion, leagueGame, leagueMonth, leaguePoint, user } from './db/schema';
 import { createGroup, deleteGroup, updateGroup } from './group-store';
 import { kyivMonth, leagueResultOf, leagueTable, leagueTitlesOf, recordLeague, settleLeague } from './league-store';
 import { ensureProfile } from './profiles';
@@ -125,6 +125,29 @@ describe('recordLeague', () => {
     expect(await recordLeague(db, { gameId, groupId, entries: solo(ids), nicknames: names(ids) })).toBeNull();
     expect(await db.select().from(leagueGame).where(eq(leagueGame.gameId, gameId))).toEqual([]);
     expect(await leagueResultOf(db, gameId)).toBeNull();
+  });
+
+  it('a group hidden by an admin records nothing', async () => {
+    const { groupId, ids } = await league(3);
+    const gameId = await finishedGame(ids[0]);
+    await db.update(familyGroup).set({ hiddenAt: NOW, hiddenReason: 'назва' }).where(eq(familyGroup.id, groupId));
+    expect(await recordLeague(db, { gameId, groupId, entries: solo(ids), nicknames: names(ids) })).toBeNull();
+    expect(await db.select().from(leagueGame).where(eq(leagueGame.gameId, gameId))).toEqual([]);
+    expect(await db.select().from(leaguePoint).where(eq(leaguePoint.gameId, gameId))).toEqual([]);
+  });
+});
+
+describe('a hidden group', () => {
+  it('crowns nobody while hidden and settles normally after a restore', async () => {
+    const { groupId, ids } = await league(3);
+    await past(groupId, '2026-10', [[ids[1], 1], [ids[0], 2], [ids[2], 3]]);
+    await db.update(familyGroup).set({ hiddenAt: NOW, hiddenReason: 'назва' }).where(eq(familyGroup.id, groupId));
+    expect(await leagueTitlesOf(db, ids[1], NOW)).toEqual([]);
+    expect(await db.select().from(leagueChampion).where(eq(leagueChampion.groupId, groupId))).toEqual([]);
+    expect(await db.select().from(leagueMonth).where(eq(leagueMonth.groupId, groupId))).toEqual([]);
+
+    await db.update(familyGroup).set({ hiddenAt: null, hiddenReason: null }).where(eq(familyGroup.id, groupId));
+    expect(await leagueTitlesOf(db, ids[1], NOW)).toEqual([{ group: 'Родина', month: '2026-10' }]);
   });
 });
 

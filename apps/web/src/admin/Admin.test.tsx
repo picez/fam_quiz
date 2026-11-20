@@ -4,10 +4,10 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { me } from '../api';
 import { Admin } from './Admin';
-import { adminCharts, adminErrors, adminHealth, adminProblemsBadge, adminStats, resolveServerError } from './admin-api';
+import { adminCharts, adminErrors, adminFeed, adminGroup, adminHealth, adminProblemsBadge, adminStats, resolveServerError } from './admin-api';
 
 vi.mock('../api', () => ({ me: vi.fn() }));
-vi.mock('./admin-api', () => ({ adminStats: vi.fn(), adminCharts: vi.fn(), adminHealth: vi.fn(), adminProblemsBadge: vi.fn(), adminErrors: vi.fn(), resolveServerError: vi.fn() }));
+vi.mock('./admin-api', () => ({ adminStats: vi.fn(), adminCharts: vi.fn(), adminHealth: vi.fn(), adminProblemsBadge: vi.fn(), adminErrors: vi.fn(), resolveServerError: vi.fn(), adminFeed: vi.fn(), adminGroup: vi.fn(), searchBotPeople: vi.fn() }));
 
 const stats = {
   users: { total: 12, new7: 3, new30: 5, online: 2 },
@@ -70,7 +70,7 @@ describe('Admin', () => {
     expect(screen.getByText('«Карпати» — Оля, ігор: 6')).toBeTruthy();
     const nav = screen.getByRole('navigation', { name: 'Розділи адмінки' });
     const links = within(nav).getAllByRole('link');
-    expect(links.map((link) => link.textContent)).toEqual(['Статистика', 'Живі ігри', 'Користувачі', 'Вікторини', 'Скарги', 'Оголошення', 'Розсилка', 'Журнал', 'Збої', 'Копії', 'Бот']);
+    expect(links.map((link) => link.textContent)).toEqual(['Статистика', 'Живі ігри', 'Користувачі', 'Вікторини', 'Скарги', 'Оголошення', 'Розсилка', 'Стрічка', 'Групи', 'Журнал', 'Збої', 'Копії', 'Бот']);
     expect(within(nav).getByRole('link', { name: 'Збої' }).getAttribute('href')).toBe('/admin/errors');
     expect(within(nav).getByRole('link', { name: 'Копії' }).getAttribute('href')).toBe('/admin/backups');
     expect(nav.querySelector('.menu-badge')).toBeNull();
@@ -118,5 +118,50 @@ describe('Admin', () => {
     vi.mocked(adminProblemsBadge).mockResolvedValue({ ok: true, data: { errors: 2, reports: 0 } });
     fireEvent.click(await screen.findByRole('button', { name: 'Позначити як вирішене' }));
     await waitFor(() => expect(nav.querySelector('.menu-badge')?.textContent).toBe('2'));
+  });
+
+  it('puts «Стрічка» and «Групи» before «Журнал» and opens their pages (63)', async () => {
+    vi.mocked(me).mockResolvedValue(account(true));
+    vi.mocked(adminFeed).mockResolvedValue({ ok: true, data: { rows: [], total: 0, page: 1, pages: 1 } });
+    open('/admin/feed');
+    const nav = await screen.findByRole('navigation', { name: 'Розділи адмінки' });
+    expect(within(nav).getByRole('link', { name: 'Стрічка' }).getAttribute('href')).toBe('/admin/feed');
+    expect(within(nav).getByRole('link', { name: 'Групи' }).getAttribute('href')).toBe('/admin/groups');
+    const names = within(nav).getAllByRole('link').map((link) => link.textContent);
+    expect(names.indexOf('Групи')).toBe(names.indexOf('Стрічка') + 1);
+    expect(names.indexOf('Журнал')).toBe(names.indexOf('Групи') + 1);
+    expect(await screen.findByText('Подій немає.')).toBeTruthy();
+    expect(adminFeed).toHaveBeenCalledWith({ page: 1 });
+    cleanup();
+    vi.mocked(adminGroup).mockResolvedValue({
+      ok: true,
+      data: {
+        group: { id: 'g1', name: 'Родина Квіткових', emoji: '🌻', owner: { id: 'u2', nickname: 'Оля' }, members: 2, items: 0, createdAt: '2026-11-14T10:00:00.000Z', hidden: null },
+        members: [],
+        items: { rows: [], total: 0, page: 1, pages: 1 },
+      },
+    });
+    open('/admin/groups/g1');
+    expect(await screen.findByRole('heading', { name: '🌻 Родина Квіткових' })).toBeTruthy();
+    expect(adminGroup).toHaveBeenCalledWith('g1', 1);
+  });
+
+  it('scrolls the active section link into view in the one-row tab strip (63)', async () => {
+    vi.mocked(me).mockResolvedValue(account(true));
+    vi.mocked(adminFeed).mockResolvedValue({ ok: true, data: { rows: [], total: 0, page: 1, pages: 1 } });
+    const scrolled: Element[] = [];
+    const scroll = vi.fn(function (this: Element) {
+      scrolled.push(this);
+    });
+    Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', { configurable: true, writable: true, value: scroll });
+    try {
+      open('/admin/feed');
+      const nav = await screen.findByRole('navigation', { name: 'Розділи адмінки' });
+      const active = within(nav).getByRole('link', { name: 'Стрічка' });
+      await waitFor(() => expect(scrolled).toContain(active));
+      expect(scroll).toHaveBeenCalledWith(expect.objectContaining({ block: 'nearest', inline: 'nearest' }));
+    } finally {
+      delete (HTMLElement.prototype as { scrollIntoView?: unknown }).scrollIntoView;
+    }
   });
 });

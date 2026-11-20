@@ -2,7 +2,7 @@ import type { AdminBroadcast, AdminBroadcasts, PushPayload } from '@quiz/shared'
 import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { buildApp } from './app';
-import { groupMember, profile, pushBroadcast, pushSubscription, user } from './db/schema';
+import { familyGroup, groupMember, profile, pushBroadcast, pushSubscription, user } from './db/schema';
 import { createGroup } from './group-store';
 import { ensureProfile } from './profiles';
 import { saveSubscription } from './push-store';
@@ -111,6 +111,22 @@ describe('admin push broadcast routes (59)', () => {
     expect(response.json()).toEqual({ error: 'broadcast_nobody' });
     expect(await db.select().from(pushBroadcast)).toEqual([]);
     expect((await list()).limits).toMatchObject({ nextAt: null, lastDay: 0 });
+  });
+
+  it('a group hidden by an admin is not offered and a send to it is group_not_found (63)', async () => {
+    await reset();
+    await db.update(familyGroup).set({ hiddenAt: NOW }).where(eq(familyGroup.id, groupId));
+    try {
+      expect((await list()).groups.map((g) => g.id)).not.toContain(groupId);
+      const preview = await call(ctx, 'POST', '/api/admin/broadcasts/preview', admin.cookie, { recipients: { kind: 'group', groupId } });
+      expect(preview.json()).toEqual({ people: 0 });
+      const response = await call(ctx, 'POST', '/api/admin/broadcasts', admin.cookie, input());
+      expect([response.statusCode, response.json()]).toEqual([404, { error: 'group_not_found' }]);
+      expect(await db.select().from(pushBroadcast)).toEqual([]);
+      expect(sent).toEqual([]);
+    } finally {
+      await db.update(familyGroup).set({ hiddenAt: null }).where(eq(familyGroup.id, groupId));
+    }
   });
 
   it('the limit answers with the next time', async () => {
