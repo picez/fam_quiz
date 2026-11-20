@@ -309,6 +309,13 @@
       "when": 1795176613841,
       "tag": "0043_player_card",
       "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "7",
+      "when": 1795186923832,
+      "tag": "0044_bot_plan_listed",
+      "breakpoints": true
     }
   ]
 }

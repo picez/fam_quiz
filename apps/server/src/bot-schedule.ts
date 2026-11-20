@@ -100,6 +100,7 @@ export function createBotSchedule(deps: {
       people: row.people,
       autoStartMin: row.autoStartMin,
       weekly: true,
+      listed: row.listed,
       wallTime: row.wallTime,
       previousId: row.id,
       createdBy: row.createdBy,
@@ -135,7 +136,7 @@ export function createBotSchedule(deps: {
     const quiz = row.quizId === null ? null : await getQuiz(db, BOT_USER_ID, row.quizId);
     if (quiz === null || row.quizId === null) return fail('quiz_missing');
     if (!(await bot())) return fail('bot_unavailable');
-    const made = openBotGame({ manager, maxRooms }, quiz, row.quizId);
+    const made = openBotGame({ manager, maxRooms }, quiz, row.quizId, row.listed);
     // Зупинка саме почалася: наступна хвилина (у межах запізнення) або наступний процес.
     if (!made.ok) return made.error === 'restarting' ? null : fail(made.error);
     const { room } = made;
