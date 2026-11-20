@@ -1,4 +1,6 @@
 import { emptyMergeSummary, type AchievementId, type MergeSummary } from '@quiz/shared';
+import { HISTORY_RULES, MERGE_JSON_RULES } from './account-merge-history';
+import { PEOPLE_RULES } from './account-merge-people';
 import type { Db } from './db/client';
 
 export type Tx = Parameters<Parameters<Db['transaction']>[0]>[0];
@@ -24,6 +26,16 @@ export interface MergeRule {
 export function mergeContext(primaryId: string, secondaryId: string, primaryNickname: string | null): MergeContext {
   return { primaryId, secondaryId, primaryNickname, summary: emptyMergeSummary(), secondaryWonGames: new Set(), earlierOnSecondary: new Set() };
 }
+
+/**
+ * Усі правила ключів на user.id по порядку: історія першою (її рішення — чий рядок гри лишився, чия дата досягнення раніша —
+ * потрібні стрічці й вітрині), далі люди й вміст. Схема-тест звіряє keys з усіма зовнішніми ключами на user.
+ * mergeAccounts (задача 5) виконує їх, тоді MERGE_JSON_RULES, і лише потім вкладений deleteAccount.
+ */
+export const MERGE_RULES: readonly MergeRule[] = [...HISTORY_RULES, ...PEOPLE_RULES];
+
+/** Колонки й JSON з id акаунтів без зовнішнього ключа. */
+export const MERGE_JSON_KEYS: readonly string[] = MERGE_JSON_RULES.flatMap((rule) => rule.keys);
 
 /** Правила по порядку в одній транзакції: збій будь-якого — нічого не перенесено. */
 export async function applyMergeRules(db: Db, ctx: MergeContext, rules: readonly MergeRule[]): Promise<void> {
