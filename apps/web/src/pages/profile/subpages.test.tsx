@@ -211,6 +211,12 @@ describe('«Налаштування»', () => {
     expect(screen.queryByRole('link', { name: 'Адмінка' })).toBeNull();
   });
 
+  it('64: has the «Повідомити про проблему» link from the settings page', async () => {
+    open('/profile/settings');
+    const link = await screen.findByRole('link', { name: 'Повідомити про проблему' });
+    expect(link.getAttribute('href')).toBe('/report?from=%2Fprofile%2Fsettings');
+  });
+
   it('31: has the «Легкий режим» section with the account hint', async () => {
     open('/profile/settings');
     expect(await screen.findByRole('heading', { level: 2, name: 'Легкий режим' })).toBeTruthy();

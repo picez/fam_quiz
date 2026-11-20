@@ -42,6 +42,13 @@ describe('pushNotice', () => {
     expect(pushNotice({ ...base, url: null }, zone, now).url).toBe('/');
   });
 
+  it("a problem reply shows the admin's words and opens /report", () => {
+    const payload = { kind: 'problem_reply' as const, reportId: 'R', text: 'Виправили, дякуємо!', locale: 'en' as const };
+    expect(pushNotice(payload, zone, now)).toEqual({ title: 'A reply to your message', body: 'Виправили, дякуємо!', url: '/report', tag: 'problem-R' });
+    const { locale: _locale, ...bare } = payload;
+    expect(pushNotice(bare, zone, now).title).toBe('Відповідь на твоє повідомлення');
+  });
+
   it("a broadcast shows the admin's words as they are", () => {
     const payload = { kind: 'broadcast' as const, broadcastId: 'B', title: 'Нова вікторина', text: 'Заходь у бібліотеку', url: '/library', locale: 'en' as const };
     expect(pushNotice(payload, zone, now)).toEqual({ title: 'Нова вікторина', body: 'Заходь у бібліотеку', url: '/library', tag: 'broadcast-B' });

@@ -75,7 +75,7 @@ export function fakeR2(options: { pageSize?: number; failOn?: (request: Request)
     }
     if (request.method === 'GET') {
       const object = objects.get(key);
-      return object === undefined ? new Response('<Error><Code>NoSuchKey</Code></Error>', { status: 404 }) : new Response(object.bytes, { status: 200 });
+      return object === undefined ? new Response('<Error><Code>NoSuchKey</Code></Error>', { status: 404 }) : new Response(object.bytes.slice(), { status: 200 });
     }
     if (request.method === 'DELETE') {
       objects.delete(key);

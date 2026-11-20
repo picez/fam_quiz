@@ -1013,6 +1013,39 @@ describe('push broadcast (59)', () => {
   });
 });
 
+describe('errors and problems (64)', () => {
+  const T = new Date('2026-11-20T10:00:00.000Z');
+  const base = { where: 'store', name: 'Error', message: 'boom', dayStart: T, firstAt: T, lastAt: T };
+
+  it('one new row per fingerprint; a resolved one does not block a new one', async () => {
+    const { serverError } = await import('./schema');
+    const db = await createTestDb();
+    const [row] = await db.insert(serverError).values({ ...base, fingerprint: 'f1' }).returning();
+    expect(row).toMatchObject({ count: 1, dayCount: 1, status: 'new', what: null, event: null, stack: null, resolvedBy: null, resolvedAt: null });
+    await expect(db.insert(serverError).values({ ...base, fingerprint: 'f1' })).rejects.toThrow();
+    await db.update(serverError).set({ status: 'resolved' }).where(eq(serverError.id, row.id));
+    await db.insert(serverError).values({ ...base, fingerprint: 'f1' });
+    await db.insert(serverError).values({ ...base, fingerprint: 'f1', status: 'resolved' });
+    expect(await db.select().from(serverError)).toHaveLength(3);
+  });
+
+  it('a problem report may have no author; deleting the author keeps it as from an account', async () => {
+    const { problemReport, serverError } = await import('./schema');
+    const db = await createTestDb();
+    const [guest] = await db.insert(problemReport).values({ userId: null, fromAccount: false, text: 'Не відкривається таблиця', createdAt: T }).returning();
+    expect(guest).toMatchObject({ status: 'open', page: null, reply: null, repliedAt: null, resolvedBy: null, resolvedAt: null });
+    await db.insert(user).values({ id: 'u1', name: 'Олена', email: 'olena@example.com' });
+    const page = { path: '/play/123456', browser: 'Mozilla/5.0', screen: '360x740', lang: 'uk' as const, theme: 'light' as const };
+    const [mine] = await db.insert(problemReport).values({ userId: 'u1', fromAccount: true, text: 'Зависла гра', page, createdAt: T, resolvedBy: 'u1' }).returning();
+    await db.insert(serverError).values({ ...base, fingerprint: 'f', status: 'resolved', resolvedBy: 'u1', resolvedAt: T });
+    await db.delete(user).where(eq(user.id, 'u1'));
+    const [kept] = await db.select().from(problemReport).where(eq(problemReport.id, mine.id));
+    expect(kept).toMatchObject({ userId: null, fromAccount: true, page, resolvedBy: null });
+    const [err] = await db.select().from(serverError);
+    expect(err.resolvedBy).toBeNull();
+  });
+});
+
 describe('moderation (63)', () => {
   it('migration 0046 adds empty hidden marks to existing events, groups and records, and the admin log index', async () => {
     const { db, migrateRest } = await createTestDbUpTo('0045_push_broadcast');

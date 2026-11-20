@@ -1,11 +1,13 @@
-import { useEffect, useRef, type JSX } from 'react';
+import { useEffect, useRef, useState, type JSX, type Ref } from 'react';
 import { Navigate, NavLink, Route, Routes, useLocation } from 'react-router-dom';
 import { t } from '../i18n';
 import { reducedMotion } from '../motion';
 import { useAccount } from '../useAccount';
 import { AdminAnnouncement } from './AdminAnnouncement';
+import { AdminBackups } from './AdminBackups';
 import { AdminBot } from './AdminBot';
 import { AdminBroadcast } from './AdminBroadcast';
+import { AdminErrors } from './AdminErrors';
 import { AdminFeed } from './AdminFeed';
 import { AdminGame } from './AdminGame';
 import { AdminGroup } from './AdminGroup';
@@ -18,6 +20,7 @@ import { AdminReports } from './AdminReports';
 import { AdminStats } from './AdminStats';
 import { AdminUser } from './AdminUser';
 import { AdminUsers } from './AdminUsers';
+import { adminProblemsBadge } from './admin-api';
 
 const TABS = [
   { to: '/admin', key: 'adminTabStats', end: true },
@@ -30,8 +33,52 @@ const TABS = [
   { to: '/admin/feed', key: 'adminTabFeed', end: false },
   { to: '/admin/groups', key: 'adminTabGroups', end: false },
   { to: '/admin/log', key: 'adminTabLog', end: false },
+  { to: '/admin/errors', key: 'adminTabErrors', end: false },
+  { to: '/admin/backups', key: 'adminTabBackups', end: false },
   { to: '/admin/bot', key: 'adminTabBot', end: false },
 ] as const;
+
+const ADMIN_BADGE_EVENT = 'admin-badge';
+
+/** Просить вкладки перечитати бейдж «Збоїв» (64): після «Вирішено» чи відповіді, без переходу. */
+export function refreshAdminBadge(): void {
+  window.dispatchEvent(new Event(ADMIN_BADGE_EVENT));
+}
+
+/** Вкладки адмінки; на «Збоях» — бейдж нових збоїв і відкритих скарг (64), перечитується на кожен перехід і на refreshAdminBadge. */
+function AdminTabs({ navRef }: { navRef: Ref<HTMLElement> }): JSX.Element {
+  const location = useLocation();
+  const [fresh, setFresh] = useState(0);
+  const [asked, setAsked] = useState(0);
+  useEffect(() => {
+    const ask = () => setAsked((n) => n + 1);
+    window.addEventListener(ADMIN_BADGE_EVENT, ask);
+    return () => window.removeEventListener(ADMIN_BADGE_EVENT, ask);
+  }, []);
+  useEffect(() => {
+    let current = true;
+    void adminProblemsBadge().then((result) => {
+      if (current && result.ok) setFresh(result.data.errors + result.data.reports);
+    });
+    return () => {
+      current = false;
+    };
+  }, [location.key, asked]);
+  return (
+    <nav ref={navRef} className="admin-tabs" aria-label={t('adminSections')}>
+      {TABS.map((tab) => (
+        <NavLink key={tab.to} to={tab.to} end={tab.end} className="btn">
+          {t(tab.key)}
+          {tab.key === 'adminTabErrors' && fresh > 0 && (
+            <span className="menu-badge" aria-label={t('adminTabErrorsBadge', { count: fresh })}>
+              {fresh}
+            </span>
+          )}
+        </NavLink>
+      ))}
+    </nav>
+  );
+}
 
 /** Гейт: лише адмін; усім іншим — головна. */
 export function Admin(): JSX.Element | null {
@@ -54,13 +101,7 @@ export function Admin(): JSX.Element | null {
   return (
     <main className="app wide">
       <h1 className="brand">{t('adminTitle')}</h1>
-      <nav ref={nav} className="admin-tabs" aria-label={t('adminSections')}>
-        {TABS.map((tab) => (
-          <NavLink key={tab.to} to={tab.to} end={tab.end} className="btn">
-            {t(tab.key)}
-          </NavLink>
-        ))}
-      </nav>
+      <AdminTabs navRef={nav} />
       <Routes>
         <Route path="" element={<AdminStats />} />
         <Route path="live" element={<AdminLive />} />
@@ -77,6 +118,8 @@ export function Admin(): JSX.Element | null {
         <Route path="groups" element={<AdminGroups />} />
         <Route path="groups/:id" element={<AdminGroup />} />
         <Route path="log" element={<AdminLog />} />
+        <Route path="errors" element={<AdminErrors />} />
+        <Route path="backups" element={<AdminBackups />} />
         <Route path="bot" element={<AdminBot />} />
         <Route path="bot/quizzes/:id" element={<AdminBotQuizView />} />
         <Route path="*" element={<Navigate to="/admin" replace />} />

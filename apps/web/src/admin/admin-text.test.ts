@@ -101,6 +101,12 @@ describe('logLine for games and announcements', () => {
   it('writes a push broadcast with its title and how many people get it', () => {
     expect(logLine(entry({ kind: 'push_broadcast', target: '', details: { title: 'Нова вікторина', count: 3 } }))).toBe('Адмін надіслав(-ла) розсилку «Нова вікторина», адресатів: 3');
   });
+  it('writes the errors and backups lines (64)', () => {
+    expect(logLine(entry({ kind: 'server_error_resolve', target: '', details: { title: 'http: boom' } }))).toBe('Адмін позначив(-ла) збій «http: boom» як вирішений');
+    expect(logLine(entry({ kind: 'problem_resolve', target: '', details: { text: 'Кнопка не натискається' } }))).toBe('Адмін закрив(-ла) скаргу «Кнопка не натискається»');
+    expect(logLine(entry({ kind: 'problem_reply', target: 'Оля', details: { text: 'Виправили, дякуємо!' } }))).toBe('Адмін відповів(-ла) Оля на скаргу: «Виправили, дякуємо!»');
+    expect(logLine(entry({ kind: 'backup_now', target: '', details: {} }))).toBe('Адмін зробив(-ла) копію бази вручну');
+  });
 });
 
 describe('durationText', () => {

@@ -16,7 +16,7 @@ export const PUSH_HOSTS = [
   'push.apple.com',
   'notify.windows.com',
 ] as const;
-export const PUSH_KINDS = ['reminder', 'opened', 'cancelled', 'bot', 'broadcast'] as const;
+export const PUSH_KINDS = ['reminder', 'opened', 'cancelled', 'bot', 'broadcast', 'problem_reply'] as const;
 
 export type PushPayload =
   | { kind: 'reminder'; eventId: string; title: string; startsAt: string; locale?: Locale }
@@ -25,7 +25,9 @@ export type PushPayload =
   /** 56: план гри бота; `code: null` — нагадування за 15 хв, рядок — кімнату відкрито. */
   | { kind: 'bot'; planId: string; title: string; startsAt: string; code: string | null; locale?: Locale }
   /** 59: розсилка адміна; заголовок і текст — як написав адмін, без перекладу; url null — головна. */
-  | { kind: 'broadcast'; broadcastId: string; title: string; text: string; url: string | null; locale?: Locale };
+  | { kind: 'broadcast'; broadcastId: string; title: string; text: string; url: string | null; locale?: Locale }
+  /** 64: відповідь адміна на скаргу гравця; текст — як написав адмін. */
+  | { kind: 'problem_reply'; reportId: string; text: string; locale?: Locale };
 
 /**
  * Лише https://хост[/шлях] з друкованих ASCII без пробілів: без userinfo, порту, `;`, `{`, лапок, `\` тощо в хості,
@@ -65,4 +67,5 @@ export const pushPayloadSchema: z.ZodType<PushPayload> = z.discriminatedUnion('k
   z.object({ kind: z.literal('cancelled'), ...eventBase, startsAt: z.string() }),
   z.object({ kind: z.literal('bot'), planId: z.string(), title: z.string(), startsAt: z.string(), code: z.string().nullable(), locale: localeSchema.optional() }),
   z.object({ kind: z.literal('broadcast'), broadcastId: z.string(), title: z.string(), text: z.string(), url: z.string().nullable(), locale: localeSchema.optional() }),
+  z.object({ kind: z.literal('problem_reply'), reportId: z.string(), text: z.string(), locale: localeSchema.optional() }),
 ]);

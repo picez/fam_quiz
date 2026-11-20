@@ -4,6 +4,7 @@ import { QUEST_WINDOW_MS, clueShare, isUnscored, melodyRevealClip, revealShare, 
 import { answerText, correctText, markText, pickedText, pinDistanceText, sliderValueText, shownChoices, num, questionClass, questionLabel, questionTitle, roundLabel, secondsText, signed } from '../format';
 import { roundGains } from '../score-table';
 import { countText, errorText, t } from '../i18n';
+import { ProblemLink } from '../problems/ProblemLink';
 import { EasyModeSwitch } from '../EasyModeSwitch';
 import { ThemeSwitch } from '../ThemeSwitch';
 import { ThemeToggle } from '../ThemeToggle';
@@ -1992,6 +1993,8 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
         </p>
       )}
       {/* Тривога (12e) — останній шар екрана, над заставками, аркушами й смугою «Немає зв'язку». */}
+      {/* «Повідомити про проблему» (64) — у новій вкладці, щоб гра не обірвалася; останнє в потоці екрана (тривога нижче — шар поверх). */}
+      <ProblemLink newTab className="problem-link game-problem-link" />
       <AwayAlarm code={code} person={team?.memberId ?? me.id} away={view.lastAway} />
       </StickyTimerProvider>
     </ReactionMain>

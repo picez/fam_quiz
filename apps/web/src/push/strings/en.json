@@ -9,6 +9,7 @@
   "pushFallbackTitle": "Quiz",
   "pushOpenedBody": "The host has opened the game. Tap to join.",
   "pushOpenedTitle": "“{title}” has started",
+  "pushProblemReplyTitle": "A reply to your message",
   "pushReminderBody": "Starts at {time}. Don't be late!",
   "pushReminderTitle": "“{title}” starts soon",
   "swOfflineBody": "The page couldn't be opened: there's no internet or the server is unavailable.",

@@ -18,7 +18,7 @@ export const ADMIN_LIVE_REFRESH_MS = 10_000;
 export const ADMIN_CHART_DAYS = 30;
 /** 53: скільки живуть у кеші графіки й список резервних копій. */
 export const ADMIN_CACHE_MS = 600_000;
-export const ADMIN_ACTION_KINDS = ['ban', 'unban', 'quiz_delete', 'question_delete', 'prize_delete', 'award_delete', 'library_hide', 'library_restore', 'report_dismiss', 'appeal_reject', 'nickname_reset', 'avatar_reset', 'game_close', 'announcement_set', 'announcement_clear', 'bot_game_start', 'bot_copy', 'bot_quiz_delete', 'bot_plan_create', 'bot_plan_update', 'bot_plan_cancel', 'bot_plan_run', 'bot_plan_fail', 'quiz_view', 'achievement_grant', 'achievement_revoke', 'xp_adjust', 'prize_gift', 'gift_revoke', 'account_delete', 'bot_room_start', 'bot_room_pause', 'bot_room_resume', 'bot_room_end', 'bot_room_skip', 'bot_room_time', 'bot_room_end_round', 'bot_room_kick', 'bot_room_release', 'bot_room_teams', 'bot_room_lobby', 'push_broadcast', 'feed_hide', 'feed_show', 'group_hide', 'group_restore', 'group_member_remove', 'group_owner_transfer', 'group_delete', 'group_item_hide', 'group_item_show'] as const;
+export const ADMIN_ACTION_KINDS = ['ban', 'unban', 'quiz_delete', 'question_delete', 'prize_delete', 'award_delete', 'library_hide', 'library_restore', 'report_dismiss', 'appeal_reject', 'nickname_reset', 'avatar_reset', 'game_close', 'announcement_set', 'announcement_clear', 'bot_game_start', 'bot_copy', 'bot_quiz_delete', 'bot_plan_create', 'bot_plan_update', 'bot_plan_cancel', 'bot_plan_run', 'bot_plan_fail', 'quiz_view', 'achievement_grant', 'achievement_revoke', 'xp_adjust', 'prize_gift', 'gift_revoke', 'account_delete', 'bot_room_start', 'bot_room_pause', 'bot_room_resume', 'bot_room_end', 'bot_room_skip', 'bot_room_time', 'bot_room_end_round', 'bot_room_kick', 'bot_room_release', 'bot_room_teams', 'bot_room_lobby', 'push_broadcast', 'feed_hide', 'feed_show', 'group_hide', 'group_restore', 'group_member_remove', 'group_owner_transfer', 'group_delete', 'group_item_hide', 'group_item_show', 'server_error_resolve', 'problem_resolve', 'problem_reply', 'backup_now'] as const;
 export type AdminActionKind = (typeof ADMIN_ACTION_KINDS)[number];
 export type RemovalEffect = 'question' | 'category' | 'round' | 'last_question' | 'not_found' | 'locked';
 
@@ -144,7 +144,7 @@ export function adminPages(total: number): number {
 }
 
 /** 63: групи видів журналу для фільтра «Що». Кожен вид — рівно в одній групі. */
-export const ADMIN_LOG_GROUPS = ['moderation', 'players', 'games', 'bot', 'announcements'] as const;
+export const ADMIN_LOG_GROUPS = ['moderation', 'players', 'games', 'bot', 'announcements', 'system'] as const;
 export type AdminLogGroup = (typeof ADMIN_LOG_GROUPS)[number];
 export const ADMIN_LOG_GROUP_KINDS: Record<AdminLogGroup, readonly AdminActionKind[]> = {
   moderation: ['ban', 'unban', 'quiz_delete', 'question_delete', 'library_hide', 'library_restore', 'report_dismiss', 'appeal_reject', 'nickname_reset', 'avatar_reset', 'feed_hide', 'feed_show', 'group_hide', 'group_restore', 'group_member_remove', 'group_owner_transfer', 'group_delete', 'group_item_hide', 'group_item_show'],
@@ -152,6 +152,8 @@ export const ADMIN_LOG_GROUP_KINDS: Record<AdminLogGroup, readonly AdminActionKi
   games: ['game_close'],
   bot: ['bot_game_start', 'bot_copy', 'bot_quiz_delete', 'bot_plan_create', 'bot_plan_update', 'bot_plan_cancel', 'bot_plan_run', 'bot_plan_fail', 'bot_room_start', 'bot_room_pause', 'bot_room_resume', 'bot_room_end', 'bot_room_skip', 'bot_room_time', 'bot_room_end_round', 'bot_room_kick', 'bot_room_release', 'bot_room_teams', 'bot_room_lobby'],
   announcements: ['announcement_set', 'announcement_clear', 'push_broadcast'],
+  /** 64: збої, звернення, резервні копії. */
+  system: ['server_error_resolve', 'problem_resolve', 'problem_reply', 'backup_now'],
 };
 /** 63: скільки рядків журналу йде у вивантаження CSV щонайбільше. */
 export const ADMIN_LOG_EXPORT_MAX = 10_000;

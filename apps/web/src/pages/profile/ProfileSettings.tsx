@@ -13,6 +13,7 @@ import { SubpageData } from '../../profile/ProfileSubpage';
 import { useMyProfile } from '../../profile/useMyProfile';
 import { AdminPushSwitch } from '../../push/AdminPushSwitch';
 import { PushSettings } from '../../push/PushSettings';
+import { ProblemLink } from '../../problems/ProblemLink';
 import { disablePush } from '../../push/push-client';
 
 /** /profile/settings: нікнейм і аватар (?edit=1 — форма одразу відкрита), мова, сповіщення, пошта, адмінка, вихід. */
@@ -78,6 +79,10 @@ export function ProfileSettings(): JSX.Element {
               </Link>
             )}
           </div>
+          <section className="profile-section settings-row">
+            <h2>{t('problemReportTitle')}</h2>
+            <ProblemLink />
+          </section>
           <div className="toolbar">
             <button type="button" className="btn" disabled={leaving} onClick={() => void leave()}>
               {t('signOut')}

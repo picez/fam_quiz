@@ -31,6 +31,7 @@ import type {
   PhotoFrame,
   PrizeContent,
   PrizePlace,
+  ProblemPage,
   ShowcasePinKind,
   ProfileBadge,
   Question,
@@ -1099,4 +1100,58 @@ export const pushBroadcast = pgTable(
     finishedAt: at('finished_at'),
   },
   (table) => [index('push_broadcast_created_idx').on(table.createdAt)],
+);
+
+/**
+ * Збій сервера (64): повтори з тим самим відбитком — один рядок «нове» (частковий унікальний індекс),
+ * після «вирішено» той самий збій відкриває новий рядок. Тексти вже замасковані (error-mask.ts):
+ * жодних email, токенів, паролів; err.detail/params/query не зберігаються.
+ * day_count — повтори від day_start; вікно в 24 год починається наново, коли минає.
+ */
+export const serverError = pgTable(
+  'server_error',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    fingerprint: text('fingerprint').notNull(),
+    where: text('where').notNull(),
+    what: text('what'),
+    event: text('event'),
+    name: text('name').notNull(),
+    message: text('message').notNull(),
+    stack: text('stack'),
+    count: integer('count').notNull().default(1),
+    dayCount: integer('day_count').notNull().default(1),
+    dayStart: at('day_start').notNull(),
+    firstAt: at('first_at').notNull(),
+    lastAt: at('last_at').notNull(),
+    status: text('status').$type<'new' | 'resolved'>().notNull().default('new'),
+    resolvedBy: text('resolved_by').references(() => user.id, { onDelete: 'set null' }),
+    resolvedAt: at('resolved_at'),
+  },
+  (table) => [
+    uniqueIndex('server_error_open_once').on(table.fingerprint).where(sql`status = 'new'`),
+    index('server_error_status_last_idx').on(table.status, table.lastAt),
+  ],
+);
+
+/**
+ * Скарга гравця (64). Без IP; page — лише шлях сторінки без ? і #. from_account відрізняє гостя (false)
+ * від акаунта, який потім видалили (user_id стає null, from_account лишається true).
+ */
+export const problemReport = pgTable(
+  'problem_report',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: text('user_id').references(() => user.id, { onDelete: 'set null' }),
+    fromAccount: boolean('from_account').notNull(),
+    text: text('text').notNull(),
+    page: jsonb('page').$type<ProblemPage | null>(),
+    status: text('status').$type<'open' | 'resolved'>().notNull().default('open'),
+    reply: text('reply'),
+    repliedAt: at('replied_at'),
+    resolvedBy: text('resolved_by').references(() => user.id, { onDelete: 'set null' }),
+    resolvedAt: at('resolved_at'),
+    createdAt: at('created_at').notNull(),
+  },
+  (table) => [index('problem_report_status_created_idx').on(table.status, table.createdAt), index('problem_report_user_idx').on(table.userId, table.createdAt)],
 );

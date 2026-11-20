@@ -35,8 +35,10 @@ import {
   prize,
   prizeAward,
   profile,
+  problemReport,
   pushBroadcast,
   pushSubscription,
+  serverError,
   quiz,
   savedGame,
   session,
@@ -133,6 +135,9 @@ async function referencing(userId: string): Promise<Record<string, number>> {
   await add('announcement', db.select().from(announcement).where(eq(announcement.createdBy, userId)));
   await add('bot_plan', db.select().from(botPlan).where(eq(botPlan.createdBy, userId)));
   await add('push_broadcast', db.select().from(pushBroadcast).where(eq(pushBroadcast.createdBy, userId)));
+  await add('problem_report.user_id', db.select().from(problemReport).where(eq(problemReport.userId, userId)));
+  await add('problem_report.resolved_by', db.select().from(problemReport).where(eq(problemReport.resolvedBy, userId)));
+  await add('server_error.resolved_by', db.select().from(serverError).where(eq(serverError.resolvedBy, userId)));
   await add('push_broadcast.people', db.select().from(pushBroadcast).where(sql`${pushBroadcast.people} ? ${userId}::text`));
   await add('saved_game.data', db.select().from(savedGame).where(sql`${savedGame.data}->'playerUsers' @> jsonb_build_array(jsonb_build_array(${userId}::text))`));
   await add('live_room.data', db.select().from(liveRoom).where(sql`${liveRoom.data}->'playerUsers' @> jsonb_build_array(jsonb_build_array(${userId}::text)) or ${liveRoom.data}->>'hostUserId' = ${userId}`));
@@ -254,6 +259,11 @@ describe('deleteAccount', () => {
     await db.insert(announcement).values({ text: 'Привіт', createdBy: taras, createdAt: NOW });
     await db.insert(botPlan).values({ quizId, title: 'План', startsAt: NOW, recipients: 'people', people: [taras, olia], createdBy: taras, createdAt: NOW, updatedAt: NOW });
     await db.insert(pushBroadcast).values({ createdBy: taras, title: 'Розсилка', text: 'Текст', recipients: 'people', people: [taras, olia], peopleCount: 2, createdAt: NOW });
+    await db.insert(problemReport).values([
+      { userId: taras, fromAccount: true, text: 'Не відкривається таблиця', createdAt: NOW },
+      { userId: olia, fromAccount: true, text: 'Зависла гра', status: 'resolved', resolvedBy: taras, resolvedAt: NOW, createdAt: NOW },
+    ]);
+    await db.insert(serverError).values({ fingerprint: 'f', where: 'store', name: 'Error', message: 'boom', dayStart: NOW, firstAt: NOW, lastAt: NOW, status: 'resolved', resolvedBy: taras, resolvedAt: NOW });
     const oliaSaved = await seedGame(db, { hostId: olia, status: 'saved', startedAt: PAST, players: [{ userId: taras, nickname: 'Тарас', score: 0, rank: null }] });
     await db.insert(savedGame).values({ gameId: oliaSaved.gameId, data: { v: 1, playerUsers: [['p-taras', taras], ['p-olia', olia]] }, stateVersion: 22, savedAt: NOW });
     await db.insert(liveRoom).values({ code: `r-${n}`, roomId: randomUUID(), data: { playerUsers: [['p-taras', taras], ['p-olia', olia]], continued: { bound: ['p-taras', 'p-olia'], carry: null, replaces: null } }, updatedAt: NOW });
@@ -279,6 +289,10 @@ describe('deleteAccount', () => {
     expect((await db.select().from(libraryCopy).where(eq(libraryCopy.userId, olia)))[0]).toMatchObject({ entryId: null, authorLine: 'Автор: Тарас' });
     expect((await db.select().from(botPlan))[0]?.people).toEqual([olia]);
     expect((await db.select().from(pushBroadcast))[0]).toMatchObject({ people: [olia], createdBy: null, peopleCount: 2 });
+    // 64: скарга лишається як від видаленого акаунта; хто вирішив — забуто.
+    expect((await db.select().from(problemReport).where(eq(problemReport.text, 'Не відкривається таблиця')))[0]).toMatchObject({ userId: null, fromAccount: true });
+    expect((await db.select().from(problemReport).where(eq(problemReport.userId, olia)))[0]).toMatchObject({ resolvedBy: null, status: 'resolved' });
+    expect((await db.select().from(serverError))[0]).toMatchObject({ resolvedBy: null, status: 'resolved' });
     expect((await db.select().from(savedGame).where(eq(savedGame.gameId, oliaSaved.gameId)))[0]?.data).toEqual({ v: 1, playerUsers: [['p-olia', olia]], forgotten: ['p-taras'] });
     const [room] = await db.select().from(liveRoom).where(eq(liveRoom.code, `r-${n}`));
     expect(room.data).toEqual({ playerUsers: [['p-olia', olia]], forgotten: ['p-taras'], continued: { bound: ['p-olia'], carry: null, replaces: null } });
@@ -503,6 +517,7 @@ const HANDLED = [
   'group_invite.user_id', 'group_invite.invited_by', 'group_item.author_id', 'challenge.owner_id', 'challenge_attempt.user_id',
   'league_point.user_id', 'league_champion.user_id', 'library_entry.owner_id', 'library_copy.user_id', 'user_report.reporter_id',
   'user_report.target_user_id', 'announcement.created_by', 'bot_plan.created_by', 'push_broadcast.created_by',
+  'problem_report.user_id', 'problem_report.resolved_by', 'server_error.resolved_by',
 ];
 
 describe('the schema', () => {

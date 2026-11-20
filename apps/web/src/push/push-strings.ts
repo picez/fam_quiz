@@ -18,6 +18,7 @@ export const pushStrings = {
   pushBotSoonBody: 'Код прийде окремим сповіщенням, щойно кімната відкриється.',
   pushBotOpenTitle: 'Квіз-бот відкрив гру «{title}»',
   pushBotOpenBody: 'Код: {code}. Торкнися, щоб приєднатися.',
+  pushProblemReplyTitle: 'Відповідь на твоє повідомлення',
   pushFallbackTitle: 'Квіз',
   pushFallbackBody: 'Є оновлення щодо запланованої гри.',
   // Сторінка «Немає зв’язку» воркера (32): ні мережі, ні кешу.

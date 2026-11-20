@@ -8,6 +8,7 @@ import { log, reportError } from './log';
 import { realScheduler, type Scheduler } from './rooms/scheduler';
 import type { R2Settings } from './storage/r2';
 import { r2Objects, type BackupSink, type StoredObject } from './storage/r2-objects';
+import { BACKUP_MANUAL_GAP_MS, type BackupRun } from '@quiz/shared';
 
 /**
  * Щотижнева логічна копія бази (35): усі таблиці схеми public рядками JSON (row_to_json, тож типи — як їх пише сам Postgres:
@@ -97,9 +98,33 @@ export function isBackupDue(objects: StoredObject[], now: Date): boolean {
   return now.getTime() - parseBackupKey(newest)!.at.getTime() >= BACKUP_EVERY_MS;
 }
 
-/** Які копії видалити: усі, крім keep найновіших. Чужі ключі під префіксом не чіпаються. */
+/**
+ * Які копії видалити (64). Лишаються: keep найновіших І найновіша копія кожного з keep семиденних вікон, відлічених назад від найновішої
+ * копії (вікно 0 — найновіша копія й тиждень до неї), тож ручні копії не витісняють щотижневих. Найновіша копія лишається завжди, навіть
+ * коли keep = 0: єдину копію правило не видаляє ніколи. Чужі ключі під префіксом не чіпаються.
+ */
 export function expiredBackups(objects: StoredObject[], keep = KEEP_BACKUPS): string[] {
-  return backupsNewestFirst(objects).slice(keep);
+  const keys = backupsNewestFirst(objects);
+  const newest = keys[0];
+  if (newest === undefined) return [];
+  const top = parseBackupKey(newest)!.at.getTime();
+  const kept = new Set<string>([newest, ...keys.slice(0, keep)]);
+  const seen = new Set<number>();
+  for (const key of keys) {
+    const window = Math.floor((top - parseBackupKey(key)!.at.getTime()) / BACKUP_EVERY_MS);
+    if (window >= keep || seen.has(window)) continue;
+    seen.add(window);
+    kept.add(key);
+  }
+  return keys.filter((key) => !kept.has(key));
+}
+
+/** Найновіша копія молодша за інтервал: не знімати нову. */
+function newerThan(objects: StoredObject[], now: Date, ms: number): Date | null {
+  const newest = backupsNewestFirst(objects)[0];
+  if (newest === undefined) return null;
+  const at = parseBackupKey(newest)!.at;
+  return now.getTime() - at.getTime() < ms ? at : null;
 }
 
 export interface BackupHeader {
@@ -279,9 +304,17 @@ export function r2BackupStore(settings: R2Settings, partBytes?: number): BackupS
 
 export type BackupOutcome = 'fresh' | 'busy' | 'locked' | 'failed' | BackupStats;
 
+export type RunNowResult = { started: true } | { started: false; reason: 'busy' | 'recent'; nextAt?: string };
+
 export interface DbBackups {
   /** Одна перевірка: зняти копію, якщо пора. Ніколи не кидає. */
   check(): Promise<BackupOutcome>;
+  /** Копія на вимогу (64): не частіше раз на BACKUP_MANUAL_GAP_MS від найновішої копії у сховищі; знімається у фоні. */
+  runNow(): Promise<RunNowResult>;
+  /** Йде копія (розклад чи вимога) і остання спроба в пам'яті процесу. */
+  status(): { running: boolean; last: BackupRun | null };
+  /** Дочекатися фонової копії. */
+  idle(): Promise<void>;
   start(): void;
   stop(): void;
 }
@@ -302,16 +335,23 @@ export function dbBackups(options: {
   const scheduler = options.scheduler ?? realScheduler;
   const { db, store } = options;
   let running = false;
+  let job: Promise<unknown> = Promise.resolve();
+  let last: BackupRun | null = null;
   let stopped = false;
   let timer: unknown = null;
   const halt = new AbortController();
 
-  async function check(): Promise<BackupOutcome> {
-    if (running) return 'busy';
-    running = true;
+  /**
+   * Одна спроба. due — чи пора знімати (розклад: тиждень, вимога: година); перевіряється двічі: до й після блокування. Видалення
+   * старих копій — лише після вдалої копії, поки задача тримає running (друга копія не стартує), і не після зупинки сервера.
+   */
+  async function attempt(by: BackupRun['by'], due: (objects: StoredObject[], now: Date) => boolean): Promise<BackupOutcome> {
+    const now = new Date(scheduler.now());
+    const record = (outcome: BackupRun['outcome'], stats: BackupStats | null) => {
+      last = { at: now.toISOString(), by, outcome, key: stats?.key ?? null, bytes: stats?.bytes ?? null };
+    };
     try {
-      const now = new Date(scheduler.now());
-      if (!isBackupDue(await store.list(), now)) return 'fresh';
+      if (!due(await store.list(), now)) return 'fresh';
       const stats = await writeBackup(db, {
         open: (key) => store.upload(key),
         now,
@@ -319,11 +359,16 @@ export function dbBackups(options: {
         pauseMs: options.pauseMs,
         tryLock: options.tryLock,
         signal: halt.signal,
-        stillDue: async () => isBackupDue(await store.list(), now),
+        stillDue: async () => due(await store.list(), now),
       });
-      if (stats === null) return 'locked';
+      if (stats === null) {
+        record('locked', null);
+        return 'locked';
+      }
+      record('ok', stats);
       log.info({ key: stats.key, bytes: stats.bytes, rows: stats.rows, tables: stats.tables, ms: stats.ms }, 'Резервну копію бази записано.');
       for (const key of expiredBackups(await store.list())) {
+        if (stopped) break;
         try {
           await store.remove(key);
           log.info({ key }, 'Стару резервну копію бази видалено.');
@@ -333,13 +378,49 @@ export function dbBackups(options: {
       }
       return stats;
     } catch (error) {
+      record('failed', null);
       // Зупинка сервера перериває копію (halt): транзакція відкочується, недописане прибрано; це не збій.
       if (stopped) log.warn('Резервну копію бази перервано зупинкою сервера.');
       else reportError(error, { where: 'db-backup' });
       return 'failed';
+    }
+  }
+
+  async function check(): Promise<BackupOutcome> {
+    if (running) return 'busy';
+    running = true;
+    const done = attempt('schedule', isBackupDue);
+    job = done;
+    try {
+      return await done;
     } finally {
       running = false;
     }
+  }
+
+  async function runNow(): Promise<RunNowResult> {
+    // Після stop (зупинка сервера) не стартуємо: спроба одразу перервалася б і записала б «збій».
+    if (running || stopped) return { started: false, reason: 'busy' };
+    running = true;
+    try {
+      const recent = newerThan(await store.list(), new Date(scheduler.now()), BACKUP_MANUAL_GAP_MS);
+      if (stopped) {
+        running = false;
+        return { started: false, reason: 'busy' };
+      }
+      if (recent !== null) {
+        running = false;
+        return { started: false, reason: 'recent', nextAt: new Date(recent.getTime() + BACKUP_MANUAL_GAP_MS).toISOString() };
+      }
+    } catch (error) {
+      // Сховище не відповіло: не стартувати наосліп; маршрут віддасть 500, помилку журналює обробник.
+      running = false;
+      throw error;
+    }
+    job = attempt('admin', (objects, now) => newerThan(objects, now, BACKUP_MANUAL_GAP_MS) === null).finally(() => {
+      running = false;
+    });
+    return { started: true };
   }
 
   function plan(ms: number) {
@@ -352,6 +433,11 @@ export function dbBackups(options: {
 
   return {
     check,
+    runNow,
+    status: () => ({ running, last }),
+    idle: async () => {
+      await job.catch(() => undefined);
+    },
     start: () => plan(FIRST_CHECK_MS),
     stop() {
       stopped = true;

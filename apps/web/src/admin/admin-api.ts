@@ -1,5 +1,6 @@
 import { isObjectLike } from '@quiz/shared';
 import type { AdminBroadcast, AdminBroadcasts, BroadcastInput, BroadcastPreview, BroadcastRecipients } from '@quiz/shared';
+import type { AdminBackups, AdminProblemReport, AdminProblemsBadge, AdminServerError } from '@quiz/shared';
 import type { AchievementId, AdminBot, AdminBotLobby, AdminBotPerson, AdminBotPlan, BotCommand, BotPlanInput, GameDetail } from '@quiz/shared';
 import type { Announcement, AnnouncementInput, AdminCharts, AdminHealth, AdminLiveList, AdminList, AdminReportItem, AdminLogExport, AdminLogGroup, AdminLogPage, AdminQuizCheck, AdminQuizRow, AdminQuizView, AdminStats, AdminUserDetail, AdminUserRow } from '@quiz/shared';
 import type { AdminFeedKind, AdminFeedRow, AdminGroupDetail, AdminGroupRow } from '@quiz/shared';
@@ -107,6 +108,34 @@ export async function sendBroadcast(input: BroadcastInput): Promise<BroadcastSen
     if (response.status === 429) return { ok: false, error: 'too_many' };
     const data: unknown = await response.json().catch(() => null);
     if (response.ok && isObjectLike(data)) return { ok: true, ...(data as unknown as AdminBroadcast) };
+    const error = isObjectLike(data) && typeof data.error === 'string' ? data.error : 'unknown';
+    const nextAt = isObjectLike(data) && typeof data.nextAt === 'string' ? data.nextAt : undefined;
+    return nextAt === undefined ? { ok: false, error } : { ok: false, error, nextAt };
+  } catch {
+    return { ok: false, error: 'offline' };
+  }
+}
+
+/** 64: «Збої» — бейдж нових; збої сервера й скарги гравців з фільтром і сторінками; вирішити; відповісти автору. */
+export const adminProblemsBadge = (): Promise<ApiData<AdminProblemsBadge>> => fetchData<AdminProblemsBadge>('/api/admin/problems/badge');
+export const adminErrors = (status: AdminServerError['status'], page: number): Promise<ApiData<AdminList<AdminServerError>>> => fetchData(`/api/admin/errors?status=${status}&page=${page}`);
+export const resolveServerError = (errorId: string): Promise<ApiResult<object>> => request<object>(`/api/admin/errors/${id(errorId)}/resolve`, { method: 'POST', body: {} });
+export const adminProblems = (status: AdminProblemReport['status'], page: number): Promise<ApiData<AdminList<AdminProblemReport>>> => fetchData(`/api/admin/problems?status=${status}&page=${page}`);
+export const resolveProblem = (reportId: string): Promise<ApiResult<object>> => request<object>(`/api/admin/problems/${id(reportId)}/resolve`, { method: 'POST', body: {} });
+export const replyProblem = (reportId: string, text: string): Promise<ApiResult<{ pushed: boolean }>> =>
+  request<{ pushed: boolean }>(`/api/admin/problems/${id(reportId)}/reply`, { method: 'POST', body: { text } });
+
+/** 64: «Копії» — список і стан; `error` — сервер не зміг прочитати список зі сховища (рядків тоді немає). */
+export type AdminBackupsView = AdminBackups & { error?: true };
+export const adminBackups = (): Promise<ApiData<AdminBackupsView>> => fetchData<AdminBackupsView>('/api/admin/backups');
+export type BackupStarted = { ok: true } | { ok: false; error: string; nextAt?: string };
+/** «Зробити копію зараз»: 202 — пішла у фоні; 409 `backup_recent` каже й `nextAt`, 409 `backup_busy`; 503 `backup_off`; 429 — `too_many`. */
+export async function startBackup(): Promise<BackupStarted> {
+  try {
+    const response = await fetch('/api/admin/backups', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' });
+    if (response.status === 429) return { ok: false, error: 'too_many' };
+    if (response.ok) return { ok: true };
+    const data: unknown = await response.json().catch(() => null);
     const error = isObjectLike(data) && typeof data.error === 'string' ? data.error : 'unknown';
     const nextAt = isObjectLike(data) && typeof data.nextAt === 'string' ? data.nextAt : undefined;
     return nextAt === undefined ? { ok: false, error } : { ok: false, error, nextAt };

@@ -18,6 +18,7 @@ import { registerLobbyRoutes } from './lobby-routes';
 import { registerSavedGameRoutes } from './saved-games';
 import { registerChallengeRoutes } from './challenge-routes';
 import { registerProfileRoutes } from './profile-routes';
+import { registerProblemRoutes } from './problem-routes';
 import { registerPrizeRoutes } from './prize-routes';
 import { registerShowcaseRoutes } from './showcase-routes';
 import { registerAdminRoutes } from './admin-routes';
@@ -41,7 +42,9 @@ import { registerUploadRoutes } from './upload-routes';
 import { registerWordLadderRoutes } from './wordladder-routes';
 import { registerLetterWordsRoutes } from './letterwords-routes';
 import { lazyNouns, type NounDictionary } from './wordladder/nouns';
-import { log, reportError } from './log';
+import { log, reportError, setErrorSink } from './log';
+import { createErrorStore } from './error-store';
+import type { DbBackups } from './db-backup';
 import type { StoredObject } from './storage/r2-objects';
 
 export interface AppOptions {
@@ -82,10 +85,14 @@ export interface AppOptions {
   adminEmails?: ReadonlySet<string>;
   /** Список копій бази в сховищі для блоку «Стан» адмінки; без нього — «сховище не налаштоване». */
   backupList?: () => Promise<StoredObject[]>;
+  /** Копія на вимогу (64): лише там, де ввімкнено щотижневі копії; без неї кнопка «Зробити копію зараз» — 503 backup_off. */
+  backups?: Pick<DbBackups, 'runNow' | 'status'>;
   /** Словник «Словесної драбини» (26c); типово lazyNouns() — закомічений файл читається при першому слові чи перевірці. */
   nouns?: NounDictionary;
   /** Хвилинний тікер розкладу ігор бота (56); типово вимкнено — тести рухають час викликом botSchedule.tick(). main.ts вмикає. */
   botScheduleTicker?: boolean;
+  /** Збої сервера в базу для вкладки «Збої» адмінки (64); типово ввімкнено, false — лише журнал. */
+  errorLog?: boolean;
 }
 
 const DEFAULT_MAX_ROOMS = 500;
@@ -128,6 +135,15 @@ export async function buildApp(options: AppOptions) {
     if (status >= 500) reportError(error, { where: 'http', event: `${request.method} ${request.routeOptions.url ?? 'unknown'}` });
   });
   if (store !== null) app.addHook('onClose', async () => store.stop());
+  // Збої в базу (64): другий слот reportError. Знімається в onClose, бо багато тестів кличуть лише app.close().
+  const errors = options.errorLog === false ? null : createErrorStore({ db: options.db });
+  if (errors !== null) {
+    const unsink = setErrorSink(errors.record);
+    app.addHook('onClose', async () => {
+      unsink();
+      await errors.stop();
+    });
+  }
   await app.register(rateLimit, { global: false });
 
   app.get('/health', async () => ({ ok: true }));
@@ -152,9 +168,10 @@ export async function buildApp(options: AppOptions) {
   await registerPrizeRoutes(app, { db: options.db, manager, locate, currentUser });
   await registerShowcaseRoutes(app, { db: options.db, currentUser });
   const announcements = announcementCache(options.db, () => Date.now());
+  await registerProblemRoutes(app, { db: options.db, currentUser });
   await registerAnnouncementRoutes(app, { cache: announcements });
   const push = options.push === undefined ? null : createPushService({ db: options.db, ...options.push, log: (message, error) => log.error({ err: error }, message) });
-  await registerAdminRoutes(app, { db: options.db, manager, adminEmails: options.adminEmails ?? new Set<string>(), currentUser, backupList: options.backupList, announcements, maxRooms, storage: imageStorage, checkFetch: options.checkFetch ?? offlineFetch, checkResolve: options.checkResolve ?? offlineResolve, push });
+  await registerAdminRoutes(app, { db: options.db, manager, adminEmails: options.adminEmails ?? new Set<string>(), currentUser, backupList: options.backupList, backups: options.backups, announcements, maxRooms, storage: imageStorage, checkFetch: options.checkFetch ?? offlineFetch, checkResolve: options.checkResolve ?? offlineResolve, push });
   const invites = new Invites(manager);
   await registerInviteRoutes(app, { db: options.db, manager, invites, currentUser });
   const gate = new LobbyGate(options.db, invites, () => manager.now());
@@ -267,5 +284,5 @@ export async function buildApp(options: AppOptions) {
     await likes.idle();
   };
 
-  return { app, manager, io, recorder, invites, store, push, botSchedule, shutdown };
+  return { app, manager, io, recorder, invites, store, push, botSchedule, errors, shutdown };
 }

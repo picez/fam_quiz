@@ -122,6 +122,10 @@ await settleFeedLevels(db).catch((error: unknown) => reportError(error, { where:
 await settleStickerLegacy(db).catch((error: unknown) => reportError(error, { where: 'sticker-legacy' }));
 // Акаунт «Квіз-бота» (54): створюється раз, далі нічого не змінює.
 await ensureBotAccount(db).catch((error: unknown) => reportError(error, { where: 'bot-account' }));
+// Резервні копії бази (35): щотижня в той самий кошик R2 під backups/db/; перша перевірка через 5 хвилин після старту, далі щогодини.
+// Лише в продакшені (локальна база з ключами R2 у .env не має підміняти копії продакшену); DB_BACKUP=off вимикає, DB_BACKUP=on вмикає й поза ним.
+// Збій копії лише журналюється (reportError) і на ігри не впливає. Створюється до buildApp (64): адмінка знімає копію на вимогу тим самим сервісом.
+const backups = r2 !== null && backupsEnabled(process.env) ? dbBackups({ db, store: r2BackupStore(r2), commit: process.env.RENDER_GIT_COMMIT ?? null }) : null;
 const { app, shutdown } = await buildApp({
   db,
   auth: {
@@ -151,6 +155,7 @@ const { app, shutdown } = await buildApp({
   adminEmails: admins,
   // Список копій бази для блоку «Стан» адмінки (53); без R2 — немає.
   backupList: r2 !== null ? () => r2BackupStore(r2).list() : undefined,
+  backups: backups ?? undefined,
   // Розклад ігор бота (56): хвилинний тікер на цьому (єдиному) екземплярі. Два екземпляри під час розгортання не відкриють план
   // двічі: кожна зміна стану — умовний update «where status = …», а кімнату, яку не вдалося забрати, служба одразу закриває.
   botScheduleTicker: true,
@@ -159,10 +164,6 @@ await app.listen({ port, host: '0.0.0.0' });
 // Стрічка (18a): події завершених ігор за 90 днів дописуються у фоні, старт їх не чекає. Ідемпотентно (ключі), тож іде на кожному
 // старті, і обірване зупинкою дописування продовжить наступний; бейджа не запалює (created_at = at). Збій лише журналюється.
 void backfillFeed(db, new Date()).catch((error: unknown) => reportError(error, { where: 'feed-backfill' }));
-// Резервні копії бази (35): щотижня в той самий кошик R2 під backups/db/; перша перевірка через 5 хвилин після старту, далі щогодини.
-// Лише в продакшені (локальна база з ключами R2 у .env не має підміняти копії продакшену); DB_BACKUP=off вимикає, DB_BACKUP=on вмикає й поза ним.
-// Збій копії лише журналюється (reportError) і на ігри не впливає.
-const backups = r2 !== null && backupsEnabled(process.env) ? dbBackups({ db, store: r2BackupStore(r2), commit: process.env.RENDER_GIT_COMMIT ?? null }) : null;
 backups?.start();
 if (backups !== null) log.info('Резервні копії бази: щотижня в R2 (backups/db/).');
 else if (process.env.NODE_ENV === 'production') log.warn(r2 === null ? 'Резервні копії бази вимкнені: немає R2.' : 'Резервні копії бази вимкнені (DB_BACKUP=off).');

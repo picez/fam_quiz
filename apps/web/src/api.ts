@@ -10,6 +10,7 @@ import type { Locale } from '@quiz/shared';
 import type { QuestionBankPage, QuestionType } from '@quiz/shared';
 import type { ChallengeAttemptStart, ChallengeCheck, ChallengeMine, ChallengePreview, ChallengeResultRow } from '@quiz/shared';
 import type { GroupDetail, GroupInput, GroupInviteCard, GroupItem, GroupItemInput, GroupJoinPreview, GroupsPage, GroupUsesInput } from '@quiz/shared';
+import type { MyProblemReport, ProblemReportInput } from '@quiz/shared';
 
 export type ApiResult<T> = ({ ok: true } & T) | { ok: false; error: string };
 export type ApiData<T> = { ok: true; data: T } | { ok: false; error: string };
@@ -324,3 +325,21 @@ export const acceptGroupInvite = (id: string) =>
 export const declineGroupInvite = (id: string) => request<object>(`/api/me/group-invites/${encodeURIComponent(id)}`, { method: 'DELETE' });
 /** Частки гравців, які мають кожне досягнення (49): окремий запит, профіль його не чекає. */
 export const getAchievementShares = () => fetchData<AchievementShares>('/api/achievements/shares');
+
+/**
+ * «Повідомити про проблему» (64). 429 буває двох видів: ліміт цієї людини (problem_rate) і всіх гостей разом
+ * (problem_busy) — сторінка пояснює їх по-різному, тож тіло 429 тут читається, а не зводиться до too_many.
+ */
+export async function sendProblemReport(input: ProblemReportInput): Promise<ApiResult<{ id: string }>> {
+  try {
+    const response = await fetch('/api/problem-reports', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(input) });
+    const data: unknown = await response.json().catch(() => null);
+    if (response.status === 429) return { ok: false, error: isObjectLike(data) && data.error === 'problem_busy' ? 'problem_busy' : 'problem_rate' };
+    if (!response.ok || !isObjectLike(data) || typeof data.id !== 'string') return { ok: false, error: errorCode(data) };
+    return { ok: true, id: data.id };
+  } catch {
+    return { ok: false, error: 'offline' };
+  }
+}
+/** Свої скарги з відповідями адміністратора (64); гість отримує unauthorized. */
+export const myProblemReports = () => fetchData<MyProblemReport[]>('/api/me/problem-reports');

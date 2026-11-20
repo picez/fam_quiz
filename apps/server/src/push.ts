@@ -17,12 +17,12 @@ export interface PushOptions {
 /** Відправник: статус відповіді push-сервісу (201 — ок, 404/410 — підписка мертва). Кидати не повинен; мережева помилка → status 0. */
 export type PushSend = (target: PushTarget, payload: string, options: PushOptions) => Promise<{ status: number }>;
 
-export const PUSH_TTL = { reminder: 3600, opened: 21_600, cancelled: 86_400, bot: 3600, broadcast: 86_400 } as const;
-/** Повільні види (не терміново): скасування й розсилка адміна. */
+export const PUSH_TTL = { reminder: 3600, opened: 21_600, cancelled: 86_400, bot: 3600, broadcast: 86_400, problem_reply: 86_400 } as const;
+/** Повільні види (не терміново): скасування, розсилка адміна й відповідь на скаргу (64). */
 /** Скільки пушів летить одночасно (8). */
 const PUSH_CHUNK = 50;
 
-const NORMAL_URGENCY: ReadonlySet<PushPayload['kind']> = new Set(['cancelled', 'broadcast']);
+const NORMAL_URGENCY: ReadonlySet<PushPayload['kind']> = new Set(['cancelled', 'broadcast', 'problem_reply']);
 
 /** Підсумок відправки у пристроях (підписках): delivered — 2xx, failed — усе інше (404/410, інший статус, виняток). */
 export interface PushCount {

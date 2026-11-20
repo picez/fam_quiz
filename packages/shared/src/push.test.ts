@@ -95,3 +95,14 @@ describe('broadcast push (59)', () => {
     expect(PUSH_KINDS).toContain('broadcast');
   });
 });
+
+describe('problem reply push (64)', () => {
+  it('a reply push: a report id and the reply text', () => {
+    const r = { kind: 'problem_reply', reportId: 'R', text: 'Виправили, дякуємо!' };
+    expect(pushPayloadSchema.safeParse(r).success).toBe(true);
+    expect(pushPayloadSchema.safeParse({ ...r, locale: 'de' }).success).toBe(true);
+    const { text: _text, ...noText } = r;
+    expect(pushPayloadSchema.safeParse(noText).success).toBe(false);
+    expect(PUSH_KINDS).toContain('problem_reply');
+  });
+});

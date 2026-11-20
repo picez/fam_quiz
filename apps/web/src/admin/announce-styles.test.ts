@@ -41,3 +41,12 @@ describe('53 fix wave styles', () => {
     expect(rule('.announce-banner .announce-close:focus-visible {')).toContain('var(--accent)');
   });
 });
+
+describe('64 fix wave styles', () => {
+  it('the «Збої» view and filter buttons use the compact tab padding, so two fit in a row at 360 px', () => {
+    const block = rule('.admin-errors-views .btn,\n.admin-errors-filter .btn {');
+    expect(block).toContain('padding: 0.5rem 1rem');
+    expect(block).toContain('flex: 1 1 auto');
+    expect(block).toContain('min-height: 2.75rem');
+  });
+});

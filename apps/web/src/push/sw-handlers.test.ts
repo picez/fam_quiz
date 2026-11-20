@@ -93,6 +93,15 @@ describe('onPush', () => {
     );
   });
 
+  it('shows a problem reply under its own tag', async () => {
+    const scope = fakeScope();
+    await onPush(scope, { json: () => ({ kind: 'problem_reply', reportId: 'R', text: 'Виправили' }) }, 'Europe/Kyiv');
+    expect(scope.registration.showNotification).toHaveBeenCalledWith(
+      'Відповідь на твоє повідомлення',
+      expect.objectContaining({ body: 'Виправили', tag: 'problem-R', data: { url: '/report' } }),
+    );
+  });
+
   it('shows a generic notice for an invalid payload, keeping a string title', async () => {
     const scope = fakeScope();
     await onPush(scope, { json: () => ({ kind: 'liked', title: 'Привіт' }) }, 'Europe/Kyiv');
@@ -125,6 +134,10 @@ describe('isPushPayload', () => {
     expect(isPushPayload({ kind: 'opened', eventId: 'E', title: 'T' })).toBe(false);
     expect(isPushPayload({ kind: 'reminder', eventId: 'E', title: 'T', startsAt: 5 })).toBe(false);
     expect(isPushPayload({ kind: 'liked', eventId: 'E', title: 'T' })).toBe(false);
+    const reply = { kind: 'problem_reply', reportId: 'R', text: 'X' };
+    expect(isPushPayload(reply)).toBe(true);
+    expect(isPushPayload({ ...reply, text: undefined })).toBe(false);
+    expect(isPushPayload({ ...reply, reportId: undefined })).toBe(false);
     const bot = { kind: 'bot', planId: 'P', title: 'T', startsAt: 'x', code: null };
     expect(isPushPayload(bot)).toBe(true);
     expect(isPushPayload({ ...bot, code: '123456' })).toBe(true);

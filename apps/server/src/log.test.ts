@@ -1,7 +1,7 @@
 import { Writable } from 'node:stream';
 import { pino } from 'pino';
 import { describe, expect, it, vi } from 'vitest';
-import { guarded, log, LOG_REDACT, logLevel, reportError, setErrorReporter } from './log';
+import { guarded, log, LOG_REDACT, logLevel, reportError, setErrorReporter, setErrorSink } from './log';
 
 describe('log redaction (30a)', () => {
   it('hides query details, parameters and secrets of database errors', () => {
@@ -52,6 +52,48 @@ describe('reportError (30a)', () => {
       expect(run).not.toThrow();
       expect(hook).toHaveBeenCalledTimes(2);
     } finally {
+      unhook();
+      log.level = level;
+    }
+  });
+});
+
+describe('error sink (64)', () => {
+  it('reportError reaches the sink after the reporter, and a throwing sink is swallowed', () => {
+    const level = log.level;
+    log.level = 'silent';
+    const order: string[] = [];
+    const unhookReporter = setErrorReporter(() => order.push('reporter'));
+    const unsink = setErrorSink((error, context) => {
+      order.push(`sink:${(error as Error).message}:${context.where}`);
+      throw new Error('sink');
+    });
+    try {
+      expect(() => reportError(new Error('boom'), { where: 'socket' })).not.toThrow();
+      expect(order).toEqual(['reporter', 'sink:boom:socket']);
+      unsink();
+      reportError(new Error('later'), { where: 'socket' });
+      expect(order).toEqual(['reporter', 'sink:boom:socket', 'reporter']);
+    } finally {
+      unsink();
+      unhookReporter();
+      log.level = level;
+    }
+  });
+
+  it('a throwing reporter still lets the sink run', () => {
+    const level = log.level;
+    log.level = 'silent';
+    const sink = vi.fn();
+    const unhook = setErrorReporter(() => {
+      throw new Error('hook');
+    });
+    const unsink = setErrorSink(sink);
+    try {
+      reportError(new Error('x'), { where: 'process' });
+      expect(sink).toHaveBeenCalledTimes(1);
+    } finally {
+      unsink();
       unhook();
       log.level = level;
     }
