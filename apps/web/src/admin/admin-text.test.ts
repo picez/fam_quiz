@@ -26,6 +26,9 @@ describe('logLine', () => {
     expect(logLine(entry({ details: { reason: null } }))).toBe('Адмін заблокував(-ла) Богдан');
     expect(logLine(entry({ kind: 'unban' }))).toBe('Адмін розблокував(-ла) Богдан');
   });
+  it('writes a quiz view', () => {
+    expect(logLine(entry({ kind: 'quiz_view', target: 'Оля', details: { title: 'Карпати' } }))).toBe('Адмін переглянув(-ла) вікторину «Карпати» (Оля)');
+  });
   it('writes a quiz delete', () => {
     expect(logLine(entry({ kind: 'quiz_delete', details: { title: 'Карпати' } }))).toBe('Адмін видалив(-ла) вікторину «Карпати» (Богдан)');
   });

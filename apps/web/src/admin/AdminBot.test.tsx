@@ -18,7 +18,7 @@ const room = (over: Partial<AdminBotRoom> = {}): AdminBotRoom => ({
   openedAt: '2026-11-19T09:00:00.000Z',
   ...over,
 });
-const quiz = (over: Partial<AdminBotQuiz> = {}): AdminBotQuiz => ({ id: QUIZ_ID, title: 'Річки України', rounds: 2, questions: 10, truth: false, updatedAt: '2026-11-18T10:00:00.000Z', ...over });
+const quiz = (over: Partial<AdminBotQuiz> = {}): AdminBotQuiz => ({ id: QUIZ_ID, title: 'Річки України', rounds: 2, questions: 10, truth: false, updatedAt: '2026-11-18T10:00:00.000Z', check: null, ...over });
 const bot = (over: Partial<AdminBotData> = {}): AdminBotData => ({ bot: { nickname: 'Квіз-бот', ready: true }, quizzes: [quiz()], rooms: [], roomsMax: 3, schedule: { plans: [], groups: [], max: 20 }, ...over });
 
 type Reply = { status: number; body?: unknown };
@@ -107,7 +107,7 @@ describe('AdminBot', () => {
     const item = (await screen.findByRole('heading', { name: 'Річки України' })).closest('li') as HTMLElement;
     expect(within(item).getByText('2 раунди · 10 запитань')).toBeTruthy();
     fireEvent.click(within(item).getByRole('button', { name: 'Запустити гру' }));
-    expect((await screen.findByRole('status')).textContent).toBe('Кімнату 654321 створено.');
+    expect((await screen.findByText('Кімнату 654321 створено.')).getAttribute('role')).toBe('status');
     expect(sent('POST', `/api/admin/bot/quizzes/${QUIZ_ID}/games`)).toHaveLength(1);
     await waitFor(() => expect(sent('GET', '/api/admin/bot')).toHaveLength(2));
   });
@@ -126,7 +126,7 @@ describe('AdminBot', () => {
     open();
     const own = (await screen.findByRole('heading', { name: 'Карпати' })).closest('li') as HTMLElement;
     fireEvent.click(within(own).getByRole('button', { name: 'Передати боту копію' }));
-    expect((await screen.findByRole('status')).textContent).toBe('Копію «Карпати» передано боту.');
+    expect((await screen.findByText('Копію «Карпати» передано боту.')).getAttribute('role')).toBe('status');
     expect(sent('POST', '/api/admin/bot/copies')[0]?.body).toEqual({ quizId: OWN_ID });
     await waitFor(() => expect(sent('GET', '/api/admin/bot')).toHaveLength(2));
   });
@@ -167,6 +167,16 @@ describe('AdminBot', () => {
     expect(rooms.compareDocumentPosition(schedule) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(schedule.compareDocumentPosition(quizzes) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(schedule.closest('section')?.classList.contains('admin-bot-schedule')).toBe(true);
+  });
+
+  it('each bot quiz has a preview link', async () => {
+    const other = '33333333-3333-4333-8333-333333333333';
+    replies['GET /api/admin/bot'] = { status: 200, body: bot({ quizzes: [quiz(), quiz({ id: other, title: 'Карпати' })] }) };
+    open();
+    const first = (await screen.findByRole('heading', { name: 'Річки України' })).closest('li') as HTMLElement;
+    expect(within(first).getByRole('link', { name: 'Переглянути: Річки України' }).getAttribute('href')).toBe(`/admin/bot/quizzes/${QUIZ_ID}`);
+    const second = screen.getByRole('heading', { name: 'Карпати' }).closest('li') as HTMLElement;
+    expect(within(second).getByRole('link', { name: 'Переглянути: Карпати' }).getAttribute('href')).toBe(`/admin/bot/quizzes/${other}`);
   });
 
   it('the bot avatar is the bot picture', async () => {
@@ -250,5 +260,57 @@ describe('AdminBot', () => {
     fireEvent.click(within(own).getByRole('button', { name: 'Передати боту копію' }));
     expect((await screen.findByRole('alert')).textContent).toBe('Акаунт бота недоступний: його пошту займає інший користувач.');
     expect(errorText('bot_unavailable')).not.toBe(t('err_unknown'));
+  });
+
+  it('a bot quiz with errors shows ⚠ N', async () => {
+    replies['GET /api/admin/bot'] = {
+      status: 200,
+      body: bot({
+        quizzes: [
+          quiz({ check: { errors: 3, warnings: 0 } }),
+          quiz({ id: '44444444-4444-4444-8444-444444444444', title: 'Карпати', check: { errors: 0, warnings: 2 } }),
+          quiz({ id: '55555555-5555-4555-8555-555555555555', title: 'Дніпро', check: null }),
+        ],
+      }),
+    };
+    open();
+    const item = (await screen.findByRole('heading', { name: 'Річки України' })).closest('li') as HTMLElement;
+    const badge = within(item).getByText('⚠ 3');
+    expect(badge.getAttribute('aria-label')).toBe(t('adminCheckBadge', { count: 3 }));
+    expect(screen.getAllByText(/⚠/)).toHaveLength(1);
+    expect(within(item).getByRole('link', { name: 'Переглянути: Річки України' })).toBeTruthy();
+  });
+
+  it('launching a quiz with errors asks first', async () => {
+    replies['GET /api/admin/bot'] = { status: 200, body: bot({ quizzes: [quiz({ check: { errors: 3, warnings: 0 } })] }) };
+    replies[`POST /api/admin/bot/quizzes/${QUIZ_ID}/games`] = { status: 201, body: { code: '654321', stageUrl: '/stage/654321#t' } };
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
+    open();
+    fireEvent.click(await screen.findByRole('button', { name: 'Запустити гру' }));
+    expect(confirm).toHaveBeenCalledWith(t('adminCheckLaunchConfirm', { title: 'Річки України', count: 3 }));
+    expect(sent('POST', `/api/admin/bot/quizzes/${QUIZ_ID}/games`)).toHaveLength(0);
+    confirm.mockReturnValue(true);
+    fireEvent.click(screen.getByRole('button', { name: 'Запустити гру' }));
+    await screen.findByText('Кімнату 654321 створено.');
+    expect(sent('POST', `/api/admin/bot/quizzes/${QUIZ_ID}/games`)).toHaveLength(1);
+  });
+
+  it('launching a quiz without errors does not ask', async () => {
+    replies['GET /api/admin/bot'] = { status: 200, body: bot({ quizzes: [quiz({ check: { errors: 0, warnings: 1 } })] }) };
+    replies[`POST /api/admin/bot/quizzes/${QUIZ_ID}/games`] = { status: 201, body: { code: '654321', stageUrl: '/stage/654321#t' } };
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    open();
+    fireEvent.click(await screen.findByRole('button', { name: 'Запустити гру' }));
+    await screen.findByText('Кімнату 654321 створено.');
+    expect(confirm).not.toHaveBeenCalled();
+  });
+
+  it('a check from the list reloads the bot list', async () => {
+    replies[`POST /api/admin/quizzes/${QUIZ_ID}/check`] = { status: 200, body: { quizId: QUIZ_ID, checkedAt: '2026-11-19T10:00:00.000Z', errors: 1, warnings: 0, issues: [] } };
+    open();
+    const item = (await screen.findByRole('heading', { name: 'Річки України' })).closest('li') as HTMLElement;
+    fireEvent.click(within(item).getByRole('button', { name: 'Перевірити: Річки України' }));
+    await waitFor(() => expect(sent('POST', `/api/admin/quizzes/${QUIZ_ID}/check`)).toHaveLength(1));
+    await waitFor(() => expect(sent('GET', '/api/admin/bot')).toHaveLength(2));
   });
 });

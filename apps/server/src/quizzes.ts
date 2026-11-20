@@ -47,9 +47,14 @@ export async function listQuizzes(db: Db, ownerId: string): Promise<QuizSummary[
 
 type QuizRow = typeof quiz.$inferSelect;
 
-export function quizOf(row: Pick<QuizRow, 'title' | 'description' | 'settings' | 'rounds'>): Quiz {
+/** Вікторина з рядка як є, без схеми (57: перевірка адміна бачить і зламані старі вікторини). */
+export function storedQuizOf(row: Pick<QuizRow, 'title' | 'description' | 'settings' | 'rounds'>): Quiz {
   const { duels, spares, ...settings } = row.settings;
-  const stored = { title: row.title, description: row.description, settings, rounds: row.rounds, ...(duels === undefined ? {} : { duels }), ...(spares === undefined ? {} : { spares }) };
+  return { title: row.title, description: row.description, settings, rounds: row.rounds, ...(duels === undefined ? {} : { duels }), ...(spares === undefined ? {} : { spares }) };
+}
+
+export function quizOf(row: Pick<QuizRow, 'title' | 'description' | 'settings' | 'rounds'>): Quiz {
+  const stored = storedQuizOf(row);
   // Схема дописує типові значення в старих вікторинах; зламаний рядок лишається як є.
   const parsed = quizSchema.safeParse(stored);
   return parsed.success ? parsed.data : stored;

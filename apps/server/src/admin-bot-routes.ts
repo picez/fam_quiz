@@ -11,6 +11,7 @@ import { botGroups, listPlans } from './bot-plan-store';
 import { logAction } from './bans';
 import { profile, user } from './db/schema';
 import { createQuiz, deleteQuiz, getQuiz } from './quizzes';
+import type { QuizChecker } from './quiz-check';
 import type { Room } from './rooms/manager';
 
 const NOT_FOUND = { error: 'not_found' };
@@ -20,6 +21,7 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const ROOM_CODE = /^\d{6}$/;
 
 interface Guards {
+  checker: QuizChecker;
   read: RouteShorthandOptions;
   write: RouteShorthandOptions;
   adminOf: (request: FastifyRequest) => Promise<CurrentUser | null>;
@@ -59,7 +61,7 @@ export async function registerAdminBotRoutes(app: FastifyInstance, deps: AdminDe
       .sort((x, y) => Number(x.view.status === 'finished') - Number(y.view.status === 'finished') || y.opened - x.opened);
     return {
       bot: { nickname: row?.nickname ?? null, ready: row !== undefined },
-      quizzes: await botQuizzes(db),
+      quizzes: await botQuizzes(db, guards.checker),
       rooms: rooms.map((item) => item.view),
       roomsMax: BOT_ROOMS_MAX,
       schedule: { plans: await listPlans(db), groups: await botGroups(db), max: BOT_PLANS_MAX },

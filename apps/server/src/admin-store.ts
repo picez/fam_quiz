@@ -22,7 +22,8 @@ import { escapeLike } from './library-store';
 import type { Db } from './db/client';
 import { adminAction, game, prize, prizeAward, profile, quiz, user, userBan, userTitle } from './db/schema';
 import { ensureProfile } from './profiles';
-import { quizOf } from './quizzes';
+import { quizOf, storedQuizOf } from './quizzes';
+import type { QuizChecker } from './quiz-check';
 import { removalEffects } from './quiz-remove';
 import { kyivDay } from './xp-rules';
 
@@ -151,7 +152,7 @@ export async function adminUser(db: Db, emails: ReadonlySet<string>, id: string,
 }
 
 /** Вікторини бота для вкладки «Бот» (54): нові першими. */
-export async function botQuizzes(db: Db): Promise<AdminBotQuiz[]> {
+export async function botQuizzes(db: Db, checker: Pick<QuizChecker, 'last'>): Promise<AdminBotQuiz[]> {
   const rows = await db.select().from(quiz).where(eq(quiz.ownerId, BOT_USER_ID)).orderBy(desc(quiz.updatedAt), quiz.id);
   return rows.map((row) => ({
     id: row.id,
@@ -160,6 +161,7 @@ export async function botQuizzes(db: Db): Promise<AdminBotQuiz[]> {
     questions: questionsOf(row).length,
     truth: hasTruthRound(row),
     updatedAt: iso(row.updatedAt),
+    check: lastCheckOf(checker, row.id, row.updatedAt),
   }));
 }
 
@@ -201,6 +203,18 @@ export async function adminQuizzes(db: Db, query: { q?: string; page: number }):
     });
   }
   return { rows: result, total, page: query.page, pages: adminPages(total) };
+}
+
+function lastCheckOf(checker: Pick<QuizChecker, 'last'>, id: string, updatedAt: Date): { errors: number; warnings: number } | null {
+  const last = checker.last(id, updatedAt);
+  return last === null ? null : { errors: last.errors, warnings: last.warnings };
+}
+
+/** Вікторина як у базі, без схеми (57): перевірка бачить і зламані старі; не uuid — null. */
+export async function adminQuizRaw(db: Db, id: string): Promise<{ ownerId: string; title: string; updatedAt: Date; raw: unknown } | null> {
+  if (!UUID.test(id)) return null;
+  const [row] = await db.select().from(quiz).where(eq(quiz.id, id));
+  return row === undefined ? null : { ownerId: row.ownerId, title: row.title, updatedAt: row.updatedAt, raw: storedQuizOf(row) };
 }
 
 export async function adminQuiz(db: Db, id: string): Promise<AdminQuizView | null> {

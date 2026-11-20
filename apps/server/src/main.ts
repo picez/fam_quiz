@@ -13,6 +13,7 @@ import { r2Storage, type R2Settings } from './storage/r2';
 import { backupsEnabled, dbBackups, r2BackupStore } from './db-backup';
 import { webPushSender } from './web-push-sender';
 import { log, reportError } from './log';
+import { systemResolve } from './url-guard';
 
 function required(name: string): string {
   const value = process.env[name];
@@ -135,6 +136,10 @@ const { app, shutdown } = await buildApp({
   // Стиснення кадрів WebSocket (30c) увімкнено; SOCKET_DEFLATE=off вимикає, якщо бракує пам'яті.
   socketDeflate: process.env.SOCKET_DEFLATE !== 'off',
   storage,
+  // Єдине місце, де перевірка вікторин (57) ходить у справжню мережу.
+  // Без закріплення адреси: другий DNS-запит fetch — прийнятий ризик, див. guardTarget у url-guard.ts.
+  checkFetch: (url, init) => fetch(url, init),
+  checkResolve: systemResolve,
   stickerFixtures,
   webRoot: existsSync(built) ? built : undefined,
   // Єдине місце, де вмикаються заставки переходів справжньої гри (8c).
