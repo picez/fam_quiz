@@ -923,3 +923,40 @@ describe('bot plan (56)', () => {
     expect(kept).toMatchObject({ id: row.id, title: 'Q', quizId: null, groupId: null, createdBy: null });
   });
 });
+
+describe('player card (58)', () => {
+  const gameId = '55555555-5555-4555-8555-555555555555';
+  const prizeId = '66666666-6666-4666-8666-666666666666';
+
+  it('migration 0043 adds the block table and columns over an older database, old rows stay', async () => {
+    const { achievementBlock, prizeAward, xpEntry } = await import('./schema');
+    const { db, migrateRest } = await createTestDbUpTo('0042_bot_plan');
+    await db.insert(user).values({ id: 'u1', name: 'Олена', email: 'olena@example.com' });
+    await db.execute(sql`
+      INSERT INTO "xp_entry" ("user_id", "source", "game_id", "amount", "day", "at", "created_at")
+      VALUES ('u1', 'game', ${gameId}, 120, '2026-11-19', now(), now())`);
+    await db.execute(sql`
+      INSERT INTO "prize_award" ("user_id", "prize_id", "game_id", "place", "content", "quiz_title", "nickname", "awarded_at")
+      VALUES ('u1', ${prizeId}, ${gameId}, 1, ${JSON.stringify({ name: 'Кубок', trophy: null, engraving: null, real: null, title: null, diploma: true })}::jsonb, 'Вікторина', 'Олена', now())`);
+
+    await migrateRest();
+
+    const [xp] = await db.select().from(xpEntry);
+    expect(xp).toMatchObject({ source: 'game', amount: 120, note: null });
+    const [award] = await db.select().from(prizeAward);
+    expect(award).toMatchObject({ quizTitle: 'Вікторина', gift: false, giftNote: null });
+    expect(await db.select().from(achievementBlock)).toEqual([]);
+  });
+
+  it('a block goes with the account', async () => {
+    const { achievementBlock } = await import('./schema');
+    const db = await createTestDb();
+    const T = new Date('2026-11-20T10:00:00.000Z');
+    await db.insert(user).values({ id: 'u1', name: 'Олена', email: 'olena@example.com' });
+    await db.insert(achievementBlock).values({ userId: 'u1', achievementId: 'games_10', blockedAt: T });
+    expect(await db.select().from(achievementBlock)).toEqual([{ userId: 'u1', achievementId: 'games_10', blockedAt: T }]);
+
+    await db.delete(user).where(eq(user.id, 'u1'));
+    expect(await db.select().from(achievementBlock)).toEqual([]);
+  });
+});

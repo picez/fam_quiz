@@ -6,7 +6,7 @@ import * as games from './achievement-games';
 import { achievementsPage, antiHidden, awardedIn, awardGame, careerFacts, setHideAnti, syncAchievements } from './achievement-store';
 import type { Db } from './db/client';
 import { setErrorReporter } from './log';
-import { PENALTY_ATTEMPT, profile, quiz, user, userAchievement, xpEntry } from './db/schema';
+import { achievementBlock, PENALTY_ATTEMPT, profile, quiz, user, userAchievement, xpEntry } from './db/schema';
 import * as history from './history';
 import { publicProfile, setFollow } from './profiles';
 import { seedGame, type SeedPlayer } from './testing/history-rows';
@@ -841,7 +841,10 @@ describe('33: history fill-in', () => {
       { userId: me, achievementId: 'first_game', earnedAt: null, gameId: null },
       { userId: me, achievementId: 'sniper', earnedAt: new Date('2026-10-01T19:00:00Z'), gameId },
     ]);
-    await creditAchievements(old, me);
+    // Досвід за них — теж сирим SQL: схема коду має xp_entry.note (58), а база ще на 0035.
+    await old.execute(sql`insert into xp_entry (user_id, source, achievement_id, amount, day, at, created_at) values
+      (${me}, 'achievement', 'first_game', 25, '2026-10-02', null, ${before.toISOString()}),
+      (${me}, 'achievement', 'sniper', 50, '2026-10-01', '2026-10-01T19:00:00Z', ${before.toISOString()})`);
     const xpOf = async (ids: string[]) =>
       (await old.select({ id: xpEntry.achievementId, amount: xpEntry.amount }).from(xpEntry).where(eq(xpEntry.userId, me))).filter((e) => ids.includes(e.id ?? '')).reduce((sum, e) => sum + e.amount, 0);
     expect(await xpOf(['first_note', 'classic_clean'])).toBe(0);
@@ -870,5 +873,82 @@ describe('33: history fill-in', () => {
     const awarded = (await awardGame(old, next.gameId)).get(me) ?? [];
     expect(awarded).not.toContain('first_note');
     expect(awarded).not.toContain('classic_clean');
+  });
+});
+
+describe('blocked achievements (58)', () => {
+  const BLOCKED_AT = new Date('2026-11-20T10:00:00Z');
+
+  /** Десять завершених ігор (є games_10); день за днем від day. */
+  async function tenGames(me: string, month: string) {
+    for (const i of range(10)) await playGame(me, new Date(`2026-${month}-${String(i + 1).padStart(2, '0')}T18:00:00Z`));
+  }
+  async function takeAway(me: string, block: boolean) {
+    await db.delete(userAchievement).where(and(eq(userAchievement.userId, me), eq(userAchievement.achievementId, 'games_10')));
+    if (block) await db.insert(achievementBlock).values({ userId: me, achievementId: 'games_10', blockedAt: BLOCKED_AT });
+  }
+  const hasGames10 = async (me: string) => (await rowsOf(me)).some((r) => r.achievementId === 'games_10');
+  const games10Xp = (me: string) =>
+    db
+      .select()
+      .from(xpEntry)
+      .where(and(eq(xpEntry.userId, me), eq(xpEntry.source, 'achievement'), eq(xpEntry.achievementId, 'games_10')));
+
+  it('a blocked career achievement is not written back', async () => {
+    const me = 'store-block-career';
+    await addUser(me, 'Ірина');
+    await tenGames(me, '06');
+    expect((await read(me)).earned.has('games_10')).toBe(true);
+    await takeAway(me, true);
+
+    const again = await read(me);
+    expect(again.earned.has('games_10')).toBe(false);
+    expect(again.fresh).not.toContain('games_10');
+    const page = await achievementsPage(db, me, true);
+    expect(page?.items.find((i) => i.id === 'games_10')?.earned).toBe(false);
+    expect(await hasGames10(me)).toBe(false);
+    await creditAchievements(db, me);
+    expect(await games10Xp(me)).toEqual([]);
+  });
+
+  it('the first pass without a mark skips it too', async () => {
+    const me = 'store-block-first';
+    await addUser(me, 'Леся');
+    await tenGames(me, '07');
+    await db.insert(achievementBlock).values({ userId: me, achievementId: 'games_10', blockedAt: BLOCKED_AT });
+    const [own] = await db.select().from(profile).where(eq(profile.userId, me));
+    expect(own?.achievementsSyncedAt ?? null).toBeNull();
+
+    const first = await read(me);
+    expect(first.earned.has('first_game')).toBe(true);
+    expect(first.earned.has('games_10')).toBe(false);
+    expect(await hasGames10(me)).toBe(false);
+  });
+
+  it('a finished game does not bring it back', async () => {
+    const me = 'store-block-game';
+    await addUser(me, 'Дарина');
+    await tenGames(me, '08');
+    await read(me);
+    expect((await rowsOf(me)).some((r) => r.achievementId === 'fast_answer')).toBe(false);
+    await takeAway(me, true);
+
+    const { gameId } = await playGame(me, new Date('2026-08-20T18:00:00Z'), { timeMs: 1500 });
+    const awarded = await awardGame(db, gameId);
+    expect(awarded.get(me)).toContain('fast_answer');
+    expect(awarded.get(me)).not.toContain('games_10');
+    expect(await hasGames10(me)).toBe(false);
+    expect((await rowsOf(me)).find((r) => r.achievementId === 'fast_answer')).toMatchObject({ gameId });
+  });
+
+  it('without a block it is written again', async () => {
+    const me = 'store-block-none';
+    await addUser(me, 'Софія');
+    await tenGames(me, '09');
+    await read(me);
+    await takeAway(me, false);
+
+    expect((await read(me)).earned.has('games_10')).toBe(true);
+    expect(await hasGames10(me)).toBe(true);
   });
 });

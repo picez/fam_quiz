@@ -1,4 +1,5 @@
 import {
+  ADMIN_CARD_XP,
   ACHIEVEMENT_XP,
   ACHIEVEMENTS,
   achievementRarity,
@@ -22,6 +23,7 @@ import {
   type StickerExtra,
   type XpLine,
   isBotUser,
+  type XpAdminLine,
 } from '@quiz/shared';
 import { and, asc, eq, gt, inArray, isNotNull, isNull, lte, notExists, or, sql } from 'drizzle-orm';
 import { loadAchievementGames, type AchievementGame } from './achievement-games';
@@ -435,10 +437,20 @@ async function synced(db: Db, userId: string): Promise<void> {
   }
 }
 
+/** 58: ручні зміни досвіду від адміна — з рядків, упорядкованих за часом, новіші першими, до ADMIN_CARD_XP. */
+function adminLines(entries: { at: Date | null; amount: number; source: string; note: string | null }[]): XpAdminLine[] {
+  const lines: XpAdminLine[] = [];
+  for (let i = entries.length - 1; i >= 0 && lines.length < ADMIN_CARD_XP; i--) {
+    const { source, at, amount, note } = entries[i];
+    if (source === 'admin' && at !== null) lines.push({ amount, note: note ?? '', at: at.toISOString() });
+  }
+  return lines;
+}
+
 export async function ownLevel(db: Db, userId: string): Promise<OwnLevel> {
   await synced(db, userId);
   const entries = await db
-    .select({ at: xpEntry.at, amount: xpEntry.amount })
+    .select({ at: xpEntry.at, amount: xpEntry.amount, source: xpEntry.source, note: xpEntry.note })
     .from(xpEntry)
     .where(eq(xpEntry.userId, userId))
     .orderBy(sql`${xpEntry.at} asc nulls first`, asc(xpEntry.id));
@@ -450,6 +462,7 @@ export async function ownLevel(db: Db, userId: string): Promise<OwnLevel> {
     unlocked: rewardsUpTo(progress.level).map(({ level, reward }) => ({ level, reward, at: times.get(level)?.toISOString() ?? null })),
     next: nextRewards(progress.level),
     looks: looksShown(looks, progress.level),
+    adminXp: adminLines(entries),
   };
 }
 

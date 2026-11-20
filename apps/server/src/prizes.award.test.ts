@@ -34,7 +34,7 @@ describe('awardPrizes', () => {
     expect(await listPrizes(db, 'u1')).toEqual([]);
     const { awards: list } = await showcaseOf(db, 'u2');
     expect(list).toHaveLength(1);
-    expect(list[0]).toMatchObject({ place: 1, nickname: 'Оля', quizTitle: 'Україна' });
+    expect(list[0]).toMatchObject({ place: 1, nickname: 'Оля', quizTitle: 'Україна', gift: null });
     expect('name' in list[0]!.content).toBe(false);
   });
 
@@ -110,6 +110,16 @@ describe('awardPrizes', () => {
   it('ignores an outcome for a prize that no longer exists', async () => {
     await run([{ place: 1, prizeId: randomUUID(), winners: [{ userId: 'u2', nickname: 'Оля' }] }]);
     expect(await awards()).toEqual([]);
+  });
+});
+
+describe('a gift in the showcase (58)', () => {
+  it('carries the gift mark and its note', async () => {
+    const id = randomUUID();
+    await db.insert(prizeAward).values({ id, userId: 'u2', prizeId: randomUUID(), gameId: id, place: 1, content: content('Кубок'), quizTitle: '', nickname: 'Оля', awardedAt: at, gift: true, giftNote: 'З днем народження' });
+    const { awards: list } = await showcaseOf(db, 'u2');
+    expect(list).toHaveLength(1);
+    expect(list[0]).toMatchObject({ id, gift: { note: 'З днем народження' } });
   });
 });
 

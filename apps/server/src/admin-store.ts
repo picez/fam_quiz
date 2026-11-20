@@ -133,7 +133,8 @@ export async function adminUsers(db: Db, emails: ReadonlySet<string>, query: { q
   return { rows, total, page: query.page, pages: adminPages(total) };
 }
 
-export async function adminUser(db: Db, emails: ReadonlySet<string>, id: string, now: Date): Promise<AdminUserDetail | null> {
+/** Поки без картки гравця (58): поле card додає читання картки (задача 6 плану 58). */
+export async function adminUser(db: Db, emails: ReadonlySet<string>, id: string, now: Date): Promise<Omit<AdminUserDetail, 'card'> | null> {
   const [row] = await userRows(db, emails, eq(user.id, id), 1, 0);
   if (row === undefined) return null;
   const stock = await db
@@ -146,7 +147,7 @@ export async function adminUser(db: Db, emails: ReadonlySet<string>, id: string,
   return {
     user: row,
     stock: stock.map((p) => ({ id: p.id, content: p.content, status: p.status === 'reserved' ? ('reserved' as const) : ('free' as const), createdAt: iso(p.createdAt) })),
-    awards: awards.map((a) => ({ id: a.id, place: a.place, content: a.content, quizTitle: a.quizTitle, awardedAt: iso(a.awardedAt) })),
+    awards: awards.map((a) => ({ id: a.id, place: a.place, content: a.content, quizTitle: a.quizTitle, awardedAt: iso(a.awardedAt), gift: a.gift ? { note: a.giftNote } : null })),
     title: title ? { text: title.text, until: iso(title.expiresAt) } : null,
   };
 }

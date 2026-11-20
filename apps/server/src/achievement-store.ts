@@ -19,7 +19,7 @@ import { and, count, eq, gt, gte, inArray, isNotNull, isNull, ne, notExists, sql
 import { loadAchievementGames, type AchievementGame } from './achievement-games';
 import { AWAY_DATA_SINCE, bestStreak, careerEarned, careerProgress, friendsPlayedWith, hitFinal, honestStreak, isComeback, isPerfect, winStreak, wonBlitzRound, type CareerFacts } from './achievements';
 import type { Db } from './db/client';
-import { ADJUSTMENT_ATTEMPT, answer, follow, game, groupItem, participant, PENALTY_ATTEMPT, profile, quiz, scoreAdjustment, userAchievement } from './db/schema';
+import { achievementBlock, ADJUSTMENT_ATTEMPT, answer, follow, game, groupItem, participant, PENALTY_ATTEMPT, profile, quiz, scoreAdjustment, userAchievement } from './db/schema';
 import { answeredTypes, answeredTypesAround, gameTables, playerGames, type GameTable } from './history';
 import { achievementsFor } from './host-achievements';
 import { ensureProfile } from './profiles';
@@ -214,14 +214,20 @@ function earnedOf(rows: { id: AchievementId | null; earnedAt: Date | null; gameI
   return earned;
 }
 
-/** Записані ачівки користувача і мітка доповнення історії — одним запитом; без профілю — порожньо й мітки немає. */
-async function storedOf(db: Db, userId: string): Promise<{ earned: EarnedAchievements; syncedAt: Date | null }> {
-  const rows = await db
-    .select({ syncedAt: profile.achievementsSyncedAt, id: userAchievement.achievementId, earnedAt: userAchievement.earnedAt, gameId: userAchievement.gameId })
-    .from(profile)
-    .leftJoin(userAchievement, eq(userAchievement.userId, profile.userId))
-    .where(eq(profile.userId, userId));
-  return { earned: earnedOf(rows), syncedAt: rows[0]?.syncedAt ?? null };
+/**
+ * Записані ачівки користувача і мітка доповнення історії — одним запитом; без профілю — порожньо й мітки немає.
+ * 58: ще й заборонені (забрані адміном) — окремим запитом; їх синхронізація не пише.
+ */
+async function storedOf(db: Db, userId: string): Promise<{ earned: EarnedAchievements; syncedAt: Date | null; blocked: Set<AchievementId> }> {
+  const [rows, blocks] = await Promise.all([
+    db
+      .select({ syncedAt: profile.achievementsSyncedAt, id: userAchievement.achievementId, earnedAt: userAchievement.earnedAt, gameId: userAchievement.gameId })
+      .from(profile)
+      .leftJoin(userAchievement, eq(userAchievement.userId, profile.userId))
+      .where(eq(profile.userId, userId)),
+    db.select({ id: achievementBlock.achievementId }).from(achievementBlock).where(eq(achievementBlock.userId, userId)),
+  ]);
+  return { earned: earnedOf(rows), syncedAt: rows[0]?.syncedAt ?? null, blocked: new Set(blocks.map((row) => row.id)) };
 }
 
 /**
@@ -339,10 +345,12 @@ export async function syncAchievements(
   options: SyncOptions = {},
 ): Promise<{ earned: EarnedAchievements; fresh: AchievementId[]; facts: CareerFacts; inputs: CareerInputs }> {
   // Записане й кар'єра — незалежні читання, поруч; лічильникам потрібне записане (all_types), тож вони — після.
-  const [{ earned, syncedAt }, inputs] = await Promise.all([storedOf(db, userId), options.prepared ?? careerInputs(db, userId)]);
+  const [{ earned, syncedAt, blocked }, inputs] = await Promise.all([storedOf(db, userId), options.prepared ?? careerInputs(db, userId)]);
   const synced = syncedAt !== null;
   const pending: EarnedAchievements = new Map();
   const want = (id: AchievementId, earnedAt: Date | null, gameId: string | null) => {
+    // 58: забране адміном не повертається, доки він не видасть знову.
+    if (blocked.has(id)) return;
     if (!earned.has(id) && !pending.has(id)) pending.set(id, { earnedAt, gameId });
   };
 
