@@ -1,13 +1,13 @@
 // @vitest-environment jsdom
-import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { me } from '../api';
 import { Admin } from './Admin';
-import { adminCharts, adminHealth, adminProblemsBadge, adminStats } from './admin-api';
+import { adminCharts, adminErrors, adminHealth, adminProblemsBadge, adminStats, resolveServerError } from './admin-api';
 
 vi.mock('../api', () => ({ me: vi.fn() }));
-vi.mock('./admin-api', () => ({ adminStats: vi.fn(), adminCharts: vi.fn(), adminHealth: vi.fn(), adminProblemsBadge: vi.fn() }));
+vi.mock('./admin-api', () => ({ adminStats: vi.fn(), adminCharts: vi.fn(), adminHealth: vi.fn(), adminProblemsBadge: vi.fn(), adminErrors: vi.fn(), resolveServerError: vi.fn() }));
 
 const stats = {
   users: { total: 12, new7: 3, new30: 5, online: 2 },
@@ -16,9 +16,9 @@ const stats = {
   topQuizzes: [{ id: 'q', title: 'Карпати', author: 'Оля', games: 6 }],
 };
 
-const open = () =>
+const open = (path = '/admin') =>
   render(
-    <MemoryRouter initialEntries={['/admin']}>
+    <MemoryRouter initialEntries={[path]}>
       <Routes>
         <Route path="/admin/*" element={<Admin />} />
         <Route path="/" element={<p>головна</p>} />
@@ -97,5 +97,26 @@ describe('Admin', () => {
     expect(badge.getAttribute('aria-label')).toBe('Збої, нових: 3');
     expect(badge.closest('a')?.getAttribute('href')).toBe('/admin/errors');
     expect(adminProblemsBadge).toHaveBeenCalled();
+  });
+
+  it('drops the badge right after an error is resolved, without navigating', async () => {
+    vi.mocked(me).mockResolvedValue(account(true));
+    vi.mocked(adminProblemsBadge).mockResolvedValue({ ok: true, data: { errors: 3, reports: 0 } });
+    vi.mocked(adminErrors).mockResolvedValue({
+      ok: true,
+      data: {
+        rows: [{ id: 'e1', where: 'http', what: null, event: null, name: 'Error', message: 'boom', stack: null, count: 1, dayCount: 1, firstAt: '2026-11-20T08:00:00.000Z', lastAt: '2026-11-20T08:00:00.000Z', status: 'new', resolvedBy: null, resolvedAt: null }],
+        page: 1,
+        pages: 1,
+        total: 1,
+      },
+    });
+    vi.mocked(resolveServerError).mockResolvedValue({ ok: true });
+    open('/admin/errors');
+    const nav = await screen.findByRole('navigation', { name: 'Розділи адмінки' });
+    await waitFor(() => expect(nav.querySelector('.menu-badge')?.textContent).toBe('3'));
+    vi.mocked(adminProblemsBadge).mockResolvedValue({ ok: true, data: { errors: 2, reports: 0 } });
+    fireEvent.click(await screen.findByRole('button', { name: 'Позначити як вирішене' }));
+    await waitFor(() => expect(nav.querySelector('.menu-badge')?.textContent).toBe('2'));
   });
 });

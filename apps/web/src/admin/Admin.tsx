@@ -32,10 +32,23 @@ const TABS = [
   { to: '/admin/bot', key: 'adminTabBot', end: false },
 ] as const;
 
-/** Вкладки адмінки; на «Збоях» — бейдж нових збоїв і відкритих скарг (64), перечитується на кожен перехід. */
+const ADMIN_BADGE_EVENT = 'admin-badge';
+
+/** Просить вкладки перечитати бейдж «Збоїв» (64): після «Вирішено» чи відповіді, без переходу. */
+export function refreshAdminBadge(): void {
+  window.dispatchEvent(new Event(ADMIN_BADGE_EVENT));
+}
+
+/** Вкладки адмінки; на «Збоях» — бейдж нових збоїв і відкритих скарг (64), перечитується на кожен перехід і на refreshAdminBadge. */
 function AdminTabs(): JSX.Element {
   const location = useLocation();
   const [fresh, setFresh] = useState(0);
+  const [asked, setAsked] = useState(0);
+  useEffect(() => {
+    const ask = () => setAsked((n) => n + 1);
+    window.addEventListener(ADMIN_BADGE_EVENT, ask);
+    return () => window.removeEventListener(ADMIN_BADGE_EVENT, ask);
+  }, []);
   useEffect(() => {
     let current = true;
     void adminProblemsBadge().then((result) => {
@@ -44,7 +57,7 @@ function AdminTabs(): JSX.Element {
     return () => {
       current = false;
     };
-  }, [location.key]);
+  }, [location.key, asked]);
   return (
     <nav className="admin-tabs" aria-label={t('adminSections')}>
       {TABS.map((tab) => (

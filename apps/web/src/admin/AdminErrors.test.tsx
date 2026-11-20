@@ -13,6 +13,10 @@ let calls: Call[] = [];
 let errors: AdminServerError[];
 let reports: AdminProblemReport[];
 let replied: { status: number; body: unknown };
+let badgeEvents = 0;
+const countBadge = () => {
+  badgeEvents += 1;
+};
 
 const serverError = (over: Partial<AdminServerError> = {}): AdminServerError => ({
   id: ERROR_ID,
@@ -80,9 +84,12 @@ beforeEach(() => {
   errors = [serverError()];
   reports = [];
   replied = { status: 200, body: { pushed: false } };
+  badgeEvents = 0;
+  window.addEventListener('admin-badge', countBadge);
   server();
 });
 afterEach(() => {
+  window.removeEventListener('admin-badge', countBadge);
   cleanup();
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
@@ -109,6 +116,8 @@ describe('AdminErrors', () => {
     await waitFor(() => expect(screen.queryByText('Де: http')).toBeNull());
     expect(calls.some((call) => call.url === `/api/admin/errors/${ERROR_ID}/resolve` && call.method === 'POST')).toBe(true);
     expect(await screen.findByText('Збоїв немає.')).toBeTruthy();
+    expect(screen.getByRole('status').textContent).toBe('Позначено як вирішене.');
+    expect(badgeEvents).toBe(1);
 
     errors = [serverError({ status: 'resolved', resolvedBy: 'Оля', resolvedAt: '2026-11-20T10:00:00.000Z' })];
     fireEvent.click(screen.getByRole('button', { name: 'Вирішені' }));
@@ -146,6 +155,8 @@ describe('AdminErrors', () => {
 
     fireEvent.click(within(guest).getByRole('button', { name: 'Вирішено' }));
     await waitFor(() => expect(calls.some((call) => call.url === '/api/admin/problems/r1/resolve' && call.method === 'POST')).toBe(true));
+    await waitFor(() => expect(screen.getByRole('status').textContent).toBe('Позначено як вирішене.'));
+    expect(badgeEvents).toBe(1);
   });
 
   it('reply to an account', async () => {
@@ -166,6 +177,8 @@ describe('AdminErrors', () => {
     expect(await screen.findByText('На цю скаргу вже відповіли.')).toBeTruthy();
     const post = calls.find((call) => call.url === '/api/admin/problems/r2/reply');
     expect(post).toMatchObject({ method: 'POST', body: { text: 'Виправили, дякуємо!' } });
+    expect(screen.getByRole('status').textContent).toBe('');
+    expect(badgeEvents).toBe(0);
   });
 
   it('a successful reply closes the report', async () => {
@@ -176,8 +189,23 @@ describe('AdminErrors', () => {
     expect(within(card).queryByText(/Сповіщення в автора не ввімкнено/)).toBeNull();
     fireEvent.change(within(card).getByLabelText('Відповідь автору'), { target: { value: 'Виправили, дякуємо!' } });
     reports = [];
+    replied = { status: 200, body: { pushed: true } };
     fireEvent.click(within(card).getByRole('button', { name: 'Надіслати відповідь' }));
     expect(await screen.findByText('Скарг немає.')).toBeTruthy();
+    expect(screen.getByRole('status').textContent).toBe('Відповідь надіслано.');
+    expect(badgeEvents).toBe(1);
+  });
+
+  it('a reply to an author without a subscription says so', async () => {
+    reports = [report({ id: 'r2', who: { kind: 'account', id: OLIA, nickname: 'Оля', push: false }, text: 'Оля пише' })];
+    open('/admin/errors?view=reports');
+    const card = (await screen.findByText('Оля пише')).closest('li') as HTMLElement;
+    fireEvent.click(within(card).getByRole('button', { name: 'Відповісти' }));
+    fireEvent.change(within(card).getByLabelText('Відповідь автору'), { target: { value: 'Дякуємо!' } });
+    reports = [];
+    fireEvent.click(within(card).getByRole('button', { name: 'Надіслати відповідь' }));
+    expect(await screen.findByText('Скарг немає.')).toBeTruthy();
+    expect(screen.getByRole('status').textContent).toBe('Відповідь надіслано без сповіщення: в автора немає підписки.');
   });
 
   it('switches between server errors and player reports', async () => {

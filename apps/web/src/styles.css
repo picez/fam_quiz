@@ -28217,7 +28217,9 @@ a.library-card:focus-visible {
 
 .admin-errors-views .btn,
 .admin-errors-filter .btn {
+  flex: 1 1 auto;
   min-height: 2.75rem;
+  padding: 0.5rem 1rem;
   max-width: 100%;
   white-space: normal;
 }

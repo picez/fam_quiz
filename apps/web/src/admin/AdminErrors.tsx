@@ -5,7 +5,7 @@ import { formatDate } from '../format';
 import { errorText, t } from '../i18n';
 import { LOCALE_NAMES } from '../locales/locales';
 import { nickText } from '../nick';
-import { AdminPager } from './Admin';
+import { AdminPager, refreshAdminBadge } from './Admin';
 import { adminErrors, adminProblems, replyProblem, resolveProblem, resolveServerError } from './admin-api';
 import { useAdminData, type AdminData } from './useAdminData';
 
@@ -121,6 +121,8 @@ function ServerErrors(): JSX.Element {
       return;
     }
     setGone((prev) => new Set(prev).add(row.id));
+    setLive({ error: null, notice: t('adminErrorResolvedNotice') });
+    refreshAdminBadge();
     state.reload();
   };
 
@@ -256,13 +258,18 @@ function PlayerReports(): JSX.Element {
     setPage(1);
     setLive({ error: null, notice: null });
   };
-  const act = async (run: () => Promise<{ ok: true } | { ok: false; error: string }>) => {
+  const act = async <R extends object>(run: () => Promise<({ ok: true } & R) | { ok: false; error: string }>, notice: (result: R) => string) => {
     setBusy(true);
     setLive({ error: null, notice: null });
     const result = await run();
     setBusy(false);
-    if (result.ok) state.reload();
-    else setLive({ error: errorText(result.error), notice: null });
+    if (!result.ok) {
+      setLive({ error: errorText(result.error), notice: null });
+      return;
+    }
+    setLive({ error: null, notice: notice(result) });
+    refreshAdminBadge();
+    state.reload();
   };
 
   if (state.status === 'home') return <Navigate to="/" replace />;
@@ -285,7 +292,13 @@ function PlayerReports(): JSX.Element {
           ) : (
             <ul className="admin-list">
               {state.data.rows.map((row) => (
-                <ReportCard key={row.id} row={row} busy={busy} onResolve={() => void act(() => resolveProblem(row.id))} onReply={(text) => void act(() => replyProblem(row.id, text))} />
+                <ReportCard
+                  key={row.id}
+                  row={row}
+                  busy={busy}
+                  onResolve={() => void act(() => resolveProblem(row.id), () => t('adminErrorResolvedNotice'))}
+                  onReply={(text) => void act(() => replyProblem(row.id, text), (sent) => t(sent.pushed ? 'adminProblemReplySent' : 'adminProblemReplySentNoPush'))}
+                />
               ))}
             </ul>
           )}
