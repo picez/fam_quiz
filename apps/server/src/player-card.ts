@@ -1,11 +1,12 @@
-import { levelOf, type AchievementId } from '@quiz/shared';
-import { and, eq } from 'drizzle-orm';
+import { ACHIEVEMENTS, ADMIN_CARD_BANS, ADMIN_CARD_GAMES, ADMIN_CARD_XP, levelOf, questionsOf, type AchievementId, type AdminPlayerCard } from '@quiz/shared';
+import { and, desc, eq, inArray, sql } from 'drizzle-orm';
 import { logAction } from './bans';
 import type { Db } from './db/client';
-import { achievementBlock, feedEvent, profile, showcasePin, user, userAchievement, xpEntry } from './db/schema';
+import { achievementBlock, adminAction, feedEvent, game, groupMember, participant, profile, quiz, showcasePin, user, userAchievement, xpEntry } from './db/schema';
 import { announceLevels } from './feed-publish';
 import { reportError } from './log';
-import { ensureProfile } from './profiles';
+import { playerGames } from './history';
+import { ensureProfile, friendsOf } from './profiles';
 import { creditAchievements, syncXp, xpTotals } from './xp-store';
 import { kyivDay } from './xp-rules';
 
@@ -120,4 +121,71 @@ export async function adjustXp(
   });
   if (result.ok) await announce(db, userId, now);
   return result;
+}
+
+const KNOWN = new Set<string>(ACHIEVEMENTS);
+
+/**
+ * 58: картка гравця для адміна — лише читання: огляд (рівень і досвід після syncXp, збій не ламає), досягнення й заборони, останні ігри,
+ * вікторини, бани й розбани, ручний досвід. Досягнення читаються як є, без запуску синхронізації. Немає користувача — null.
+ */
+export async function playerCard(db: Db, userId: string, now: Date): Promise<AdminPlayerCard | null> {
+  void now;
+  const [account] = await db.select({ createdAt: user.createdAt }).from(user).where(eq(user.id, userId));
+  if (account === undefined) return null;
+  try {
+    await syncXp(db, userId);
+  } catch (error) {
+    reportError(error, { where: 'player-card' });
+  }
+  const [found] = await db.select({ avatar: profile.avatar, lastSeenAt: profile.lastSeenAt }).from(profile).where(eq(profile.userId, userId));
+  const xp = (await xpTotals(db, [userId])).get(userId) ?? 0;
+  const [counts] = await db
+    .select({
+      games: sql<number>`(select count(distinct p.game_id)::int from ${participant} p join ${game} g on g.id = p.game_id where p.user_id = ${userId} and g.status = 'finished')`,
+      wins: sql<number>`(select count(distinct p.game_id)::int from ${participant} p join ${game} g on g.id = p.game_id where p.user_id = ${userId} and g.status = 'finished' and p.rank = 1)`,
+      groups: sql<number>`(select count(*)::int from ${groupMember} where ${groupMember.userId} = ${userId})`,
+    })
+    .from(user)
+    .where(eq(user.id, userId));
+  const quizzes = await db.select().from(quiz).where(eq(quiz.ownerId, userId)).orderBy(desc(quiz.updatedAt), quiz.id);
+  const earned = await db.select({ id: userAchievement.achievementId, earnedAt: userAchievement.earnedAt }).from(userAchievement).where(eq(userAchievement.userId, userId));
+  const blocked = await db.select({ id: achievementBlock.achievementId }).from(achievementBlock).where(eq(achievementBlock.userId, userId));
+  const rank = (id: string) => ACHIEVEMENTS.indexOf(id as AchievementId);
+  const bans = await db
+    .select({ at: adminAction.at, kind: adminAction.kind, admin: adminAction.adminLabel, details: adminAction.details })
+    .from(adminAction)
+    .where(and(eq(adminAction.targetUserId, userId), inArray(adminAction.kind, ['ban', 'unban'])))
+    .orderBy(desc(adminAction.at), desc(adminAction.id))
+    .limit(ADMIN_CARD_BANS);
+  const manual = await db
+    .select({ id: xpEntry.id, amount: xpEntry.amount, note: xpEntry.note, at: xpEntry.at, createdAt: xpEntry.createdAt })
+    .from(xpEntry)
+    .where(and(eq(xpEntry.userId, userId), eq(xpEntry.source, 'admin')))
+    .orderBy(desc(xpEntry.createdAt), desc(xpEntry.id))
+    .limit(ADMIN_CARD_XP);
+  const recent = await playerGames(db, userId, ADMIN_CARD_GAMES);
+  return {
+    overview: {
+      avatar: found?.avatar ?? null,
+      registeredAt: account.createdAt.toISOString(),
+      lastSeenAt: found?.lastSeenAt?.toISOString() ?? null,
+      level: levelOf(xp),
+      xp,
+      games: counts?.games ?? 0,
+      wins: counts?.wins ?? 0,
+      quizzes: quizzes.length,
+      friends: (await friendsOf(db, userId)).length,
+      groups: counts?.groups ?? 0,
+    },
+    achievements: earned
+      .filter((row) => KNOWN.has(row.id))
+      .sort((x, y) => rank(x.id) - rank(y.id))
+      .map((row) => ({ id: row.id, earnedAt: row.earnedAt?.toISOString() ?? null })),
+    blocked: blocked.map((row) => row.id).filter((id) => KNOWN.has(id)).sort((x, y) => rank(x) - rank(y)),
+    games: recent.map(({ played }) => ({ gameId: played.gameId, title: played.title, startedAt: played.startedAt, rank: played.rank, playerCount: played.playerCount, score: played.score })),
+    quizzes: quizzes.map((row) => ({ id: row.id, title: row.title, questions: questionsOf(row).length, updatedAt: row.updatedAt.toISOString() })),
+    bans: bans.map((row) => ({ at: row.at.toISOString(), kind: row.kind === 'ban' ? ('ban' as const) : ('unban' as const), admin: row.admin, reason: row.details.reason ?? null })),
+    xp: manual.map((row) => ({ id: row.id, amount: row.amount, note: row.note ?? '', at: row.at?.toISOString() ?? row.createdAt.toISOString() })),
+  };
 }
