@@ -17304,20 +17304,41 @@ button.wall-tile:disabled {
 
 /* ---------- 21a: адмінка ---------- */
 
+/* 63: на телефоні — один рядок, що гортається вбік (активна вкладка прокручується в поле зору); на ширшому — переноситься. */
 .admin-tabs {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 0.5rem;
   margin-block: 1rem;
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x proximity;
+  scroll-padding-inline: 1rem;
+  padding-block: 0.25rem;
+  scrollbar-width: thin;
 }
 
 .admin-tabs a.btn {
+  flex: none;
+  white-space: nowrap;
+  scroll-snap-align: start;
   min-height: 2.75rem;
   padding: 0.5rem 1rem;
 }
 
 .admin-tabs a.btn[aria-current='page'] {
-  border-color: var(--paper);
+  border-color: var(--accent);
+  background: var(--spot);
+  color: var(--paper);
+}
+
+@media (min-width: 48rem) {
+  .admin-tabs {
+    flex-wrap: wrap;
+    overflow-x: visible;
+  }
 }
 
 .admin-stats {

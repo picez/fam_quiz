@@ -102,4 +102,23 @@ describe('Admin', () => {
     expect(await screen.findByRole('heading', { name: '🌻 Родина Квіткових' })).toBeTruthy();
     expect(adminGroup).toHaveBeenCalledWith('g1', 1);
   });
+
+  it('scrolls the active section link into view in the one-row tab strip (63)', async () => {
+    vi.mocked(me).mockResolvedValue(account(true));
+    vi.mocked(adminFeed).mockResolvedValue({ ok: true, data: { rows: [], total: 0, page: 1, pages: 1 } });
+    const scrolled: Element[] = [];
+    const scroll = vi.fn(function (this: Element) {
+      scrolled.push(this);
+    });
+    Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', { configurable: true, writable: true, value: scroll });
+    try {
+      open('/admin/feed');
+      const nav = await screen.findByRole('navigation', { name: 'Розділи адмінки' });
+      const active = within(nav).getByRole('link', { name: 'Стрічка' });
+      await waitFor(() => expect(scrolled).toContain(active));
+      expect(scroll).toHaveBeenCalledWith(expect.objectContaining({ block: 'nearest', inline: 'nearest' }));
+    } finally {
+      delete (HTMLElement.prototype as { scrollIntoView?: unknown }).scrollIntoView;
+    }
+  });
 });

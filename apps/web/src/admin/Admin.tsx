@@ -1,6 +1,7 @@
-import type { JSX } from 'react';
-import { Navigate, NavLink, Route, Routes } from 'react-router-dom';
+import { useEffect, useRef, type JSX } from 'react';
+import { Navigate, NavLink, Route, Routes, useLocation } from 'react-router-dom';
 import { t } from '../i18n';
+import { reducedMotion } from '../motion';
 import { useAccount } from '../useAccount';
 import { AdminAnnouncement } from './AdminAnnouncement';
 import { AdminBot } from './AdminBot';
@@ -35,12 +36,25 @@ const TABS = [
 /** Гейт: лише адмін; усім іншим — головна. */
 export function Admin(): JSX.Element | null {
   const account = useAccount();
+  const nav = useRef<HTMLElement>(null);
+  const { pathname } = useLocation();
+  const shown = account.status === 'signed-in' && account.account.admin;
+  // 63: вкладки — один рядок, що гортається вбік; активна завжди в полі зору (nearest працює й у RTL).
+  useEffect(() => {
+    if (!shown || nav.current === null) return;
+    // Смуга поза екраном по вертикалі (перехід із глибини сторінки) — сторінку не смикаємо.
+    const box = nav.current.getBoundingClientRect();
+    if (box.bottom < 0 || box.top > window.innerHeight) return;
+    nav.current
+      .querySelector<HTMLElement>('[aria-current="page"]')
+      ?.scrollIntoView?.({ block: 'nearest', inline: 'nearest', behavior: reducedMotion() ? 'auto' : 'smooth' });
+  }, [pathname, shown]);
   if (account.status === 'loading') return null;
   if (account.status !== 'signed-in' || !account.account.admin) return <Navigate to="/" replace />;
   return (
     <main className="app wide">
       <h1 className="brand">{t('adminTitle')}</h1>
-      <nav className="admin-tabs" aria-label={t('adminSections')}>
+      <nav ref={nav} className="admin-tabs" aria-label={t('adminSections')}>
         {TABS.map((tab) => (
           <NavLink key={tab.to} to={tab.to} end={tab.end} className="btn">
             {t(tab.key)}

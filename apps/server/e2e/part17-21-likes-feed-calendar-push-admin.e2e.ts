@@ -1346,9 +1346,9 @@ async function admin21a() {
     await admin.setViewportSize({ width: 375, height: 812 });
     expect(await noSideScroll(admin)).toBe(true);
     const tabs = admin.locator('.admin-tabs a');
-    // Вісім вкладок: «Бот» додано в 54.
+    // Одинадцять вкладок: «Скарги» (47), «Живі ігри» (53), «Бот» (54), «Розсилка» (59), «Стрічка» й «Групи» (63).
     const tabCount = await tabs.count();
-    expect(tabCount).toBe(8);
+    expect(tabCount).toBe(11);
     for (let i = 0; i < tabCount; i++) expect((await tabs.nth(i).boundingBox())!.height, `tab ${i}`).toBeGreaterThanOrEqual(44);
     await shot(admin, 'p21a-stats');
 

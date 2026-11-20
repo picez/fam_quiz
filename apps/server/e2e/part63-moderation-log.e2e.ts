@@ -98,6 +98,29 @@ async function moderation63() {
   await seen.getByRole('button', { name: 'Вподобати подію', ...exact }).click();
   await expect.poll(async () => (await db.select().from(userLike).where(and(eq(userLike.userId, petroId), eq(userLike.eventKey, event!.key)))).length, POLL).toBe(1);
 
+  // ── 1б. Вкладки адмінки на 360 px: один рядок, що гортається вбік; активна вкладка в полі зору. ──
+  const tabStrip = async (path: string, name: string) => {
+    await admin.goto(`${base}${path}`);
+    const strip = admin.locator('.admin-tabs');
+    const active = strip.locator('a[aria-current="page"]');
+    await active.waitFor();
+    expect(await active.innerText()).toBe(name);
+    expect((await strip.boundingBox())!.height, 'the admin tabs are one row').toBeLessThanOrEqual(60);
+    const tabs = strip.locator('a');
+    const count = await tabs.count();
+    for (let i = 0; i < count; i++) expect((await tabs.nth(i).boundingBox())!.height, `tab ${i}`).toBeGreaterThanOrEqual(44);
+    await expect
+      .poll(async () => {
+        const box = await active.boundingBox();
+        return box !== null && box.x >= 0 && box.x + box.width <= 360;
+      }, POLL)
+      .toBe(true);
+    await expectNoSideScroll(admin, `tabs on ${path}`);
+  };
+  await tabStrip('/admin/bot', 'Бот');
+  await viewportShot(admin, '63-admin-tabs-bot');
+  await tabStrip('/admin/log', 'Журнал');
+
   // ── 2. Адмін: «Стрічка» → фільтр за Олею → «Сховати». ──
   await admin.goto(`${base}/admin/feed`);
   expect(await isLight(admin)).toBe(true);
