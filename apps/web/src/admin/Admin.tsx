@@ -4,6 +4,7 @@ import { t } from '../i18n';
 import { useAccount } from '../useAccount';
 import { AdminAnnouncement } from './AdminAnnouncement';
 import { AdminBot } from './AdminBot';
+import { AdminGame } from './AdminGame';
 import { AdminLive } from './AdminLive';
 import { AdminLog } from './AdminLog';
 import { AdminBotQuizView, AdminQuiz, AdminReportedQuiz } from './AdminQuiz';
@@ -44,6 +45,7 @@ export function Admin(): JSX.Element | null {
         <Route path="live" element={<AdminLive />} />
         <Route path="users" element={<AdminUsers />} />
         <Route path="users/:id" element={<AdminUser />} />
+        <Route path="games/:id" element={<AdminGame />} />
         <Route path="quizzes" element={<AdminQuizzes />} />
         <Route path="quizzes/:id" element={<AdminQuiz />} />
         <Route path="reports" element={<AdminReports />} />

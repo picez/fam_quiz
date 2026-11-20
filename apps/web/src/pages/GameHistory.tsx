@@ -1,6 +1,6 @@
-import { Fragment } from 'react';
+import { Fragment, type JSX } from 'react';
 import { Link, Navigate, useParams } from 'react-router-dom';
-import { awaySeconds, cloudKey, factPercent, isUnscored, pinDistance, surveyHitsOf, surveyOrder, undoAnswerKey, undoLedger, type GameAdjustment, type BluffInfo, type GameQuestionResult, type SurveyInfo, unpackStrokes } from '@quiz/shared';
+import { awaySeconds, cloudKey, factPercent, isUnscored, pinDistance, surveyHitsOf, surveyOrder, undoAnswerKey, undoLedger, type GameAdjustment, type GameDetail, type BluffInfo, type GameQuestionResult, type SurveyInfo, unpackStrokes } from '@quiz/shared';
 import { getGame } from '../api';
 import { answerText, choicesOf, correctText, formatDate, markText, num, pairTexts, questionName, roundLabel, secondsText, signed } from '../format';
 import { DEBUFF_ICONS, debuffName } from '../debuff-meta';
@@ -353,10 +353,18 @@ export function GameHistory() {
     );
   }
 
-  const game = state.data;
-  const ledger = undoLedger(game.adjustments.map((a) => ({ seq: a.seq, who: a.nickname, source: a.source, undoes: a.undoes })));
   return (
     <main className="app wide">
+      <GameDetailView game={state.data} back={back} />
+    </main>
+  );
+}
+
+/** Тіло сторінки гри після завантаження: гравцеві (історія) й адмінові (картка гравця, 58); `back` — посилання над назвою. */
+export function GameDetailView({ game, back }: { game: GameDetail; back: JSX.Element }): JSX.Element {
+  const ledger = undoLedger(game.adjustments.map((a) => ({ seq: a.seq, who: a.nickname, source: a.source, undoes: a.undoes })));
+  return (
+    <>
       {back}
       <h1 className="brand" dir="auto">{game.title}</h1>
       <p className="meta">{`${formatDate(game.startedAt)}, ${t(`status_${game.status}`)}`}</p>
@@ -678,6 +686,6 @@ export function GameHistory() {
           })}
         </section>
       )}
-    </main>
+    </>
   );
 }
