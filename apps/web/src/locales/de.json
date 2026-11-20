@@ -5248,6 +5248,16 @@
   "adminReplayEventLeave": "{time} — {name} wurde entfernt (Punktestand {score})",
   "adminReplayEventPause": "{time} — Pause von {seconds} s",
   "adminReplayEventPauseOpen": "{time} — Pause bis zum Spielende",
+  "adminReplayVerdict_noAnswer": "ohne Antwort",
+  "adminReplayTarget": "→ {name}",
+  "adminReplayUndoesQuestion": "(Frage {n})",
+  "adminReplayUndoesSeq": "(Korrektur #{seq})",
+  "adminReplayAttempt": "Versuch {n}",
+  "adminReplayWager": "Einsatz: {points}",
+  "adminReplayEventPauseUnknown": "{time} — Pause (Dauer unbekannt)",
+  "adminReplayNotRecordedStep": "Dieser Schritt wurde vor der Aufzeichnung von Ereignissen gespielt: Beitritte, Entfernungen, Pausen und die Bewertung vor einer manuellen Entscheidung wurden nicht gespeichert (—).",
+  "adminReplayNoSteps": "Es wurde keine Frage gespielt",
+  "adminReplayStatus": "Spiel: {status}",
   "err_replay_running": "Das Spiel läuft noch — die Wiederholung gibt es nach seinem Ende.",
   "adminLog_game_replay_view": "{admin} hat die Wiederholung des Spiels „{title}“ angesehen ({target})"
 }

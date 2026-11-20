@@ -5349,6 +5349,16 @@
   "adminReplayEventLeave": "{time} — usunięto {name} (wynik {score})",
   "adminReplayEventPause": "{time} — pauza {seconds} s",
   "adminReplayEventPauseOpen": "{time} — pauza do końca gry",
+  "adminReplayVerdict_noAnswer": "bez odpowiedzi",
+  "adminReplayTarget": "→ {name}",
+  "adminReplayUndoesQuestion": "(pytanie {n})",
+  "adminReplayUndoesSeq": "(korekta #{seq})",
+  "adminReplayAttempt": "próba {n}",
+  "adminReplayWager": "Stawka: {points}",
+  "adminReplayEventPauseUnknown": "{time} — pauza (czas trwania nieznany)",
+  "adminReplayNotRecordedStep": "Ten krok rozegrano przed zapisywaniem zdarzeń: dołączenia, usunięcia, pauzy i ocena sprzed ręcznej decyzji nie zostały zapisane (—).",
+  "adminReplayNoSteps": "Nie rozegrano żadnego pytania",
+  "adminReplayStatus": "Gra: {status}",
   "err_replay_running": "Gra wciąż trwa — powtórka będzie po jej zakończeniu.",
   "adminLog_game_replay_view": "{admin} obejrzał(-a) powtórkę gry „{title}” ({target})"
 }

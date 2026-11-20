@@ -5325,6 +5325,16 @@
   "adminReplayEventLeave": "{time} — espulso/a {name} (punteggio {score})",
   "adminReplayEventPause": "{time} — pausa di {seconds} s",
   "adminReplayEventPauseOpen": "{time} — pausa fino alla fine della partita",
+  "adminReplayVerdict_noAnswer": "senza risposta",
+  "adminReplayTarget": "→ {name}",
+  "adminReplayUndoesQuestion": "(domanda {n})",
+  "adminReplayUndoesSeq": "(correzione #{seq})",
+  "adminReplayAttempt": "tentativo {n}",
+  "adminReplayWager": "Puntata: {points}",
+  "adminReplayEventPauseUnknown": "{time} — pausa (durata sconosciuta)",
+  "adminReplayNotRecordedStep": "Questo passo è stato giocato prima della registrazione degli eventi: ingressi, espulsioni, pause e il voto prima di una decisione manuale non sono stati salvati (—).",
+  "adminReplayNoSteps": "Non è stata giocata nessuna domanda",
+  "adminReplayStatus": "Partita: {status}",
   "err_replay_running": "La partita è ancora in corso: il replay sarà pronto quando finirà.",
   "adminLog_game_replay_view": "{admin} ha visto il replay della partita «{title}» ({target})"
 }

@@ -28106,16 +28106,23 @@ a.library-card:focus-visible {
   max-width: 100%;
 }
 
+/* Один рядок і на 360 px: компактні кнопки не стискаються, підпис кроку між ними займає решту й переноситься сам. */
 .replay-nav-buttons {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
   justify-content: space-between;
   gap: 0.5rem;
 }
 
+.replay-nav-buttons .btn {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
 .replay-nav-buttons .meta {
-  flex: 1 1 8rem;
+  flex: 1 1 0;
+  min-width: 0;
   text-align: center;
 }
 
@@ -28173,7 +28180,7 @@ a.library-card:focus-visible {
 @media (min-width: 601px) {
   .replay-head,
   .replay-row {
-    grid-template-columns: minmax(0, 1.3fr) minmax(0, 2fr) minmax(0, 0.7fr) minmax(0, 1.1fr) minmax(0, 0.7fr) minmax(0, 0.8fr);
+    grid-template-columns: minmax(0, 1.3fr) minmax(0, 2fr) minmax(0, 0.7fr) minmax(max-content, 1.1fr) minmax(0, 0.7fr) minmax(0, 0.8fr);
     gap: 0.5rem;
     align-items: baseline;
   }
@@ -28188,6 +28195,11 @@ a.library-card:focus-visible {
 
   .replay-cell {
     display: block;
+  }
+
+  /* Рішення «не зараховано (вручну)» — одним рядком: колонка бере ширину тексту. */
+  .replay-verdict .replay-value {
+    white-space: nowrap;
   }
 
   /* Ширше підписи полів дублюють заголовки колонок: лишаються лише для читачів екрана (як .sr-only). */

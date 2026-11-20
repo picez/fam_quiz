@@ -1,6 +1,6 @@
 import { DELETED_NICKNAME } from '@quiz/shared';
-import { describe, expect, it } from 'vitest';
-import { t } from '../i18n';
+import { afterEach, describe, expect, it } from 'vitest';
+import { activateLocaleForTests, t } from '../i18n';
 import { eventLine, priceText, replayTime, verdictText } from './replay-text';
 
 // 12:00:05 UTC — у Києві взимку (UTC+2) 14:00:05.
@@ -40,6 +40,17 @@ describe('eventLine', () => {
     expect(eventLine({ kind: 'manual', nickname: 'Петро', from: 'wrong', to: 'partial' })).toBe('Петро: ведучий вирішив вручну — не зараховано → частково');
   });
 
+  it('a host decision without an answer before it says so, not a dash', () => {
+    expect(eventLine({ kind: 'manual', nickname: 'Петро', from: 'none', to: 'correct' })).toBe('Петро: ведучий вирішив вручну — без відповіді → зараховано');
+  });
+
+  it('an adjustment shows its target and what an undo reverses', () => {
+    expect(eventLine({ kind: 'adjustment', nickname: 'Оля', source: 'debuff', points: -50, debuff: 'fog', target: 'Петро' })).toBe(`Оля: −50 — ${t('scoreSource_debuff')} (${t('debuff_fog')}) → Петро`);
+    expect(eventLine({ kind: 'adjustment', nickname: 'Оля', source: 'duelbet', points: 100, target: DELETED_NICKNAME })).toBe(`Оля: +100 — ${t('scoreSource_duelbet')} → ${t('deletedPlayer')}`);
+    expect(eventLine({ kind: 'adjustment', nickname: 'Оля', source: 'undo', points: -100, undoes: { question: 0 } })).toBe('Оля: −100 — Скасовано ведучим (запитання 1)');
+    expect(eventLine({ kind: 'adjustment', nickname: 'Оля', source: 'undo', points: 70, undoes: { seq: 3 } })).toBe('Оля: +70 — Скасовано ведучим (коригування #3)');
+  });
+
   it('writes an adjustment with the signed points and its source', () => {
     expect(eventLine({ kind: 'adjustment', nickname: 'Оля', source: 'undo', points: -100 })).toBe('Оля: −100 — Скасовано ведучим');
     expect(eventLine({ kind: 'adjustment', nickname: 'Оля', source: 'carry', points: 300 })).toBe('Оля: +300 — Перенесено з попередньої гри');
@@ -58,9 +69,23 @@ describe('eventLine', () => {
     expect(eventLine({ kind: 'leave', nickname: DELETED_NICKNAME, at, score: 0 })).toContain(t('deletedPlayer'));
   });
 
-  it('writes a pause with its length or open to the end', () => {
-    expect(eventLine({ kind: 'pause', at, ms: 30_000 })).toContain('30');
-    expect(eventLine({ kind: 'pause', at, ms: 30_000 })).toBe('14:00:05 — пауза 30 с');
-    expect(eventLine({ kind: 'pause', at, ms: null })).toBe('14:00:05 — пауза до кінця гри');
+  it('writes a pause with its length, open to the end, or of unknown length after a save', () => {
+    expect(eventLine({ kind: 'pause', at, ms: 30_000, ended: 'resume' })).toContain('30');
+    expect(eventLine({ kind: 'pause', at, ms: 30_000, ended: 'resume' })).toBe('14:00:05 — пауза 30 с');
+    expect(eventLine({ kind: 'pause', at, ms: null, ended: 'game' })).toBe('14:00:05 — пауза до кінця гри');
+    expect(eventLine({ kind: 'pause', at, ms: null, ended: 'unknown' })).toBe('14:00:05 — пауза (тривалість невідома)');
+  });
+
+  describe('in a right-to-left language', () => {
+    afterEach(() => activateLocaleForTests('uk'));
+
+    it('isolates nicknames so the arrow keeps its direction', () => {
+      activateLocaleForTests('ar', { ui: { adminReplayEventManual: '{name}: {from} ← {to}', adminReplayVerdict_wrong: 'w', adminReplayVerdict_correct: 'c' } });
+      const fsi = String.fromCharCode(0x2068);
+      const pdi = String.fromCharCode(0x2069);
+      expect(eventLine({ kind: 'manual', nickname: 'Petro', from: 'wrong', to: 'correct' })).toBe(fsi + 'Petro' + pdi + ': w ← c');
+      activateLocaleForTests('en', { ui: {} });
+      expect(eventLine({ kind: 'buff', nickname: 'Petro', buff: 'double' })).not.toContain(fsi);
+    });
   });
 });

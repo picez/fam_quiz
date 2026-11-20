@@ -5248,6 +5248,16 @@
   "adminReplayEventLeave": "{time} — {name} was removed (score {score})",
   "adminReplayEventPause": "{time} — pause of {seconds} s",
   "adminReplayEventPauseOpen": "{time} — paused until the end of the game",
+  "adminReplayVerdict_noAnswer": "without an answer",
+  "adminReplayTarget": "→ {name}",
+  "adminReplayUndoesQuestion": "(question {n})",
+  "adminReplayUndoesSeq": "(adjustment #{seq})",
+  "adminReplayAttempt": "attempt {n}",
+  "adminReplayWager": "Wager: {points}",
+  "adminReplayEventPauseUnknown": "{time} — pause (length unknown)",
+  "adminReplayNotRecordedStep": "This step was played before events were recorded: joins, kicks, pauses and the grade before a manual decision were not kept (—).",
+  "adminReplayNoSteps": "No question was played",
+  "adminReplayStatus": "Game: {status}",
   "err_replay_running": "The game is still running — the replay will be ready once it ends.",
   "adminLog_game_replay_view": "{admin} viewed the replay of the game “{title}” ({target})"
 }

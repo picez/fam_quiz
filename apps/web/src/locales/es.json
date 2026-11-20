@@ -5325,6 +5325,16 @@
   "adminReplayEventLeave": "{time} — se expulsó a {name} (marcador {score})",
   "adminReplayEventPause": "{time} — pausa de {seconds} s",
   "adminReplayEventPauseOpen": "{time} — pausa hasta el final de la partida",
+  "adminReplayVerdict_noAnswer": "sin respuesta",
+  "adminReplayTarget": "→ {name}",
+  "adminReplayUndoesQuestion": "(pregunta {n})",
+  "adminReplayUndoesSeq": "(ajuste #{seq})",
+  "adminReplayAttempt": "intento {n}",
+  "adminReplayWager": "Apuesta: {points}",
+  "adminReplayEventPauseUnknown": "{time} — pausa (duración desconocida)",
+  "adminReplayNotRecordedStep": "Este paso se jugó antes de que se registraran los eventos: las entradas, expulsiones, pausas y la nota previa a una decisión manual no se guardaron (—).",
+  "adminReplayNoSteps": "No se jugó ninguna pregunta",
+  "adminReplayStatus": "Partida: {status}",
   "err_replay_running": "La partida sigue en curso: la repetición estará lista cuando termine.",
   "adminLog_game_replay_view": "{admin} vio la repetición de la partida «{title}» ({target})"
 }

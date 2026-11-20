@@ -1,4 +1,4 @@
-import type { JSX, ReactNode } from 'react';
+import { useEffect, useRef, type JSX, type ReactNode } from 'react';
 import { Link, Navigate, useParams, useSearchParams } from 'react-router-dom';
 import { awaySeconds, type GameReplay, type ReplayEvent, type ReplayRow, type ReplayScore, type ReplayStep } from '@quiz/shared';
 import { answerText, correctText, num, questionName } from '../format';
@@ -30,9 +30,7 @@ function Events({ events }: { events: ReplayEvent[] }): JSX.Element {
   return (
     <ul className="replay-events">
       {events.map((event, index) => (
-        <li key={index} dir="auto">
-          {eventLine(event)}
-        </li>
+        <li key={index}>{eventLine(event)}</li>
       ))}
     </ul>
   );
@@ -57,13 +55,18 @@ const COLUMNS = [
   ['score', 'adminReplayScore'],
 ] as const;
 
-function Row({ row, step }: { row: ReplayRow; step: ReplayStep }): JSX.Element {
-  const score = step.scores.find((one) => one.nickname === row.nickname);
+/**
+ * Рядок учасника. Кілька спроб одного учасника на кроці: номер спроби (від 1), рахунок — лише в останньої.
+ * Рахунок шукається за ключем учасника: ніки можуть повторюватись (видалені акаунти, нік вилученого).
+ */
+function Row({ row, step, attempt, last }: { row: ReplayRow; step: ReplayStep; attempt: number | null; last: boolean }): JSX.Element {
+  const score = step.scores.find((one) => one.key === row.key);
   const label = (index: number) => t(COLUMNS[index]![1]);
   return (
     <li className="replay-row">
       <Cell name="player" label={label(0)}>
         <span dir="auto">{nickText(row.nickname)}</span>
+        {attempt !== null && <small className="meta">{t('adminReplayAttempt', { n: attempt })}</small>}
         {row.answeredBy !== null && (
           <small className="meta" dir="auto">
             {t('adminReplayBy', { name: nickText(row.answeredBy) })}
@@ -82,10 +85,13 @@ function Row({ row, step }: { row: ReplayRow; step: ReplayStep }): JSX.Element {
       </Cell>
       <Cell name="points" label={label(4)}>
         <span dir="ltr">{num(row.points)}</span>
+        {row.wager !== null && <small className="meta">{t('adminReplayWager', { points: num(row.wager) })}</small>}
       </Cell>
-      <Cell name="score" label={label(5)}>
-        <span dir="ltr">{score === undefined ? '—' : num(score.score)}</span>
-      </Cell>
+      {last && (
+        <Cell name="score" label={label(5)}>
+          <span dir="ltr">{score === undefined ? '—' : num(score.score)}</span>
+        </Cell>
+      )}
     </li>
   );
 }
@@ -94,7 +100,7 @@ function Scores({ scores }: { scores: ReplayScore[] }): JSX.Element {
   return (
     <ul className="admin-card-lines">
       {scores.map((score) => (
-        <li key={score.nickname}>
+        <li key={score.key}>
           <span dir="auto">{nickText(score.nickname)}</span>
           <span className="score" dir="ltr">
             {num(score.score)}
@@ -105,9 +111,23 @@ function Scores({ scores }: { scores: ReplayScore[] }): JSX.Element {
   );
 }
 
-function StepCard({ step }: { step: ReplayStep }): JSX.Element {
+/** Номер спроби кожного рядка (від 1) і чи він останній у свого учасника; одна спроба — без номера. */
+function attemptsOf(rows: ReplayRow[]): { attempt: number | null; last: boolean }[] {
+  const count = new Map<string, number>();
+  for (const row of rows) count.set(row.key, (count.get(row.key) ?? 0) + 1);
+  const seen = new Map<string, number>();
+  return rows.map((row) => {
+    const n = (seen.get(row.key) ?? 0) + 1;
+    seen.set(row.key, n);
+    const total = count.get(row.key) ?? 1;
+    return { attempt: total > 1 ? n : null, last: n === total };
+  });
+}
+
+function StepCard({ step, unrecorded }: { step: ReplayStep; unrecorded: boolean }): JSX.Element {
   const question = step.question;
   const correct = question === null ? '' : correctText(question);
+  const attempts = attemptsOf(step.rows);
   return (
     <section className="panel admin-card-section replay-step">
       <h3 dir="auto">{question === null ? '—' : questionName(question)}</h3>
@@ -117,6 +137,7 @@ function StepCard({ step }: { step: ReplayStep }): JSX.Element {
         <span>{priceText(step.price, step.multiplier)}</span>
       </p>
       {correct !== '' && <p dir="auto">{t('correctAnswer', { answer: correct })}</p>}
+      {unrecorded && <p className="meta replay-note">{t('adminReplayNotRecordedStep')}</p>}
       <div className="replay-head" aria-hidden="true">
         {COLUMNS.map(([name, key]) => (
           <span key={name}>{t(key)}</span>
@@ -124,10 +145,10 @@ function StepCard({ step }: { step: ReplayStep }): JSX.Element {
       </div>
       <ol className="replay-rows">
         {step.rows.map((row, index) => (
-          <Row key={index} row={row} step={step} />
+          <Row key={index} row={row} step={step} attempt={attempts[index]!.attempt} last={attempts[index]!.last} />
         ))}
       </ol>
-      <h3>{t('adminReplayEvents')}</h3>
+      <h4>{t('adminReplayEvents')}</h4>
       <Events events={step.events} />
     </section>
   );
@@ -140,11 +161,26 @@ function ReplayView({ replay }: { replay: GameReplay }): JSX.Element {
   const go = (index: number) => setSearch({ q: String(index + 1) }, { replace: true });
   const step = replay.steps[at];
   const showStart = replay.start.events.length > 0 || replay.start.scores.some((score) => score.score !== 0);
+  // Кнопка, що стала недоступною на краю списку, не має скидати фокус у body: він переходить на іншу кнопку.
+  const prevRef = useRef<HTMLButtonElement>(null);
+  const nextRef = useRef<HTMLButtonElement>(null);
+  const moved = useRef<'prev' | 'next' | null>(null);
+  useEffect(() => {
+    const from = moved.current;
+    moved.current = null;
+    if (from === 'next' && at === total - 1) prevRef.current?.focus();
+    if (from === 'prev' && at === 0) nextRef.current?.focus();
+  }, [at, total]);
+  const move = (by: -1 | 1) => {
+    moved.current = by < 0 ? 'prev' : 'next';
+    go(at + by);
+  };
   return (
     <>
       <h2 className="brand" dir="auto">
         {t('adminReplayTitle', { title: replay.title })}
       </h2>
+      {(replay.status === 'aborted' || replay.status === 'saved') && <p className="meta replay-status">{t('adminReplayStatus', { status: t(`status_${replay.status}`) })}</p>}
       {!replay.recorded && <p className="meta replay-note">{t('adminReplayNotRecorded')}</p>}
       {showStart && (
         <section className="panel admin-card-section">
@@ -153,6 +189,7 @@ function ReplayView({ replay }: { replay: GameReplay }): JSX.Element {
           <Events events={replay.start.events} />
         </section>
       )}
+      {step === undefined && <p className="meta">{t('adminReplayNoSteps')}</p>}
       {step !== undefined && (
         <>
           <nav className="replay-nav" aria-label={t('adminReplayJump')}>
@@ -174,18 +211,18 @@ function ReplayView({ replay }: { replay: GameReplay }): JSX.Element {
               </select>
             </label>
             <div className="replay-nav-buttons">
-              <button type="button" className="btn" disabled={at === 0} onClick={() => go(at - 1)}>
+              <button ref={prevRef} type="button" className="btn btn-small" disabled={at === 0} onClick={() => move(-1)}>
                 {t('adminReplayPrev')}
               </button>
               <span className="meta" role="status">
                 {t('adminReplayStep', { n: at + 1, total })}
               </span>
-              <button type="button" className="btn" disabled={at === total - 1} onClick={() => go(at + 1)}>
+              <button ref={nextRef} type="button" className="btn btn-small" disabled={at === total - 1} onClick={() => move(1)}>
                 {t('adminReplayNext')}
               </button>
             </div>
           </nav>
-          <StepCard step={step} />
+          <StepCard step={step} unrecorded={replay.recorded && replay.recordedFrom !== null && step.index < replay.recordedFrom} />
         </>
       )}
     </>

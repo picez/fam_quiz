@@ -5556,6 +5556,16 @@
   "adminReplayEventLeave": "{time} — أُخرج {name} (النتيجة {score})",
   "adminReplayEventPause": "{time} — استراحة {seconds} ث",
   "adminReplayEventPauseOpen": "{time} — استراحة حتى نهاية اللعبة",
+  "adminReplayVerdict_noAnswer": "بلا إجابة",
+  "adminReplayTarget": "← {name}",
+  "adminReplayUndoesQuestion": "(السؤال {n})",
+  "adminReplayUndoesSeq": "(التعديل #{seq})",
+  "adminReplayAttempt": "المحاولة {n}",
+  "adminReplayWager": "الرهان: {points}",
+  "adminReplayEventPauseUnknown": "{time} — استراحة (المدة غير معروفة)",
+  "adminReplayNotRecordedStep": "لُعبت هذه الخطوة قبل تسجيل الأحداث: لم تُحفظ الانضمامات والإخراجات والاستراحات والتقييم السابق للقرار اليدوي (—).",
+  "adminReplayNoSteps": "لم يُلعب أي سؤال",
+  "adminReplayStatus": "اللعبة: {status}",
   "err_replay_running": "اللعبة ما زالت جارية — ستكون الإعادة جاهزة بعد انتهائها.",
   "adminLog_game_replay_view": "شاهد {admin} إعادة اللعبة «{title}» ({target})"
 }
