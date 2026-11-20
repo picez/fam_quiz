@@ -1032,6 +1032,23 @@ export class RoomManager {
   }
 
   /**
+   * Видалення акаунта (58): у кожній живій кімнаті місця з цим акаунтом стають гостьовими — геть з playerUsers і continued.bound.
+   * Людина догравав як гість, рекордер пише user_id = null; подій немає. Повертає кількість знятих прив'язок.
+   */
+  forgetUser(userId: string): number {
+    let removed = 0;
+    for (const room of this.live.values()) {
+      for (const [playerId, bound] of [...room.playerUsers]) {
+        if (bound !== userId) continue;
+        room.playerUsers.delete(playerId);
+        room.continued?.bound.delete(playerId);
+        removed += 1;
+      }
+    }
+    return removed;
+  }
+
+  /**
    * «Закрити гру» адміна (53): як бан ведучого для однієї кімнати — lobby → close (подія 'closed'), гра йде → end() рушія
    * (гравці бачать звичайний кінець гри); finished — без змін.
    */
