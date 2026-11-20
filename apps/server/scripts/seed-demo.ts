@@ -61,35 +61,7 @@ import { wordleQuiz } from './wordle-quiz';
 import { big1Quiz } from './big1-quiz';
 import { BIG2_PHOTOS, big2Quiz } from './big2-quiz';
 import { BIG3_FILES, BIG3_PHOTOS, big3Quiz } from './big3-quiz';
-
-/** Ключ картинки → стаття англійської Вікіпедії, чия головна ілюстрація підходить до запитання. */
-const ARTICLES: Record<string, string> = {
-  octopus: 'Octopus',
-  elephant: 'Elephant',
-  wall: 'Great_Wall_of_China',
-  scotland: 'Royal_coat_of_arms_of_Scotland',
-  napoleon: 'Napoleon',
-  wombat: 'Wombat',
-  moon: 'Apollo_11',
-  recorder: 'Flight_recorder',
-  cheetah: 'Cheetah',
-  mercury: 'Mercury_(element)',
-  wasabi: 'Wasabi',
-  saffron: 'Saffron',
-  flamingo: 'American_flamingo',
-  hubble: 'Hubble_Space_Telescope',
-  hoverla: 'Hoverla',
-  sophia: 'Saint_Sophia_Cathedral,_Kyiv',
-  stonehenge: 'Stonehenge',
-  mazepa: 'Ivan_Mazepa',
-  saturn: 'Saturn',
-  vatican: 'Vatican_City',
-  pillars: 'Pillars_of_Creation',
-  petrykivka: 'Petrykivka_painting',
-  lubart: "Lubart's_Castle",
-  fallingwater: 'Fallingwater',
-  flytrap: 'Venus_flytrap',
-};
+import { ARTICLES } from './seed-articles';
 
 async function thumbnails(keys: readonly string[]): Promise<Record<string, string>> {
   const titles = keys.map((key) => ARTICLES[key]).join('|');

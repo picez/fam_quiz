@@ -9,6 +9,7 @@
     "seed:demo": "tsx scripts/seed-demo.ts",
     "db:backup": "tsx --env-file-if-exists=../../.env scripts/db-backup.ts",
     "db:restore": "tsx --env-file-if-exists=../../.env scripts/db-restore.ts",
+    "question-db": "tsx --env-file-if-exists=../../.env scripts/question-db.ts",
     "profile:timing": "tsx --env-file-if-exists=../../.env scripts/profile-timing.ts"
   },
   "dependencies": {
