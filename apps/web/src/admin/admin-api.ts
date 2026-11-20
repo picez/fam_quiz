@@ -1,7 +1,7 @@
 import { isObjectLike } from '@quiz/shared';
 import type { AdminBroadcast, AdminBroadcasts, BroadcastInput, BroadcastPreview, BroadcastRecipients } from '@quiz/shared';
 import type { AdminBackups, AdminProblemReport, AdminProblemsBadge, AdminServerError } from '@quiz/shared';
-import type { AchievementId, AdminBot, AdminBotLobby, AdminBotPerson, AdminBotPlan, BotCommand, BotPlanInput, GameDetail } from '@quiz/shared';
+import type { AchievementId, AdminBot, AdminBotLobby, AdminBotPerson, AdminBotPlan, BotCommand, BotPlanInput, GameDetail, GameReplay } from '@quiz/shared';
 import type { Announcement, AnnouncementInput, AdminCharts, AdminHealth, AdminLiveList, AdminList, AdminReportItem, AdminLogExport, AdminLogGroup, AdminLogPage, AdminQuizCheck, AdminQuizRow, AdminQuizView, AdminStats, AdminUserDetail, AdminUserRow } from '@quiz/shared';
 import type { AdminFeedKind, AdminFeedRow, AdminGroupDetail, AdminGroupRow } from '@quiz/shared';
 import { fetchData, request, type ApiData, type ApiResult } from '../api';
@@ -96,6 +96,8 @@ export const revokeGift = (awardId: string): Promise<ApiResult<object>> => reque
 export const deleteUserAsAdmin = (userId: string, confirm: string): Promise<ApiResult<object>> =>
   request<object>(`/api/admin/users/${id(userId)}`, { method: 'DELETE', body: { confirm } });
 export const adminGame = (gameId: string): Promise<ApiData<GameDetail>> => fetchData<GameDetail>(`/api/admin/games/${id(gameId)}`);
+/** 65: повтор гри по кроках; гра ще йде — 409 replay_running. */
+export const adminGameReplay = (gameId: string): Promise<ApiData<GameReplay>> => fetchData<GameReplay>(`/api/admin/games/${id(gameId)}/replay`);
 /** Розсилка (59): історія, ліміти й групи; скільки людей отримають; відправка. */
 export const adminBroadcasts = (): Promise<ApiData<AdminBroadcasts>> => fetchData<AdminBroadcasts>('/api/admin/broadcasts');
 export const previewBroadcast = (recipients: BroadcastRecipients): Promise<ApiData<BroadcastPreview>> =>
