@@ -5,8 +5,12 @@ import type { Db } from './db/client';
 import { achievementBlock, feedEvent, profile, showcasePin, user, userAchievement, xpEntry } from './db/schema';
 import { announceLevels } from './feed-publish';
 import { reportError } from './log';
+import { ensureProfile } from './profiles';
 import { creditAchievements, syncXp, xpTotals } from './xp-store';
 import { kyivDay } from './xp-rules';
+
+/** Причина рядка, що повертає суму до нуля, коли зняте досягнення забрало більше, ніж лишалось. */
+const BALANCE_NOTE = 'Вирівнювання до нуля після зняття досягнення';
 
 type Tx = Parameters<Parameters<Db['transaction']>[0]>[0];
 
@@ -55,18 +59,27 @@ export async function grantAchievement(db: Db, input: AchievementInput): Promise
 
 /**
  * 58: забрати досягнення — разом з його досвідом, подією стрічки й закріпленням на вітрині; заборона не дає жодній синхронізації
- * повернути його, доки адмін не видасть знову. Немає користувача чи досягнення — 'not_found' без журналу.
+ * повернути його, доки адмін не видасть знову. Під замком профілю; сума після зняття нижче нуля — рядок 'admin', що повертає її рівно до 0.
+ * Немає користувача чи досягнення — 'not_found' без журналу.
  */
 export async function revokeAchievement(db: Db, input: AchievementInput): Promise<'revoked' | 'not_found'> {
   const { userId, achievementId } = input;
   const result = await db.transaction(async (tx) => {
     if (!(await exists(tx, userId))) return 'not_found' as const;
+    // Той самий замок, що в adjustXp і в записі syncAchievements: сума не піде нижче нуля, а синхронізація не запише забране.
+    await ensureProfile(tx as Db, userId);
+    await tx.select({ id: profile.userId }).from(profile).where(eq(profile.userId, userId)).for('update');
     const removed = await tx
       .delete(userAchievement)
       .where(and(eq(userAchievement.userId, userId), eq(userAchievement.achievementId, achievementId)))
       .returning({ id: userAchievement.achievementId });
     if (removed.length === 0) return 'not_found' as const;
     await tx.delete(xpEntry).where(and(eq(xpEntry.userId, userId), eq(xpEntry.source, 'achievement'), eq(xpEntry.achievementId, achievementId)));
+    const left = (await xpTotals(tx, [userId])).get(userId) ?? 0;
+    if (left < 0) {
+      const { now } = input;
+      await tx.insert(xpEntry).values({ userId, source: 'admin', amount: -left, note: BALANCE_NOTE, day: kyivDay(now), at: now, createdAt: now, counted: false, reason: null });
+    }
     await tx
       .insert(achievementBlock)
       .values({ userId, achievementId, blockedAt: input.now })

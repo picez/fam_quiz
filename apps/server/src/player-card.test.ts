@@ -137,6 +137,78 @@ describe('granting and revoking an achievement', () => {
   });
 });
 
+describe('revoking never leaves negative xp', () => {
+  const BALANCE_NOTE = 'Вирівнювання до нуля після зняття досягнення';
+  const worth = ACHIEVEMENT_XP[achievementRarity('first_win')];
+
+  it('grant, subtract its xp, revoke — the total ends at exactly 0 with a balancing admin row', async () => {
+    const olia = await person('Оля');
+    await syncXp(db, olia);
+    await grantAchievement(db, { adminId: ADMIN, userId: olia, achievementId: 'first_win', now: NOW });
+    expect(await total(olia)).toBe(worth);
+    expect(await adjustXp(db, { adminId: ADMIN, userId: olia, amount: -worth, reason: 'Помилка', now: NOW })).toEqual({ ok: true, xp: 0, level: 1 });
+    expect(await revokeAchievement(db, { adminId: ADMIN, userId: olia, achievementId: 'first_win', now: NOW })).toBe('revoked');
+    expect(await total(olia)).toBe(0);
+    const rows = await adminRows(olia);
+    expect(rows.map((r) => [r.amount, r.note]).sort()).toEqual([
+      [-worth, 'Помилка'],
+      [worth, BALANCE_NOTE],
+    ].sort());
+    expect((await logOf(olia)).map((l) => l.kind).sort()).toEqual(['achievement_grant', 'achievement_revoke', 'xp_adjust']);
+  });
+
+  it('a revoke with enough other xp adds no balancing row', async () => {
+    const olia = await person('Оля');
+    await grantAchievement(db, { adminId: ADMIN, userId: olia, achievementId: 'first_win', now: NOW });
+    await adjustXp(db, { adminId: ADMIN, userId: olia, amount: 100, reason: 'Турнір', now: NOW });
+    await revokeAchievement(db, { adminId: ADMIN, userId: olia, achievementId: 'first_win', now: NOW });
+    expect(await total(olia)).toBe(100);
+    expect((await adminRows(olia)).map((r) => r.amount)).toEqual([100]);
+  });
+
+  it('a revoke racing a subtraction never leaves the total below zero', async () => {
+    for (let i = 0; i < 4; i++) {
+      const olia = await person('Оля');
+      await syncXp(db, olia);
+      await grantAchievement(db, { adminId: ADMIN, userId: olia, achievementId: 'first_win', now: NOW });
+      const [revoked, adjusted] = await Promise.all([
+        revokeAchievement(db, { adminId: ADMIN, userId: olia, achievementId: 'first_win', now: NOW }),
+        adjustXp(db, { adminId: ADMIN, userId: olia, amount: -worth, reason: 'Помилка', now: NOW }),
+      ]);
+      expect(revoked).toBe('revoked');
+      expect(adjusted.ok === true || adjusted.error === 'xp_below_zero').toBe(true);
+      expect(await total(olia)).toBe(0);
+    }
+  });
+});
+
+describe('a revoke while a sync is in flight', () => {
+  it('the sync does not write an achievement blocked after it read the block list', async () => {
+    const olia = await person('Оля');
+    await win(olia, 5, new Date('2026-11-01T10:00:00Z'));
+    // Адмін забирає first_win між читанням і записом синхронізації: блок з'являється перед транзакцією запису.
+    let fired = false;
+    const racing = new Proxy(db, {
+      get(target, prop) {
+        const value = Reflect.get(target, prop, target) as unknown;
+        if (prop !== 'transaction' || typeof value !== 'function') return typeof value === 'function' ? value.bind(target) : value;
+        return async (...args: unknown[]) => {
+          if (!fired) {
+            fired = true;
+            await db.insert(achievementBlock).values({ userId: olia, achievementId: 'first_win', blockedAt: NOW });
+          }
+          return (value as (...a: unknown[]) => unknown).apply(target, args);
+        };
+      },
+    });
+    await syncAchievements(racing, olia, null);
+    expect(fired).toBe(true);
+    const ids = (await owned(olia)).map((r) => r.achievementId);
+    expect(ids).toContain('first_game');
+    expect(ids).not.toContain('first_win');
+  });
+});
+
 describe('manual xp', () => {
   const reason = 'Переможець вікторини в школі';
 

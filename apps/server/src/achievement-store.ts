@@ -392,11 +392,18 @@ export async function syncAchievements(
 
   let fresh: AchievementId[] = [];
   if (pending.size > 0) {
-    const inserted = await db
-      .insert(userAchievement)
-      .values([...pending].map(([achievementId, { earnedAt, gameId }]) => ({ userId, achievementId, earnedAt, gameId })))
-      .onConflictDoNothing()
-      .returning({ id: userAchievement.achievementId });
+    // 58: заборону перечитуємо під замком профілю (його бере й revokeAchievement): забране між читанням і записом не повернеться.
+    const inserted = await db.transaction(async (tx) => {
+      await tx.select({ id: profile.userId }).from(profile).where(eq(profile.userId, userId)).for('update');
+      const late = await tx.select({ id: achievementBlock.achievementId }).from(achievementBlock).where(eq(achievementBlock.userId, userId));
+      for (const { id } of late) pending.delete(id);
+      if (pending.size === 0) return [];
+      return tx
+        .insert(userAchievement)
+        .values([...pending].map(([achievementId, { earnedAt, gameId }]) => ({ userId, achievementId, earnedAt, gameId })))
+        .onConflictDoNothing()
+        .returning({ id: userAchievement.achievementId });
+    });
     const ids = new Set(inserted.map((row) => row.id));
     fresh = ACHIEVEMENTS.filter((id) => ids.has(id));
     for (const id of fresh) earned.set(id, pending.get(id)!);
