@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm';
+import { DrizzleQueryError, eq } from 'drizzle-orm';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Db } from './db/client';
 import { adminAction, problemReport, serverError, user } from './db/schema';
@@ -187,6 +187,31 @@ describe('stored server errors (64)', () => {
     } finally {
       unhook();
     }
+  });
+
+  it('a failing query is stored without its params and groups into one row', async () => {
+    const db = await createTestDb();
+    const store = createErrorStore({ db, now });
+    await db.insert(user).values({ id: 'u1', name: 'Ольга Малинська', email: 'olya@example.com' });
+    const failures: unknown[] = [];
+    for (const [name, email] of [['Ольга Малинська', 'olya@example.com'], ['Тарас Шевчук', 'taras.sh@example.com']]) {
+      try {
+        await db.insert(user).values({ id: 'u1', name, email });
+      } catch (error) {
+        failures.push(error);
+      }
+    }
+    expect(failures).toHaveLength(2);
+    expect(failures[0]).toBeInstanceOf(DrizzleQueryError);
+    for (const failure of failures) store.record(failure, { where: 'store' });
+    await store.flush();
+    const all = await rows(db);
+    expect(all).toHaveLength(1);
+    expect(all[0].count).toBe(2);
+    const text = JSON.stringify(all);
+    for (const secret of ['Ольга', 'Малинська', 'Тарас', 'olya', 'taras', 'params']) expect(text).not.toContain(secret);
+    expect(all[0].message).toContain('insert into "user"');
+    await store.stop();
   });
 
   it('a value that is not an Error is stored too', async () => {
