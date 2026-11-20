@@ -14,6 +14,7 @@ import {
   roundTotals,
   LIFELINES,
   isUnscored,
+  playedText,
   questionPrice,
   QUESTION_TYPES,
   questionsOf,
@@ -204,7 +205,7 @@ function factInputOf(
       index,
       roundIndex,
       number,
-      text: question.text,
+      text: playedText(question),
       limitMs: factLimitMs(question, round, voice),
       // «Думай інакше» (35): записи з 0 балів — не «відповіді» для цікавинок, як і наживо (facts.ts).
       scored: !isUnscored(question) && question.type !== 'think',
