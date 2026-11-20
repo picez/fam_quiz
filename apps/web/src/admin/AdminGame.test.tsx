@@ -77,6 +77,20 @@ describe('AdminGame (58)', () => {
     }
   });
 
+  it('links a finished game to its step-by-step replay (65)', async () => {
+    stub(200, game);
+    open();
+    const link = await screen.findByRole('link', { name: 'Повтор по кроках' });
+    expect(link.getAttribute('href')).toBe(`/admin/games/${game.id}/replay`);
+  });
+
+  it('has no replay link while the game is running (65)', async () => {
+    stub(200, { ...game, status: 'running', finishedAt: null });
+    open();
+    expect(await screen.findByRole('heading', { name: 'Карпати', level: 2 })).toBeTruthy();
+    expect(screen.queryByRole('link', { name: 'Повтор по кроках' })).toBeNull();
+  });
+
   it('goes home on 404', async () => {
     stub(404, { error: 'not_found' });
     open();

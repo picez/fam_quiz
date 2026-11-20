@@ -28081,6 +28081,129 @@ a.library-card:focus-visible {
   margin-block-start: -1rem;
 }
 
+/* 65: повтор гри по кроках — до 600 px рядок учасника є карткою з підписами полів, ширше — шість колонок;
+   довгі відповіді переносяться, на 360 px без бічного скролу; лише змінні теми (світла й темна). */
+.admin-replay {
+  display: grid;
+  gap: 1rem;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.admin-replay h2 {
+  margin: 0;
+}
+
+.replay-nav {
+  display: grid;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.replay-nav select {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.replay-nav-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.replay-nav-buttons .meta {
+  flex: 1 1 8rem;
+  text-align: center;
+}
+
+.replay-rows,
+.replay-events {
+  display: grid;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.replay-events li {
+  padding-inline-start: 0.75rem;
+  border-inline-start: 2px solid var(--line);
+}
+
+.replay-row {
+  position: relative;
+  display: grid;
+  gap: 0.35rem;
+  min-width: 0;
+  padding: 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-small);
+  background: var(--surface);
+}
+
+.replay-cell {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.25rem 0.5rem;
+  min-width: 0;
+}
+
+.replay-label {
+  flex: 0 0 6.5rem;
+  color: var(--dim);
+  font-size: 0.9rem;
+}
+
+.replay-value {
+  display: flex;
+  flex: 1 1 8rem;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.replay-head {
+  display: none;
+}
+
+@media (min-width: 601px) {
+  .replay-head,
+  .replay-row {
+    grid-template-columns: minmax(0, 1.3fr) minmax(0, 2fr) minmax(0, 0.7fr) minmax(0, 1.1fr) minmax(0, 0.7fr) minmax(0, 0.8fr);
+    gap: 0.5rem;
+    align-items: baseline;
+  }
+
+  .replay-head {
+    display: grid;
+    padding-inline: 0.75rem;
+    color: var(--dim);
+    font-size: 0.9rem;
+    font-weight: 700;
+  }
+
+  .replay-cell {
+    display: block;
+  }
+
+  /* Ширше підписи полів дублюють заголовки колонок: лишаються лише для читачів екрана (як .sr-only). */
+  .replay-row .replay-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+    border: 0;
+  }
+}
+
 /* 58: ручні зміни досвіду від адміністратора на сторінці рівнів. */
 .level-admin-xp {
   display: grid;
