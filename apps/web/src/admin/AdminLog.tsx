@@ -3,6 +3,7 @@ import { Navigate, useSearchParams } from 'react-router-dom';
 import { ADMIN_LOG_EXPORT_MAX, ADMIN_LOG_GROUPS, ADMIN_QUERY_MAX, isDay, type AdminLogGroup } from '@quiz/shared';
 import { formatDate } from '../format';
 import { errorText, t, type TextKey } from '../i18n';
+import { intlTag } from '../locales/current';
 import { AdminPager } from './Admin';
 import { adminLog, adminLogExport, logParams, type LogFilter } from './admin-api';
 import { logLine } from './admin-text';
@@ -72,7 +73,8 @@ export function AdminLog(): JSX.Element {
     document.body.append(link);
     link.click();
     link.remove();
-    URL.revokeObjectURL(url);
+    // Firefox і Safari скасовують завантаження, якщо посилання звільнити в той самий такт.
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
     if (result.data.total > result.data.rows.length) setExportNote({ capped: ADMIN_LOG_EXPORT_MAX });
   };
 
@@ -135,7 +137,7 @@ export function AdminLog(): JSX.Element {
       )}
       {exportNote !== null && 'capped' in exportNote && (
         <p className="meta" role="status">
-          {t('adminLogCsvCapped', { count: exportNote.capped.toLocaleString('uk-UA') })}
+          {t('adminLogCsvCapped', { count: exportNote.capped.toLocaleString(intlTag()) })}
         </p>
       )}
       {state.status === 'home' && <Navigate to="/" replace />}

@@ -3,7 +3,7 @@ import type { AdminLogEntry } from '@quiz/shared';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { t } from '../i18n';
+import { activateLocaleForTests, t } from '../i18n';
 import { AdminLog } from './AdminLog';
 
 const row = (id: string): AdminLogEntry => ({ id, at: '2026-11-20T21:30:00.000Z', kind: 'group_hide', admin: 'Ганна', target: 'Оля', details: { title: 'Родина', reason: null } });
@@ -106,6 +106,28 @@ describe('AdminLog filters (63)', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Вивантажити CSV' }));
     expect(await screen.findByText(/10\D000/)).toBeTruthy();
     expect(createObjectURL).toHaveBeenCalledTimes(1);
+  });
+
+  it('formats the row cap in the active language (63)', async () => {
+    activateLocaleForTests('en', { ui: { adminLogCsvCapped: 'Only the first {count} rows.' } });
+    try {
+      exportBody = { rows: Array.from({ length: 10_000 }, (_, i) => row(`x${i}`)), total: 10_002 };
+      open();
+      await screen.findByText(/Родина/);
+      fireEvent.click(screen.getByRole('button', { name: 'Вивантажити CSV' }));
+      expect(await screen.findByText('Only the first 10,000 rows.')).toBeTruthy();
+    } finally {
+      activateLocaleForTests('uk');
+    }
+  });
+
+  it('frees the file link only after the download has started (63)', async () => {
+    open();
+    await screen.findByText(/Родина/);
+    fireEvent.click(screen.getByRole('button', { name: 'Вивантажити CSV' }));
+    await waitFor(() => expect(HTMLAnchorElement.prototype.click).toHaveBeenCalledTimes(1));
+    expect(URL.revokeObjectURL).not.toHaveBeenCalled();
+    await waitFor(() => expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:log'), { timeout: 2500 });
   });
 
   it('shows the error text when the export fails', async () => {
