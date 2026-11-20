@@ -45,7 +45,7 @@ const profile: OwnProfile = {
   wins: [],
   friends: [],
   showcase: { title: null, awards: [], pins: { prizes: [], achievements: [] } },
-  level: { progress: levelProgress(0), unlocked: [], next: [], looks: { color: null, frame: null, badge: null, photo: null, font: null, effect: null } },
+  level: { progress: levelProgress(0), unlocked: [], next: [], looks: { color: null, frame: null, badge: null, photo: null, font: null, effect: null }, adminXp: [] },
   likes: { author: 0, host: 0, player: 0 },
 };
 
@@ -71,6 +71,8 @@ const open = (path: string) =>
         <Route path="/profile/prizes/new" element={<PrizeStudioPage />} />
         <Route path="/profile/prizes/:id" element={<PrizeStudioPage />} />
         <Route path="/profile/prizes" element={<p>склад</p>} />
+        <Route path="/admin/users/:id" element={<p>картка гравця</p>} />
+        <Route path="/feed" element={<p>стрічка</p>} />
         <Route path="/login" element={<p>сторінка входу</p>} />
       </Routes>
       <Where />
@@ -89,6 +91,31 @@ describe('PrizeStudioPage', () => {
     expect(vi.mocked(createPrize).mock.calls[0]![0]).toMatchObject({ name: 'Новий', trophy: { kind: 'cup', material: 'gold' } });
     expect(await screen.findByText('склад')).toBeTruthy();
     expect(screen.getByTestId('where').textContent).toBe('/profile/prizes');
+  });
+
+  it('?back= to the player card returns there after saving', async () => {
+    vi.mocked(createPrize).mockResolvedValue({ ok: true, ...item('p3', 'Новий') });
+    open('/profile/prizes/new?back=/admin/users/u1');
+    expect(await screen.findByRole('heading', { name: 'Новий приз' })).toBeTruthy();
+    fireEvent.click(screen.getByRole('tab', { name: /Приз/ }));
+    fireEvent.change(screen.getByLabelText('Назва'), { target: { value: 'Новий' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Зберегти' }));
+    expect(await screen.findByText('картка гравця')).toBeTruthy();
+    expect(screen.getByTestId('where').textContent).toBe('/admin/users/u1');
+  });
+
+  it('?back= to another place or another site is ignored', async () => {
+    vi.mocked(createPrize).mockResolvedValue({ ok: true, ...item('p3', 'Новий') });
+    for (const back of ['https://evil.example', '/feed', '//evil.example/admin/users/u1']) {
+      open('/profile/prizes/new?back=' + encodeURIComponent(back));
+      expect(await screen.findByRole('heading', { name: 'Новий приз' })).toBeTruthy();
+      fireEvent.click(screen.getByRole('tab', { name: /Приз/ }));
+      fireEvent.change(screen.getByLabelText('Назва'), { target: { value: 'Новий' } });
+      fireEvent.click(screen.getByRole('button', { name: 'Зберегти' }));
+      expect(await screen.findByText('склад')).toBeTruthy();
+      expect(screen.getByTestId('where').textContent).toBe('/profile/prizes');
+      cleanup();
+    }
   });
 
   it('edit loads the prize', async () => {

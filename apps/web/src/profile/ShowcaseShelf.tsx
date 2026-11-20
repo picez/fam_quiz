@@ -1,6 +1,7 @@
 import { useState, type JSX } from 'react';
 import { Link } from 'react-router-dom';
 import { shelfAwards, shelfColumns, type AwardCard } from '@quiz/shared';
+import { formatDate } from '../format';
 import { t } from '../i18n';
 import { AkatsukiCloud } from '../motifs/Motifs';
 import { PrizeViewer, canViewPrize } from '../trophy/PrizeViewer';
@@ -31,7 +32,8 @@ function ShelfItem({ award, main }: { award: AwardCard; main: boolean }): JSX.El
         {awardIcon(award)}
       </span>
       <span className="shelf-caption">{awardCaption(award)}</span>
-      <span className="shelf-quiz">{award.quizTitle}</span>
+      <span className="shelf-quiz">{award.gift === null ? award.quizTitle : t('awardGiftLine', { date: formatDate(award.awardedAt) })}</span>
+      {award.gift?.note != null && <span className="shelf-quiz">{award.gift.note}</span>}
     </>
   );
   const diploma = async () => {

@@ -99,7 +99,7 @@ describe('AppRoutes', () => {
     vi.mocked(me).mockResolvedValue({ ok: true, id: 'u1', name: 'Олена', email: 'o@example.com', admin: false });
     vi.mocked(getMyProfile).mockResolvedValue({
       ok: true,
-      data: { id: 'u1', nickname: 'Олена', avatar: null, level: { progress: levelProgress(0), unlocked: [], next: [], looks: {} } } as never,
+      data: { id: 'u1', nickname: 'Олена', avatar: null, level: { progress: levelProgress(0), unlocked: [], next: [], looks: {}, adminXp: [] } } as never,
     });
     open('/profile/levels');
     expect(await screen.findByRole('heading', { name: 'Нагороди за рівні' })).toBeTruthy();

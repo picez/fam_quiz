@@ -148,6 +148,8 @@ export interface AwardCard {
   quizTitle: string;
   nickname: string;
   awardedAt: string;
+  /** 58: подарунок адміна з підписом; null — нагорода з гри. */
+  gift: { note: string | null } | null;
 }
 export interface Showcase {
   title: { text: string; until: string } | null;

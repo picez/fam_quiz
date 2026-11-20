@@ -1,7 +1,7 @@
 import { BOT_PLAN_REASONS, type AdminLogEntry, type Question, type RemovalEffect } from '@quiz/shared';
 import { t, type TextKey } from '../i18n';
 import { KYIV_ZONE, timeText } from '../calendar/calendar-time';
-import { formatDay, questionName } from '../format';
+import { formatDay, questionName, signedXp } from '../format';
 import { decimalText } from '../locales/grammar';
 import { nickText } from '../nick';
 
@@ -36,13 +36,20 @@ const lobbyVars = (entry: AdminLogEntry): { listed: string; locked: string } => 
   locked: entry.details.locked ? t('lobbyLocked') : t('adminBotLogOpen'),
 });
 
-/** Рядок журналу; для блокування з причиною — «. Причина: …»; для збою розкладу бота — причина словами. */
+/**
+ * Рядок журналу; для блокування чи зміни досвіду з причиною — «. Причина: …»; для збою розкладу бота — причина словами.
+ * Видалення акаунта називає ціль з details.text (нік чи email на мить видалення: акаунта вже немає, а нік міг бути порожнім);
+ * подарунок з підписом — «. Підпис: …»; зняття досягнення, після якого досвід вирівняно до нуля, — і цю суму.
+ */
 export function logLine(entry: AdminLogEntry): string {
   const when = entry.details.when === undefined ? '' : kyivWhenText(entry.details.when);
   const planReason = entry.kind === 'bot_plan_fail' ? botPlanReasonText(entry.details.reason ?? null) : '';
-  const line = t(`adminLog_${entry.kind}` as TextKey, { admin: nickText(entry.admin), target: nickText(entry.target), title: entry.details.title ?? '', text: entry.details.text ?? '', code: entry.details.code ?? '', when, reason: planReason, ...lobbyVars(entry) });
-  const reason = entry.kind === 'ban' ? entry.details.reason : null;
+  const text = entry.details.text ?? (entry.kind === 'account_delete' ? nickText(entry.target) : '');
+  const line = t(`adminLog_${entry.kind}` as TextKey, { admin: nickText(entry.admin), target: nickText(entry.target), title: entry.details.title ?? '', text, code: entry.details.code ?? '', when, reason: planReason, amount: signedXp(entry.details.amount ?? 0), achievement: entry.details.achievementId === undefined ? '' : t(`achievement_${entry.details.achievementId}` as TextKey), ...lobbyVars(entry) });
+  const reason = entry.kind === 'ban' || entry.kind === 'xp_adjust' ? entry.details.reason : null;
   if (entry.kind === 'nickname_reset' && entry.details.text) return t('adminLogWas', { line, text: entry.details.text });
+  if (entry.kind === 'prize_gift' && entry.details.text) return t('adminLogGiftNote', { line, text: entry.details.text });
+  if (entry.kind === 'achievement_revoke' && entry.details.amount) return t('adminLogBalanced', { line, amount: signedXp(entry.details.amount) });
   return reason ? `${line}. ${t('adminReasonShown', { reason })}` : line;
 }
 

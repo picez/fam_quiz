@@ -10,11 +10,18 @@ import { usePrivateData } from '../usePrivateData';
 
 const STORE = '/profile/prizes';
 
+/** Куди повертатися: лише в картку гравця в адмінці (`?back=/admin/users/…`); чужі адреси й решта шляхів — на склад. */
+function backTarget(search: string): string {
+  const back = new URLSearchParams(search).get('back');
+  return back !== null && /^\/admin\/users\/[\w-]+$/.test(back) ? back : STORE;
+}
+
 /** Редактор призу: /profile/prizes/new — новий, /profile/prizes/:id — наявний (зарезервований лише для перегляду). */
 export function PrizeStudioPage(): JSX.Element {
   const { id } = useParams();
   const location = useLocation();
   const navigate = useNavigate();
+  const back = backTarget(location.search);
   const store = usePrivateData(myPrizes);
   const { state: profile } = useMyProfile();
   const [busy, setBusy] = useState(false);
@@ -35,7 +42,7 @@ export function PrizeStudioPage(): JSX.Element {
     const result = id === undefined ? await createPrize(content) : await updatePrize(id, content);
     setBusy(false);
     if (!result.ok) return setError(errorText(result.error));
-    navigate(STORE);
+    navigate(back);
   };
 
   return (
@@ -47,7 +54,7 @@ export function PrizeStudioPage(): JSX.Element {
       busy={busy}
       error={error}
       onSave={(content) => void save(content)}
-      onCancel={() => navigate(STORE)}
+      onCancel={() => navigate(back)}
     />
   );
 }

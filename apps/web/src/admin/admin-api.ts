@@ -1,4 +1,4 @@
-import type { AdminBot, AdminBotLobby, AdminBotPerson, AdminBotPlan, BotAction, BotCommand, BotPlanInput } from '@quiz/shared';
+import type { AchievementId, AdminBot, AdminBotLobby, AdminBotPerson, AdminBotPlan, BotAction, BotCommand, BotPlanInput, GameDetail } from '@quiz/shared';
 import type { Announcement, AnnouncementInput, AdminCharts, AdminHealth, AdminLiveList, AdminList, AdminReportItem, AdminLogEntry, AdminQuizCheck, AdminQuizRow, AdminQuizView, AdminStats, AdminUserDetail, AdminUserRow } from '@quiz/shared';
 import { fetchData, request, type ApiData, type ApiResult } from '../api';
 
@@ -60,3 +60,17 @@ export const updateBotPlan = (planId: string, input: BotPlanInput): Promise<ApiR
 export const cancelBotPlan = (planId: string): Promise<ApiResult<object>> => request<object>(`/api/admin/bot/plans/${id(planId)}/cancel`, { method: 'POST' });
 /** Люди за ніком для «Вибраним людям»; відповідь — список, тому цілою (ApiData). */
 export const searchBotPeople = (q: string): Promise<ApiData<AdminBotPerson[]>> => fetchData<AdminBotPerson[]>(`/api/admin/bot/people?q=${id(q)}`);
+/** Картка гравця (58): досягнення, ручний досвід, подарунок, видалення акаунта, адмінський перегляд будь-якої гри. */
+export const grantAchievement = (userId: string, achievementId: AchievementId): Promise<ApiResult<object>> =>
+  request<object>(`/api/admin/users/${id(userId)}/achievements`, { method: 'POST', body: { achievementId } });
+export const revokeAchievement = (userId: string, achievementId: AchievementId): Promise<ApiResult<object>> =>
+  request<object>(`/api/admin/users/${id(userId)}/achievements/${id(achievementId)}`, { method: 'DELETE' });
+export const adjustXp = (userId: string, amount: number, reason: string): Promise<ApiResult<{ xp: number; level: number }>> =>
+  request<{ xp: number; level: number }>(`/api/admin/users/${id(userId)}/xp`, { method: 'POST', body: { amount, reason } });
+export const giftPrize = (userId: string, prizeId: string, note: string | null): Promise<ApiResult<{ id: string }>> =>
+  request<{ id: string }>(`/api/admin/users/${id(userId)}/gifts`, { method: 'POST', body: { prizeId, note } });
+export const revokeGift = (awardId: string): Promise<ApiResult<object>> => request<object>(`/api/admin/gifts/${id(awardId)}`, { method: 'DELETE' });
+/** `confirm` — нік (чи email без ніку), набраний адміном; сервер порівнює точно, після обрізання країв. */
+export const deleteUserAsAdmin = (userId: string, confirm: string): Promise<ApiResult<object>> =>
+  request<object>(`/api/admin/users/${id(userId)}`, { method: 'DELETE', body: { confirm } });
+export const adminGame = (gameId: string): Promise<ApiData<GameDetail>> => fetchData<GameDetail>(`/api/admin/games/${id(gameId)}`);

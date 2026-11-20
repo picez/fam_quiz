@@ -447,6 +447,19 @@ export const userAchievement = pgTable(
   (table) => [primaryKey({ columns: [table.userId, table.achievementId] })],
 );
 
+/** Заборона забраного адміном досягнення (58): синхронізація його не повертає, доки адмін не видасть знову. */
+export const achievementBlock = pgTable(
+  'achievement_block',
+  {
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    achievementId: text('achievement_id').$type<AchievementId>().notNull(),
+    blockedAt: at('blocked_at').notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.userId, table.achievementId] })],
+);
+
 /** Жива кімната (9b): серіалізований SavedRoom, щоб гра пережила перезапуск. Рядок видаляється, коли кімната закривається. */
 export const liveRoom = pgTable('live_room', {
   code: text('code').primaryKey(),
@@ -491,6 +504,9 @@ export const prizeAward = pgTable(
     quizTitle: text('quiz_title').notNull(),
     nickname: text('nickname').notNull(),
     awardedAt: at('awarded_at').notNull(),
+    /** 58: подарунок адміна не з гри (game_id = id нагороди); gift_note — підпис. */
+    gift: boolean('gift').notNull().default(false),
+    giftNote: text('gift_note'),
   },
   (table) => [uniqueIndex('prize_award_once').on(table.gameId, table.place, table.userId), index('prize_award_user_idx').on(table.userId)],
 );
@@ -525,7 +541,7 @@ export const showcasePin = pgTable(
   (table) => [primaryKey({ columns: [table.userId, table.kind, table.itemId] }), uniqueIndex('showcase_pin_slot').on(table.userId, table.kind, table.slot)],
 );
 
-/** Журнал досвіду (беклог 11): рядок на акаунт за гру ('game') чи за ачівку ('achievement'); сума — рівень. */
+/** Журнал досвіду (беклог 11): рядок на акаунт за гру ('game'), за ачівку ('achievement') чи ручна зміна адміна ('admin', 58); сума — рівень. */
 export const xpEntry = pgTable(
   'xp_entry',
   {
@@ -533,7 +549,7 @@ export const xpEntry = pgTable(
     userId: text('user_id')
       .notNull()
       .references(() => user.id, { onDelete: 'cascade' }),
-    source: text('source').$type<'game' | 'achievement'>().notNull(),
+    source: text('source').$type<'game' | 'achievement' | 'admin'>().notNull(),
     /** Без FK: журнал переживає видалення гри. */
     gameId: uuid('game_id'),
     quizId: uuid('quiz_id'),
@@ -547,6 +563,8 @@ export const xpEntry = pgTable(
     /** finished_at гри чи earned_at досягнення; null — давнє досягнення без дати. */
     at: at('at'),
     retro: boolean('retro').notNull().default(false),
+    /** 58: причина ручної зміни — лише для 'admin'. */
+    note: text('note'),
     createdAt: at('created_at').notNull(),
   },
   (table) => [

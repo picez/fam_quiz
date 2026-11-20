@@ -51,7 +51,14 @@ function Award({ award, pin }: { award: AwardCard; pin: ReactNode }): JSX.Elemen
         </button>
       )}
       {content.engraving && <p className="engraving">{content.engraving}</p>}
-      <p className="award-line">{t('awardLine', { place: award.place, quiz: award.quizTitle, date: formatDate(award.awardedAt) })}</p>
+      {award.gift === null ? (
+        <p className="award-line">{t('awardLine', { place: award.place, quiz: award.quizTitle, date: formatDate(award.awardedAt) })}</p>
+      ) : (
+        <>
+          <p className="award-line award-gift">{t('awardGiftLine', { date: formatDate(award.awardedAt) })}</p>
+          {award.gift.note !== null && <p className="award-gift-note">{award.gift.note}</p>}
+        </>
+      )}
       {content.real && (
         <div className="podium-real">
           {content.real.photoUrl !== null && (

@@ -8,7 +8,8 @@ import { eq } from 'drizzle-orm';
 import type { Db } from '../src/db/client';
 import { user } from '../src/db/schema';
 
-export const UA = { 'user-agent': 'fam-quiz-seed/1.0 (demo content)' };
+// Wikimedia відхиляє (429) запити без адреси для зв'язку в user-agent.
+export const UA = { 'user-agent': 'fam-quiz-seed/1.0 (https://fam-quiz.onrender.com)' };
 
 const PHOTO = /\.(jpe?g|png|webp)$/i;
 

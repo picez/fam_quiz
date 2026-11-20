@@ -233,6 +233,8 @@ export interface Room {
   quizId: string | null;
   /** Гравці, які увійшли в акаунт: id гравця → id акаунта. */
   playerUsers: Map<string, string>;
+  /** 58: місця видалених акаунтів (id гравців) — рекордер пише їх «Видаленим гравцем» і без його імені в журналі гри; немає — нікого. */
+  forgotten?: Set<string>;
   state: GameState;
   /** Токен гравця → id гравця. */
   playerTokens: Map<string, string>;
@@ -540,6 +542,8 @@ export interface SavedRoom {
   quizId: string | null;
   playerUsers: [string, string][];
   playerTokens: [string, string][];
+  /** 58: Room.forgotten; немає — нікого (старий сервер поле ігнорує). */
+  forgotten?: string[];
   state: GameState;
   tickedTo: number;
   /** Мить знімка за годинником менеджера; відновлений стан стоїть на паузі з неї. */
@@ -556,6 +560,11 @@ export interface SavedRoom {
   challenge?: RoomChallenge;
   /** Гра для сімейної ліги (45); немає чи зіпсовано — гра не для ліги (старий сервер поле ігнорує). */
   league?: RoomLeague;
+}
+
+/** forgotten зі знімка (58): лише рядки; не масив — нікого. */
+function forgottenOf(raw: unknown): Set<string> {
+  return new Set(Array.isArray(raw) ? raw.filter((id): id is string => typeof id === 'string') : []);
 }
 
 /** Перевірка рядка з бази: та сама версія знімка, версія стану, що читається як поточна, на місці поля, без яких кімнату не підняти. */
@@ -916,6 +925,7 @@ export class RoomManager {
       quizId: room.quizId,
       playerUsers: [...room.playerUsers],
       playerTokens: [...room.playerTokens],
+      ...(room.forgotten === undefined || room.forgotten.size === 0 ? {} : { forgotten: [...room.forgotten] }),
       state: room.state,
       tickedTo: room.tickedTo,
       savedAt: this.now(),
@@ -978,6 +988,8 @@ export class RoomManager {
       newAchievements: null,
       xpMoments: null,
     };
+    const forgotten = forgottenOf(saved.forgotten);
+    if (forgotten.size > 0) room.forgotten = forgotten;
     this.live.set(room.code, room);
     this.reserved.delete(room.code);
     // Пульт ще не підключений: як після відходу ведучого — 10 хв на повернення (стан уже на паузі).
@@ -1032,6 +1044,32 @@ export class RoomManager {
       if (room.hostUserId === userId && this.shut(room)) changed += 1;
     }
     return changed;
+  }
+
+  /**
+   * Видалення акаунта (58): у кожній живій кімнаті місця з цим акаунтом стають гостьовими — геть з playerUsers і continued.bound.
+   * Людина догравав як гість, рекордер пише user_id = null. Кімнати, які вона веде, спершу переходять до прихованого бота й
+   * закриваються, як closeHostedBy (lobby → close, гра йде → end()): запис фінішу вже несе ведучим бота, тож гра лишається
+   * в історії гравців і не впирається в ключ видаленого акаунта. Його місця йдуть у room.forgotten: рекордер пише їх «Видаленим гравцем».
+   * Повертає кількість знятих прив'язок гравців.
+   */
+  forgetUser(userId: string): number {
+    for (const room of [...this.live.values()]) {
+      if (room.hostUserId !== userId) continue;
+      room.hostUserId = BOT_USER_ID;
+      this.shut(room);
+    }
+    let removed = 0;
+    for (const room of this.live.values()) {
+      for (const [playerId, bound] of [...room.playerUsers]) {
+        if (bound !== userId) continue;
+        room.playerUsers.delete(playerId);
+        room.continued?.bound.delete(playerId);
+        (room.forgotten ??= new Set()).add(playerId);
+        removed += 1;
+      }
+    }
+    return removed;
   }
 
   /**
@@ -1320,6 +1358,8 @@ export class RoomManager {
     if (this.openFor(gameId)) return { ok: false, error: 'continue_open' };
     const room = this.open(continueFrom(saved.state, saved.at), hostUserId, saved.quizId, gameId, challenge ?? null);
     for (const [playerId, userId] of saved.playerUsers) room.playerUsers.set(playerId, userId);
+    const forgotten = forgottenOf(saved.forgotten);
+    if (forgotten.size > 0) room.forgotten = forgotten;
     room.continued = { bound: new Set(), carry: null, replaces: null };
     // Та сама гра — ті самі призи (14a): резерв за id гри лишився після збереження.
     room.prizes = prizesOf(saved.prizes);
@@ -2787,6 +2827,10 @@ export class RoomManager {
       state: checkpoint.state,
       at: checkpoint.at,
       playerUsers: [...room.playerUsers].filter(([playerId]) => people.has(playerId)),
+      ...(room.forgotten === undefined ? {} : (() => {
+        const forgotten = [...room.forgotten].filter((playerId) => people.has(playerId));
+        return forgotten.length === 0 ? {} : { forgotten };
+      })()),
       quizId: room.quizId,
       ...(room.prizes.length === 0 ? {} : { prizes: room.prizes }),
     };

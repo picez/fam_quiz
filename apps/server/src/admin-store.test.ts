@@ -144,6 +144,7 @@ describe('admin store', () => {
     expect(detail!.stock[0]).not.toHaveProperty('awarded');
     expect(detail!.awards).toHaveLength(25);
     expect(detail!.awards[0]!.content.name).toBe('Нагорода 0');
+    expect(detail!.awards[0]!.gift).toBeNull();
     expect(detail!.title).toEqual({ text: 'Чемпіон', until: '2026-12-01T00:00:00.000Z' });
     expect(detail!.user.nickname).toBe('Володар призів');
     expect(await adminUser(db, none, 'no-such', NOW)).toBeNull();
