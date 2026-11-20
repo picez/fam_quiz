@@ -152,6 +152,15 @@ function truthResult(truth: NonNullable<PlayRef['truth']>, given: { participantI
   return { author: truth.authorName, points: share?.points ?? 0 };
 }
 
+/** Ціна клітинки поля зі знімка й множник позначки (x2 / x3); не клітинка поля чи її немає в знімку — null. */
+export function cellPriceOf(quiz: Quiz, ref: PlayRef | undefined): { price: number; multiplier: 1 | 2 | 3 } | null {
+  if (ref?.cell === undefined) return null;
+  const round = quiz.rounds[ref.roundIndex];
+  const found = round?.type === 'board' ? findCell(round, ref.cell.cellId) : undefined;
+  if (found === undefined) return null;
+  return { price: questionPrice(found.cell.question), multiplier: found.cell.mark === 'x2' ? 2 : found.cell.mark === 'x3' ? 3 : 1 };
+}
+
 /** Клітинка запитання для історії: категорія, ціна й множник зі знімка, вибравший і його бали. */
 function cellResult(
   quiz: Quiz,
@@ -163,7 +172,8 @@ function cellResult(
   if (ref?.cell === undefined) return null;
   const round = quiz.rounds[ref.roundIndex];
   const found = round?.type === 'board' ? findCell(round, ref.cell.cellId) : undefined;
-  if (found === undefined) return null;
+  const priced = cellPriceOf(quiz, ref);
+  if (found === undefined || priced === null) return null;
   const { chooserId } = ref.cell;
   const own = given.filter((a) => a.participantId === chooserId);
   const blitz = found.cell.kind === 'blitz';
@@ -176,8 +186,7 @@ function cellResult(
         })
       : [],
     category: found.category.title,
-    price: questionPrice(found.cell.question),
-    multiplier: found.cell.mark === 'x2' ? 2 : found.cell.mark === 'x3' ? 3 : 1,
+    ...priced,
     chooser: nicknames.get(chooserId) ?? null,
     points: own.length === 0 ? null : own.reduce((sum, a) => sum + a.points, 0),
   };

@@ -11,6 +11,7 @@ import { registerAdminBackupRoutes } from './admin-backup-routes';
 import { registerAdminProblemRoutes } from './admin-problem-routes';
 import { registerAdminModerationRoutes } from './admin-moderation-routes';
 import { registerPlayerCardRoutes } from './admin-card-routes';
+import { registerAdminReplayRoutes } from './admin-replay-routes';
 import { liveRooms } from './admin-live';
 import { adminLogExport, adminLogPage } from './admin-log-store';
 import { adminQuiz, adminQuizRaw, adminQuizzes, adminStats, adminUser, adminUsers } from './admin-store';
@@ -380,6 +381,7 @@ export async function registerAdminRoutes(app: FastifyInstance, deps: AdminDeps)
 
   await registerAdminBotRoutes(app, deps, { read, write, adminOf, checker });
   await registerPlayerCardRoutes(app, deps, { read, write, adminOf });
+  await registerAdminReplayRoutes(app, deps, { read, write, adminOf });
   await registerAdminBroadcastRoutes(app, deps, { read, write, adminOf });
   await registerAdminProblemRoutes(app, deps, { read, write, adminOf });
   await registerAdminBackupRoutes(app, deps, { read, write, adminOf });
