@@ -39,15 +39,24 @@ describe('the «Вгадай слово» seed', () => {
     expect(quiz.settings.teams).toBeUndefined();
   });
 
+  it('no wordle has a text or a hint: in the game there is only the grid (61)', () => {
+    for (const q of wordles) {
+      expect(q.text, q.word).toBe('');
+      expect(q.hint, q.word).toBeUndefined();
+    }
+    // Опис раунду не обіцяє підказок, яких немає.
+    expect(JSON.stringify(quiz).toLowerCase()).not.toContain('підказк');
+  });
+
   it('timers are at least 25 seconds', () => {
-    for (const q of wordles) expect(q.timeLimit, q.text).toBeGreaterThanOrEqual(25);
+    for (const q of wordles) expect(q.timeLimit, q.word).toBeGreaterThanOrEqual(25);
   });
 
   it('points follow difficulty', () => {
     const points = questions.map((q) => q.points);
     expect(Math.min(...points)).toBe(500);
     expect(Math.max(...points)).toBe(1000);
-    points.slice(1).forEach((p, i) => expect(p, questions[i + 1]!.text).not.toBe(points[i]));
+    points.slice(1).forEach((p, i) => expect(p, wordles[i + 1]!.word).not.toBe(points[i]));
   });
 
   it('every word is in the dictionary', () => {
@@ -58,14 +67,9 @@ describe('the «Вгадай слово» seed', () => {
     }
   });
 
-  it('no word leaks into the texts', () => {
-    const everything = answerKey(JSON.stringify({ title: quiz.title, description: quiz.description, rounds: quiz.rounds.map((r) => ({ title: r.title, description: r.description, texts: ('questions' in r ? r.questions : []).map((q) => q.text) })) }));
-    for (const q of wordles) {
-      expect(answerKey(q.text).includes(answerKey(q.word)), `${q.text} / ${q.word}`).toBe(false);
-      expect(everything.includes(answerKey(q.word)), q.word).toBe(false);
-    }
-    const texts = questions.map((q) => answerKey(q.text));
-    expect(new Set(texts).size).toBe(texts.length);
+  it('no word leaks into the title or descriptions', () => {
+    const everything = answerKey(JSON.stringify({ title: quiz.title, description: quiz.description, rounds: quiz.rounds.map((r) => ({ title: r.title, description: r.description })) }));
+    for (const q of wordles) expect(everything.includes(answerKey(q.word)), q.word).toBe(false);
   });
 
   it('words differ and lengths vary', () => {
@@ -86,8 +90,6 @@ describe('the «Вгадай слово» seed', () => {
     const raw = files(import.meta.dirname).map((file) => readFileSync(file, 'utf8').split('\n').filter((line) => !COMMENT.test(line)).join('\n'));
     expect(raw.length).toBeGreaterThan(20);
     const others = raw.map(norm);
-    const repeatedTexts = questions.filter((q) => others.some((source) => source.includes(norm(q.text)))).map((q) => q.text);
-    expect(repeatedTexts).toEqual([]);
     // Короткі рядки (до трьох слів, без «?») — відповіді й варіанти; слово в них цілим — повтор.
     const answers = raw.flatMap((source) => literals(source).filter((text) => !text.includes('?') && text.trim().split(/\s+/).length <= 3));
     const repeatedWords = wordles
