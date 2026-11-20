@@ -56,8 +56,9 @@ export async function leagueResultOf(db: Db | Tx, gameId: string): Promise<Leagu
  * Гра, записана в уже підсумований місяць, додає бали в таблицю, але ніколи не змінює вже визначених переможців.
  */
 export async function recordLeague(db: Db | Tx, input: LeagueRecordInput, now = new Date()): Promise<LeagueGameResult | null> {
-  const [group] = await db.select({ id: familyGroup.id }).from(familyGroup).where(eq(familyGroup.id, input.groupId));
-  if (group === undefined) return null;
+  const [group] = await db.select({ id: familyGroup.id, hiddenAt: familyGroup.hiddenAt }).from(familyGroup).where(eq(familyGroup.id, input.groupId));
+  // 63: прихована адміністратором група балів не отримує (як неіснуюча).
+  if (group === undefined || group.hiddenAt !== null) return null;
 
   const memberRows = await db.select({ userId: groupMember.userId }).from(groupMember).where(eq(groupMember.groupId, input.groupId));
   const outcome = leagueOutcome(input.entries, new Set(memberRows.map((row) => row.userId)));
@@ -113,6 +114,9 @@ async function totalsOf(db: Db | Tx, groupId: string, month: string): Promise<To
  * вставляється в тій самій транзакції, що й чемпіони: хто вставив, той і підсумовує, решта нічого не робить.
  */
 export async function settleLeague(db: Db, groupId: string, now: Date): Promise<void> {
+  // 63: прихована група нікого не коронує; league_month не пишемо — після відновлення місяць підсумується звичайно.
+  const [shown] = await db.select({ hiddenAt: familyGroup.hiddenAt }).from(familyGroup).where(eq(familyGroup.id, groupId));
+  if (shown !== undefined && shown.hiddenAt !== null) return;
   const current = kyivMonth(now);
   const pending = await db
     .selectDistinct({ month: leaguePoint.month })
