@@ -57,7 +57,7 @@ describe('gifting a prize', () => {
     expect(row.status).toBe('free');
     const [line] = await logOf(olia);
     expect(line).toMatchObject({ kind: 'prize_gift', adminId: ADMIN });
-    expect(line.details).toMatchObject({ title: 'Кубок весни 58', content: CONTENT });
+    expect(line.details).toMatchObject({ title: 'Кубок весни 58', content: CONTENT, text: 'З днем народження' });
   });
 
   it('a gift has a feed event and the title like a won prize', async () => {
@@ -120,6 +120,7 @@ describe('revoking a gift', () => {
     expect(await eventOf(result.awardId)).toHaveLength(0);
     const lines = await logOf(olia);
     expect(lines.map((l) => l.kind)).toEqual(['prize_gift', 'gift_revoke']);
+    expect(lines[0]?.details).not.toHaveProperty('text');
     expect(await revokeGift(db, { adminId: ADMIN, awardId: result.awardId, now: NOW })).toBe(false);
   });
 

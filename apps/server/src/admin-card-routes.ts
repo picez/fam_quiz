@@ -9,6 +9,7 @@ import { user } from './db/schema';
 import { hostGameWithFacts } from './history';
 import { grantAchievement, adjustXp, revokeAchievement } from './player-card';
 import { giftPrize, revokeGift } from './player-gifts';
+import { reportError } from './log';
 import { ensureProfile } from './profiles';
 
 const NOT_FOUND = { error: 'not_found' };
@@ -50,6 +51,8 @@ export async function registerPlayerCardRoutes(app: FastifyInstance, deps: Admin
     const { id, achievementId } = request.params;
     if (unknownUser(id) || !(ACHIEVEMENTS as readonly string[]).includes(achievementId)) return reply.code(404).send(NOT_FOUND);
     const result = await revokeAchievement(db, { adminId: me.id, userId: id, achievementId: achievementId as AchievementId, now: now() });
+    // Уже забране (друга вкладка, другий адмін) — своя 404: картка перечитується, а not_found веде на головну.
+    if (result === 'not_owned') return reply.code(404).send({ error: 'achievement_not_owned' });
     return result === 'revoked' ? reply.code(204).send() : reply.code(404).send(NOT_FOUND);
   });
 
@@ -82,7 +85,8 @@ export async function registerPlayerCardRoutes(app: FastifyInstance, deps: Admin
     if (me === null) return reply.code(404).send(NOT_FOUND);
     const { id } = request.params;
     if (!UUID.test(id)) return reply.code(404).send(NOT_FOUND);
-    return (await revokeGift(db, { adminId: me.id, awardId: id, now: now() })) ? reply.code(204).send() : reply.code(404).send(NOT_FOUND);
+    // Подарунка вже немає (чи це не подарунок) — gift_not_found: картка перечитується, а не веде на головну.
+    return (await revokeGift(db, { adminId: me.id, awardId: id, now: now() })) ? reply.code(204).send() : reply.code(404).send({ error: 'gift_not_found' });
   });
 
   app.delete<UserParams>('/api/admin/users/:id', write, async (request, reply) => {
@@ -100,8 +104,16 @@ export async function registerPlayerCardRoutes(app: FastifyInstance, deps: Admin
     const label = (await ensureProfile(db, id))?.nickname ?? found.email;
     if (body.data.confirm.trim() !== label) return reply.code(400).send({ error: 'confirm_mismatch' });
     // Кімнати, які він веде, переходять до бота й закриваються (як closeHostedBy) ще до видалення: фініш пишеться з ведучим-ботом.
-    manager.forgetUser(id);
-    const result = await deleteAccount(db, { adminId: me.id, userId: id, now: now(), adminEmails });
+    const seats = manager.forgetUser(id);
+    let result: Awaited<ReturnType<typeof deleteAccount>>;
+    try {
+      result = await deleteAccount(db, { adminId: me.id, userId: id, now: now(), adminEmails });
+    } catch (error) {
+      // Транзакція відкотилась і акаунт лишився, але кімнати вже закрито: його ігри, які він вів, закінчено (ведучий — бот), а його
+      // місця в чужих кімнатах відв'язано (догравав як гість). Повторне видалення доробить решту; це не відкочується.
+      reportError(error, { where: 'admin-delete-account', what: `${seats} seats unbound before the failure` });
+      return reply.code(500).send({ error: 'delete_failed' });
+    }
     if (result === 'cannot_delete_admin') return reply.code(409).send({ error: 'cannot_delete_admin' });
     return result === 'deleted' ? reply.code(204).send() : reply.code(404).send(NOT_FOUND);
   });

@@ -9,6 +9,8 @@ export const GIFT_NOTE_MAX = 120;
 export const ADMIN_CARD_GAMES = 20;
 export const ADMIN_CARD_BANS = 50;
 export const ADMIN_CARD_XP = 50;
+/** Скільки найновіших вікторин показує картка (лічильник в огляді — усі). */
+export const ADMIN_CARD_QUIZZES = 50;
 /** Нік, яким замінюють видаленого гравця в чужих іграх — дані в базі. */
 export const DELETED_NICKNAME = 'Видалений гравець';
 
@@ -17,9 +19,10 @@ export interface AdminCardAchievement { id: AchievementId; earnedAt: string | nu
 export interface AdminCardGame { gameId: string; title: string; startedAt: string; rank: number | null; playerCount: number; score: number }
 export interface AdminCardQuiz { id: string; title: string; questions: number; updatedAt: string }
 export interface AdminCardBan { at: string; kind: 'ban' | 'unban'; admin: string; reason: string | null }
-export interface AdminCardXp { id: string; amount: number; note: string; at: string }
+/** balance — рядок, що повернув суму до нуля після зняття досягнення (note порожній; текст перекладає веб). */
+export interface AdminCardXp { id: string; amount: number; note: string; at: string; balance?: true }
 export interface AdminPlayerCard { overview: AdminCardOverview; achievements: AdminCardAchievement[]; blocked: AchievementId[]; games: AdminCardGame[]; quizzes: AdminCardQuiz[]; bans: AdminCardBan[]; xp: AdminCardXp[] }
-export interface XpAdminLine { amount: number; note: string; at: string }
+export interface XpAdminLine { amount: number; note: string; at: string; balance?: true }
 
 /** Текст: краї обрізано, пробіли стиснуто, придатний для бази, 1..max символів (як у призах). */
 const text = (max: number) =>

@@ -1,4 +1,4 @@
-import { ACHIEVEMENTS, ADMIN_CARD_BANS, ADMIN_CARD_GAMES, ADMIN_CARD_XP, levelOf, questionsOf, type AchievementId, type AdminPlayerCard } from '@quiz/shared';
+import { ACHIEVEMENTS, ADMIN_CARD_BANS, ADMIN_CARD_GAMES, ADMIN_CARD_QUIZZES, ADMIN_CARD_XP, levelOf, questionsOf, type AchievementId, type AdminPlayerCard } from '@quiz/shared';
 import { and, desc, eq, inArray, sql } from 'drizzle-orm';
 import { logAction } from './bans';
 import type { Db } from './db/client';
@@ -9,9 +9,6 @@ import { playerGames } from './history';
 import { ensureProfile, friendsOf } from './profiles';
 import { creditAchievements, syncXp, xpTotals } from './xp-store';
 import { kyivDay } from './xp-rules';
-
-/** Причина рядка, що повертає суму до нуля, коли зняте досягнення забрало більше, ніж лишалось. */
-const BALANCE_NOTE = 'Вирівнювання до нуля після зняття досягнення';
 
 type Tx = Parameters<Parameters<Db['transaction']>[0]>[0];
 
@@ -37,12 +34,23 @@ async function announce(db: Db, userId: string, now: Date): Promise<void> {
 }
 
 /**
+ * Рядок вирівнювання (58): 'admin' з achievement_id і без note — маркер «сума повернулась до нуля після зняття цього досягнення»;
+ * текст показує веб своєю мовою.
+ */
+const balanceOf = (userId: string, achievementId: AchievementId) =>
+  and(eq(xpEntry.userId, userId), eq(xpEntry.source, 'admin'), eq(xpEntry.achievementId, achievementId));
+
+/**
  * 58: видати досягнення вручну — знімає заборону, user_achievement { earned_at: now, game_id: null } і рядок досвіду за рідкістю,
  * журнал — у тій самій транзакції. Уже є — 'owned' без журналу. Подію стрічки ручна видача не пише.
+ * Під замком профілю; рядок вирівнювання від попереднього зняття цього досягнення — геть (інакше повторна видача тихо скасувала б
+ * ручне віднімання адміна); якщо без нього сума пішла б нижче нуля, лишається вирівнювання рівно до 0.
  */
 export async function grantAchievement(db: Db, input: AchievementInput): Promise<'granted' | 'owned' | 'not_found'> {
   const result = await db.transaction(async (tx) => {
     if (!(await exists(tx, input.userId))) return 'not_found' as const;
+    await ensureProfile(tx as Db, input.userId);
+    await tx.select({ id: profile.userId }).from(profile).where(eq(profile.userId, input.userId)).for('update');
     await tx.delete(achievementBlock).where(and(eq(achievementBlock.userId, input.userId), eq(achievementBlock.achievementId, input.achievementId)));
     const inserted = await tx
       .insert(userAchievement)
@@ -51,6 +59,8 @@ export async function grantAchievement(db: Db, input: AchievementInput): Promise
       .returning({ id: userAchievement.achievementId });
     if (inserted.length === 0) return 'owned' as const;
     await creditAchievements(tx, input.userId);
+    const balanced = await tx.delete(xpEntry).where(balanceOf(input.userId, input.achievementId)).returning({ amount: xpEntry.amount });
+    if (balanced.length > 0) await balanceToZero(tx, input.userId, input.achievementId, input.now);
     await logAction(tx, { adminId: input.adminId, kind: 'achievement_grant', targetUserId: input.userId, details: { achievementId: input.achievementId }, now: input.now });
     return 'granted' as const;
   });
@@ -61,9 +71,9 @@ export async function grantAchievement(db: Db, input: AchievementInput): Promise
 /**
  * 58: забрати досягнення — разом з його досвідом, подією стрічки й закріпленням на вітрині; заборона не дає жодній синхронізації
  * повернути його, доки адмін не видасть знову. Під замком профілю; сума після зняття нижче нуля — рядок 'admin', що повертає її рівно до 0.
- * Немає користувача чи досягнення — 'not_found' без журналу.
+ * Немає користувача — 'not_found', досягнення в нього немає — 'not_owned'; обидва без журналу.
  */
-export async function revokeAchievement(db: Db, input: AchievementInput): Promise<'revoked' | 'not_found'> {
+export async function revokeAchievement(db: Db, input: AchievementInput): Promise<'revoked' | 'not_found' | 'not_owned'> {
   const { userId, achievementId } = input;
   const result = await db.transaction(async (tx) => {
     if (!(await exists(tx, userId))) return 'not_found' as const;
@@ -74,24 +84,28 @@ export async function revokeAchievement(db: Db, input: AchievementInput): Promis
       .delete(userAchievement)
       .where(and(eq(userAchievement.userId, userId), eq(userAchievement.achievementId, achievementId)))
       .returning({ id: userAchievement.achievementId });
-    if (removed.length === 0) return 'not_found' as const;
+    if (removed.length === 0) return 'not_owned' as const;
     await tx.delete(xpEntry).where(and(eq(xpEntry.userId, userId), eq(xpEntry.source, 'achievement'), eq(xpEntry.achievementId, achievementId)));
-    const left = (await xpTotals(tx, [userId])).get(userId) ?? 0;
-    if (left < 0) {
-      const { now } = input;
-      await tx.insert(xpEntry).values({ userId, source: 'admin', amount: -left, note: BALANCE_NOTE, day: kyivDay(now), at: now, createdAt: now, counted: false, reason: null });
-    }
+    const balanced = await balanceToZero(tx, userId, achievementId, input.now);
     await tx
       .insert(achievementBlock)
       .values({ userId, achievementId, blockedAt: input.now })
       .onConflictDoUpdate({ target: [achievementBlock.userId, achievementBlock.achievementId], set: { blockedAt: input.now } });
     await tx.delete(feedEvent).where(eq(feedEvent.key, `achievement:${userId}:${achievementId}`));
     await tx.delete(showcasePin).where(and(eq(showcasePin.userId, userId), eq(showcasePin.kind, 'achievement'), eq(showcasePin.itemId, achievementId)));
-    await logAction(tx, { adminId: input.adminId, kind: 'achievement_revoke', targetUserId: userId, details: { achievementId }, now: input.now });
+    await logAction(tx, { adminId: input.adminId, kind: 'achievement_revoke', targetUserId: userId, details: { achievementId, ...(balanced > 0 ? { amount: balanced } : {}) }, now: input.now });
     return 'revoked' as const;
   });
   if (result === 'revoked') await announce(db, userId, input.now);
   return result;
+}
+
+/** Сума нижче нуля — рядок вирівнювання цього досягнення, що повертає її рівно до 0; повертає його суму (0 — не знадобився). */
+async function balanceToZero(tx: Tx, userId: string, achievementId: AchievementId, now: Date): Promise<number> {
+  const left = (await xpTotals(tx, [userId])).get(userId) ?? 0;
+  if (left >= 0) return 0;
+  await tx.insert(xpEntry).values({ userId, source: 'admin', achievementId, amount: -left, note: null, day: kyivDay(now), at: now, createdAt: now, counted: false, reason: null });
+  return -left;
 }
 
 /**
@@ -145,10 +159,17 @@ export async function playerCard(db: Db, userId: string, now: Date): Promise<Adm
       games: sql<number>`(select count(distinct p.game_id)::int from ${participant} p join ${game} g on g.id = p.game_id where p.user_id = ${userId} and g.status = 'finished')`,
       wins: sql<number>`(select count(distinct p.game_id)::int from ${participant} p join ${game} g on g.id = p.game_id where p.user_id = ${userId} and g.status = 'finished' and p.rank = 1)`,
       groups: sql<number>`(select count(*)::int from ${groupMember} where ${groupMember.userId} = ${userId})`,
+      quizzes: sql<number>`(select count(*)::int from ${quiz} where ${quiz.ownerId} = ${userId})`,
     })
     .from(user)
     .where(eq(user.id, userId));
-  const quizzes = await db.select().from(quiz).where(eq(quiz.ownerId, userId)).orderBy(desc(quiz.updatedAt), quiz.id);
+  // Лише те, що треба questionsOf і рядку списку, і лише найновіші: лічильник огляду рахує всі в SQL.
+  const quizzes = await db
+    .select({ id: quiz.id, title: quiz.title, updatedAt: quiz.updatedAt, rounds: quiz.rounds, settings: quiz.settings })
+    .from(quiz)
+    .where(eq(quiz.ownerId, userId))
+    .orderBy(desc(quiz.updatedAt), quiz.id)
+    .limit(ADMIN_CARD_QUIZZES);
   const earned = await db.select({ id: userAchievement.achievementId, earnedAt: userAchievement.earnedAt }).from(userAchievement).where(eq(userAchievement.userId, userId));
   const blocked = await db.select({ id: achievementBlock.achievementId }).from(achievementBlock).where(eq(achievementBlock.userId, userId));
   const rank = (id: string) => ACHIEVEMENTS.indexOf(id as AchievementId);
@@ -159,7 +180,7 @@ export async function playerCard(db: Db, userId: string, now: Date): Promise<Adm
     .orderBy(desc(adminAction.at), desc(adminAction.id))
     .limit(ADMIN_CARD_BANS);
   const manual = await db
-    .select({ id: xpEntry.id, amount: xpEntry.amount, note: xpEntry.note, at: xpEntry.at, createdAt: xpEntry.createdAt })
+    .select({ id: xpEntry.id, amount: xpEntry.amount, note: xpEntry.note, achievementId: xpEntry.achievementId, at: xpEntry.at, createdAt: xpEntry.createdAt })
     .from(xpEntry)
     .where(and(eq(xpEntry.userId, userId), eq(xpEntry.source, 'admin')))
     .orderBy(desc(xpEntry.createdAt), desc(xpEntry.id))
@@ -174,7 +195,7 @@ export async function playerCard(db: Db, userId: string, now: Date): Promise<Adm
       xp,
       games: counts?.games ?? 0,
       wins: counts?.wins ?? 0,
-      quizzes: quizzes.length,
+      quizzes: counts?.quizzes ?? 0,
       friends: (await friendsOf(db, userId)).length,
       groups: counts?.groups ?? 0,
     },
@@ -184,8 +205,8 @@ export async function playerCard(db: Db, userId: string, now: Date): Promise<Adm
       .map((row) => ({ id: row.id, earnedAt: row.earnedAt?.toISOString() ?? null })),
     blocked: blocked.map((row) => row.id).filter((id) => KNOWN.has(id)).sort((x, y) => rank(x) - rank(y)),
     games: recent.map(({ played }) => ({ gameId: played.gameId, title: played.title, startedAt: played.startedAt, rank: played.rank, playerCount: played.playerCount, score: played.score })),
-    quizzes: quizzes.map((row) => ({ id: row.id, title: row.title, questions: questionsOf(row).length, updatedAt: row.updatedAt.toISOString() })),
+    quizzes: quizzes.map((row) => ({ id: row.id, title: row.title, questions: questionsOf({ ...row, description: '' }).length, updatedAt: row.updatedAt.toISOString() })),
     bans: bans.map((row) => ({ at: row.at.toISOString(), kind: row.kind === 'ban' ? ('ban' as const) : ('unban' as const), admin: row.admin, reason: row.details.reason ?? null })),
-    xp: manual.map((row) => ({ id: row.id, amount: row.amount, note: row.note ?? '', at: row.at?.toISOString() ?? row.createdAt.toISOString() })),
+    xp: manual.map((row) => ({ id: row.id, amount: row.amount, note: row.note ?? '', at: row.at?.toISOString() ?? row.createdAt.toISOString(), ...(row.achievementId === null ? {} : { balance: true as const }) })),
   };
 }

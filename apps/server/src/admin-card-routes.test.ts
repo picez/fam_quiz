@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { makeQuiz, single } from '@quiz/engine/testing';
-import { BOT_USER_ID, type AdminList, type AdminLogEntry, type AdminUserDetail, type GameDetail, type PrizeContent, type PrizeItem } from '@quiz/shared';
-import { eq } from 'drizzle-orm';
+import { ADMIN_CARD_QUIZZES, BOT_USER_ID, type AdminList, type AdminLogEntry, type AdminUserDetail, type GameDetail, type PrizeContent, type PrizeItem } from '@quiz/shared';
+import { eq, sql } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { buildApp } from './app';
 import { adminAction, familyGroup, follow, groupMember, quiz, user } from './db/schema';
@@ -99,6 +99,23 @@ describe('the player card read', () => {
     expect(card.achievements).toEqual(expect.any(Array));
     expect(card.blocked).toEqual([]);
   });
+
+  it('counts every quiz but lists only the newest ADMIN_CARD_QUIZZES', async () => {
+    const author = await person('Автор');
+    const rows = Array.from({ length: ADMIN_CARD_QUIZZES + 2 }, (_, i) => ({
+      ownerId: author.id,
+      title: `Вікторина ${i}`,
+      description: '',
+      settings: quizOne.settings,
+      rounds: quizOne.rounds,
+      updatedAt: new Date(Date.UTC(2026, 0, 1, 0, i)),
+    }));
+    await db.insert(quiz).values(rows);
+    const { card } = (await call('GET', `/api/admin/users/${author.id}`)).json() as AdminUserDetail;
+    expect(card.overview.quizzes).toBe(ADMIN_CARD_QUIZZES + 2);
+    expect(card.quizzes).toHaveLength(ADMIN_CARD_QUIZZES);
+    expect(card.quizzes[0]).toMatchObject({ title: `Вікторина ${ADMIN_CARD_QUIZZES + 1}`, questions: 1 });
+  });
 });
 
 describe('the card routes', () => {
@@ -122,7 +139,11 @@ describe('the card routes', () => {
     expect(await logCount()).toBe(before + 1);
     expect((await lastLog()).kind).toBe('achievement_revoke');
     expect(((await call('GET', base)).json() as AdminUserDetail).card.blocked).toContain('first_game');
-    expect((await call('DELETE', `${base}/achievements/first_game`)).statusCode).toBe(404);
+    // Уже забране (друга вкладка, другий адмін) — своя помилка: картка лишається, а не веде на головну.
+    const notOwned = await call('DELETE', `${base}/achievements/first_game`);
+    expect(notOwned.statusCode).toBe(404);
+    expect(notOwned.json()).toEqual({ error: 'achievement_not_owned' });
+    expect((await call('DELETE', `/api/admin/users/nobody/achievements/first_game`)).json()).toEqual({ error: 'not_found' });
     expect((await call('DELETE', `${base}/achievements/nope`)).statusCode).toBe(404);
 
     before = await logCount();
@@ -150,6 +171,7 @@ describe('the card routes', () => {
     const { id: awardId } = gift.json() as { id: string };
     expect(await logCount()).toBe(before + 1);
     expect((await lastLog()).kind).toBe('prize_gift');
+    expect((await lastLog()).details).toMatchObject({ title: 'Кубок 58', text: 'Вітаємо' });
     expect(((await call('GET', base)).json() as AdminUserDetail).awards.find((a) => a.id === awardId)?.gift).toEqual({ note: 'Вітаємо' });
     const missing = await call('POST', `${base}/gifts`, { prizeId: randomUUID() });
     expect(missing.statusCode).toBe(404);
@@ -161,7 +183,9 @@ describe('the card routes', () => {
     expect((await call('DELETE', `/api/admin/gifts/${awardId}`)).statusCode).toBe(204);
     expect(await logCount()).toBe(before + 1);
     expect((await lastLog()).kind).toBe('gift_revoke');
-    expect((await call('DELETE', `/api/admin/gifts/${awardId}`)).statusCode).toBe(404);
+    const goneGift = await call('DELETE', `/api/admin/gifts/${awardId}`);
+    expect(goneGift.statusCode).toBe(404);
+    expect(goneGift.json()).toEqual({ error: 'gift_not_found' });
     expect((await call('DELETE', '/api/admin/gifts/not-a-uuid')).statusCode).toBe(404);
 
     expect((await call('POST', '/api/admin/users/nobody/xp', { amount: 5, reason: 'x' })).statusCode).toBe(404);
@@ -198,6 +222,20 @@ describe('the card routes', () => {
     expect((await db.select().from(user).where(eq(user.id, victim.id))).length).toBe(0);
     expect(ctx.manager.get(hosted.game.code)?.state.phase ?? 'finished').toBe('finished');
     expect((await call('GET', path)).statusCode).toBe(404);
+  });
+
+  it('a failed deletion answers 500 delete_failed and keeps the account', async () => {
+    const victim = await person('Зоя');
+    await db.execute(sql`create or replace function card_fail() returns trigger as $$ begin raise exception 'boom'; end $$ language plpgsql`);
+    await db.execute(sql`create trigger card_fail before delete on "user" for each row when (old.id = ${sql.raw(`'${victim.id}'`)}) execute function card_fail()`);
+    try {
+      const failed = await call('DELETE', `/api/admin/users/${victim.id}`, { confirm: victim.nickname });
+      expect(failed.statusCode).toBe(500);
+      expect(failed.json()).toEqual({ error: 'delete_failed' });
+    } finally {
+      await db.execute(sql`drop trigger card_fail on "user"`);
+    }
+    expect((await db.select().from(user).where(eq(user.id, victim.id))).length).toBe(1);
   });
 
   it('refuses to delete on a frozen manager', async () => {

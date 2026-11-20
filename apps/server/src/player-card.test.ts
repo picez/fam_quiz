@@ -7,7 +7,7 @@ import { achievementBlock, adminAction, feedEvent, profile, showcasePin, user, u
 import { adjustXp, grantAchievement, revokeAchievement } from './player-card';
 import { seedGame } from './testing/history-rows';
 import { createTestDb } from './testing/test-db';
-import { creditGame, syncXp, xpTotals } from './xp-store';
+import { creditGame, ownLevel, syncXp, xpTotals } from './xp-store';
 
 const ADMIN = 'pc-admin';
 const HOST = 'pc-host';
@@ -131,14 +131,13 @@ describe('granting and revoking an achievement', () => {
 
   it('revoking an achievement the player does not have changes nothing', async () => {
     const olia = await person('Оля');
-    expect(await revokeAchievement(db, { adminId: ADMIN, userId: olia, achievementId: 'first_win', now: NOW })).toBe('not_found');
+    expect(await revokeAchievement(db, { adminId: ADMIN, userId: olia, achievementId: 'first_win', now: NOW })).toBe('not_owned');
     expect(await blocks(olia)).toEqual([]);
     expect(await logOf(olia)).toEqual([]);
   });
 });
 
 describe('revoking never leaves negative xp', () => {
-  const BALANCE_NOTE = 'Вирівнювання до нуля після зняття досягнення';
   const worth = ACHIEVEMENT_XP[achievementRarity('first_win')];
 
   it('grant, subtract its xp, revoke — the total ends at exactly 0 with a balancing admin row', async () => {
@@ -150,11 +149,32 @@ describe('revoking never leaves negative xp', () => {
     expect(await revokeAchievement(db, { adminId: ADMIN, userId: olia, achievementId: 'first_win', now: NOW })).toBe('revoked');
     expect(await total(olia)).toBe(0);
     const rows = await adminRows(olia);
-    expect(rows.map((r) => [r.amount, r.note]).sort()).toEqual([
-      [-worth, 'Помилка'],
-      [worth, BALANCE_NOTE],
+    // Рядок вирівнювання — маркер (без тексту, з id досягнення): текст перекладає веб.
+    expect(rows.map((r) => [r.amount, r.note, r.achievementId]).sort()).toEqual([
+      [-worth, 'Помилка', null],
+      [worth, null, 'first_win'],
     ].sort());
     expect((await logOf(olia)).map((l) => l.kind).sort()).toEqual(['achievement_grant', 'achievement_revoke', 'xp_adjust']);
+    const revoke = (await logOf(olia)).find((l) => l.kind === 'achievement_revoke');
+    expect(revoke?.details).toEqual({ achievementId: 'first_win', amount: worth });
+    // Сам гравець і картка бачать рядок як вирівнювання (balance), без тексту з сервера.
+    expect((await ownLevel(db, olia)).adminXp.map((line) => [line.amount, line.note, line.balance ?? false]).sort()).toEqual([
+      [-worth, 'Помилка', false],
+      [worth, '', true],
+    ].sort());
+  });
+
+  it('a re-grant after a balanced revoke takes the balancing row back, so the admin subtraction stays', async () => {
+    const olia = await person('Оля');
+    await syncXp(db, olia);
+    await grantAchievement(db, { adminId: ADMIN, userId: olia, achievementId: 'first_win', now: NOW });
+    await adjustXp(db, { adminId: ADMIN, userId: olia, amount: -(worth - 20), reason: 'Помилка', now: NOW });
+    expect(await total(olia)).toBe(20);
+    await revokeAchievement(db, { adminId: ADMIN, userId: olia, achievementId: 'first_win', now: NOW });
+    expect(await total(olia)).toBe(0);
+    expect(await grantAchievement(db, { adminId: ADMIN, userId: olia, achievementId: 'first_win', now: NOW })).toBe('granted');
+    expect(await total(olia)).toBe(20);
+    expect((await adminRows(olia)).map((r) => r.amount)).toEqual([-(worth - 20)]);
   });
 
   it('a revoke with enough other xp adds no balancing row', async () => {
@@ -164,6 +184,7 @@ describe('revoking never leaves negative xp', () => {
     await revokeAchievement(db, { adminId: ADMIN, userId: olia, achievementId: 'first_win', now: NOW });
     expect(await total(olia)).toBe(100);
     expect((await adminRows(olia)).map((r) => r.amount)).toEqual([100]);
+    expect((await logOf(olia)).find((l) => l.kind === 'achievement_revoke')?.details).toEqual({ achievementId: 'first_win' });
   });
 
   it('a revoke racing a subtraction never leaves the total below zero', async () => {

@@ -38,7 +38,7 @@ export async function giftPrize(
     }
     const data: FeedData = { kind: 'prize', place: 1, name: content.name, title: '', nickTitle: content.title, gift: true };
     await tx.insert(feedEvent).values({ key: `prize:${awardId}`, userId, kind: 'prize', gameId: null, data, at: now, createdAt: now });
-    await logAction(tx, { adminId, kind: 'prize_gift', targetUserId: userId, details: { title: content.name, content }, now });
+    await logAction(tx, { adminId, kind: 'prize_gift', targetUserId: userId, details: { title: content.name, content, ...(note === null ? {} : { text: note }) }, now });
     return { ok: true as const, awardId };
   });
 }

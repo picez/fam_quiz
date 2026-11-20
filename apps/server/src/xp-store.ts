@@ -438,11 +438,12 @@ async function synced(db: Db, userId: string): Promise<void> {
 }
 
 /** 58: ручні зміни досвіду від адміна — з рядків, упорядкованих за часом, новіші першими, до ADMIN_CARD_XP. */
-function adminLines(entries: { at: Date | null; amount: number; source: string; note: string | null }[]): XpAdminLine[] {
+function adminLines(entries: { at: Date | null; amount: number; source: string; note: string | null; achievementId: string | null }[]): XpAdminLine[] {
   const lines: XpAdminLine[] = [];
   for (let i = entries.length - 1; i >= 0 && lines.length < ADMIN_CARD_XP; i--) {
-    const { source, at, amount, note } = entries[i];
-    if (source === 'admin' && at !== null) lines.push({ amount, note: note ?? '', at: at.toISOString() });
+    const { source, at, amount, note, achievementId } = entries[i];
+    // Рядок 'admin' з досягненням — вирівнювання до нуля після його зняття (balance, без тексту).
+    if (source === 'admin' && at !== null) lines.push({ amount, note: note ?? '', at: at.toISOString(), ...(achievementId === null ? {} : { balance: true as const }) });
   }
   return lines;
 }
@@ -450,7 +451,7 @@ function adminLines(entries: { at: Date | null; amount: number; source: string; 
 export async function ownLevel(db: Db, userId: string): Promise<OwnLevel> {
   await synced(db, userId);
   const entries = await db
-    .select({ at: xpEntry.at, amount: xpEntry.amount, source: xpEntry.source, note: xpEntry.note })
+    .select({ at: xpEntry.at, amount: xpEntry.amount, source: xpEntry.source, note: xpEntry.note, achievementId: xpEntry.achievementId })
     .from(xpEntry)
     .where(eq(xpEntry.userId, userId))
     .orderBy(sql`${xpEntry.at} asc nulls first`, asc(xpEntry.id));
