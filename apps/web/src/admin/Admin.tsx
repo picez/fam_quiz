@@ -1,10 +1,12 @@
-import type { JSX } from 'react';
-import { Navigate, NavLink, Route, Routes } from 'react-router-dom';
+import { useEffect, useState, type JSX } from 'react';
+import { Navigate, NavLink, Route, Routes, useLocation } from 'react-router-dom';
 import { t } from '../i18n';
 import { useAccount } from '../useAccount';
 import { AdminAnnouncement } from './AdminAnnouncement';
+import { AdminBackups } from './AdminBackups';
 import { AdminBot } from './AdminBot';
 import { AdminBroadcast } from './AdminBroadcast';
+import { AdminErrors } from './AdminErrors';
 import { AdminGame } from './AdminGame';
 import { AdminLive } from './AdminLive';
 import { AdminLog } from './AdminLog';
@@ -14,6 +16,7 @@ import { AdminReports } from './AdminReports';
 import { AdminStats } from './AdminStats';
 import { AdminUser } from './AdminUser';
 import { AdminUsers } from './AdminUsers';
+import { adminProblemsBadge } from './admin-api';
 
 const TABS = [
   { to: '/admin', key: 'adminTabStats', end: true },
@@ -24,8 +27,39 @@ const TABS = [
   { to: '/admin/announcement', key: 'adminTabAnnouncement', end: false },
   { to: '/admin/broadcast', key: 'adminTabBroadcast', end: false },
   { to: '/admin/log', key: 'adminTabLog', end: false },
+  { to: '/admin/errors', key: 'adminTabErrors', end: false },
+  { to: '/admin/backups', key: 'adminTabBackups', end: false },
   { to: '/admin/bot', key: 'adminTabBot', end: false },
 ] as const;
+
+/** Вкладки адмінки; на «Збоях» — бейдж нових збоїв і відкритих скарг (64), перечитується на кожен перехід. */
+function AdminTabs(): JSX.Element {
+  const location = useLocation();
+  const [fresh, setFresh] = useState(0);
+  useEffect(() => {
+    let current = true;
+    void adminProblemsBadge().then((result) => {
+      if (current && result.ok) setFresh(result.data.errors + result.data.reports);
+    });
+    return () => {
+      current = false;
+    };
+  }, [location.key]);
+  return (
+    <nav className="admin-tabs" aria-label={t('adminSections')}>
+      {TABS.map((tab) => (
+        <NavLink key={tab.to} to={tab.to} end={tab.end} className="btn">
+          {t(tab.key)}
+          {tab.key === 'adminTabErrors' && fresh > 0 && (
+            <span className="menu-badge" aria-label={t('adminTabErrorsBadge', { count: fresh })}>
+              {fresh}
+            </span>
+          )}
+        </NavLink>
+      ))}
+    </nav>
+  );
+}
 
 /** Гейт: лише адмін; усім іншим — головна. */
 export function Admin(): JSX.Element | null {
@@ -35,13 +69,7 @@ export function Admin(): JSX.Element | null {
   return (
     <main className="app wide">
       <h1 className="brand">{t('adminTitle')}</h1>
-      <nav className="admin-tabs" aria-label={t('adminSections')}>
-        {TABS.map((tab) => (
-          <NavLink key={tab.to} to={tab.to} end={tab.end} className="btn">
-            {t(tab.key)}
-          </NavLink>
-        ))}
-      </nav>
+      <AdminTabs />
       <Routes>
         <Route path="" element={<AdminStats />} />
         <Route path="live" element={<AdminLive />} />
@@ -55,6 +83,8 @@ export function Admin(): JSX.Element | null {
         <Route path="announcement" element={<AdminAnnouncement />} />
         <Route path="broadcast" element={<AdminBroadcast />} />
         <Route path="log" element={<AdminLog />} />
+        <Route path="errors" element={<AdminErrors />} />
+        <Route path="backups" element={<AdminBackups />} />
         <Route path="bot" element={<AdminBot />} />
         <Route path="bot/quizzes/:id" element={<AdminBotQuizView />} />
         <Route path="*" element={<Navigate to="/admin" replace />} />
