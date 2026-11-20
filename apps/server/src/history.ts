@@ -603,13 +603,13 @@ export async function hostGame(db: Db, hostId: string, id: string): Promise<Game
   return (await hostGameWithFacts(db, hostId, id))?.detail ?? null;
 }
 
-/** Деталі гри разом із входом цікавинок, з якого пораховано facts (тести звіряють його з factInput рушія). */
-export async function hostGameWithFacts(db: Db, hostId: string, id: string): Promise<{ detail: GameDetail; factInput: FactInput } | null> {
+/** Деталі гри разом із входом цікавинок, з якого пораховано facts (тести звіряють його з factInput рушія); hostId null — без фільтра ведучого (перегляд адміна, 58). */
+export async function hostGameWithFacts(db: Db, hostId: string | null, id: string): Promise<{ detail: GameDetail; factInput: FactInput } | null> {
   if (!UUID.test(id)) return null;
   const [row] = await db
     .select()
     .from(game)
-    .where(and(eq(game.id, id), eq(game.hostId, hostId)));
+    .where(hostId === null ? eq(game.id, id) : and(eq(game.id, id), eq(game.hostId, hostId)));
   if (row === undefined) return null;
 
   const participants = await db.select().from(participant).where(eq(participant.gameId, id));

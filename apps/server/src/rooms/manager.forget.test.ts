@@ -1,0 +1,176 @@
+import { BOT_USER_ID, DELETED_NICKNAME } from '@quiz/shared';
+import { makeQuiz, single, text } from '@quiz/engine/testing';
+import { eq } from 'drizzle-orm';
+import { describe, expect, it } from 'vitest';
+import { deleteAccount } from '../account-delete';
+import { game, participant, profile, user } from '../db/schema';
+import { playerHistory } from '../history';
+import { attachRecorder } from '../recorder';
+import { FakeScheduler } from '../testing/fake-scheduler';
+import { createTestDb } from '../testing/test-db';
+import { RoomManager, type Room } from './manager';
+
+const quiz = () => makeQuiz([single, text], { speedBonus: false });
+
+function enter(manager: RoomManager, room: Room, nickname: string, userId: string | null): string {
+  const joined = manager.join(room.code, nickname, userId);
+  if (!joined.ok) throw new Error(joined.error);
+  manager.connect(room, { role: 'player', playerId: joined.playerId });
+  return joined.playerId;
+}
+
+describe('forgetUser (58, account deletion)', () => {
+  it('unbinds the account in every live room and in continued.bound, other accounts stay', () => {
+    const manager = new RoomManager(new FakeScheduler(), () => 0.5, { pacing: false });
+    const first = manager.create(quiz(), 'host-1', null);
+    const second = manager.create(quiz(), 'host-2', null);
+    const taras1 = enter(manager, first, 'Тарас', 'taras');
+    const olia = enter(manager, first, 'Оля', 'olia');
+    const taras2 = enter(manager, second, 'Тарас', 'taras');
+    second.continued = { bound: new Set([taras2]), carry: null, replaces: null };
+
+    expect(manager.forgetUser('taras')).toBe(2);
+
+    expect(first.playerUsers.has(taras1)).toBe(false);
+    expect(first.playerUsers.get(olia)).toBe('olia');
+    expect(second.playerUsers.has(taras2)).toBe(false);
+    expect(second.continued.bound.has(taras2)).toBe(false);
+    expect(first.state.players.some((p) => p.id === taras1)).toBe(true);
+    expect(manager.forgetUser('taras')).toBe(0);
+  });
+
+  it('rooms he hosts pass to the bot: the lobby closes, a running game ends, other hosts stay', () => {
+    const manager = new RoomManager(new FakeScheduler(), () => 0.5, { pacing: false });
+    const lobby = manager.create(quiz(), 'taras', null);
+    enter(manager, lobby, 'Оля', 'olia');
+    const running = manager.create(quiz(), 'taras', null);
+    enter(manager, running, 'Оля', 'olia');
+    expect(manager.host(running, { type: 'start' })).toEqual({ ok: true });
+    const other = manager.create(quiz(), 'olia', null);
+    enter(manager, other, 'Тарас', 'taras');
+    expect(manager.forgetUser('taras')).toBe(1);
+    expect(manager.get(lobby.code)).toBeUndefined();
+    expect(running.hostUserId).toBe(BOT_USER_ID);
+    expect(running.state.phase).toBe('finished');
+    expect(other.hostUserId).toBe('olia');
+    expect(other.state.phase).toBe('lobby');
+  });
+
+  it('deleting the host mid-game keeps the game for the players and the recorder never fails', async () => {
+    const db = await createTestDb();
+    await db.insert(user).values([
+      { id: 'admin', name: 'Адмін', email: 'admin@example.com' },
+      { id: 'olia', name: 'Оля', email: 'olia@example.com' },
+      { id: 'taras', name: 'Тарас', email: 'taras@example.com' },
+    ]);
+    const manager = new RoomManager(new FakeScheduler(), () => 0.5);
+    const errors: unknown[] = [];
+    // Ворота на транзакціях рекордера: запис фінішу стоїть у черзі, доки видалення не закомітиться (гонка з рев'ю).
+    let open = (): void => undefined;
+    let gate: Promise<void> = Promise.resolve();
+    const gated = new Proxy(db, {
+      get(target, key, receiver) {
+        if (key !== 'transaction') return Reflect.get(target, key, receiver) as unknown;
+        return async (...args: Parameters<typeof db.transaction>) => {
+          await gate;
+          return target.transaction(...args);
+        };
+      },
+    });
+    const recorder = attachRecorder(manager, gated, (error) => errors.push(error));
+    const room = manager.create(quiz(), 'taras', null);
+    const olia = enter(manager, room, 'Оля', 'olia');
+    const guest = enter(manager, room, 'Олена', null);
+    const host = (command: Parameters<RoomManager['host']>[1]) => expect(manager.host(room, command)).toEqual({ ok: true });
+    host({ type: 'start' });
+    host({ type: 'next' });
+    manager.answer(room, olia, { type: 'single', optionId: 'b' });
+    manager.answer(room, guest, { type: 'single', optionId: 'a' });
+    host({ type: 'next' });
+    await recorder.idle();
+    expect((await db.select().from(game).where(eq(game.id, room.id)))[0]).toMatchObject({ status: 'running', hostId: 'taras' });
+    gate = new Promise((resolve) => {
+      open = resolve;
+    });
+    manager.forgetUser('taras');
+    expect(room.state.phase).toBe('finished');
+    expect(await deleteAccount(db, { adminId: 'admin', userId: 'taras', now: new Date(), adminEmails: new Set() })).toBe('deleted');
+    expect((await db.select().from(game).where(eq(game.id, room.id)))[0]).toMatchObject({ status: 'running', hostId: BOT_USER_ID });
+    open();
+    await recorder.idle();
+    expect(errors).toEqual([]);
+    expect((await db.select().from(game).where(eq(game.id, room.id)))[0]).toMatchObject({ status: 'finished', hostId: BOT_USER_ID });
+    expect((await playerHistory(db, 'olia')).map((g) => g.gameId)).toContain(room.id);
+    expect((await db.select().from(participant).where(eq(participant.id, olia)))[0]).toMatchObject({ userId: 'olia', nickname: 'Оля' });
+  });
+
+  it('forgetUser unbinds the account in live rooms and the game still records', async () => {
+    const db = await createTestDb();
+    await db.insert(user).values([
+      { id: 'admin', name: 'Адмін', email: 'admin@example.com' },
+      { id: 'olia', name: 'Оля', email: 'olia@example.com' },
+      { id: 'taras', name: 'Тарас', email: 'taras@example.com' },
+    ]);
+    await db.insert(profile).values({ userId: 'taras', nickname: 'Тарас', nicknameKey: 'тарас' });
+    const manager = new RoomManager(new FakeScheduler(), () => 0.5);
+    const errors: unknown[] = [];
+    const recorder = attachRecorder(manager, db, (error) => errors.push(error));
+    const room = manager.create(quiz(), 'olia', null);
+    const guest = enter(manager, room, 'Олена', null);
+    const taras = enter(manager, room, 'Тарас', 'taras');
+    const host = (command: Parameters<RoomManager['host']>[1]) => expect(manager.host(room, command)).toEqual({ ok: true });
+    host({ type: 'start' });
+    host({ type: 'next' });
+    manager.answer(room, guest, { type: 'single', optionId: 'b' });
+    manager.answer(room, taras, { type: 'single', optionId: 'a' });
+    host({ type: 'next' });
+    await recorder.idle();
+    expect((await db.select().from(participant).where(eq(participant.id, taras)))[0]?.userId).toBe('taras');
+
+    expect(manager.forgetUser('taras')).toBe(1);
+    expect(room.playerUsers.has(taras)).toBe(false);
+    expect(await deleteAccount(db, { adminId: 'admin', userId: 'taras', now: new Date(), adminEmails: new Set() })).toBe('deleted');
+
+    host({ type: 'end' });
+    expect(room.state.phase).toBe('finished');
+    await recorder.idle();
+    expect(errors).toEqual([]);
+    expect((await db.select().from(game).where(eq(game.id, room.id)))[0]).toMatchObject({ status: 'finished', hostId: 'olia' });
+    const [row] = await db.select().from(participant).where(eq(participant.id, taras));
+    expect(row).toMatchObject({ userId: null, nickname: DELETED_NICKNAME });
+  });
+
+  it('a seat first written after the deletion is recorded as the deleted player, and the mark survives a restart', async () => {
+    const db = await createTestDb();
+    await db.insert(user).values([
+      { id: 'admin', name: 'Адмін', email: 'admin@example.com' },
+      { id: 'olia', name: 'Оля', email: 'olia@example.com' },
+      { id: 'taras', name: 'Тарас', email: 'taras@example.com' },
+    ]);
+    const manager = new RoomManager(new FakeScheduler(), () => 0.5);
+    const errors: unknown[] = [];
+    const recorder = attachRecorder(manager, db, (error) => errors.push(error));
+    const room = manager.create(quiz(), 'olia', null);
+    const guest = enter(manager, room, 'Олена', null);
+    // У лобі рекордер нічого не пише: рядка Тараса в базі ще немає, коли акаунт видаляють.
+    const taras = enter(manager, room, 'Тарас', 'taras');
+    expect(manager.forgetUser('taras')).toBe(1);
+    expect(room.forgotten).toEqual(new Set([taras]));
+    expect(await deleteAccount(db, { adminId: 'admin', userId: 'taras', now: new Date(), adminEmails: new Set() })).toBe('deleted');
+    expect(manager.snapshot(room).forgotten).toEqual([taras]);
+
+    const host = (command: Parameters<RoomManager['host']>[1]) => expect(manager.host(room, command)).toEqual({ ok: true });
+    host({ type: 'start' });
+    host({ type: 'next' });
+    manager.answer(room, guest, { type: 'single', optionId: 'b' });
+    manager.answer(room, taras, { type: 'single', optionId: 'a' });
+    host({ type: 'next' });
+    await recorder.idle();
+    expect(errors).toEqual([]);
+    expect((await db.select().from(participant).where(eq(participant.id, taras)))[0]).toMatchObject({ userId: null, nickname: DELETED_NICKNAME });
+
+    const other = new RoomManager(new FakeScheduler(), () => 0.5);
+    const restored = other.restore(manager.snapshot(room));
+    expect(restored?.forgotten).toEqual(new Set([taras]));
+  });
+});

@@ -471,6 +471,24 @@ describe('levels and looks', () => {
     expect(own.looks).toEqual({ color: null, frame: null, badge: null, photo: null, font: null, effect: null });
   });
 
+  it('ownLevel lists the admin xp lines newest first and counts them in the level (58)', async () => {
+    const [me] = await accounts(1);
+    await synced(me);
+    const t1 = new Date('2026-11-18T10:00:00Z');
+    const t2 = new Date('2026-11-19T10:00:00Z');
+    await db.insert(xpEntry).values([
+      { userId: me, source: 'game', amount: 300, counted: true, day: '2026-11-18', at: t1, createdAt: t1 },
+      { userId: me, source: 'admin', amount: 400, note: 'Перемога в турнірі', day: '2026-11-18', at: t1, createdAt: t1 },
+      { userId: me, source: 'admin', amount: -100, note: 'Помилка в підрахунку', day: '2026-11-19', at: t2, createdAt: t2 },
+    ]);
+    const own = await ownLevel(db, me);
+    expect(own.progress.xp).toBe(600);
+    expect(own.adminXp).toEqual([
+      { amount: -100, note: 'Помилка в підрахунку', at: t2.toISOString() },
+      { amount: 400, note: 'Перемога в турнірі', at: t1.toISOString() },
+    ]);
+  });
+
   it('saveLooks refuses a colour above the level and saves it once the level is there', async () => {
     const [me] = await accounts(1);
     await synced(me);

@@ -19,6 +19,7 @@ describe('feedText', () => {
     expect(feedText(prize)).toBe('отримав(-ла) приз «Кубок» за 1 місце у «Писанки» і титул «Знавець»');
     expect(feedText({ ...prize, nickTitle: null })).toBe('отримав(-ла) приз «Кубок» за 1 місце у «Писанки»');
     expect(feedIcon(prize)).toBe('🎁');
+    expect(feedText({ ...prize, gift: true })).toBe('отримав(-ла) приз «Кубок» — подарунок від адміністратора');
   });
 
   it('writes likes to me', () => {

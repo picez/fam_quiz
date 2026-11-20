@@ -1,10 +1,11 @@
-import { Fragment } from 'react';
+import { Fragment, type JSX } from 'react';
 import { Link, Navigate, useParams } from 'react-router-dom';
-import { awaySeconds, cloudKey, factPercent, isUnscored, pinDistance, surveyHitsOf, surveyOrder, undoAnswerKey, undoLedger, type GameAdjustment, type BluffInfo, type GameQuestionResult, type SurveyInfo, unpackStrokes } from '@quiz/shared';
+import { awaySeconds, cloudKey, factPercent, isUnscored, pinDistance, surveyHitsOf, surveyOrder, undoAnswerKey, undoLedger, type GameAdjustment, type GameDetail, type BluffInfo, type GameQuestionResult, type SurveyInfo, unpackStrokes } from '@quiz/shared';
 import { getGame } from '../api';
 import { answerText, choicesOf, correctText, formatDate, markText, num, pairTexts, questionName, roundLabel, secondsText, signed } from '../format';
 import { DEBUFF_ICONS, debuffName } from '../debuff-meta';
 import { t, type TextKey } from '../i18n';
+import { deletedShown } from '../nick';
 import { compareText } from '../locales/grammar';
 import { PairList } from '../screens/MatchView';
 import { BuffBadge, SpareMark } from '../screens/Buffs';
@@ -353,12 +354,24 @@ export function GameHistory() {
     );
   }
 
-  const game = state.data;
-  const ledger = undoLedger(game.adjustments.map((a) => ({ seq: a.seq, who: a.nickname, source: a.source, undoes: a.undoes })));
   return (
     <main className="app wide">
+      <GameDetailView game={state.data} back={back} />
+    </main>
+  );
+}
+
+/**
+ * Тіло сторінки гри після завантаження: гравцеві (історія) й адмінові (картка гравця, 58); `back` — посилання над назвою,
+ * `heading` — рівень назви (адмінка вже має свій h1). Маркери видаленого гравця з бази показано мовою інтерфейсу (deletedShown).
+ */
+export function GameDetailView({ game: stored, back, heading: Heading = 'h1' }: { game: GameDetail; back: JSX.Element; heading?: 'h1' | 'h2' }): JSX.Element {
+  const game = deletedShown(stored);
+  const ledger = undoLedger(game.adjustments.map((a) => ({ seq: a.seq, who: a.nickname, source: a.source, undoes: a.undoes })));
+  return (
+    <>
       {back}
-      <h1 className="brand" dir="auto">{game.title}</h1>
+      <Heading className="brand" dir="auto">{game.title}</Heading>
       <p className="meta">{`${formatDate(game.startedAt)}, ${t(`status_${game.status}`)}`}</p>
       {game.teams && <p className="meta team-game-mark">{t('historyTeamGame')}</p>}
       {game.autopilot && <p className="meta autopilot-mark">{t('historyAutopilot')}</p>}
@@ -678,6 +691,6 @@ export function GameHistory() {
           })}
         </section>
       )}
-    </main>
+    </>
   );
 }

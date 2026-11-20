@@ -15,6 +15,8 @@ export interface SavedGameData {
   at: number;
   /** Лише люди контрольної точки (slotsOf і гравці рушія). */
   playerUsers: [string, string][];
+  /** 58: місця видалених акаунтів (Room.forgotten); немає — нікого. */
+  forgotten?: string[];
   quizId: string | null;
   /** Призи лобі (14a): лишаються в резерві за грою, точне продовження грає за них же; немає — без призів. */
   prizes?: PlacedPrize[];

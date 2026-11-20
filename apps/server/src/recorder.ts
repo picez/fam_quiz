@@ -1,10 +1,11 @@
 import { answeredByOf, appealTally, cluesAnswered, debuffOn, isSilentRisk, memberOf, packedStrokes, rankPlayers, recordOf, teamMembers, teamsOn, thinkOffOf, thinkPlaces, thinkVerdicts, voteTally, type DrawingPlay, type GameState, type LadderPlay, type SurvivalPlay, type ThinkPlay, type TruthPlay } from '@quiz/engine';
-import { AWAY_MS, isUnscored, type Answer, type BuffKind, type DebuffKind, type GameXpMoment, type LeagueEntry, type Question } from '@quiz/shared';
+import { AWAY_MS, DELETED_NICKNAME, isUnscored, type Answer, type BuffKind, type DebuffKind, type GameXpMoment, type LeagueEntry, type Question } from '@quiz/shared';
 import { and, eq, gt, gte, inArray, max, notInArray, sql } from 'drizzle-orm';
 import { antiHidden, awardedIn, awardGame } from './achievement-store';
 import type { Db } from './db/client';
 import { answer, appeal, AWAY_ATTEMPT, game, participant, PENALTY_ATTEMPT, savedGame, scoreAdjustment, VOTE_ATTEMPT, type PlayRef } from './db/schema';
 import { publishGameFeed } from './feed-publish';
+import { forgetInPlays } from './forget-plays';
 import { recordLeague, type LeagueGameResult } from './league-store';
 import { awardPrizes, releaseUnsaved, type PrizeOutcome } from './prizes';
 import type { SavedGameData } from './rooms/continuation';
@@ -28,6 +29,8 @@ interface Snapshot {
   quizId: string | null;
   state: GameState;
   playerUsers: Map<string, string>;
+  /** 58: місця видалених акаунтів (Room.forgotten): рядок — «Видалений гравець», журнал гри — без його імені й фактів. */
+  forgotten?: ReadonlySet<string>;
   startedAt: Date;
   /** З якого запитання записувати відповіді: попередні вже збережено. */
   fromQuestion: number;
@@ -314,9 +317,18 @@ async function writeGame(tx: Tx, snapshot: Snapshot, saving: boolean): Promise<v
   const finished = !saving && state.phase === 'finished';
   const closed = closedQuestions(state);
   const ranks = new Map(finished ? rankPlayers(state.players).map((row) => [row.participantId, row.rank]) : []);
+  // 58: місця видалених акаунтів — їхній нікнейм у цій грі (для журналу); рядки учасників пишуться «Видаленим гравцем».
+  const forgotten = snapshot.forgotten ?? new Set<string>();
+  const gone = new Map(
+    [...forgotten].flatMap((id) => {
+      const nickname = state.players.find((p) => p.id === id)?.nickname ?? state.teams?.members.find((m) => m.id === id)?.nickname;
+      return nickname === undefined ? [] : [[id, nickname] as const];
+    }),
+  );
+  const nickOf = (id: string, nickname: string) => (forgotten.has(id) ? DELETED_NICKNAME : nickname);
   const progress = {
     questionsPlayed: closed,
-    plays: state.plays.slice(0, closed).map((play, index) => ({
+    plays: forgetInPlays(state.plays.slice(0, closed).map((play, index) => ({
       roundIndex: play.roundIndex,
       questionId: play.question.id,
       ...(play.board === undefined ? {} : { cell: { cellId: play.board.cellId, chooserId: play.board.chooserId } }),
@@ -335,7 +347,7 @@ async function writeGame(tx: Tx, snapshot: Snapshot, saving: boolean): Promise<v
       ...(play.ladder === undefined ? {} : { ladder: ladderRef(play.ladder, play.question) }),
       ...(play.truth === undefined ? {} : { truth: truthRef(play.truth, play.question) }),
       ...(play.think === undefined ? {} : { think: thinkRef(state, index, play.think) }),
-    })),
+    })), gone),
     finishedAt: finished ? new Date() : null,
   };
   const status = saving ? ('saved' as const) : finished ? ('finished' as const) : ('running' as const);
@@ -407,13 +419,13 @@ async function writeGame(tx: Tx, snapshot: Snapshot, saving: boolean): Promise<v
       .values({
         id: player.id,
         gameId: snapshot.id,
-        nickname: player.nickname,
+        nickname: nickOf(player.id, player.nickname),
         userId: snapshot.playerUsers.get(player.id) ?? null,
         isTeam: teamGame,
         ...result,
       })
       // Акаунт оновлюється на кожному записі: гостьовий слот, який зайняв акаунт (13b), потрапляє в його профіль.
-      .onConflictDoUpdate({ target: participant.id, set: { ...result, userId: sql`excluded.user_id` } });
+      .onConflictDoUpdate({ target: participant.id, set: { ...result, userId: sql`excluded.user_id`, ...(forgotten.has(player.id) ? { nickname: DELETED_NICKNAME } : {}) } });
     await saveAnswers(player.id, true);
   }
 
@@ -427,12 +439,12 @@ async function writeGame(tx: Tx, snapshot: Snapshot, saving: boolean): Promise<v
       .values({
         id: member.id,
         gameId: snapshot.id,
-        nickname: member.nickname,
+        nickname: nickOf(member.id, member.nickname),
         userId: snapshot.playerUsers.get(member.id) ?? null,
         teamId: team.id,
         ...result,
       })
-      .onConflictDoUpdate({ target: participant.id, set: { ...result, userId: sql`excluded.user_id` } });
+      .onConflictDoUpdate({ target: participant.id, set: { ...result, userId: sql`excluded.user_id`, ...(forgotten.has(member.id) ? { nickname: DELETED_NICKNAME } : {}) } });
     await saveAnswers(member.id, false);
   }
 
@@ -459,7 +471,7 @@ async function writeGame(tx: Tx, snapshot: Snapshot, saving: boolean): Promise<v
       source,
       debuff: debuff ?? null,
       // Ціль могли вилучити до запису: тоді нікнейма вже немає.
-      targetNickname: target === undefined ? null : (state.players.find((p) => p.id === target)?.nickname ?? null),
+      targetNickname: target === undefined ? null : forgotten.has(target) ? DELETED_NICKNAME : (state.players.find((p) => p.id === target)?.nickname ?? null),
       // batch у базу не пишеться: він потрібен лише живому сповіщенню.
       undoesQuestion: undoes !== undefined && 'question' in undoes ? undoes.question : null,
       undoesSeq: undoes !== undefined && 'seq' in undoes ? undoes.seq : null,
@@ -544,6 +556,7 @@ export async function saveSavedGame(db: Db, write: SavedWrite): Promise<void> {
     quizId: write.quizId,
     state: saved.state,
     playerUsers: write.playerUsers,
+    ...(saved.forgotten === undefined ? {} : { forgotten: new Set(saved.forgotten) }),
     // Наявний рядок гри мить старту не змінює (її немає в set).
     startedAt: new Date(),
     fromQuestion: 0,
@@ -688,6 +701,7 @@ export function attachRecorder(
       quizId: room.quizId,
       state,
       playerUsers: new Map(room.playerUsers),
+      ...(room.forgotten === undefined ? {} : { forgotten: new Set(room.forgotten) }),
       startedAt: startedAt.get(room.id) ?? new Date(),
       debuffs: debuffsSeen.get(room.id) ?? new Map(),
       replaces: room.continued?.replaces ?? null,

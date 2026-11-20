@@ -48,6 +48,7 @@ const award = (id: string): AwardCard => ({
   quizTitle: 'Столиці',
   nickname: 'Олена',
   awardedAt: '2026-10-30T10:00:00.000Z',
+  gift: null,
   content: { trophy: null, engraving: null, real: { text: 'Піца', photoUrl: null }, title: null, diploma: false },
 });
 
@@ -63,7 +64,7 @@ const mine: OwnProfile = {
   wins: [{ gameId: 'g1', title: 'Хіт', startedAt: '2026-10-12T15:30:00.000Z', rank: 1 }],
   friends: [{ id: 'u2', nickname: 'Тарас', avatar: null, lastSeenAt: new Date(Date.now() - 60_000).toISOString() }],
   showcase: { title: null, awards: [award('a1'), award('a2')], pins: { prizes: [], achievements: [] } },
-  level: { progress: levelProgress(0), unlocked: [], next: [], looks: { color: null, frame: null, badge: null, photo: null, font: null, effect: null } },
+  level: { progress: levelProgress(0), unlocked: [], next: [], looks: { color: null, frame: null, badge: null, photo: null, font: null, effect: null }, adminXp: [] },
   likes: { author: 0, host: 0, player: 0 },
 };
 

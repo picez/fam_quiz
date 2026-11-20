@@ -49,7 +49,7 @@ const profile: OwnProfile = {
   wins: [],
   friends: [],
   showcase: { title: null, awards: [], pins: { prizes: [], achievements: [] } },
-  level: { progress: levelProgress(0), unlocked: [], next: [], looks: { color: null, frame: null, badge: null, photo: null, font: null, effect: null } },
+  level: { progress: levelProgress(0), unlocked: [], next: [], looks: { color: null, frame: null, badge: null, photo: null, font: null, effect: null }, adminXp: [] },
   likes: { author: 0, host: 0, player: 0 },
 };
 
@@ -99,7 +99,7 @@ describe('Prizes', () => {
         showcase: {
           title: null,
           pins: { prizes: [], achievements: [] },
-          awards: [{ id: 'a1', place: 1, quizTitle: 'Столиці', nickname: 'Олена', awardedAt: '2026-10-30T10:00:00.000Z', content: { trophy: null, engraving: null, real: { text: 'Піца', photoUrl: null }, title: null, diploma: false } }],
+          awards: [{ id: 'a1', place: 1, quizTitle: 'Столиці', nickname: 'Олена', awardedAt: '2026-10-30T10:00:00.000Z', gift: null, content: { trophy: null, engraving: null, real: { text: 'Піца', photoUrl: null }, title: null, diploma: false } }],
         },
       },
     });
@@ -117,7 +117,7 @@ describe('Prizes', () => {
         showcase: {
           title: null,
           pins: { prizes: [], achievements: [] },
-          awards: [{ id, place: 1, quizTitle: 'Столиці', nickname: 'Олена', awardedAt: '2026-10-30T10:00:00.000Z', content: { trophy: null, engraving: null, real: { text: 'Піца', photoUrl: null }, title: null, diploma: false } }],
+          awards: [{ id, place: 1, quizTitle: 'Столиці', nickname: 'Олена', awardedAt: '2026-10-30T10:00:00.000Z', gift: null, content: { trophy: null, engraving: null, real: { text: 'Піца', photoUrl: null }, title: null, diploma: false } }],
         },
       },
     });
@@ -135,7 +135,7 @@ describe('Prizes', () => {
 
   it('a refused pin says why above the awards', async () => {
     const ids = ['11111111-1111-4111-8111-111111111111', '22222222-2222-4222-8222-222222222222', '33333333-3333-4333-8333-333333333333', '44444444-4444-4444-8444-444444444444'];
-    const card = (id: string) => ({ id, place: 1 as const, quizTitle: 'Столиці', nickname: 'Олена', awardedAt: '2026-10-30T10:00:00.000Z', content: { trophy: null, engraving: null, real: { text: 'Піца', photoUrl: null }, title: null, diploma: false } });
+    const card = (id: string) => ({ id, place: 1 as const, quizTitle: 'Столиці', nickname: 'Олена', awardedAt: '2026-10-30T10:00:00.000Z', gift: null, content: { trophy: null, engraving: null, real: { text: 'Піца', photoUrl: null }, title: null, diploma: false } });
     vi.mocked(getMyProfile).mockResolvedValue({
       ok: true,
       data: { ...profile, showcase: { title: null, pins: { prizes: ids.slice(0, 3), achievements: [] }, awards: ids.map(card) } },

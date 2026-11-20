@@ -31,6 +31,7 @@ const award = (id: string, place: 1 | 2 | 3 = 1) => ({
   quizTitle: `Квіз ${id}`,
   nickname: 'Тарас',
   awardedAt: '2026-10-30T10:00:00.000Z',
+  gift: null,
   content: { trophy: null, engraving: null, real: { text: `Приз ${id}`, photoUrl: null }, title: null, diploma: false },
 });
 const withAwards = (n: number, pinned: string[] = []) =>
@@ -176,7 +177,7 @@ describe('PublicProfile', () => {
         showcase: {
           title: { text: 'Король', until: '2026-11-06T10:00:00.000Z' },
           pins: { prizes: [], achievements: [] },
-          awards: [{ id: 'a1', place: 1, quizTitle: 'Столиці', nickname: 'Тарас', awardedAt: '2026-10-30T10:00:00.000Z', content: { trophy: null, engraving: null, real: { text: 'Піца', photoUrl: null }, title: null, diploma: false } }],
+          awards: [{ id: 'a1', place: 1, quizTitle: 'Столиці', nickname: 'Тарас', awardedAt: '2026-10-30T10:00:00.000Z', gift: null, content: { trophy: null, engraving: null, real: { text: 'Піца', photoUrl: null }, title: null, diploma: false } }],
         },
       }),
     });

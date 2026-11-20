@@ -12,6 +12,7 @@ const award = (id: string, awardedAt: string, content: Partial<Omit<PrizeContent
   quizTitle: 'Україна',
   nickname: 'Оля',
   awardedAt,
+  gift: null,
 });
 const A = award('a', '2026-10-04T10:00:00.000Z', { diploma: true });
 const B = award('b', '2026-10-03T10:00:00.000Z', { trophy: { kind: 'cup', material: 'gold' } });

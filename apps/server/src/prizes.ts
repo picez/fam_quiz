@@ -330,6 +330,7 @@ export async function showcaseOf(db: Db, userId: string, now: Date = new Date())
     quizTitle: row.quizTitle,
     nickname: row.nickname,
     awardedAt: row.awardedAt!.toISOString(),
+    gift: row.gift ? { note: row.giftNote } : null,
   }));
   return { title: titleRow === undefined ? null : { text: titleRow.text, until: titleRow.expiresAt!.toISOString() }, awards, pins };
 }

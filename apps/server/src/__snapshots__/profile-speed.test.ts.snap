@@ -2620,6 +2620,7 @@ exports[`profile speed (46): the safety net > the career numbers stay the same o
       "id": "<id 1>",
       "leagueTitles": [],
       "level": {
+        "adminXp": [],
         "looks": {
           "badge": null,
           "color": null,
@@ -6118,6 +6119,7 @@ exports[`profile speed (46): the safety net > the career numbers stay the same o
       "id": "<id 1>",
       "leagueTitles": [],
       "level": {
+        "adminXp": [],
         "looks": {
           "badge": null,
           "color": null,
@@ -9698,6 +9700,7 @@ exports[`profile speed (46): the safety net > the career numbers stay the same o
       "id": "<id 1>",
       "leagueTitles": [],
       "level": {
+        "adminXp": [],
         "looks": {
           "badge": null,
           "color": null,
