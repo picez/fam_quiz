@@ -3,6 +3,7 @@ import { isAnti, type AchievementId } from './achievements';
 import type { TrophyKind, TrophyMaterial } from './prizes';
 import { legacyStickerOpen, packOf, STICKER_PACKS, type StickerPackId } from './sticker-packs';
 import { stickerOf } from './stickers';
+import type { XpAdminLine } from './player-card';
 
 /** Нарахування досвіду за гру (15a). */
 export const LEVEL_XP = { join: 50, correct: 10, place: [100, 60, 30], dailyCap: 600, minAccounts: 3, minQuestions: 5 } as const;
@@ -385,6 +386,8 @@ export interface OwnLevel {
   unlocked: LevelUnlock[];
   next: { level: number; reward: LevelReward }[];
   looks: NickLooks;
+  /** 58: ручні зміни досвіду від адміна, новіші першими (до ADMIN_CARD_XP). */
+  adminXp: XpAdminLine[];
 }
 
 export interface PublicLevel {

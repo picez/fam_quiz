@@ -16,7 +16,7 @@ export type FeedData =
   | { kind: 'game'; title: string; place: number | null; of: number; team: string | null }
   | { kind: 'achievement'; achievementId: AchievementId }
   | { kind: 'level'; level: number }
-  | { kind: 'prize'; place: PrizePlace; name: string; title: string; nickTitle: string | null }
+  | { kind: 'prize'; place: PrizePlace; name: string; title: string; nickTitle: string | null; gift?: true }
   | { kind: 'like'; title: string | null; questions: number; quiz: boolean; host: boolean; player: boolean }
   | { kind: 'planned'; eventId: string; title: string; startsAt: string };
 
