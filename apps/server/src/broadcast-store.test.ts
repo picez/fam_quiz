@@ -3,10 +3,10 @@ import { eq } from 'drizzle-orm';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { banUser } from './bans';
 import { ensureBotAccount } from './bot-account';
-import { audienceOf } from './broadcast-store';
+import { audienceOf, createBroadcast, finishBroadcast, listBroadcasts } from './broadcast-store';
 import type { Db } from './db/client';
-import { groupMember, profile, user } from './db/schema';
-import { createGroup } from './group-store';
+import { adminAction, groupMember, profile, pushBroadcast, user } from './db/schema';
+import { createGroup, deleteGroup } from './group-store';
 import { ensureProfile } from './profiles';
 import { saveSubscription } from './push-store';
 import { createTestDb } from './testing/test-db';
@@ -68,5 +68,67 @@ describe('audienceOf', () => {
     expect(await db.select().from(profile).where(eq(profile.userId, BARE))).toEqual([]);
     expect(await audienceOf(db, { kind: 'all' })).toEqual([OLYA, PETRO, BARE]);
     expect(await audienceOf(db, { kind: 'people', userIds: [BARE] })).toEqual([BARE]);
+  });
+});
+
+describe('createBroadcast and the history', () => {
+  const input = { title: 'Нова вікторина', text: 'Заходьте грати', url: null, recipients: { kind: 'all' } as const };
+  const T = new Date('2027-03-01T10:00:00.000Z');
+  const MIN = 60_000;
+  const at = (ms: number) => new Date(T.getTime() + ms);
+  const go = (adminId: string, now: Date, people = [OLYA, PETRO]) => createBroadcast(db, { adminId, input, people, now });
+  const counts = async () => ({
+    rows: (await db.select().from(pushBroadcast)).length,
+    logs: (await db.select().from(adminAction).where(eq(adminAction.kind, 'push_broadcast'))).length,
+  });
+
+  it('one broadcast per 10 minutes and 10 per day, shared by all admins', async () => {
+    expect((await go(OLYA, T)).ok).toBe(true);
+    const soon = await go(PETRO, at(9 * MIN));
+    expect(soon).toEqual({ ok: false, error: 'broadcast_too_soon', nextAt: at(10 * MIN).toISOString() });
+    expect((await go(PETRO, at(10 * MIN))).ok).toBe(true);
+    for (let i = 2; i < 10; i += 1) expect((await go(i % 2 === 0 ? OLYA : PETRO, at(i * 10 * MIN))).ok, 'n' + i).toBe(true);
+    expect(await counts()).toEqual({ rows: 10, logs: 10 });
+    const day = await go(OLYA, at(100 * MIN));
+    expect(day).toEqual({ ok: false, error: 'broadcast_day_limit', nextAt: at(24 * 60 * MIN).toISOString() });
+    expect(await counts()).toEqual({ rows: 10, logs: 10 });
+    expect((await go(OLYA, at(24 * 60 * MIN + 1))).ok).toBe(true);
+  });
+
+  it('two broadcasts at once: one passes', async () => {
+    const now = new Date('2027-04-01T10:00:00.000Z');
+    const results = await Promise.all([go(OLYA, now), go(PETRO, now)]);
+    expect(results.filter((r) => r.ok)).toHaveLength(1);
+    expect(results.filter((r) => !r.ok && r.error === 'broadcast_too_soon')).toHaveLength(1);
+  });
+
+  it('a broadcast logs its title and count', async () => {
+    const now = new Date('2027-05-01T10:00:00.000Z');
+    const made = await go(OLYA, now);
+    expect(made.ok).toBe(true);
+    const logs = await db.select().from(adminAction).where(eq(adminAction.kind, 'push_broadcast'));
+    const last = logs.find((l) => l.at.getTime() === now.getTime())!;
+    expect(last.details).toEqual({ title: 'Нова вікторина', count: 2 });
+    expect(last.targetUserId).toBeNull();
+  });
+
+  it('history: newest first, admin nickname, group from the snapshot, sending turns interrupted', async () => {
+    await db.delete(pushBroadcast);
+    const group = await createGroup(db, TARAS, { name: 'Малинські', emoji: '🏡', description: '' }, NOW);
+    if (!group.ok) throw new Error(group.error);
+    const t1 = new Date('2027-06-01T10:00:00.000Z');
+    const t2 = new Date(t1.getTime() + 30 * MIN);
+    const first = await createBroadcast(db, { adminId: OLYA, input: { ...input, title: 'Перша', recipients: { kind: 'group', groupId: group.id } }, people: [OLYA], now: t1 });
+    const second = await createBroadcast(db, { adminId: PETRO, input: { ...input, title: 'Друга', recipients: { kind: 'people', userIds: [OLYA, 'нема'] } }, people: [OLYA], now: t2 });
+    if (!first.ok || !second.ok) throw new Error('not ok');
+    await deleteGroup(db, group.id);
+    await finishBroadcast(db, second.row.id, { delivered: 2, failed: 1 }, new Date(t2.getTime() + 1000));
+
+    const rows = await listBroadcasts(db, new Date(t2.getTime() + 20 * MIN));
+    expect(rows.map((r) => r.title)).toEqual(['Друга', 'Перша']);
+    expect(rows[0]).toMatchObject({ admin: 'Петро', status: 'sent', delivered: 2, failed: 1, people: 1, to: { kind: 'people', people: [{ id: OLYA, nickname: 'Оля' }] } });
+    expect(rows[1]).toMatchObject({ status: 'interrupted', to: { kind: 'group', name: 'Малинські' } });
+    const fresh = await listBroadcasts(db, new Date(t1.getTime() + 5 * MIN));
+    expect(fresh.find((r) => r.title === 'Перша')!.status).toBe('sending');
   });
 });

@@ -153,7 +153,8 @@ export async function buildApp(options: AppOptions) {
   await registerShowcaseRoutes(app, { db: options.db, currentUser });
   const announcements = announcementCache(options.db, () => Date.now());
   await registerAnnouncementRoutes(app, { cache: announcements });
-  await registerAdminRoutes(app, { db: options.db, manager, adminEmails: options.adminEmails ?? new Set<string>(), currentUser, backupList: options.backupList, announcements, maxRooms, storage: imageStorage, checkFetch: options.checkFetch ?? offlineFetch, checkResolve: options.checkResolve ?? offlineResolve });
+  const push = options.push === undefined ? null : createPushService({ db: options.db, ...options.push, log: (message, error) => log.error({ err: error }, message) });
+  await registerAdminRoutes(app, { db: options.db, manager, adminEmails: options.adminEmails ?? new Set<string>(), currentUser, backupList: options.backupList, announcements, maxRooms, storage: imageStorage, checkFetch: options.checkFetch ?? offlineFetch, checkResolve: options.checkResolve ?? offlineResolve, push });
   const invites = new Invites(manager);
   await registerInviteRoutes(app, { db: options.db, manager, invites, currentUser });
   const gate = new LobbyGate(options.db, invites, () => manager.now());
@@ -163,7 +164,6 @@ export async function buildApp(options: AppOptions) {
   await registerLibraryRoutes(app, { db: options.db, currentUser });
   await registerWordLadderRoutes(app, { nouns, currentUser });
   await registerLetterWordsRoutes(app, { nouns, currentUser });
-  const push = options.push === undefined ? null : createPushService({ db: options.db, ...options.push, log: (message, error) => log.error({ err: error }, message) });
   const notifiers = [options.calendarNotify, push?.calendarNotify].filter((n): n is CalendarNotify => n !== undefined);
   const calendarNotify: CalendarNotify | undefined =
     notifiers.length === 0
