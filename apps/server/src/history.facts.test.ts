@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { eq } from 'drizzle-orm';
 import { defaultTeams, factTable, gameAwards, revealFacts } from '@quiz/shared';
 import { factInput } from '@quiz/engine';
-import { auctionRound, betsRound, blitzRound, bluff, boardRound, classicRound, finalRound, makeQuiz, makeRoundsQuiz, poll, single, text, think, thinkRound, withId, withVideo } from '@quiz/engine/testing';
+import { auctionRound, betsRound, blitzRound, bluff, boardRound, classicRound, finalRound, makeQuiz, makeRoundsQuiz, poll, single, text, think, thinkRound, withId, withVideo, wordle } from '@quiz/engine/testing';
 import { buildApp } from './app';
 import { hostGame, hostGameWithFacts } from './history';
 import type { Db } from './db/client';
@@ -558,6 +558,19 @@ describe('history facts (12d)', () => {
     const kinds = facts?.awards.map((a) => a.kind) ?? [];
     expect(kinds).not.toContain('lightning');
     expect(kinds).not.toContain('hardest');
+  });
+
+  it('a wordle is named by its word, not its old author text (61)', async () => {
+    const hostId = await hostAccount();
+    const { gameId } = await seedGame(db, {
+      hostId,
+      startedAt: new Date(),
+      snapshot: makeRoundsQuiz([classicRound('r1', [{ ...wordle, text: 'Ягода з колючого куща' }])]),
+      questionsPlayed: 1,
+      players: [{ userId: null, nickname: 'Тарас', score: 1000, rank: 1, rows: [{ questionIndex: 0, accepted: true, points: 1000 }] }],
+    });
+    const found = await hostGameWithFacts(db, hostId, gameId);
+    expect(found?.factInput.questions.map((q) => q.text)).toEqual(['КОЛОС']);
   });
 
   it('a team game: the participants are the teams, not the people', async () => {

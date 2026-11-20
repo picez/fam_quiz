@@ -169,8 +169,14 @@ describe('the big «Великий шкільний марафон ІІІ» quiz
     expect(ofType('spy').some((q) => q.spyHint === undefined)).toBe(true);
   });
 
+  it('gives no wordle a text or a hint: in the game there is only the grid (61)', () => {
+    expect(ofType('wordle').length).toBeGreaterThan(0);
+    for (const q of ofType('wordle')) expect([q.text, q.hint], q.word).toEqual(['', undefined]);
+  });
+
   it('has no duplicate question texts or spy pairs, here or in other seed quizzes', () => {
-    const texts = [...everything.map((q) => key(q.text)), ...duels.map((d) => key(d.text))];
+    // У «Вгадай слово» тексту немає (61).
+    const texts = [...everything.filter((q) => q.type !== 'wordle').map((q) => key(q.text)), ...duels.map((d) => key(d.text))];
     expect(texts.filter((text, i) => texts.indexOf(text) !== i)).toEqual([]);
     const sources = otherSources();
     const others = sources.join('\n').toLocaleLowerCase('uk');

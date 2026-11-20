@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { WORDLE_KEYBOARD, wordleCandidates, wordleKey, wordleKeyboard, wordleLeak, wordleLetters, wordleMarks, wordlePoints, wordleWordIssue } from './index';
+import { WORDLE_KEYBOARD, playedText, wordleCandidates, wordleKey, wordleKeyboard, wordleLeak, wordleLetters, wordleMarks, wordlePoints, wordleWordIssue } from './index';
 
 const L = (w: string) => wordleLetters(wordleKey(w)!);
 
@@ -56,5 +56,13 @@ describe('wordle rules', () => {
     expect(new Set(all).size).toBe(33);
     for (const c of ['ґ', 'ї', 'є', 'і']) expect(all).toContain(c);
     expect(all).not.toContain("'");
+  });
+});
+
+describe('playedText (61)', () => {
+  it('a wordle is named by its word in capitals, other questions by their text', () => {
+    expect(playedText({ type: 'wordle', text: 'Ягода з колючого куща', word: "м'ясо" })).toBe("М'ЯСО");
+    expect(playedText({ type: 'wordle', text: '', word: 'колос' })).toBe('КОЛОС');
+    expect(playedText({ type: 'text', text: 'Столиця Франції?' })).toBe('Столиця Франції?');
   });
 });

@@ -11,6 +11,8 @@ import { exact, base, problems, snapshot, afterSplash, noSplashLayer, shot, rest
 /**
  * Наскрізні тести: частина 48 — «Вгадай слово» (wordle): редактор зі словником, три телефони з повторами літер і невідомим словом, сцена лише з кольорами,
  * апостроф, команди через капітана, перезапуск, автопілот, 3 / 12 / 24 гравці на сцені 1280×720 без прокрутки, телефон 360×740 без прокрутки, світла тема.
+ * Частина 61 (45d): без підказок — у редакторі немає поля тексту; текст і підказка в даних запитання не видно ні на телефоні, ні на сцені,
+ * ні на пульті, ні в кадрах сокета — лише «Вгадайте слово з N літер» (телефон 360, світла тема).
  */
 
 useE2eServer();
@@ -72,6 +74,19 @@ it('part 48: wordle — 24 players make two centred rows of 12 on the 1280×720 
 const squash48 = (text: string | null) => (text ?? '').replace(/\s+/g, ' ').trim();
 
 type MarkName48 = 'hit' | 'near' | 'miss' | 'none';
+
+/** 61: підказка ведучого в даних запитань гри. */
+const HINT61 = 'Буває на кістці';
+/** 61: тексти фікстур wordle й підказка — у даних, але не в грі. */
+const AUTHOR_TEXTS61 = [wordleQ.text, wordle2Q.text, HINT61];
+
+/** 61: на жодній сторінці гри немає тексту автора чи підказки wordle. */
+async function noAuthorText61(pages: Page[], when: string) {
+  for (const [at, page] of pages.entries()) {
+    const text = await page.locator('body').innerText();
+    for (const hidden of AUTHOR_TEXTS61) expect(text.includes(hidden), `61 ${when}: «${hidden}» on page ${at}`).toBe(false);
+  }
+}
 
 /** Слово цілим (кирилиця). */
 const hasWord48 = (text: string, word: string) => new RegExp(`(^|[^\\p{L}'’])${word}($|[^\\p{L}'’])`, 'iu').test(text);
@@ -415,11 +430,12 @@ async function editor48() {
   await host.getByRole('link', { name: 'Нова вікторина' }).click();
   await field(host, 'Назва вікторини').fill('Вгадай слово 48');
 
-  // ── Класика: «Вгадай слово» у меню; типовий текст і 120 с. ──
+  // ── Класика: «Вгадай слово» у меню; поля тексту немає (61), 120 с. ──
   const types = host.getByRole('group', { name: 'Тип запитання', ...exact });
   expect(await types.getByRole('button', { name: 'Вгадай слово', ...exact }).count(), 'wordle in the classic menu').toBe(1);
   await types.getByRole('button', { name: 'Вгадай слово', ...exact }).click();
-  await expect.poll(() => questionText(host).inputValue(), POLL).toBe('Вгадайте слово');
+  await field(host, 'Слово').waitFor();
+  expect(await questionText(host).count(), '61: a question text field for a wordle').toBe(0);
   await expect.poll(() => field(host, 'Час, с').inputValue(), POLL).toBe('120');
 
   // ── Слово не з словника: попередження наживо, збереження відмовляє, вікторини в списку немає. ──
@@ -450,7 +466,7 @@ async function editor48() {
   const quizId = list.find((entry) => entry.title === 'Вгадай слово 48')!.id;
   const stored = (await (await host.request.get(`${base}/api/quizzes/${quizId}`)).json()) as { rounds: { type: string; questions: Record<string, unknown>[] }[] };
   expect(stored.rounds.map((round) => round.type)).toEqual(['classic']);
-  expect(stored.rounds[0]!.questions[0]).toMatchObject({ type: 'wordle', text: 'Вгадайте слово', word: 'колос', timeLimit: 120 });
+  expect(stored.rounds[0]!.questions[0]).toMatchObject({ type: 'wordle', text: '', word: 'колос', timeLimit: 120 });
 
   // ── Прямий запит зі словом поза словником — відмова сервера; зі словником — ок. ──
   const bypass = await host.request.post(`${base}/api/quizzes`, { data: { ...makeRoundsQuiz([classicRound('ce48', [q48(wordleQ, 'we1', 60, 1000, { word: 'лампо' })])]), title: 'Лампо 48' } });
@@ -477,7 +493,8 @@ async function editor48() {
 async function game48() {
   const host = await open('host48', 1280, 900);
   await register(host, 'host', 'Марта Ведуча', 'host48@example.com');
-  const quiz = makeRoundsQuiz([classicRound('c48', [q48(wordleQ, 'wl1', 40, 1000), q48(wordle2Q, 'wl2', 30, 600)], { speedBonus: false })], { leaderboard: 'end' });
+  // 61: тексти фікстур і підказка лишаються в даних — у грі їх не видно.
+  const quiz = makeRoundsQuiz([classicRound('c48', [q48(wordleQ, 'wl1', 40, 1000, { hint: HINT61 }), q48(wordle2Q, 'wl2', 30, 600, { hint: HINT61 })], { speedBonus: false })], { leaderboard: 'end' });
   const { code, stage, stageFrames, hostFrames } = await launch48(host, quiz, 'Вгадай слово гра 48', 'stage48');
   const olya = await open('olya48', 360, 740, { hasTouch: true, isMobile: true });
   const taras = await open('taras48', 360, 740);
@@ -490,7 +507,9 @@ async function game48() {
   await stage.getByText('Петро').waitFor();
   await startGame48(host, stage, phones);
   const from = { stage: stageFrames.length, petro: petroFrames.length, olya: olyaFrames.length, host: hostFrames.length };
-  await stage.getByText("Вгадайте іменник з п'яти літер", exact).first().waitFor();
+  await stage.getByRole('heading', { name: 'Вгадайте слово з 5 літер', ...exact }).waitFor();
+  await olya.getByRole('heading', { name: 'Вгадайте слово з 5 літер', ...exact }).waitFor();
+  await noAuthorText61([host, stage, ...phones], 'question 1');
 
   // ── Телефон Олі 360: клавіатура ЙЦУКЕН цілком у вікні, порожня сітка 6 × 5, легенда. ──
   await olya.locator('.wordle-keys').waitFor();
@@ -624,7 +643,7 @@ async function game48() {
   // ── Друге: «м'ясо» (4 літери). Тарас набирає «мясо» → прийнято як «м'ясо», вгадано з 1-ї спроби (+600). ──
   await next27a(host);
   await afterSplash(host, stage, ...phones);
-  await stage.getByText('Вгадайте іменник з чотирьох літер', exact).first().waitFor();
+  await stage.getByRole('heading', { name: 'Вгадайте слово з 4 літер', ...exact }).waitFor();
   await taras.locator('.wordle-keys').waitFor();
   expect(await taras.locator('.wordle-play .wordle-row').first().locator('.wordle-cell').count(), 'cells for м’ясо').toBe(4);
   // Олі «село»: с near, е miss, л miss, о hit — і є що вимірювати в обох темах.
@@ -638,6 +657,10 @@ async function game48() {
   // ── Світла тема: телефон 360 з відкритою клавіатурою без бокового скролу, контраст клітинок, сцена. ──
   for (const page of [olya, stage]) await theme48(page, 'light');
   await olya.locator('.wordle-keys').waitFor();
+  // 61: телефон 360 у світлій темі — лише «Вгадайте слово з 4 літер», сітка й клавіатура; кадр вікна.
+  await olya.getByRole('heading', { name: 'Вгадайте слово з 4 літер', ...exact }).waitFor();
+  await noAuthorText61([host, stage, ...phones], 'question 2 light');
+  await viewShot48(olya, 'wordle61-light-phone-360');
   await expect.poll(() => marks48(phoneGrid48(olya), 0), POLL).toEqual(['near', 'miss', 'miss', 'hit']);
   await stage.locator('.wordle-board > li').nth(1).waitFor();
   await expectKeyboardFits48(olya, 'light olya 360');
@@ -679,6 +702,11 @@ async function game48() {
   await expect.poll(() => stage.locator('.wordle-board > li').nth(1).locator('.tag').textContent(), POLL).toBe('вгадав за 1 спробу');
   for (const [at, wanted] of [833, 1433, 0].entries()) await expect.poll(() => phoneScore27a(phones[at]!).textContent().then((t) => (t ?? '').replace(/\s/g, '')), POLL).toBe(String(wanted));
   await taras.locator('.wordle-word').filter({ hasText: /^Слово: М['’ʼ]ЯСО$/ }).waitFor();
+  await noAuthorText61([host, stage, ...phones], 'reveal 2');
+  for (const [who, frames, start] of [['stage', stageFrames, from.stage], ['host', hostFrames, from.host], ['petro', petroFrames, from.petro], ['olya', olyaFrames, from.olya]] as const) {
+    const text = frames.slice(start).join(NL);
+    for (const hidden of AUTHOR_TEXTS61) expect(text.includes(hidden), `61: «${hidden}» in the ${who} frames`).toBe(false);
+  }
   // Розкриття трьох у світлій темі: сцена не гортається, дошки по центру.
   await theme48(stage, 'light');
   await stage.locator('.wordle-answer-word').waitFor();
@@ -851,7 +879,7 @@ async function crowd48(sockets: Socket[], names: readonly string[] = NAMES48) {
   await afterSplash(host, stage);
   await step27a(host, 'Почати раунд');
   await afterSplash(host, stage);
-  await stage.getByText("Вгадайте іменник з п'яти літер", exact).first().waitFor();
+  await stage.getByRole('heading', { name: 'Вгадайте слово з 5 літер', ...exact }).waitFor();
 
   // Кожен робить від 1 до 6 спроб; парні вгадують останньою, непарні лише помиляються (6 хибних слів — усі різні). Не всі мають запис (нерішені з менш ніж 6 хибних спроб) — ведучий закриває запитання сам.
   for (const [at, pilot] of pilots.entries()) {

@@ -225,6 +225,19 @@ describe('GameHistory', () => {
     for (const list of screen.getAllByRole('list')) expect(list.className).toContain('stacked');
   });
 
+  it('a wordle is named «Вгадай слово: СЛОВО», never by its old author text (61)', async () => {
+    const wordle: Question = { id: 'w1', type: 'wordle', text: 'Ягода з колючого куща', hint: 'Росте при дорозі', imageUrl: null, video: null, timeLimit: 120, points: 1000, word: 'ожина' };
+    const game: GameDetail = {
+      ...detail,
+      questions: [{ index: 0, roundIndex: 0, text: wordle.text, type: 'wordle', answered: 1, accepted: 1, cell: null, question: wordle, responses: [{ nickname: 'Олена', answer: { type: 'wordle', guesses: ['ожина'], tries: 1, solved: true }, accepted: true, buff: null, spare: null, awayMs: null, appeal: null }], final: null, bets: false, auction: false }],
+    };
+    vi.mocked(getGame).mockResolvedValue({ ok: true, data: game });
+    const { container } = open('/history/g1');
+    expect(await screen.findByText('Вгадай слово: ОЖИНА')).toBeTruthy();
+    expect(container.innerHTML).not.toContain('колючого');
+    expect(container.innerHTML).not.toContain('дорозі');
+  });
+
   it('a truth question marks the author row in the answers list (28b)', async () => {
     const fact: Question = { ...singleQ, id: 'truth-0', text: 'Я стрибала з парашутом', options: [{ id: 'p1', text: 'Олена' }, { id: 'p2', text: 'Тарас' }], correctId: 'p1' };
     const truthGame: GameDetail = {

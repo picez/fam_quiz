@@ -1,5 +1,6 @@
 import {
   isUnscored,
+  playedText,
   undoAnswerKey,
   undoLedger,
   UNDOABLE_ROUNDS,
@@ -183,7 +184,7 @@ export function undoPanel(state: GameState): UndoPanel | null {
           (q): UndoQuestion => ({
             index: q,
             number: questionNumber(state, q),
-            text: shortText(state.plays[q].question.text),
+            text: shortText(playedText(state.plays[q].question)),
             rows: own.filter((l) => l.question === q).map((l) => l.row),
           }),
         ),

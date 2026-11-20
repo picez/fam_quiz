@@ -1447,6 +1447,20 @@ describe('HostScreen wordle (48)', () => {
   });
 });
 
+describe('HostScreen wordle without hints (61)', () => {
+  it('the host panel shows the word and the letter count, never the author text or hint', () => {
+    const wordleQ: Question = { id: 'q5', type: 'wordle', text: 'Ягода з колючого куща', hint: 'Росте при дорозі', imageUrl: null, video: null, timeLimit: 120, points: 1000, word: 'колос' };
+    const info = { letters: 5, tries: 6, word: 'колос', rows: [{ playerId: 'p1', nickname: 'Олена', marks: [], guesses: [], solved: false, tries: 0, points: null }] };
+    const shown = { ...publicOf(single), type: 'wordle' as const, text: 'Ягода з колючого куща', choices: [], wordle: { letters: 5, tries: 6 } };
+    for (const phase of ['question', 'locked', 'reveal'] as const) {
+      show(view({ phase, questionIndex: 0, question: shown, correct: wordleQ, endsAt: Date.now() + 20_000, wordle: info }));
+      expect(document.body.innerHTML, phase).not.toContain('колючого');
+      expect(document.body.innerHTML, phase).not.toContain('дорозі');
+      cleanup();
+    }
+  });
+});
+
 describe('HostScreen word ladder', () => {
   it("the host sees the path and every player's words live", () => {
     const ladderQ: Question = { id: 'q4', type: 'wordladder', text: 'Драбина', imageUrl: null, video: null, timeLimit: 90, points: 1000, path: ['поле', 'пора', 'тара'], maxSteps: 8 };

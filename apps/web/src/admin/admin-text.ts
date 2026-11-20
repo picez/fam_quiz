@@ -1,7 +1,7 @@
 import { BOT_PLAN_REASONS, type AdminLogEntry, type Question, type RemovalEffect } from '@quiz/shared';
 import { t, type TextKey } from '../i18n';
 import { KYIV_ZONE, timeText } from '../calendar/calendar-time';
-import { formatDay } from '../format';
+import { formatDay, questionName } from '../format';
 import { decimalText } from '../locales/grammar';
 import { nickText } from '../nick';
 
@@ -63,7 +63,7 @@ export function uptimeText(seconds: number): string {
   return t('adminHealthUptimeValue', { days: Math.floor(total / 86_400), hours: Math.floor((total % 86_400) / 3_600) });
 }
 
-/** Текстові рядки запитання для перегляду: текст, далі варіанти, прийнятні відповіді, пари, слова. */
+/** Текстові рядки запитання для перегляду: текст (у «Вгадай слово» — «Вгадай слово: СЛОВО», 61), далі варіанти, прийнятні відповіді, пари, слова. */
 export function questionLines(question: Question): string[] {
   const extra = ((): string[] => {
     switch (question.type) {
@@ -82,8 +82,6 @@ export function questionLines(question: Question): string[] {
         return question.words;
       case 'wordladder':
         return question.path;
-      case 'wordle':
-        return [question.word];
       case 'sort':
         return [...question.categories.map((c) => c.text), ...question.words.map((w) => w.text)];
       case 'clues':
@@ -111,5 +109,5 @@ export function questionLines(question: Question): string[] {
         return [];
     }
   })();
-  return [question.text, ...extra.filter((line) => line !== '')];
+  return [questionName(question), ...extra.filter((line) => line !== '')];
 }

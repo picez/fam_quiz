@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { lock, next, pause, setConnected, type GameState } from './game';
+import { factInput } from './facts';
 import { hostLive } from './live';
+import { undoPanel } from './undo';
 import { wordleGuess } from './wordle';
-import { classicRound, wordle, wordleQuiz } from './testing/fixtures';
+import { classicRound, makeRoundsQuiz, wordle, wordle2, wordleQuiz } from './testing/fixtures';
 import { lobbyWith, must, startRound } from './testing/helpers';
 import { teamGame, teamQuiz } from './testing/teams';
 import { hostView, playerView, stageView } from './views';
@@ -133,6 +135,32 @@ describe('wordle views (48)', () => {
       ['t1', 1],
       ['t2', 0],
     ]);
+  });
+
+  it('no author text or hint in any view, though the data has them (61)', () => {
+    const texted = { ...wordle, text: 'Ягода з колючого куща', hint: 'Росте при дорозі' };
+    let s = guess(startRound(lobbyWith(makeRoundsQuiz([classicRound('c1', [texted, wordle2])]), 'Оля', 'Тарас'), 0), 'p1', ['сосна']);
+    const check = (label: string) => {
+      for (const view of [hostView(s), stageView(s), phone(s, 'p1'), phone(s, 'p2')]) {
+        const json = JSON.stringify(view);
+        expect(json, label).not.toContain('колючого');
+        expect(json, label).not.toContain('дорозі');
+      }
+      expect(stageView(s).question?.text, label).toBe('');
+    };
+    check('question');
+    s = must(lock(guess(s, 'p2', ['колос'], 2000)));
+    check('locked');
+    s = must(next(s, 10_000, rng));
+    expect(s.phase).toBe('reveal');
+    check('reveal');
+    expect(stageView(s).reveal).toMatchObject({ type: 'wordle', text: '', word: 'колос' });
+    expect(hostView(s).correct).toMatchObject({ type: 'wordle', text: '', word: 'колос' });
+    expect(hostView(s).correct).not.toHaveProperty('hint');
+    // Після розкриття запитання зветься словом: «↶ Бали» й цікавинки.
+    s = must(next(s, 20_000, rng));
+    expect(undoPanel(s)?.rounds[0].questions[0].text).toBe('КОЛОС');
+    expect(factInput(s).questions[0].text).toBe('КОЛОС');
   });
 
   it('no wordle key outside a wordle question', () => {

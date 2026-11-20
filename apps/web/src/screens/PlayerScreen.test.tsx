@@ -1712,6 +1712,19 @@ describe('PlayerScreen final', () => {
   const listQuestion = { ...publicQuestion, type: 'timedlist' as const, text: 'Назвіть планети', choices: [], timedlist: { total: 8, minus: null } };
   const myList = { found: [{ index: 5, text: 'Юпітер' }], total: 8, wrong: 0, canType: true, done: false };
 
+  it('61: a wordle phone shows only «Вгадайте слово з N літер», never the author text', () => {
+    const texted = { ...wordleQuestion, text: 'Ягода з колючого куща' };
+    show(onQuestion({ question: texted, endsAt: Date.now() + 20_000, me: { ...me, wordle: myWordle } }));
+    expect(screen.getByRole('heading', { name: 'Вгадайте слово з 5 літер' })).toBeTruthy();
+    expect(document.body.innerHTML).not.toContain('колючого');
+    cleanup();
+    const reveal: Question = { id: 'q1', type: 'wordle', text: 'Ягода з колючого куща', hint: 'Росте при дорозі', imageUrl: null, video: null, timeLimit: 120, points: 1000, word: 'колос' };
+    show(view({ phase: 'reveal', questionIndex: 0, question: texted, reveal, me: { ...me, wordle: { ...myWordle, canGuess: false, word: 'колос' } } }));
+    expect(screen.getByRole('heading', { name: 'Вгадайте слово з 5 літер' })).toBeTruthy();
+    expect(document.body.innerHTML).not.toContain('колючого');
+    expect(document.body.innerHTML).not.toContain('дорозі');
+  });
+
   it('27c: a timed list question shows the field without a send button under the shared timer', () => {
     show(onQuestion({ question: listQuestion, endsAt: Date.now() + 20_000, me: { ...me, timedlist: myList } }));
     expect(screen.getAllByRole('timer')).toHaveLength(1);

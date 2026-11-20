@@ -1,6 +1,7 @@
 import { AUDIO_URL, SNIPPET_STEPS, mediaRefs, videoLink, type Question } from '@quiz/shared';
 import { t } from '../i18n';
 import { decimalText } from '../locales/grammar';
+import { questionName } from '../format';
 import { questionLines } from './admin-text';
 
 export interface QuestionPreview {
@@ -212,11 +213,12 @@ export function questionPreview(question: Question): QuestionPreview {
   const audio = q.type === 'melody' ? audioOf(q.track, Math.max(...SNIPPET_STEPS)) : audioOf(q.audio, null);
   const images = safe(() => imagesOf(question), []);
   return {
-    text: str(q.text) ?? '',
+    // 61: «Вгадай слово» без тексту автора й підказки — у грі їх немає.
+    text: q.type === 'wordle' && typeof q.word === 'string' ? questionName(question) : (str(q.text) ?? ''),
     items: safe(() => itemsOf(question, q, images), []),
     answer: safe(() => answerOf(q), null),
     accepted: typeof q.type === 'string' && ACCEPTED_TYPES.has(q.type) ? strings(q.accepted) : [],
-    hint: str(q.hint),
+    hint: q.type === 'wordle' ? null : str(q.hint),
     images,
     imageLinks: safe(() => imageLinksOf(question), []),
     grid: safe(() => gridOf(q), null),

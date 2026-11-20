@@ -666,6 +666,8 @@ export const questionSchema = z
     z.object({
       ...base,
       type: z.literal('wordle'),
+      /** 61 (45d): у грі тексту немає — лише сітка й «Вгадайте слово з N літер»; порожній чи відсутній текст можна, старий лишається в даних. */
+      text: z.string().trim().max(LIMITS.questionText).refine(isStorable, UNSTORABLE).default(''),
       /** Слово ведучого: 4…7 літер (апостроф не рахується); має бути в словнику — перевіряє сервер при збереженні. */
       word: z.string().trim().normalize('NFC').min(1).max(LIMITS.wordleWord).refine(isStorable, UNSTORABLE),
     }),

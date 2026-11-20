@@ -421,8 +421,9 @@ function build(common: Common, type: QuestionType): Question {
       return { ...common, video: null, type, timeLimit: LIMITS.defaultWordLadderTime, path: ['', '', ''], maxSteps: LIMITS.defaultWordLadderSteps };
     case 'wordle': {
       // 48: «Вгадай слово» — без відео (потрібен таймер), «перевертання» й підказки (бафів немає); слово вписує ведучий (задача 8).
+      // 61: і без тексту — у грі лише сітка й «Вгадайте слово з N літер».
       const { hint: _hint, reveal: _reveal, ...rest } = common;
-      return { ...rest, video: null, type, text: rest.text === '' ? t('wordleDefaultText') : rest.text, timeLimit: LIMITS.defaultWordleTime, word: '' };
+      return { ...rest, video: null, type, text: '', timeLimit: LIMITS.defaultWordleTime, word: '' };
     }
     case 'think':
       // «Думай інакше» (35): тема й слова ведучого; бали дають місця раунду, тож ціна 0; без відео, звуку й «перевертання».
@@ -1138,9 +1139,9 @@ const cleanBody = (question: Question): Question => {
       return { ...rest, text, video: null, accepted: [playersWord, ...others.filter((s) => s !== '')], ...(hint === '' ? {} : { spyHint: hint }) };
     }
     case 'wordle': {
-      // Слово без зайвих пробілів; без відео, «перевертання» й підказки (бафів немає).
+      // Слово без зайвих пробілів; без відео, «перевертання» й підказки (бафів немає); 61: старий текст очищається — у грі його немає.
       const { hint: _hint, reveal: _reveal, ...rest } = question;
-      return { ...rest, text, video: null, word: question.word.normalize('NFC').trim() };
+      return { ...rest, text: '', video: null, word: question.word.normalize('NFC').trim() };
     }
     case 'think': {
       // Без відео, звуку, «перевертання» й підказки; ціна 0 (think_points), слова почищені.
@@ -1403,7 +1404,8 @@ export function spyHintLeaks(question: Extract<Question, { type: 'spy' }>): bool
 }
 
 function problemKey(question: Question, place: Place = ANYWHERE): TextKey | null {
-  if (question.text === '') return 'problemNoText';
+  // 61: у «Вгадай слово» тексту немає зовсім.
+  if (question.text === '' && question.type !== 'wordle') return 'problemNoText';
   // Місце головоломок — раніше за їхні поля: судоку поза «Головоломками» не виправити цифрами.
   if (isPuzzle(question) && !place.puzzle) return 'problemPuzzlePlace';
   if (question.type === 'jigsaw' && !place.jigsaw) return 'problemJigsawPlace';

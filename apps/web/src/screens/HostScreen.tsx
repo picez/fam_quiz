@@ -41,7 +41,7 @@ import { DecidingLabel, HostWipeout } from './HostWipeout';
 import { HostSurvival } from './HostSurvival';
 import { HostLadder } from './HostLadder';
 import { SurveyBoard } from './SurveyBoard';
-import { answerText, correctText, markText, num, questionClass, questionLabel, roundLabel, seriesOf, signed, streaksOf } from '../format';
+import { answerText, correctText, markText, num, questionClass, questionLabel, questionTitle, roundLabel, seriesOf, signed, streaksOf } from '../format';
 import { countText as countLabel, errorText, t, type TextKey } from '../i18n';
 import { RoundBriefing, RoundFacts } from './RoundBriefing';
 import type { Send } from '../live/types';
@@ -827,7 +827,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
           {board !== null && <BlitzCellNotes board={board} instant={view.blitz?.instant === true} />}
           {answering !== null && <p className="lead">{t('boardAnswering', { name: answering.nickname })}</p>}
           {phase === 'question' && board !== null && <SkipNote board={board} view={view} offsetMs={offsetMs} />}
-          <h1 className={questionClass(view.question.text)} dir="auto">{view.question.text}</h1>
+          <h1 className={questionClass(questionTitle(view.question))} dir="auto">{questionTitle(view.question)}</h1>
           {view.question.pin === null && <QuestionImage url={view.question.imageUrl} />}
           {view.question.reveal !== null && view.question.imageUrl !== null && (
             <p className="meta reveal-tag">
@@ -873,7 +873,8 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
           {/* «Більше чи менше»: правильні варіанти — у таблиці порівнянь нижче, рядок «—» нічого не каже. Головоломки (28d) — у панелі розв'язку, однаково для судоку й кросворду. */}
           {correct !== null && correct.type !== 'wall' && correct.type !== 'poll' && correct.type !== 'wordcloud' && correct.type !== 'survey' && correct.type !== 'bluff' && correct.type !== 'moreless' && correct.type !== 'sudoku' && correct.type !== 'crossword' && correct.type !== 'jigsaw' && correct.type !== 'spotdiff' && correct.type !== 'memory' && correct.type !== 'think' && correct.type !== 'thinkalike' && correct.type !== 'spy' && <p className="answer">{t('correctAnswer', { answer: hostCorrectText(correct, view) })}</p>}
           {correct?.type === 'numeric' && view.overshoot !== undefined && <OvershootRows rows={view.overshoot} />}
-          {correct?.hint !== undefined && <p className="meta hint-known">{t('hintKnown', { hint: correct.hint })}</p>}
+          {/* 61: у «Вгадай слово» підказки немає, навіть якщо вона лишилась у старих даних. */}
+          {correct?.hint !== undefined && correct.type !== 'wordle' && <p className="meta hint-known">{t('hintKnown', { hint: correct.hint })}</p>}
         </section>
       )}
 

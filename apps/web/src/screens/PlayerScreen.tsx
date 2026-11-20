@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { QUEST_WINDOW_MS, clueShare, isUnscored, melodyRevealClip, revealShare, type Answer, type Reaction, type DiceInfo, type SubmittedAnswer, type PlayerBlitz, type PlayerSurveyLine, type PlayerView, type PublicClues, type PublicQuestion, type Question, type SortTilt, type Spotlight, type Stroke } from '@quiz/shared';
-import { answerText, correctText, markText, pickedText, pinDistanceText, sliderValueText, shownChoices, num, questionClass, questionLabel, roundLabel, secondsText, signed } from '../format';
+import { answerText, correctText, markText, pickedText, pinDistanceText, sliderValueText, shownChoices, num, questionClass, questionLabel, questionTitle, roundLabel, secondsText, signed } from '../format';
 import { roundGains } from '../score-table';
 import { countText, errorText, t } from '../i18n';
 import { EasyModeSwitch } from '../EasyModeSwitch';
@@ -1696,7 +1696,7 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
       {phase === 'reveal' && (
         <>
           {/* Підсумок «Правди про гравця» показує й останній факт: заголовок його лише повторив би. */}
-          {!(truthQ && view.truth?.recap !== undefined) && <h1 className={questionClass(question?.text ?? '')} dir="auto" title={question?.text}>{question?.text}</h1>}
+          {!(truthQ && view.truth?.recap !== undefined) && <h1 className={questionClass(question === null ? '' : questionTitle(question))} dir="auto" title={question === null ? undefined : questionTitle(question)}>{question === null ? '' : questionTitle(question)}</h1>}
           <AwayNote away={view.away} />
           {thinkHearts}
           {thinkQ && me.think !== undefined && view.think !== undefined ? (

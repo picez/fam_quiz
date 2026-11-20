@@ -991,6 +991,18 @@ describe('StageScreen final', () => {
     expect(screen.queryByText(/Правильна відповідь:/)).toBeNull();
   });
 
+  it('61: the stage shows only «Вгадайте слово з N літер» for a wordle, never the author text', () => {
+    const wordleQ = { ...question, type: 'wordle' as const, text: 'Ягода з колючого куща', choices: [], wordle: { letters: 5, tries: 6 } };
+    const info = { letters: 5, tries: 6, word: null, rows: [{ playerId: 'p1', nickname: 'Олена', marks: [], guesses: null, solved: false, tries: 0, points: null }] };
+    const { unmount } = show(view({ phase: 'question', questionIndex: 0, question: wordleQ, endsAt: Date.now() + 20_000, playerCount: 1, answeredCount: 0, wordle: info }));
+    expect(screen.getByRole('heading', { name: 'Вгадайте слово з 5 літер' })).toBeTruthy();
+    expect(document.body.innerHTML).not.toContain('колючого');
+    unmount();
+    show(view({ phase: 'reveal', questionIndex: 0, question: wordleQ, playerCount: 1, answeredCount: 0, wordle: { ...info, word: 'колос' } }));
+    expect(screen.getByRole('heading', { name: 'Вгадайте слово з 5 літер' })).toBeTruthy();
+    expect(document.body.innerHTML).not.toContain('колючого');
+  });
+
   it('letter words show only counts while playing', () => {
     const lettersQ = { ...question, type: 'letterwords' as const, text: 'Складіть слова з літер', choices: [], letterwords: { letters: ['м', 'о', 'р', 'к', 'в', 'а', 'с', 'т', 'і'], goal: 'most' as const, per: 'word' as const, unit: 20 } };
     const rows = [

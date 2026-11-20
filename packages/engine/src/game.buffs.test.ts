@@ -187,6 +187,12 @@ describe('buffs', () => {
     const s = startRound(lobbyWith(makeQuiz([wordle], { buffs }), 'Оля'), T0, rng0);
     expect(takeBuff(s, 'p1', 'double', T0, rng0)).toEqual({ ok: false, error: 'wrong_phase' });
     expect(buffBlock(s, 'p1', 'double')).toBe('off_wordle');
+    // 61: підказки теж — навіть коли в даних є текст підказки ведучого.
+    const hinted = startRound(lobbyWith(makeQuiz([{ ...wordle, hint: 'Росте в полі' }], { buffs }), 'Оля'), T0, rng0);
+    for (const kind of ['hint', 'fifty', 'letter', 'peek', 'audience'] as const) {
+      expect(buffBlock(hinted, 'p1', kind), kind).toBe('off_wordle');
+      expect(takeBuff(hinted, 'p1', kind, T0, rng0), kind).toMatchObject({ ok: false });
+    }
   });
 
   it('a timed list has no buffs (27c)', () => {

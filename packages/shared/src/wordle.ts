@@ -77,6 +77,14 @@ export function wordleLeak(word: string, text: string): boolean {
   return plain.includes(' ' + key + ' ') || bare.includes(' ' + key.replaceAll("'", '') + ' ') || (key.includes("'") && bare.includes(' ' + key.replace(/(\p{L})'/gu, '$1$1') + ' '));
 }
 
+/**
+ * Назва зіграного запитання для цікавинок, «↶ Бали» й історії (61, 45d): у «Вгадай слово» тексту автора в грі немає —
+ * там слово великими літерами (його вже розкрито); в інших — текст.
+ */
+export function playedText(question: { type: string; text: string; word?: string }): string {
+  return question.type === 'wordle' && typeof question.word === 'string' ? question.word.toLocaleUpperCase('uk') : question.text;
+}
+
 /** Бали за розгадку зі спроби tries (1…wordleTries). */
 export function wordlePoints(price: number, tries: number): number {
   return Math.round((price * (LIMITS.wordleTries + 1 - tries)) / LIMITS.wordleTries);

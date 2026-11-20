@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { emptyBrief, type Answer, type Question, type RoundInfo } from '@quiz/shared';
-import { questionLabel, roundFacts, roundLabel, answerText, choiceLabel, choicesOf, correctPairs, correctText, formatDate, formatDay, monthText, orderLabelsText, pairTexts, pickedText, quizSizeText, secondsText, shownChoices, seenText, signed, sliderNumber } from './format';
+import { questionLabel, questionName, questionTitle, roundFacts, roundLabel, answerText, choiceLabel, choicesOf, correctPairs, correctText, formatDate, formatDay, monthText, orderLabelsText, pairTexts, pickedText, quizSizeText, secondsText, shownChoices, seenText, signed, sliderNumber } from './format';
 import { activateLocaleForTests } from './i18n';
 
 const base = { id: 'q', text: '?', imageUrl: null, video: null, timeLimit: 20, points: 1000 };
@@ -453,5 +453,19 @@ describe('monthText', () => {
   it('follows the interface language', () => {
     activateLocaleForTests('en', { ui: {} });
     expect(monthText('2026-11')).toBe('November 2026');
+  });
+});
+
+describe('wordle without hints (61)', () => {
+  it('a wordle is named «Вгадай слово: СЛОВО» outside the game, other questions by their text', () => {
+    expect(questionName({ ...base, type: 'wordle', text: 'Ягода з колючого куща', word: 'ожина' } as Question)).toBe('Вгадай слово: ОЖИНА');
+    expect(questionName({ ...base, type: 'wordle', text: '', word: "м'ясо" } as Question)).toBe("Вгадай слово: М'ЯСО");
+    expect(questionName(single)).toBe('?');
+  });
+
+  it('in the game a wordle heading is only the letter count', () => {
+    const shown = { type: 'wordle', text: 'Ягода з колючого куща', wordle: { letters: 5, tries: 6 } };
+    expect(questionTitle(shown as never)).toBe('Вгадайте слово з 5 літер');
+    expect(questionTitle({ type: 'text', text: 'Столиця?' } as never)).toBe('Столиця?');
   });
 });

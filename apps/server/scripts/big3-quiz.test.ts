@@ -189,8 +189,14 @@ describe('the big «Велика гра ІІІ» quiz', () => {
     expect(questText.includes(answerKey(quest?.type === 'quest' ? quest.code : 'x'))).toBe(false);
   });
 
+  it('gives no wordle a text or a hint: in the game there is only the grid (61)', () => {
+    expect(ofType('wordle').length).toBeGreaterThan(0);
+    for (const q of ofType('wordle')) expect([q.text, q.hint], q.word).toEqual(['', undefined]);
+  });
+
   it('has no duplicate question texts, here or in other seed quizzes', () => {
-    const texts = everything.map((q) => key(q.text));
+    // У «Вгадай слово» тексту немає (61).
+    const texts = everything.filter((q) => q.type !== 'wordle').map((q) => key(q.text));
     expect(texts.filter((text, i) => texts.indexOf(text) !== i)).toEqual([]);
     const others = key(otherSources().join('\n'));
     expect(texts.filter((text) => others.includes(text))).toEqual([]);

@@ -578,7 +578,7 @@
   "question.wordle.how.2": "In a team game the team's answerer (the captain or a chosen answerer) guesses and the rest of the team only sees the team grid. Before the reveal the stage shows colours only, without letters; the word appears at the reveal. The question closes when everyone has guessed or run out of tries, or when time is up.",
   "question.wordle.points.0": "Whoever guesses on try N gets the price of the question × (7 − N) / 6, with the round multiplier: the full price on the first try, five sixths on the second, one sixth on the sixth.",
   "question.wordle.points.1": "Speed gives no bonus and there is no penalty: if time runs out or six tries are not enough, you get 0. Buffs do not work, debuffs do.",
-  "question.wordle.tip.0": "The host’s word must be in the dictionary, otherwise the quiz will not be saved. Do not write that word in the question text.",
+  "question.wordle.tip.0": "The host’s word must be in the dictionary, otherwise the quiz will not be saved. There is no question text: players see only the grid and how many letters the word has.",
   "question.wordle.limits.0": "The word has {minWordleLetters}–{maxWordleLetters} letters, {wordleTries} tries. Only in a classic round, without video.",
   "question.sudoku.how.0": "In the editor, choose “Generate” and a difficulty: “Easy” — {sudokuEasy} given digits, “Medium” — {sudokuMedium}, “Hard” — {sudokuHard}. “New grid” gives another grid of the same difficulty; each has exactly one solution.",
   "question.sudoku.how.1": "Or “Enter my own”: type the digits yourself. The editor tells you right away whether the solution is unique, there are several, or there is none, and highlights repeats. Only a grid with a unique solution can be saved.",
