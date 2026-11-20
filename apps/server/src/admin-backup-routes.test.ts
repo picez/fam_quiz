@@ -107,6 +107,31 @@ describe('admin backups (64)', () => {
     expect([...r2.objects.keys()]).toHaveLength(1);
   });
 
+  it('the list is read from storage once per 30 s, and again after a copy is asked for or finishes', async () => {
+    const r2 = fakeR2();
+    const store = r2BackupStore(r2.settings);
+    const backups = dbBackups({ db, store, pauseMs: 0 });
+    let lists = 0;
+    const ctx = await buildApp({ db, auth: TEST_AUTH, adminEmails: emails, backupList: () => ((lists += 1), store.list()), backups });
+    open.push(ctx);
+    put(r2, new Date(Date.now() - 3 * DAY), 40);
+    const get = async () => (await call(ctx, 'GET', '/api/admin/backups', admin.cookie)).json() as AdminBackups;
+    expect((await get()).rows).toHaveLength(1);
+    expect((await get()).rows).toHaveLength(1);
+    expect(lists).toBe(1);
+    expect((await call(ctx, 'POST', '/api/admin/backups', admin.cookie)).statusCode).toBe(202);
+    const afterAsk = lists;
+    await get();
+    expect(lists).toBe(afterAsk + 1);
+    await backups.idle();
+    const done = await get();
+    expect(done.rows).toHaveLength(2);
+    expect(done.running).toBe(false);
+    const settled = lists;
+    await get();
+    expect(lists).toBe(settled);
+  });
+
   it('off without scheduled backups', async () => {
     const off = await build({ stored: true, backups: false });
     const body = (await call(off.ctx, 'GET', '/api/admin/backups', admin.cookie)).json() as AdminBackups;
