@@ -136,6 +136,15 @@ describe('hiding the admin panel (Review Focus 3)', () => {
     ['GET', '/api/admin/broadcasts'],
     ['POST', '/api/admin/broadcasts/preview'],
     ['POST', '/api/admin/broadcasts'],
+    ['GET', '/api/admin/feed?page=1'],
+    ['PUT', `/api/admin/feed/${UUID}/hidden`],
+    ['GET', '/api/admin/groups?q=ab&page=1'],
+    ['GET', `/api/admin/groups/${UUID}`],
+    ['PUT', `/api/admin/groups/${UUID}/hidden`],
+    ['DELETE', `/api/admin/groups/${UUID}/members/u1`],
+    ['PUT', `/api/admin/groups/${UUID}/owner`],
+    ['DELETE', `/api/admin/groups/${UUID}`],
+    ['PUT', `/api/admin/groups/${UUID}/items/${UUID}/hidden`],
   ];
 
   it('answers anyone but an admin exactly like an unknown route', async () => {
