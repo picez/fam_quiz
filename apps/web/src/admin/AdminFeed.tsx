@@ -1,5 +1,5 @@
 import { useState, type JSX } from 'react';
-import { Link, Navigate } from 'react-router-dom';
+import { Link, Navigate, useSearchParams } from 'react-router-dom';
 import { ADMIN_FEED_KINDS, type AdminFeedKind, type AdminFeedRow } from '@quiz/shared';
 import { feedIcon, feedText } from '../feed/feed-text';
 import { formatDate } from '../format';
@@ -12,17 +12,48 @@ import { useAdminData } from './useAdminData';
 
 const isKind = (value: string): value is AdminFeedKind => (ADMIN_FEED_KINDS as readonly string[]).includes(value);
 
+interface FeedFilter {
+  person: PickedPerson | null;
+  kind: AdminFeedKind | '';
+  page: number;
+}
+
+/** Фільтри з адреси: ?user=&name=&kind=&page= (63); погане — як немає. */
+function filterOf(params: URLSearchParams): FeedFilter {
+  const user = params.get('user') ?? '';
+  const kind = params.get('kind') ?? '';
+  const page = Number(params.get('page'));
+  return {
+    person: user === '' ? null : { id: user, nickname: params.get('name') || user },
+    kind: isKind(kind) ? kind : '',
+    page: Number.isInteger(page) && page >= 1 ? page : 1,
+  };
+}
+
+function paramsOf(filter: FeedFilter): URLSearchParams {
+  const params = new URLSearchParams();
+  if (filter.person !== null) {
+    params.set('user', filter.person.id);
+    params.set('name', filter.person.nickname);
+  }
+  if (filter.kind !== '') params.set('kind', filter.kind);
+  if (filter.page > 1) params.set('page', String(filter.page));
+  return params;
+}
+
 /**
  * «Стрічка» (63): усі події стрічки, від найновіших, з фільтрами за людиною й видом.
  * «Сховати»/«Показати» — без підтвердження (дія зворотна); після дії список перечитується.
+ * Людина, вид і сторінка — в адресі: переживають перезавантаження й «Назад» із картки людини.
  */
 export function AdminFeed(): JSX.Element {
-  const [person, setPerson] = useState<PickedPerson[]>([]);
-  const [kind, setKind] = useState<AdminFeedKind | ''>('');
-  const [page, setPage] = useState(1);
+  const [params, setParams] = useSearchParams();
+  const filter = filterOf(params);
+  const { kind, page } = filter;
+  const change = (next: FeedFilter) => setParams(paramsOf(next), { replace: true });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const user = person[0]?.id;
+  const user = filter.person?.id;
   const query = { page, ...(user === undefined ? {} : { user }), ...(kind === '' ? {} : { kind }) };
   const state = useAdminData(() => adminFeed(query), `${user ?? ''}:${kind}:${page}`, { keep: true });
 
@@ -44,12 +75,9 @@ export function AdminFeed(): JSX.Element {
           <legend>{t('adminFeedPerson')}</legend>
           <PeoplePicker
             id="admin-feed-person"
-            value={person}
+            value={filter.person === null ? [] : [filter.person]}
             max={1}
-            onChange={(next) => {
-              setPerson(next);
-              setPage(1);
-            }}
+            onChange={(next) => change({ ...filter, person: next[0] ?? null, page: 1 })}
           />
         </fieldset>
         <label className="field compact" htmlFor="admin-feed-kind">
@@ -59,8 +87,7 @@ export function AdminFeed(): JSX.Element {
             value={kind}
             onChange={(event) => {
               const value = event.target.value;
-              setKind(isKind(value) ? value : '');
-              setPage(1);
+              change({ ...filter, kind: isKind(value) ? value : '', page: 1 });
             }}
           >
             <option value="">{t('adminFeedKindAll')}</option>
@@ -109,7 +136,7 @@ export function AdminFeed(): JSX.Element {
               ))}
             </ul>
           )}
-          <AdminPager page={state.data.page} pages={state.data.pages} onPage={setPage} />
+          <AdminPager page={state.data.page} pages={state.data.pages} onPage={(next) => change({ ...filter, page: next })} />
         </>
       )}
     </>
