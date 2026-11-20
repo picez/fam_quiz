@@ -119,6 +119,17 @@ describe('Login', () => {
     fill('Пароль', '1234567');
     expect((screen.getByRole('button', { name: 'Зареєструватися' }) as HTMLButtonElement).disabled).toBe(true);
   });
+
+  it('explains an address that was merged into another account (66)', async () => {
+    vi.mocked(signUp).mockResolvedValueOnce({ ok: false, error: 'email_merged' });
+    open();
+    fireEvent.click(screen.getByRole('button', { name: 'Створити акаунт' }));
+    fill('Ваше ім’я', 'Олена');
+    fill('Email', 'old@example.com');
+    fill('Пароль', 'password1');
+    fireEvent.click(screen.getByRole('button', { name: 'Зареєструватися' }));
+    expect((await screen.findByRole('alert')).textContent).toBe('Ця адреса вже приєднана до іншого акаунта — увійди з нею й паролем');
+  });
 });
 
 describe('Login with Google', () => {

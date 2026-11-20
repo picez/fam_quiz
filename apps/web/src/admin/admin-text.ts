@@ -1,4 +1,4 @@
-import { BOT_PLAN_REASONS, BOT_TIME_SECONDS, type AdminLogEntry, type Question, type RemovalEffect } from '@quiz/shared';
+import { BOT_PLAN_REASONS, BOT_TIME_SECONDS, MERGE_COUNT_KEYS, emptyMergeSummary, type AdminLogEntry, type MergeSummary, type Question, type RemovalEffect } from '@quiz/shared';
 import { t, type TextKey } from '../i18n';
 import { KYIV_ZONE, timeText } from '../calendar/calendar-time';
 import { feedText } from '../feed/feed-text';
@@ -31,6 +31,12 @@ export function kyivWhenText(iso: string): string {
   return t('adminBotPlanKyiv', { when: `${formatDay(iso)}, ${timeText(iso, KYIV_ZONE)}` });
 }
 
+/** 66: ненульові лічильники того, що перейшло на головний акаунт, через «, »; нічого — «нічого». */
+export function mergeSummaryText(summary: MergeSummary): string {
+  const parts = MERGE_COUNT_KEYS.filter((key) => summary[key] > 0).map((key) => t(`adminMergeCount_${key}` as TextKey, { count: summary[key] }));
+  return parts.length === 0 ? t('adminMergeNothing') : parts.join(', ');
+}
+
 /** 62: лобі кімнати бота словами для журналу; пароля в записі немає — лише чи він є. */
 const lobbyVars = (entry: AdminLogEntry): { listed: string; locked: string } => ({
   listed: entry.details.listed === false ? t('adminBotLogUnlisted') : t('adminBotLogListed'),
@@ -49,7 +55,7 @@ export function logLine(entry: AdminLogEntry): string {
   // 63: подія стрічки — словами, як була на мить дії.
   const feed = entry.details.feed === undefined ? null : feedText(entry.details.feed);
   const text = feed ?? entry.details.text ?? (entry.kind === 'account_delete' ? nickText(entry.target) : '');
-  const line = t(`adminLog_${entry.kind}` as TextKey, { admin: nickText(entry.admin), target: nickText(entry.target), title: entry.details.title ?? '', text, code: entry.details.code ?? '', count: String(entry.details.count ?? ''), seconds: BOT_TIME_SECONDS, when, reason: planReason, amount: signedXp(entry.details.amount ?? 0), achievement: entry.details.achievementId === undefined ? '' : t(`achievement_${entry.details.achievementId}` as TextKey), ...lobbyVars(entry) });
+  const line = t(`adminLog_${entry.kind}` as TextKey, { admin: nickText(entry.admin), target: nickText(entry.target), title: entry.details.title ?? '', text, code: entry.details.code ?? '', count: String(entry.details.count ?? ''), seconds: BOT_TIME_SECONDS, when, reason: planReason, amount: signedXp(entry.details.amount ?? 0), achievement: entry.details.achievementId === undefined ? '' : t(`achievement_${entry.details.achievementId}` as TextKey), summary: entry.kind === 'account_merge' ? mergeSummaryText(entry.details.merge ?? emptyMergeSummary()) : '', ...lobbyVars(entry) });
   const reason = entry.kind === 'ban' || entry.kind === 'xp_adjust' || entry.kind === 'group_hide' ? entry.details.reason : null;
   if (entry.kind === 'nickname_reset' && entry.details.text) return t('adminLogWas', { line, text: entry.details.text });
   if (entry.kind === 'prize_gift' && entry.details.text) return t('adminLogGiftNote', { line, text: entry.details.text });
