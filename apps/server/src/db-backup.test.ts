@@ -382,6 +382,16 @@ describe('scheduled backups', () => {
     expect(r2.uploads.size).toBe(0);
   });
 
+  it('runNow after stop starts nothing and records no attempt', async () => {
+    const r2 = fakeR2();
+    const backups = dbBackups({ db, store: r2BackupStore(r2.settings), scheduler: new FakeScheduler(), pauseMs: 0 });
+    backups.stop();
+    expect(await backups.runNow()).toEqual({ started: false, reason: 'busy' });
+    await backups.idle();
+    expect(backups.status()).toEqual({ running: false, last: null });
+    expect(r2.objects.size).toBe(0);
+  });
+
   it('retention never runs after a failed or refused copy, and never while a copy is running', async () => {
     const r2 = fakeR2();
     const scheduler = new FakeScheduler();

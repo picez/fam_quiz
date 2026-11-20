@@ -399,10 +399,15 @@ export function dbBackups(options: {
   }
 
   async function runNow(): Promise<RunNowResult> {
-    if (running) return { started: false, reason: 'busy' };
+    // Після stop (зупинка сервера) не стартуємо: спроба одразу перервалася б і записала б «збій».
+    if (running || stopped) return { started: false, reason: 'busy' };
     running = true;
     try {
       const recent = newerThan(await store.list(), new Date(scheduler.now()), BACKUP_MANUAL_GAP_MS);
+      if (stopped) {
+        running = false;
+        return { started: false, reason: 'busy' };
+      }
       if (recent !== null) {
         running = false;
         return { started: false, reason: 'recent', nextAt: new Date(recent.getTime() + BACKUP_MANUAL_GAP_MS).toISOString() };
