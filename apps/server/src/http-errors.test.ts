@@ -1,7 +1,8 @@
 import { afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { buildApp } from './app';
 import type { Db } from './db/client';
-import { log, setErrorReporter, type ErrorContext } from './log';
+import { listServerErrors } from './error-store';
+import { log, reportError, setErrorReporter, type ErrorContext } from './log';
 import { TEST_AUTH } from './testing/accounts';
 import { createTestDb } from './testing/test-db';
 
@@ -53,5 +54,46 @@ describe('HTTP 5xx (30a)', () => {
     expect((await ctx.app.inject({ method: 'GET', url: '/api/test-thrown-503' })).statusCode).toBe(503);
     expect(reports).toHaveLength(2);
     expect(reports[1].context).toEqual({ where: 'http', event: 'GET /api/test-thrown-503' });
+  });
+
+  it('a 500 is stored with its route', async () => {
+    const reports: ErrorContext[] = [];
+    const level = log.level;
+    log.level = 'silent';
+    const unhook = setErrorReporter((_error, context) => reports.push(context));
+    const ctx = await buildApp({ db, auth: TEST_AUTH });
+    close = async () => {
+      await ctx.app.close();
+      unhook();
+      log.level = level;
+    };
+    ctx.app.get('/boom', async () => {
+      throw new Error('no user olya@example.com');
+    });
+    expect((await ctx.app.inject({ method: 'GET', url: '/boom' })).statusCode).toBe(500);
+    await ctx.errors!.flush();
+    const listed = await listServerErrors(db, { status: 'new', page: 1 }, new Date());
+    const row = listed.rows.find((r) => r.event === 'GET /boom');
+    expect(row).toMatchObject({ where: 'http', event: 'GET /boom', message: 'no user [email]', count: 1 });
+    expect(reports).toEqual([{ where: 'http', event: 'GET /boom' }]);
+  });
+
+  it('errorLog: false stores nothing and closing the app removes the sink', async () => {
+    const level = log.level;
+    log.level = 'silent';
+    const off = await buildApp({ db, auth: TEST_AUTH, errorLog: false });
+    expect(off.errors).toBeNull();
+    await off.app.close();
+    const on = await buildApp({ db, auth: TEST_AUTH });
+    await on.app.close();
+    try {
+      // Після close застосунку слот знято: збій більше нікуди не пишеться.
+      reportError(new Error('after close'), { where: 'process' });
+      await on.errors!.flush();
+      const listed = await listServerErrors(db, { status: 'new', page: 1 }, new Date());
+      expect(listed.rows.some((r) => r.message === 'after close')).toBe(false);
+    } finally {
+      log.level = level;
+    }
   });
 });

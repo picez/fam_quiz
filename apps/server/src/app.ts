@@ -41,7 +41,8 @@ import { registerUploadRoutes } from './upload-routes';
 import { registerWordLadderRoutes } from './wordladder-routes';
 import { registerLetterWordsRoutes } from './letterwords-routes';
 import { lazyNouns, type NounDictionary } from './wordladder/nouns';
-import { log, reportError } from './log';
+import { log, reportError, setErrorSink } from './log';
+import { createErrorStore } from './error-store';
 import type { StoredObject } from './storage/r2-objects';
 
 export interface AppOptions {
@@ -86,6 +87,8 @@ export interface AppOptions {
   nouns?: NounDictionary;
   /** Хвилинний тікер розкладу ігор бота (56); типово вимкнено — тести рухають час викликом botSchedule.tick(). main.ts вмикає. */
   botScheduleTicker?: boolean;
+  /** Збої сервера в базу для вкладки «Збої» адмінки (64); типово ввімкнено, false — лише журнал. */
+  errorLog?: boolean;
 }
 
 const DEFAULT_MAX_ROOMS = 500;
@@ -128,6 +131,15 @@ export async function buildApp(options: AppOptions) {
     if (status >= 500) reportError(error, { where: 'http', event: `${request.method} ${request.routeOptions.url ?? 'unknown'}` });
   });
   if (store !== null) app.addHook('onClose', async () => store.stop());
+  // Збої в базу (64): другий слот reportError. Знімається в onClose, бо багато тестів кличуть лише app.close().
+  const errors = options.errorLog === false ? null : createErrorStore({ db: options.db });
+  if (errors !== null) {
+    const unsink = setErrorSink(errors.record);
+    app.addHook('onClose', async () => {
+      unsink();
+      await errors.stop();
+    });
+  }
   await app.register(rateLimit, { global: false });
 
   app.get('/health', async () => ({ ok: true }));
@@ -267,5 +279,5 @@ export async function buildApp(options: AppOptions) {
     await likes.idle();
   };
 
-  return { app, manager, io, recorder, invites, store, push, botSchedule, shutdown };
+  return { app, manager, io, recorder, invites, store, push, botSchedule, errors, shutdown };
 }

@@ -71,7 +71,21 @@ export function setErrorReporter(next: ErrorReporter | null): () => void {
   };
 }
 
-/** Записати збій у журнал (error) і передати його хуку; сам ніколи не кидає. */
+let sink: ErrorReporter | null = null;
+
+/**
+ * Другий слот (64): збирач збоїв у базу (error-store.ts), його ставить і знімає buildApp.
+ * Окремо від setErrorReporter, щоб тести-шпигуни на тому слоті працювали як раніше. Повертає функцію, що знімає слот.
+ */
+export function setErrorSink(next: ErrorReporter | null): () => void {
+  const previous = sink;
+  sink = next;
+  return () => {
+    if (sink === next) sink = previous;
+  };
+}
+
+/** Записати збій у журнал (error) і передати його хуку, а потім слоту збирача; сам ніколи не кидає. */
 export function reportError(error: unknown, context: ErrorContext): void {
   try {
     log.error({ err: error, ...context }, `Збій: ${context.where}${context.what === undefined ? '' : ` (${context.what})`}`);
@@ -82,6 +96,11 @@ export function reportError(error: unknown, context: ErrorContext): void {
     reporter?.(error, context);
   } catch {
     // Як і хук.
+  }
+  try {
+    sink?.(error, context);
+  } catch {
+    // Як і збирач.
   }
 }
 
