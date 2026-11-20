@@ -1,4 +1,4 @@
-import { BOT_USER_ID, DELETED_NICKNAME } from '@quiz/shared';
+import { BOT_USER_ID, DELETED_FACT, DELETED_NICKNAME } from '@quiz/shared';
 import { makeQuiz, single } from '@quiz/engine/testing';
 import { randomUUID } from 'node:crypto';
 import { eq, or, sql } from 'drizzle-orm';
@@ -7,6 +7,7 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import { deleteAccount } from './account-delete';
 import type { Db } from './db/client';
 import * as schema from './db/schema';
+import type { PlayRef } from './db/schema';
 import {
   account,
   achievementBlock,
@@ -273,9 +274,9 @@ describe('deleteAccount', () => {
     expect((await db.select().from(userBan).where(eq(userBan.userId, petro)))[0]?.bannedBy).toBeNull();
     expect((await db.select().from(libraryCopy).where(eq(libraryCopy.userId, olia)))[0]).toMatchObject({ entryId: null, authorLine: 'Автор: Тарас' });
     expect((await db.select().from(botPlan))[0]?.people).toEqual([olia]);
-    expect((await db.select().from(savedGame).where(eq(savedGame.gameId, oliaSaved.gameId)))[0]?.data).toEqual({ v: 1, playerUsers: [['p-olia', olia]] });
+    expect((await db.select().from(savedGame).where(eq(savedGame.gameId, oliaSaved.gameId)))[0]?.data).toEqual({ v: 1, playerUsers: [['p-olia', olia]], forgotten: ['p-taras'] });
     const [room] = await db.select().from(liveRoom).where(eq(liveRoom.code, `r-${n}`));
-    expect(room.data).toEqual({ playerUsers: [['p-olia', olia]], continued: { bound: ['p-olia'], carry: null, replaces: null } });
+    expect(room.data).toEqual({ playerUsers: [['p-olia', olia]], forgotten: ['p-taras'], continued: { bound: ['p-olia'], carry: null, replaces: null } });
     const [hostedRoom] = await db.select().from(liveRoom).where(eq(liveRoom.code, `h-${n}`));
     expect(hostedRoom.data).toEqual({ hostUserId: BOT_USER_ID, playerUsers: [['p-olia', olia]] });
     expect((await db.select().from(groupItem).where(eq(groupItem.id, item.id)))[0]?.about).toEqual([{ kind: 'member', userId: taras, name: DELETED_NICKNAME }]);
@@ -302,6 +303,71 @@ describe('deleteAccount', () => {
     expect(hers).toMatchObject({ nickname: 'Оля', userId: olia });
   });
 
+  it("his name and his truth fact leave the plays of others' games", async () => {
+    const taras = await person('Тарас');
+    const olia = await person('Оля');
+    const truthQuestion = (authorId: string, fact: string, ids: [string, string]) => ({
+      id: 'truth-0',
+      type: 'single' as const,
+      text: fact,
+      options: [
+        { id: ids[0], text: 'Оля' },
+        { id: ids[1], text: 'Тарас' },
+      ],
+      correctId: authorId,
+      points: 10,
+      timeLimit: 30,
+      imageUrl: null,
+      video: null,
+    });
+    const players = [
+      { userId: olia, nickname: 'Оля', score: 10, rank: 1 },
+      { userId: taras, nickname: 'Тарас', score: 5, rank: 2 },
+    ];
+    const g = await seedGame(db, { hostId: olia, startedAt: PAST, players });
+    const [oliaId, tarasId] = g.participantIds as [string, string];
+    const plays: PlayRef[] = [
+      { roundIndex: 0, questionId: 'truth-0', truth: { question: truthQuestion(tarasId, 'Боїться павуків', [oliaId, tarasId]), author: tarasId, authorName: 'Тарас', actor: tarasId } },
+      { roundIndex: 0, questionId: 'truth-1', truth: { question: truthQuestion(oliaId, 'Любить каву', [oliaId, tarasId]), author: oliaId, authorName: 'Оля', actor: oliaId } },
+      { roundIndex: 1, questionId: 'd1', drawing: { drawer: 'Тарас', strokes: 'abc' } },
+      { roundIndex: 1, questionId: 'd2', drawing: { drawer: 'Оля', strokes: 'def' } },
+      {
+        roundIndex: 2,
+        questionId: 't1',
+        think: {
+          words: [],
+          lives: { [oliaId]: 3, [tarasId]: 0 },
+          revealed: true,
+          hit: [tarasId],
+          places: [
+            { nickname: 'Оля', place: 1, lives: 3, outAt: null, points: 10 },
+            { nickname: 'Тарас', place: 2, lives: 0, outAt: 1, points: 0 },
+          ],
+        },
+      },
+    ];
+    await db.update(game).set({ plays }).where(eq(game.id, g.gameId));
+    // Гра, де Тараса не було: тезка в журналі лишається.
+    const other = await seedGame(db, { hostId: olia, startedAt: PAST, players: [{ userId: olia, nickname: 'Оля', score: 1, rank: 1 }] });
+    const otherPlays: PlayRef[] = [{ roundIndex: 0, questionId: 'd1', drawing: { drawer: 'Тарас', strokes: 'x' } }];
+    await db.update(game).set({ plays: otherPlays }).where(eq(game.id, other.gameId));
+
+    expect(await del(taras)).toBe('deleted');
+
+    const [row] = await db.select({ plays: game.plays }).from(game).where(eq(game.id, g.gameId));
+    const [mine, hers, drawn, drawnByHer, think] = row.plays;
+    expect(mine.truth).toMatchObject({ author: tarasId, authorName: DELETED_NICKNAME, question: { text: DELETED_FACT } });
+    expect(mine.truth?.question.type === 'single' && mine.truth.question.options.map((o) => o.text)).toEqual(['Оля', DELETED_NICKNAME]);
+    expect(hers.truth).toMatchObject({ authorName: 'Оля', question: { text: 'Любить каву' } });
+    expect(hers.truth?.question.type === 'single' && hers.truth.question.options.map((o) => o.text)).toEqual(['Оля', DELETED_NICKNAME]);
+    expect(drawn.drawing).toEqual({ drawer: DELETED_NICKNAME, strokes: 'abc' });
+    expect(drawnByHer.drawing).toEqual({ drawer: 'Оля', strokes: 'def' });
+    expect(think.think?.places?.map((p) => p.nickname)).toEqual(['Оля', DELETED_NICKNAME]);
+    expect(JSON.stringify(row.plays)).not.toContain('Тарас');
+    expect(JSON.stringify(row.plays)).not.toContain('павуків');
+    expect((await db.select({ plays: game.plays }).from(game).where(eq(game.id, other.gameId)))[0]?.plays).toEqual(otherPlays);
+  });
+
   it("finished games he hosted stay in players' history", async () => {
     const taras = await person('Тарас');
     const olia = await person('Оля');
@@ -324,7 +390,7 @@ describe('deleteAccount', () => {
     await db.insert(savedGame).values({ gameId: g.gameId, data, stateVersion: 22, savedAt: NOW });
     expect(await del(taras)).toBe('deleted');
     const [row] = await db.select().from(savedGame).where(eq(savedGame.gameId, g.gameId));
-    expect(row.data).toEqual({ ...data, playerUsers: [['p-petro', petro]] });
+    expect(row.data).toEqual({ ...data, playerUsers: [['p-petro', petro]], forgotten: ['p-taras'] });
     expect(row.savedAt).toEqual(NOW);
   });
 

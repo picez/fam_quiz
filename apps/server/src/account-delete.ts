@@ -6,6 +6,7 @@ import { ensureBotAccount } from './bot-account';
 import type { Db } from './db/client';
 import { botPlan, game, groupItem, groupMember, liveRoom, participant, savedGame, scoreAdjustment, user, verification } from './db/schema';
 import { deleteGroup } from './group-store';
+import { forgetInPlays } from './forget-plays';
 import { ensureProfile } from './profiles';
 
 type Tx = Parameters<Parameters<Db['transaction']>[0]>[0];
@@ -18,7 +19,7 @@ const hasPair = (column: typeof savedGame.data | typeof liveRoom.data, userId: s
  * Видалення акаунта адміном (58) — одна транзакція: збій будь-де нічого не видаляє. not_found — користувача немає;
  * cannot_delete_admin — адмін, сам адмін, що діє, чи бот (в обох випадках журналу немає; маршрут перевіряє те саме раніше).
  * Журнал першим; рядки людини в чужих іграх — «Видалений гравець» (user_id стає null ключем), так само ціль її дебафів у чужих
- * коригуваннях і її ім'я в записах груп; збережені й перервані ігри, які вона вела, — геть (в історії гравців їх немає, а продовжити
+ * коригуваннях, її ім'я в записах груп і в журналах ігор (game.plays: її факти «Правди про гравця», художник, місця — forgetInPlays); збережені й перервані ігри, які вона вела, — геть (в історії гравців їх немає, а продовжити
  * їх без ведучого нікому), завершені й ті, що ще йдуть (фініш дописує рекордер, кімнату вже віддав боту forgetUser), — за ботом;
  * з playerUsers збережених ігор і живих кімнат у базі — її пари, ведучий знімка її кімнати — бот;
  * з адресатів планів бота — її id; групи, де вона власник, — найранішому іншому учаснику, група без інших — геть;
@@ -49,6 +50,7 @@ export async function deleteAccount(
           where buyer.id = ${scoreAdjustment.participantId} and target.user_id = ${userId} and target.nickname = ${scoreAdjustment.targetNickname}
         )`,
       );
+    await forgetInGamePlays(tx, userId);
     await tx.update(participant).set({ nickname: DELETED_NICKNAME }).where(eq(participant.userId, userId));
     await tx
       .update(groupItem)
@@ -62,15 +64,7 @@ export async function deleteAccount(
     await tx.delete(game).where(and(eq(game.hostId, userId), inArray(game.status, ['saved', 'aborted'])));
     await tx.update(game).set({ hostId: BOT_USER_ID }).where(eq(game.hostId, userId));
 
-    await tx
-      .update(savedGame)
-      .set({
-        data: sql`jsonb_set(${savedGame.data}, '{playerUsers}', coalesce((
-          select jsonb_agg(e.value order by e.n) from jsonb_array_elements(${savedGame.data}->'playerUsers') with ordinality as e(value, n)
-          where e.value->>1 is distinct from ${userId}::text
-        ), '[]'::jsonb))`,
-      })
-      .where(hasPair(savedGame.data, userId));
+    await forgetInSavedGames(tx, userId);
     await forgetInLiveRooms(tx, userId);
     await tx
       .update(botPlan)
@@ -84,8 +78,42 @@ export async function deleteAccount(
   });
 }
 
+/** Журнали ігор, де вона грала (до перейменування рядків: нікнейм у грі ще її): forgetInPlays за її учасниками кожної гри. */
+async function forgetInGamePlays(tx: Tx, userId: string): Promise<void> {
+  const rows = await tx.select({ id: participant.id, gameId: participant.gameId, nickname: participant.nickname }).from(participant).where(eq(participant.userId, userId));
+  const byGame = new Map<string, Map<string, string>>();
+  for (const row of rows) byGame.set(row.gameId, (byGame.get(row.gameId) ?? new Map()).set(row.id, row.nickname));
+  if (byGame.size === 0) return;
+  const games = await tx.select({ id: game.id, plays: game.plays }).from(game).where(inArray(game.id, [...byGame.keys()]));
+  for (const found of games) {
+    const plays = forgetInPlays(found.plays, byGame.get(found.id) ?? new Map());
+    if (plays !== found.plays) await tx.update(game).set({ plays }).where(eq(game.id, found.id));
+  }
+}
+
+/** Її пари геть з playerUsers знімка; її місця — у forgotten (рекордер пише їх «Видаленим гравцем»). */
+function withoutPairs(data: Record<string, unknown>, userId: string): { data: Record<string, unknown>; mine: Set<unknown> } {
+  const pairs = Array.isArray(data.playerUsers) ? (data.playerUsers as unknown[]) : [];
+  const mine = new Set(pairs.flatMap((pair) => (Array.isArray(pair) && pair[1] === userId ? [pair[0]] : [])));
+  const before = Array.isArray(data.forgotten) ? (data.forgotten as unknown[]) : [];
+  const forgotten = [...new Set([...before, ...mine])].filter((id): id is string => typeof id === 'string');
+  return {
+    data: { ...data, playerUsers: pairs.filter((pair) => !(Array.isArray(pair) && pair[1] === userId)), ...(forgotten.length === 0 ? {} : { forgotten }) },
+    mine,
+  };
+}
+
+/** Збережені ігри, де вона грала: продовження йде без її акаунта, а її місце рекордер пише «Видаленим гравцем» (forgotten). */
+async function forgetInSavedGames(tx: Tx, userId: string): Promise<void> {
+  const rows = await tx.select({ gameId: savedGame.gameId, data: savedGame.data }).from(savedGame).where(hasPair(savedGame.data, userId));
+  for (const row of rows) {
+    if (!isRecord(row.data)) continue;
+    await tx.update(savedGame).set({ data: withoutPairs(row.data, userId).data }).where(eq(savedGame.gameId, row.gameId));
+  }
+}
+
 /**
- * Знімки живих кімнат у базі (на випадок перезапуску до наступного запису): її місця — гостьові, а її кімната — бота,
+ * Знімки живих кімнат у базі (на випадок перезапуску до наступного запису): її місця — гостьові (і в forgotten), а її кімната — бота,
  * як RoomManager.forgetUser; піднята після перезапуску кімната не пише гру з ведучим, якого вже немає.
  */
 async function forgetInLiveRooms(tx: Tx, userId: string): Promise<void> {
@@ -95,9 +123,7 @@ async function forgetInLiveRooms(tx: Tx, userId: string): Promise<void> {
     .where(sql`(${hasPair(liveRoom.data, userId)}) or ${liveRoom.data}->>'hostUserId' = ${userId}::text`);
   for (const row of rows) {
     if (!isRecord(row.data)) continue;
-    const pairs = Array.isArray(row.data.playerUsers) ? (row.data.playerUsers as unknown[]) : [];
-    const mine = new Set(pairs.flatMap((pair) => (Array.isArray(pair) && pair[1] === userId ? [pair[0]] : [])));
-    const data: Record<string, unknown> = { ...row.data, playerUsers: pairs.filter((pair) => !(Array.isArray(pair) && pair[1] === userId)) };
+    const { data, mine } = withoutPairs(row.data, userId);
     if (row.data.hostUserId === userId) data.hostUserId = BOT_USER_ID;
     const continued = row.data.continued;
     if (isRecord(continued) && Array.isArray(continued.bound)) data.continued = { ...continued, bound: continued.bound.filter((id) => !mine.has(id)) };

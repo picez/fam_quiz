@@ -139,4 +139,38 @@ describe('forgetUser (58, account deletion)', () => {
     const [row] = await db.select().from(participant).where(eq(participant.id, taras));
     expect(row).toMatchObject({ userId: null, nickname: DELETED_NICKNAME });
   });
+
+  it('a seat first written after the deletion is recorded as the deleted player, and the mark survives a restart', async () => {
+    const db = await createTestDb();
+    await db.insert(user).values([
+      { id: 'admin', name: 'Адмін', email: 'admin@example.com' },
+      { id: 'olia', name: 'Оля', email: 'olia@example.com' },
+      { id: 'taras', name: 'Тарас', email: 'taras@example.com' },
+    ]);
+    const manager = new RoomManager(new FakeScheduler(), () => 0.5);
+    const errors: unknown[] = [];
+    const recorder = attachRecorder(manager, db, (error) => errors.push(error));
+    const room = manager.create(quiz(), 'olia', null);
+    const guest = enter(manager, room, 'Олена', null);
+    // У лобі рекордер нічого не пише: рядка Тараса в базі ще немає, коли акаунт видаляють.
+    const taras = enter(manager, room, 'Тарас', 'taras');
+    expect(manager.forgetUser('taras')).toBe(1);
+    expect(room.forgotten).toEqual(new Set([taras]));
+    expect(await deleteAccount(db, { adminId: 'admin', userId: 'taras', now: new Date(), adminEmails: new Set() })).toBe('deleted');
+    expect(manager.snapshot(room).forgotten).toEqual([taras]);
+
+    const host = (command: Parameters<RoomManager['host']>[1]) => expect(manager.host(room, command)).toEqual({ ok: true });
+    host({ type: 'start' });
+    host({ type: 'next' });
+    manager.answer(room, guest, { type: 'single', optionId: 'b' });
+    manager.answer(room, taras, { type: 'single', optionId: 'a' });
+    host({ type: 'next' });
+    await recorder.idle();
+    expect(errors).toEqual([]);
+    expect((await db.select().from(participant).where(eq(participant.id, taras)))[0]).toMatchObject({ userId: null, nickname: DELETED_NICKNAME });
+
+    const other = new RoomManager(new FakeScheduler(), () => 0.5);
+    const restored = other.restore(manager.snapshot(room));
+    expect(restored?.forgotten).toEqual(new Set([taras]));
+  });
 });

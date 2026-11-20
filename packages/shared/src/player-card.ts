@@ -11,8 +11,10 @@ export const ADMIN_CARD_BANS = 50;
 export const ADMIN_CARD_XP = 50;
 /** Скільки найновіших вікторин показує картка (лічильник в огляді — усі). */
 export const ADMIN_CARD_QUIZZES = 50;
-/** Нік, яким замінюють видаленого гравця в чужих іграх — дані в базі. */
+/** Нік, яким замінюють видаленого гравця в чужих іграх — маркер у базі; веб показує замість нього перекладений текст. */
 export const DELETED_NICKNAME = 'Видалений гравець';
+/** Текст факту «Правди про гравця», який написав видалений гравець — маркер у журналі гри; веб показує перекладений. */
+export const DELETED_FACT = '(факт видалено)';
 
 export interface AdminCardOverview { avatar: string | null; registeredAt: string; lastSeenAt: string | null; level: number; xp: number; games: number; wins: number; quizzes: number; friends: number; groups: number }
 export interface AdminCardAchievement { id: AchievementId; earnedAt: string | null }
