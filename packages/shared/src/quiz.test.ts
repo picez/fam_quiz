@@ -4162,6 +4162,13 @@ describe('plan 48: wordle question', () => {
     expect(qIssues(wordleQ({ word: "м'ясо" }))).toEqual([]);
   });
 
+  it('a wordle needs no text (61): empty or omitted is fine, other types still need one', () => {
+    expect(qIssues(wordleQ({ text: '' }))).toEqual([]);
+    const { text: _text, ...bare } = wordleQ();
+    expect(questionSchema.parse(bare)).toMatchObject({ type: 'wordle', text: '' });
+    expect(valid(questionSchema, { id: 'b', type: 'boolean', text: '', imageUrl: null, video: null, timeLimit: 30, points: 100, correct: true })).toBe(false);
+  });
+
   it('refuses a broken wordle', () => {
     expect(qIssues(wordleQ({ word: 'кіт' }))).toContain('wordle_word');
     expect(qIssues(wordleQ({ word: 'соняшник' }))).toContain('wordle_word');
