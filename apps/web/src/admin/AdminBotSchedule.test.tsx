@@ -11,7 +11,7 @@ const PLAN_ID = '33333333-3333-4333-8333-333333333333';
 const OLYA = 'user-olya';
 const OLEH = 'user-oleh';
 
-const quiz = (over: Partial<AdminBotQuiz> = {}): AdminBotQuiz => ({ id: QUIZ_ID, title: 'Поліські озера', rounds: 2, questions: 10, truth: false, updatedAt: '2026-11-18T10:00:00.000Z', ...over });
+const quiz = (over: Partial<AdminBotQuiz> = {}): AdminBotQuiz => ({ id: QUIZ_ID, title: 'Поліські озера', rounds: 2, questions: 10, truth: false, updatedAt: '2026-11-18T10:00:00.000Z', check: null, ...over });
 const plan = (over: Partial<AdminBotPlan> = {}): AdminBotPlan => ({
   id: PLAN_ID,
   quizId: QUIZ_ID,

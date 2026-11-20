@@ -17387,6 +17387,87 @@ button.wall-tile:disabled {
   object-fit: cover;
 }
 
+/* 57: перегляд вікторини — раунди згортаються; правильні варіанти позначені «✓»; мініатюри переносяться; на 360 px без бічного скролу. */
+details.admin-round {
+  min-width: 0;
+  margin-bottom: 1rem;
+}
+
+details.admin-round > summary {
+  display: list-item;
+  min-height: 2.75rem;
+  padding: 0.6rem 0;
+  font-size: 1.25rem;
+  font-weight: 700;
+  line-height: 1.3;
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+
+details.admin-round[open] > summary {
+  margin-bottom: 0.5rem;
+}
+
+/* Назва раунду — заголовок h2 для навігації за заголовками, але виглядає як сам рядок summary. */
+details.admin-round > summary > .admin-round-title {
+  display: inline;
+  margin: 0;
+  font: inherit;
+  color: inherit;
+}
+
+/* Розв'язок судоку: моноширинний блок 6 × 6. */
+.admin-preview-grid {
+  justify-self: start;
+  margin: 0;
+  padding: 0.4rem 0.6rem;
+  border: 1px solid var(--line);
+  border-radius: 0.4rem;
+  font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
+  font-size: 1.05rem;
+  line-height: 1.4;
+  letter-spacing: 0.15em;
+}
+
+.admin-card a.admin-preview-link {
+  overflow-wrap: anywhere;
+}
+
+/* Фокус після «До запитання» (tabIndex -1): видно, куди перейшли. */
+.admin-card[tabindex='-1']:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.admin-preview-items {
+  display: grid;
+  gap: 0.2rem;
+  margin: 0;
+  padding-inline-start: 1.25rem;
+}
+
+.admin-preview-items .is-correct {
+  color: var(--correct);
+  font-weight: 700;
+}
+
+.admin-preview-mark {
+  margin-inline-end: 0.35rem;
+}
+
+.admin-thumbs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.admin-card a.quiet-link {
+  justify-self: start;
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.75rem;
+}
+
 .admin-actions {
   display: flex;
   flex-wrap: wrap;
@@ -27630,4 +27711,52 @@ a.library-card:focus-visible {
 
 .admin-bot-schedule .admin-mark.is-muted {
   color: var(--dim);
+}
+
+/* 57: перевірка вікторини — групи помилок і попереджень, значок «⚠ N» на вікторині бота; лише змінні теми, на 360 px без бічного скролу. */
+.admin-check {
+  display: grid;
+  gap: 0.75rem;
+  min-width: 0;
+  margin-block: 0.75rem;
+}
+
+.admin-check-group {
+  display: grid;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.admin-check-group h3 {
+  margin: 0;
+}
+
+.admin-check .admin-card .btn {
+  justify-self: start;
+}
+
+.admin-actions .admin-check-line {
+  flex-basis: 100%;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+/* Рядок стану перевірки стоїть з першого показу; порожній не займає місця. */
+.admin-check-status:empty {
+  margin: 0;
+}
+
+.admin-actions .admin-check-line:empty {
+  flex-basis: 0;
+}
+
+.admin-check-badge {
+  display: inline-block;
+  padding: 0.1rem 0.5rem;
+  border: 1px solid var(--signal);
+  border-radius: var(--radius-small);
+  color: var(--signal);
+  font-size: 0.9rem;
+  font-weight: 700;
+  white-space: nowrap;
 }

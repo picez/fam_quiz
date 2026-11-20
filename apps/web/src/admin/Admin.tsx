@@ -6,7 +6,7 @@ import { AdminAnnouncement } from './AdminAnnouncement';
 import { AdminBot } from './AdminBot';
 import { AdminLive } from './AdminLive';
 import { AdminLog } from './AdminLog';
-import { AdminQuiz, AdminReportedQuiz } from './AdminQuiz';
+import { AdminBotQuizView, AdminQuiz, AdminReportedQuiz } from './AdminQuiz';
 import { AdminQuizzes } from './AdminQuizzes';
 import { AdminReports } from './AdminReports';
 import { AdminStats } from './AdminStats';
@@ -51,6 +51,7 @@ export function Admin(): JSX.Element | null {
         <Route path="announcement" element={<AdminAnnouncement />} />
         <Route path="log" element={<AdminLog />} />
         <Route path="bot" element={<AdminBot />} />
+        <Route path="bot/quizzes/:id" element={<AdminBotQuizView />} />
         <Route path="*" element={<Navigate to="/admin" replace />} />
       </Routes>
     </main>

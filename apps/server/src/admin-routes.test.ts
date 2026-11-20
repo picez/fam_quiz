@@ -1,12 +1,15 @@
 import { randomUUID } from 'node:crypto';
 import { blitzRound, bool, classicRound, makeQuiz, makeRoundsQuiz, multi, numeric, order, single, text, withId } from '@quiz/engine/testing';
-import type { Announcement, AdminCharts, AdminHealth, AdminList, AdminLiveList, AdminLogEntry, AdminReportItem, LibraryPage, AdminQuizView, AdminStats, AdminUserDetail, CalendarEvent, PrizeContent, PrizeItem, PrizePlacesInfo, Question } from '@quiz/shared';
+import { BOT_USER_ID } from '@quiz/shared';
+import type { AdminQuizCheck, Announcement, AdminCharts, AdminHealth, AdminList, AdminLiveList, AdminLogEntry, AdminReportItem, LibraryPage, AdminQuizView, AdminStats, AdminUserDetail, CalendarEvent, PrizeContent, PrizeItem, PrizePlacesInfo, Question, Quiz } from '@quiz/shared';
 import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import * as adminModule from './admin';
 import { buildApp } from './app';
+import { ensureBotAccount } from './bot-account';
 import { calendarEvent, prizeAward, profile, user, userBan, userTitle } from './db/schema';
 import { TEST_AUTH, signUp, startGame } from './testing/accounts';
+import { createQuiz } from './quizzes';
 import { createTestDb } from './testing/test-db';
 
 vi.mock('./admin', async (importOriginal) => {
@@ -71,10 +74,13 @@ async function joinAndStart(code: string) {
 }
 
 const emails = new Set<string>();
+const netSpy = vi.fn(async (): Promise<Response> => {
+  throw new Error('no network in tests');
+});
 
 beforeAll(async () => {
   db = await createTestDb();
-  ctx = await buildApp({ db, auth: TEST_AUTH, adminEmails: emails });
+  ctx = await buildApp({ db, auth: TEST_AUTH, adminEmails: emails, checkFetch: netSpy });
   a = await person('Адмінка', true);
   a2 = await person('Друга', true);
   // Адреси в наборі — у тому вигляді, як config.adminEmails їх нормалізує.
@@ -96,6 +102,7 @@ describe('hiding the admin panel (Review Focus 3)', () => {
     ['DELETE', `/api/admin/users/${UUID}/ban`],
     ['GET', '/api/admin/quizzes?q=ab&page=1'],
     ['GET', `/api/admin/quizzes/${UUID}`],
+    ['POST', `/api/admin/quizzes/${UUID}/check`],
     ['DELETE', `/api/admin/quizzes/${UUID}`],
     ['DELETE', `/api/admin/quizzes/${UUID}/questions/q1`],
     ['DELETE', `/api/admin/prizes/${UUID}`],
@@ -133,6 +140,18 @@ describe('hiding the admin panel (Review Focus 3)', () => {
         expect(response.headers['x-ratelimit-limit'], `${method} ${url}`).toBeUndefined();
       }
     }
+  });
+
+  it('a non-admin check reaches no network', async () => {
+    netSpy.mockClear();
+    const saved = await call('POST', '/api/quizzes', o.cookie, { ...makeQuiz([single]), title: 'Чужа перевірка' });
+    const { id } = saved.json() as { id: string };
+    for (const cookie of [undefined, o.cookie]) {
+      const response = await call('POST', `/api/admin/quizzes/${id}/check`, cookie);
+      expect(response.statusCode).toBe(404);
+      expect(response.json()).toEqual(NOT_FOUND);
+    }
+    expect(netSpy).not.toHaveBeenCalled();
   });
 
   it('never rate limits a non-admin', async () => {
@@ -636,5 +655,61 @@ describe('the log', () => {
     expect(response.body).not.toContain(a.email);
     expect(response.body.toLowerCase()).not.toContain(a.email.toLowerCase());
     expect((await call('GET', '/api/admin/log?page=x', a.cookie)).statusCode).toBe(400);
+  });
+});
+
+describe('preview and check (44b)', () => {
+  const MISSING = 'abcdefghijklmnop.png';
+  let author: Person;
+  beforeAll(async () => {
+    // «o» до цього часу забанений журнальним тестом: зберегти вікторину він уже не може.
+    author = await person('Автор 44b');
+  });
+  const withBrokenImage = (title: string) =>
+    ({ ...makeRoundsQuiz([classicRound('r0', [{ ...single, timeLimit: 30, imageUrl: `/uploads/${MISSING}` }, { ...single, id: 'q2', timeLimit: 30 }])]), title }) as Quiz;
+  const views = async (admin: Person) => {
+    const page = (await callOn(ctx.app, 'GET', '/api/admin/log', admin.cookie)).json() as AdminList<AdminLogEntry>;
+    return page.rows.filter((r) => r.kind === 'quiz_view');
+  };
+
+  it('a view is logged once a minute per admin', async () => {
+    const saved = await call('POST', '/api/quizzes', author.cookie, { ...makeQuiz([single]), title: 'Для перегляду' });
+    const { id } = saved.json() as { id: string };
+    const before = (await views(a)).length;
+    expect((await call('GET', `/api/admin/quizzes/${id}`, a.cookie)).statusCode).toBe(200);
+    expect(await lastLog()).toMatchObject({ kind: 'quiz_view', target: author.nickname, details: { title: 'Для перегляду' } });
+    expect((await call('GET', `/api/admin/quizzes/${id}`, a.cookie)).statusCode).toBe(200);
+    expect(await views(a)).toHaveLength(before + 1);
+    expect((await call('GET', `/api/admin/quizzes/${id}`, a2.cookie)).statusCode).toBe(200);
+    expect(await views(a)).toHaveLength(before + 2);
+    expect((await call('GET', `/api/admin/quizzes/${UUID}`, a.cookie)).statusCode).toBe(404);
+    expect(await views(a)).toHaveLength(before + 2);
+  });
+
+  it('checks a quiz and answers from the cache', async () => {
+    const saved = await call('POST', '/api/quizzes', author.cookie, withBrokenImage('З битою картинкою'));
+    const { id } = saved.json() as { id: string };
+    const first = await call('POST', `/api/admin/quizzes/${id}/check`, a.cookie);
+    expect(first.statusCode).toBe(200);
+    const result = first.json() as AdminQuizCheck;
+    expect(result.quizId).toBe(id);
+    expect(result.errors).toBeGreaterThanOrEqual(1);
+    expect(result.issues[0]).toMatchObject({ code: 'media_missing', detail: `/uploads/${MISSING}`, questionId: 'q1' });
+    const again = (await call('POST', `/api/admin/quizzes/${id}/check`, a.cookie)).json() as AdminQuizCheck;
+    expect(again.checkedAt).toBe(result.checkedAt);
+    expect((await call('POST', `/api/admin/quizzes/${UUID}/check`, a.cookie)).statusCode).toBe(404);
+    expect((await call('POST', '/api/admin/quizzes/not-a-uuid/check', a.cookie)).statusCode).toBe(404);
+  });
+
+  it('a round that needs a host is an error only in a bot quiz', async () => {
+    const think = (id: string) => ({ id, type: 'think', text: 'Напишіть колір веселки', imageUrl: null, video: null, timeLimit: 30, points: 0, words: [] });
+    const thinkRound = { id: 'r1', type: 'think', title: '', lives: 3, points: 3000, questions: [think('k1'), think('k2'), think('k3')] };
+    const quiz = { ...makeRoundsQuiz([classicRound('r0', [{ ...single, timeLimit: 30 }]), thinkRound as never]), title: 'Думай інакше' } as Quiz;
+    await ensureBotAccount(db);
+    const hosted = await createQuiz(db, author.id, quiz);
+    const bot = await createQuiz(db, BOT_USER_ID, quiz);
+    const codesOf = async (id: string) => ((await call('POST', `/api/admin/quizzes/${id}/check`, a.cookie)).json() as AdminQuizCheck).issues.map((i) => i.code);
+    expect(await codesOf(hosted)).not.toContain('autopilot_blocked');
+    expect(await codesOf(bot)).toContain('autopilot_blocked');
   });
 });
