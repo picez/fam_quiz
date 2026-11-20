@@ -5,6 +5,7 @@ import { APIError } from 'better-auth/api';
 import { banNotice, isBanned } from './bans';
 import type { Db } from './db/client';
 import * as schema from './db/schema';
+import { isMergedEmail } from './merged-email';
 
 export interface AuthOptions {
   /** Секрет, яким підписуються сесії. */
@@ -42,6 +43,8 @@ export function createAuth(db: Db, options: AuthOptions) {
           // Сам бот створюється в обхід Better Auth (ensureBotAccount), тож хук його не зачіпає.
           before: async (created) => {
             if (isBotDomainEmail(created.email)) throw new APIError('BAD_REQUEST', { code: 'EMAIL_RESERVED', message: 'EMAIL_RESERVED' });
+            // 66: адреса акаунта, злитого з іншим, — псевдонім головного; ні пароль, ні новий Google не створять на неї третій акаунт.
+            if (await isMergedEmail(db, created.email)) throw new APIError('BAD_REQUEST', { code: 'EMAIL_MERGED', message: 'EMAIL_MERGED' });
           },
         },
       },

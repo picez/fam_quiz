@@ -82,6 +82,9 @@ describe('api', () => {
 
     respond(400, { code: 'INVALID_EMAIL', message: 'Invalid email' });
     expect(await signUp('Олена', 'nope', 'password1')).toEqual({ ok: false, error: 'bad_email' });
+
+    respond(400, { code: 'EMAIL_MERGED', message: 'EMAIL_MERGED' });
+    expect(await signUp('Олена', 'old@example.com', 'password1')).toEqual({ ok: false, error: 'email_merged' });
   });
 
   it('recognises a sign-in refused because the app was opened at another address', async () => {

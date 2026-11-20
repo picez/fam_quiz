@@ -31,6 +31,7 @@ import {
   libraryCopy,
   libraryEntry,
   liveRoom,
+  mergedEmail,
   participant,
   scoreAdjustment,
   prize,
@@ -121,6 +122,7 @@ async function referencing(userId: string): Promise<Record<string, number>> {
   await add('feed_event', db.select().from(feedEvent).where(eq(feedEvent.userId, userId)));
   await add('calendar_event', db.select().from(calendarEvent).where(eq(calendarEvent.hostId, userId)));
   await add('calendar_request', db.select().from(calendarRequest).where(eq(calendarRequest.userId, userId)));
+  await add('merged_email', db.select().from(mergedEmail).where(eq(mergedEmail.userId, userId)));
   await add('push_subscription', db.select().from(pushSubscription).where(eq(pushSubscription.userId, userId)));
   await add('user_ban', db.select().from(userBan).where(or(eq(userBan.userId, userId), eq(userBan.bannedBy, userId))));
   await add('admin_action.admin_id', db.select().from(adminAction).where(eq(adminAction.adminId, userId)));
@@ -218,6 +220,7 @@ describe('deleteAccount', () => {
       { eventId: oliaEvent.id, userId: taras, status: 'pending', requestedAt: NOW },
     ]);
     await db.insert(pushSubscription).values({ endpoint: `https://push.example/${taras}`, userId: taras, p256dh: 'k', auth: 'a', createdAt: NOW });
+    await db.insert(mergedEmail).values({ email: `old-${taras}@example.com`, userId: taras, mergedAt: NOW });
     await db.insert(userBan).values([
       { userId: taras, reason: 'спам', bannedBy: ADMIN, bannedAt: NOW },
       { userId: petro, reason: null, bannedBy: taras, bannedAt: NOW },
@@ -527,6 +530,7 @@ const HANDLED = [
   'league_point.user_id', 'league_champion.user_id', 'library_entry.owner_id', 'library_copy.user_id', 'user_report.reporter_id',
   'user_report.target_user_id', 'announcement.created_by', 'bot_plan.created_by', 'push_broadcast.created_by',
   'problem_report.user_id', 'problem_report.resolved_by', 'server_error.resolved_by', 'game_event.user_id',
+  'merged_email.user_id',
 ];
 
 describe('the schema', () => {

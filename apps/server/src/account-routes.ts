@@ -14,6 +14,7 @@ import { openGameIds, savedSummaries } from './saved-games';
 import { profileAdminPush, profileEasy, profileLocale, touchSeen } from './profiles';
 import { isAdmin } from './admin';
 import { banNotice, isHidden } from './bans';
+import { loginBodyFor } from './merged-email';
 import type { RoomManager } from './rooms/manager';
 import type { Located } from './rooms/store';
 
@@ -86,6 +87,8 @@ export async function registerAccountRoutes(
       // Адреса будується від налаштованої, а не від заголовка Host, який надсилає клієнт.
       const url = new URL(request.url, deps.baseURL);
       const hasBody = request.method !== 'GET' && request.body !== undefined && request.body !== null;
+      // 66: адреса акаунта, злитого з іншим, при вході й відновленні пароля веде в головний акаунт; реєстрацію на неї відхиляє хук.
+      const body = hasBody ? await loginBodyFor(deps.db, request.method, url.pathname, request.body) : undefined;
       // Хук сесії ставить прапорець, коли вхід відхилено баном; редирект Google тоді веде на сторінку входу з поясненням.
       const notice = { banned: false };
       const response = await banNotice.run(notice, () =>
@@ -93,7 +96,7 @@ export async function registerAccountRoutes(
           new Request(url, {
             method: request.method,
             headers: fromNodeHeaders(request.headers),
-            body: hasBody ? JSON.stringify(request.body) : undefined,
+            body: hasBody ? JSON.stringify(body) : undefined,
           }),
         ),
       );
