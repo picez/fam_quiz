@@ -1,4 +1,4 @@
-import { mkdirSync } from 'node:fs';
+import { mkdirSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { type PushPayload } from '@quiz/shared';
 import { eq } from 'drizzle-orm';
@@ -208,7 +208,9 @@ async function errorsBackups64() {
   await admin.reload();
   const row = admin.locator('ul.admin-list li.admin-card');
   await row.waitFor();
-  expect(await row.innerText()).toContain('міграцій: 47');
+  // Рівень копії — скільки міграцій у журналі drizzle (0000…), а не число з голови.
+  const migrations = (JSON.parse(readFileSync(resolve(import.meta.dirname, '../drizzle/meta/_journal.json'), 'utf8')) as { entries: unknown[] }).entries.length;
+  expect(await row.innerText()).toContain(`міграцій: ${migrations}`);
   await admin.getByText(/^Наступну копію можна о \d{2}:\d{2}\.$/).waitFor();
   expect(await now.isDisabled(), 'the copy-now button during the hourly gap').toBe(true);
   expect([...r2.objects.keys()].filter((key) => key.startsWith('backups/db/'))).toHaveLength(1);
