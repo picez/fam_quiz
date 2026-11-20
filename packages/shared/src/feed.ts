@@ -31,6 +31,8 @@ export interface FeedEvent {
   data: FeedData;
   /** null — лише для like. Для своєї події liked завжди false, а веб показує лише лічильник без кнопки. */
   likes: { count: number; liked: boolean } | null;
+  /** 63: подію сховав адміністратор — лише в автора. */
+  hidden?: true;
 }
 
 export interface FeedPage {

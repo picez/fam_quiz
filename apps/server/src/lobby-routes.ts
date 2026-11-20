@@ -31,7 +31,8 @@ async function leaguePickOf(db: Db, room: Room, userId: string): Promise<LeagueP
   const { groups } = await listGroups(db, userId);
   return {
     groupId: room.league?.groupId ?? null,
-    groups: groups.map(({ id, name, emoji, people }) => ({ id, name, emoji, people })),
+    // 63: приховану адміністратором групу власник бачить у списку груп, але не в лобі.
+    groups: groups.filter((g) => g.hidden === undefined).map(({ id, name, emoji, people }) => ({ id, name, emoji, people })),
   };
 }
 

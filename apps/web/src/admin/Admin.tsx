@@ -1,11 +1,15 @@
-import type { JSX } from 'react';
-import { Navigate, NavLink, Route, Routes } from 'react-router-dom';
+import { useEffect, useRef, type JSX } from 'react';
+import { Navigate, NavLink, Route, Routes, useLocation } from 'react-router-dom';
 import { t } from '../i18n';
+import { reducedMotion } from '../motion';
 import { useAccount } from '../useAccount';
 import { AdminAnnouncement } from './AdminAnnouncement';
 import { AdminBot } from './AdminBot';
 import { AdminBroadcast } from './AdminBroadcast';
+import { AdminFeed } from './AdminFeed';
 import { AdminGame } from './AdminGame';
+import { AdminGroup } from './AdminGroup';
+import { AdminGroups } from './AdminGroups';
 import { AdminLive } from './AdminLive';
 import { AdminLog } from './AdminLog';
 import { AdminBotQuizView, AdminQuiz, AdminReportedQuiz } from './AdminQuiz';
@@ -23,6 +27,8 @@ const TABS = [
   { to: '/admin/reports', key: 'adminTabReports', end: false },
   { to: '/admin/announcement', key: 'adminTabAnnouncement', end: false },
   { to: '/admin/broadcast', key: 'adminTabBroadcast', end: false },
+  { to: '/admin/feed', key: 'adminTabFeed', end: false },
+  { to: '/admin/groups', key: 'adminTabGroups', end: false },
   { to: '/admin/log', key: 'adminTabLog', end: false },
   { to: '/admin/bot', key: 'adminTabBot', end: false },
 ] as const;
@@ -30,12 +36,25 @@ const TABS = [
 /** Гейт: лише адмін; усім іншим — головна. */
 export function Admin(): JSX.Element | null {
   const account = useAccount();
+  const nav = useRef<HTMLElement>(null);
+  const { pathname } = useLocation();
+  const shown = account.status === 'signed-in' && account.account.admin;
+  // 63: вкладки — один рядок, що гортається вбік; активна завжди в полі зору (nearest працює й у RTL).
+  useEffect(() => {
+    if (!shown || nav.current === null) return;
+    // Смуга поза екраном по вертикалі (перехід із глибини сторінки) — сторінку не смикаємо.
+    const box = nav.current.getBoundingClientRect();
+    if (box.bottom < 0 || box.top > window.innerHeight) return;
+    nav.current
+      .querySelector<HTMLElement>('[aria-current="page"]')
+      ?.scrollIntoView?.({ block: 'nearest', inline: 'nearest', behavior: reducedMotion() ? 'auto' : 'smooth' });
+  }, [pathname, shown]);
   if (account.status === 'loading') return null;
   if (account.status !== 'signed-in' || !account.account.admin) return <Navigate to="/" replace />;
   return (
     <main className="app wide">
       <h1 className="brand">{t('adminTitle')}</h1>
-      <nav className="admin-tabs" aria-label={t('adminSections')}>
+      <nav ref={nav} className="admin-tabs" aria-label={t('adminSections')}>
         {TABS.map((tab) => (
           <NavLink key={tab.to} to={tab.to} end={tab.end} className="btn">
             {t(tab.key)}
@@ -54,6 +73,9 @@ export function Admin(): JSX.Element | null {
         <Route path="reports/quiz/:entryId" element={<AdminReportedQuiz />} />
         <Route path="announcement" element={<AdminAnnouncement />} />
         <Route path="broadcast" element={<AdminBroadcast />} />
+        <Route path="feed" element={<AdminFeed />} />
+        <Route path="groups" element={<AdminGroups />} />
+        <Route path="groups/:id" element={<AdminGroup />} />
         <Route path="log" element={<AdminLog />} />
         <Route path="bot" element={<AdminBot />} />
         <Route path="bot/quizzes/:id" element={<AdminBotQuizView />} />

@@ -3,7 +3,7 @@ import type { FastifyInstance, FastifyRequest, RouteShorthandOptions } from 'fas
 import type { CurrentUser } from './account-routes';
 import type { AdminDeps } from './admin-routes';
 import { botGroups } from './bot-plan-store';
-import { audienceOf, broadcastLimits, createBroadcast, finishBroadcast, listBroadcasts } from './broadcast-store';
+import { audienceOf, broadcastLimits, groupTargetOk, createBroadcast, finishBroadcast, listBroadcasts } from './broadcast-store';
 import { reportError } from './log';
 
 const NOT_FOUND = { error: 'not_found' };
@@ -39,6 +39,7 @@ export async function registerAdminBroadcastRoutes(app: FastifyInstance, deps: A
     if (!body.success) return reply.code(400).send(INVALID);
     if (push === null) return reply.code(503).send({ error: 'push_off' });
     const input = body.data;
+    if (!(await groupTargetOk(db, input.recipients))) return reply.code(404).send({ error: 'group_not_found' });
     const people = await audienceOf(db, input.recipients);
     if (people.length === 0) return reply.code(409).send({ error: 'broadcast_nobody' });
     const made = await createBroadcast(db, { adminId: me.id, input, people, now: now() });

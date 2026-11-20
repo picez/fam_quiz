@@ -63,6 +63,19 @@ async function giveXp(userId: string, amount: number) {
 const PRIZE: PrizeContent = { name: 'Кубок', trophy: null, engraving: null, real: { text: 'Справжній торт', photoUrl: null }, title: 'Знавець', diploma: false };
 
 describe('writeGameEvents', () => {
+  it('republishing a hidden event keeps it hidden (63)', async () => {
+    const { o } = await people();
+    const g = await game([solo(o, 1)]);
+    await writeGameEvents(db, { gameId: g.gameId }, false);
+    const mark = new Date('2026-11-01T10:00:00.000Z');
+    await db.update(feedEvent).set({ hiddenAt: mark }).where(eq(feedEvent.gameId, g.gameId));
+    await writeGameEvents(db, { gameId: g.gameId }, false);
+    await publishGameFeed(db, g.gameId);
+    const rows = await eventsOf(g.gameId);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].hiddenAt).toEqual(mark);
+  });
+
   it('one row per account of the table, guests and the host without a place get none', async () => {
     const { o, p } = await people();
     const g = await game([solo(o, 1), solo(p, 2), solo(null, 3)]);

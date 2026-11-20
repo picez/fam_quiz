@@ -21,11 +21,14 @@ type ItemRow = typeof groupItem.$inferSelect;
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-/** Умова SQL «viewer бачить запис» (сюрприз про нього — ні, крім власних). Одна на весь код; її візьме 12l. */
+/**
+ * Умова SQL «viewer бачить запис» (сюрприз про нього — ні, крім власних; прихований адміністратором — ні для кого,
+ * і для автора, 63). Одна на весь код; її візьме 12l.
+ */
 export function visibleItemsWhere(viewerId: string): SQL {
-  return sql`NOT (${groupItem.surprise}
+  return sql`(${groupItem.hiddenAt} IS NULL AND NOT (${groupItem.surprise}
     AND ${groupItem.about} @> jsonb_build_array(jsonb_build_object('userId', ${viewerId}::text))
-    AND ${groupItem.authorId} IS DISTINCT FROM ${viewerId}::text)`;
+    AND ${groupItem.authorId} IS DISTINCT FROM ${viewerId}::text))`;
 }
 
 /** Скільки записів кожної з груп бачить глядач. */

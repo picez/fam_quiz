@@ -123,4 +123,27 @@ describe('Groups (12k)', () => {
     open();
     expect(await screen.findByText('на /login?next=%2Fprofile%2Fgroups')).toBeTruthy();
   });
+
+  it('a group hidden by a moderator is no link and shows the mark with the reason (63)', async () => {
+    vi.mocked(getGroups).mockResolvedValue({ ok: true, groups: [card('g1', { name: 'Родина Квіткових', role: 'owner', hidden: { reason: 'Образлива назва' } }), card('g2', { name: 'Друзі з класу', role: 'owner', hidden: { reason: null } })], invites: [] });
+    const { container } = open();
+    expect(await screen.findByText('Родина Квіткових')).toBeTruthy();
+    const cards = container.querySelector('ul.group-cards')!;
+    expect(cards.querySelectorAll('a')).toHaveLength(0);
+    const first = screen.getByText('Родина Квіткових').closest('li')!;
+    expect(first.textContent).toContain('Приховано модератором');
+    expect(first.textContent).toContain('Причина: Образлива назва');
+    const second = screen.getByText('Друзі з класу').closest('li')!;
+    expect(second.textContent).toContain('Приховано модератором');
+    expect(second.textContent).not.toContain('Причина');
+  });
+
+  it('a hidden group takes no slot of the ten (63)', async () => {
+    const groups = Array.from({ length: 10 }, (_, i) => card('g' + i, i === 0 ? { role: 'owner', hidden: { reason: null } } : {}));
+    vi.mocked(getGroups).mockResolvedValue({ ok: true, groups, invites: [] });
+    open();
+    const create = (await screen.findByRole('button', { name: 'Створити групу' })) as HTMLButtonElement;
+    expect(create.disabled).toBe(false);
+    expect(screen.queryByText(/щонайбільше в 10 групах/)).toBeNull();
+  });
 });

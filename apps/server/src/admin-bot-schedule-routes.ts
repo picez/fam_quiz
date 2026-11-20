@@ -16,11 +16,13 @@ interface Guards {
   adminOf: (request: FastifyRequest) => Promise<CurrentUser | null>;
 }
 
-/** Помилка сховища плану → відповідь: час і тіло — 400, немає — 404, ліміт і замок — 409. */
+/** Помилка сховища плану → відповідь: час і тіло — 400, немає (і групи, 63) — 404, ліміт і замок — 409. */
 function refuse(reply: FastifyReply, error: Extract<BotPlanResult, { ok: false }>['error']) {
   switch (error) {
     case 'not_found':
       return reply.code(404).send(NOT_FOUND);
+    case 'group_not_found':
+      return reply.code(404).send({ error: 'group_not_found' });
     case 'invalid_payload':
       return reply.code(400).send(INVALID);
     case 'plan_time':

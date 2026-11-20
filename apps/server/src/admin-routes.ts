@@ -1,4 +1,4 @@
-import { ADMIN_CACHE_MS, ANNOUNCEMENT_MAX_DAYS, BOT_USER_ID, adminListQuerySchema, announcementInputSchema, adminProfileActionSchema, adminQuizActionSchema, banSchema, type AdminBackupInfo, type AdminHealth } from '@quiz/shared';
+import { ADMIN_CACHE_MS, ANNOUNCEMENT_MAX_DAYS, BOT_USER_ID, adminListQuerySchema, adminLogFilterSchema, adminLogQuerySchema, announcementInputSchema, adminProfileActionSchema, adminQuizActionSchema, banSchema, type AdminBackupInfo, type AdminHealth } from '@quiz/shared';
 import { eq } from 'drizzle-orm';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { CurrentUser } from './account-routes';
@@ -7,9 +7,11 @@ import { adminCharts } from './admin-charts';
 import type { PushService } from './push';
 import { registerAdminBotRoutes } from './admin-bot-routes';
 import { registerAdminBroadcastRoutes } from './admin-broadcast-routes';
+import { registerAdminModerationRoutes } from './admin-moderation-routes';
 import { registerPlayerCardRoutes } from './admin-card-routes';
 import { liveRooms } from './admin-live';
-import { adminLog, adminQuiz, adminQuizRaw, adminQuizzes, adminStats, adminUser, adminUsers } from './admin-store';
+import { adminLogExport, adminLogPage } from './admin-log-store';
+import { adminQuiz, adminQuizRaw, adminQuizzes, adminStats, adminUser, adminUsers } from './admin-store';
 import { activeAnnouncement, clearAnnouncement, setAnnouncement, type AnnouncementCache } from './announcement-store';
 import { banUser, logAction, unbanUser } from './bans';
 import type { Db } from './db/client';
@@ -360,12 +362,20 @@ export async function registerAdminRoutes(app: FastifyInstance, deps: AdminDeps)
   });
 
   app.get('/api/admin/log', read, async (request, reply) => {
-    const query = adminListQuerySchema.safeParse(request.query);
+    const query = adminLogQuerySchema.safeParse(request.query);
     if (!query.success) return reply.code(400).send(INVALID);
-    return adminLog(db, query.data.page);
+    return adminLogPage(db, query.data);
+  });
+
+  // 63: вивантаження вибірки журналу (до ADMIN_LOG_EXPORT_MAX рядків); це читання, у журнал не пишеться.
+  app.get('/api/admin/log/export', read, async (request, reply) => {
+    const query = adminLogFilterSchema.safeParse(request.query);
+    if (!query.success) return reply.code(400).send(INVALID);
+    return adminLogExport(db, query.data);
   });
 
   await registerAdminBotRoutes(app, deps, { read, write, adminOf, checker });
   await registerPlayerCardRoutes(app, deps, { read, write, adminOf });
   await registerAdminBroadcastRoutes(app, deps, { read, write, adminOf });
+  await registerAdminModerationRoutes(app, deps, { read, write, adminOf });
 }

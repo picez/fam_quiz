@@ -667,7 +667,8 @@ describe('family league (38b)', () => {
     const { game, familyGroup, groupMember, leagueGame, leaguePoint, leagueMonth, leagueChampion } = await import('./schema');
     const { db, migrateRest } = await createTestDbUpTo('0038_challenges');
     await db.insert(user).values({ id: 'a', name: 'Автор', email: 'a@example.com' });
-    const [group] = await db.insert(familyGroup).values({ name: 'Родина', emoji: '🌻', inviteCode: 'abcdefghjk' }).returning();
+    // Сирий SQL: схема вже знає пізніші колонки family_group (63), яких у базі до 0039 ще немає.
+    const [group] = ((await db.execute(sql`INSERT INTO "family_group" ("name", "emoji", "invite_code") VALUES ('Родина', '🌻', 'abcdefghjk') RETURNING "id"`)) as unknown as { rows: { id: string }[] }).rows;
     await db.insert(groupMember).values({ groupId: group.id, userId: 'a', role: 'owner', joinedAt: T });
     const source = makeQuiz([single]);
     await db.insert(game).values({ id: G1, hostId: 'a', code: 'ABCD', status: 'finished', title: 'Q', quizSnapshot: source, startedAt: T });
@@ -1009,5 +1010,30 @@ describe('push broadcast (59)', () => {
     await db.delete(user).where(eq(user.id, 'a'));
     const [kept] = await db.select().from(pushBroadcast);
     expect(kept).toMatchObject({ id: row.id, title: 'Нова вікторина', groupId: null, groupName: 'Родина', createdBy: null });
+  });
+});
+
+describe('moderation (63)', () => {
+  it('migration 0046 adds empty hidden marks to existing events, groups and records, and the admin log index', async () => {
+    const { db, migrateRest } = await createTestDbUpTo('0045_push_broadcast');
+    await db.insert(user).values({ id: 'u1', name: 'Олена', email: 'olena@example.com' });
+    await db.execute(
+      sql`INSERT INTO "feed_event" ("key", "user_id", "kind", "data", "at", "created_at") VALUES ('level:u1:2', 'u1', 'level', '{"kind":"level","level":2}'::jsonb, now(), now())`,
+    );
+    await db.execute(
+      sql`INSERT INTO "family_group" ("id", "name", "emoji", "invite_code") VALUES ('3f2b8c1e-5d4a-4e6f-9a7b-1c2d3e4f5a6b', 'Родина', '👪', 'code63')`,
+    );
+    await db.execute(
+      sql`INSERT INTO "group_item" ("group_id", "author_id", "kind", "text") VALUES ('3f2b8c1e-5d4a-4e6f-9a7b-1c2d3e4f5a6b', 'u1', 'fact', 'Бабуся пече найкращі пироги')`,
+    );
+
+    await migrateRest();
+
+    const { familyGroup, feedEvent, groupItem } = await import('./schema');
+    expect((await db.select({ hiddenAt: feedEvent.hiddenAt }).from(feedEvent))).toEqual([{ hiddenAt: null }]);
+    expect((await db.select({ hiddenAt: familyGroup.hiddenAt, hiddenReason: familyGroup.hiddenReason }).from(familyGroup))).toEqual([{ hiddenAt: null, hiddenReason: null }]);
+    expect((await db.select({ hiddenAt: groupItem.hiddenAt }).from(groupItem))).toEqual([{ hiddenAt: null }]);
+    const indexes = (await db.execute(sql`SELECT "indexname" FROM "pg_indexes" WHERE "indexname" = 'admin_action_admin_idx'`)) as unknown as { rows: unknown[] };
+    expect(indexes.rows).toHaveLength(1);
   });
 });

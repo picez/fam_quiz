@@ -9,7 +9,6 @@ import {
   questionsOf,
   type AdminBotQuiz,
   type AdminList,
-  type AdminLogEntry,
   type AdminQuizRow,
   type AdminQuizView,
   type AdminStats,
@@ -20,7 +19,7 @@ import { and, desc, eq, inArray, gt, ne, sql, type SQL } from 'drizzle-orm';
 import { isAdminEmail } from './admin';
 import { escapeLike } from './library-store';
 import type { Db } from './db/client';
-import { adminAction, game, prize, prizeAward, profile, quiz, user, userBan, userTitle } from './db/schema';
+import { game, prize, prizeAward, profile, quiz, user, userBan, userTitle } from './db/schema';
 import { playerCard } from './player-card';
 import { ensureProfile } from './profiles';
 import { quizOf, storedQuizOf } from './quizzes';
@@ -228,21 +227,4 @@ export async function adminQuiz(db: Db, id: string): Promise<AdminQuizView | nul
   const author = (await ensureProfile(db, row.ownerId))?.nickname ?? '';
   const data = quizOf(row);
   return { id: row.id, author: { id: row.ownerId, nickname: author }, quiz: data, updatedAt: iso(row.updatedAt), effects: removalEffects(data) };
-}
-
-export async function adminLog(db: Db, page: number): Promise<AdminList<AdminLogEntry>> {
-  const [{ n } = { n: 0 }] = await db.select({ n: sql<number>`count(*)::int` }).from(adminAction);
-  const total = num(n);
-  const rows = await db
-    .select()
-    .from(adminAction)
-    .orderBy(desc(adminAction.at), desc(adminAction.id))
-    .limit(ADMIN_PAGE_SIZE)
-    .offset(pageOffset(page, ADMIN_PAGE_SIZE));
-  return {
-    rows: rows.map((r) => ({ id: r.id, at: iso(r.at), admin: r.adminLabel, kind: r.kind, target: r.targetLabel, details: r.details })),
-    total,
-    page,
-    pages: adminPages(total),
-  };
 }
