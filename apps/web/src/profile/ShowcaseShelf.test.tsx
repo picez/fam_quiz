@@ -42,6 +42,13 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe('ShowcaseShelf', () => {
+  it('shows the gift mark and the note instead of an empty quiz title for a gift from an admin', () => {
+    open({ awards: [award('g', { quizTitle: '', gift: { note: 'З весною' } })] });
+    const item = document.querySelector('.shelf-item')!;
+    expect(item.textContent).toContain('Подарунок від адміністратора');
+    expect(item.textContent).toContain('З весною');
+  });
+
   it('puts the first of three in the middle and makes it the main one', () => {
     open({
       awards: [
