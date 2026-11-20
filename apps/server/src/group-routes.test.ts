@@ -360,3 +360,29 @@ describe('the family league table (45)', () => {
     expect(table.champions.flatMap((c) => c.users.map((u) => u.id))).not.toContain(petro.id);
   });
 });
+
+describe('hidden groups through the routes (63)', () => {
+  it('a hidden group is 404 for the owner and the member, and so is its link', async () => {
+    const { setGroupHidden } = await import('./moderation-store');
+    const { olia, petro, id, code } = await family();
+    const vira = await person('Віра');
+    expect(await setGroupHidden(db, { adminId: olia.id, groupId: id, hidden: true, reason: 'Образлива назва', now: new Date() })).toEqual({
+      ok: true,
+      changed: true,
+    });
+    for (const who of [olia, petro]) {
+      const got = await call('GET', `/api/groups/${id}`, who.cookie);
+      expect([got.statusCode, got.json()]).toEqual([404, { error: 'group_not_found' }]);
+      expect((await call('GET', `/api/groups/${id}/items`, who.cookie)).statusCode).toBe(404);
+    }
+    expect((await call('GET', `/api/groups/join/${code}`, vira.cookie)).statusCode).toBe(404);
+    const joined = await call('POST', `/api/groups/join/${code}`, vira.cookie);
+    expect([joined.statusCode, joined.json()]).toEqual([404, { error: 'group_not_found' }]);
+    const list = (await call('GET', '/api/groups', olia.cookie)).json() as { groups: { id: string; hidden?: { reason: string | null } }[] };
+    expect(list.groups.find((g) => g.id === id)).toMatchObject({ hidden: { reason: 'Образлива назва' } });
+    expect(((await call('GET', '/api/groups', petro.cookie)).json() as { groups: { id: string }[] }).groups).toEqual([]);
+
+    await setGroupHidden(db, { adminId: olia.id, groupId: id, hidden: false, reason: null, now: new Date() });
+    expect((await call('GET', `/api/groups/${id}`, petro.cookie)).statusCode).toBe(200);
+  });
+});

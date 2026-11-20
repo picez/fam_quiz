@@ -236,3 +236,34 @@ describe('group record uses in the list (12l)', () => {
     expect(changed.item.uses).toEqual([{ quizId: made.id, title: 'Вікторина: Родина Квіткових', mine: false, at: later(30).toISOString() }]);
   });
 });
+
+describe('hidden group records (63)', () => {
+  it('a hidden record is gone for everyone, the author too', async () => {
+    const { makeQuiz, single } = await import('@quiz/engine/testing');
+    const { quiz, groupItemUse } = await import('./db/schema');
+    const { markUses } = await import('./group-uses');
+    const { countVisibleItems } = await import('./group-items');
+    const { setItemHidden } = await import('./moderation-store');
+    const { id, olia, petro } = await family();
+    const kept = await write(id, olia, { text: 'Бабуся Ніна свистить двома пальцями' }, later(10));
+    const gone = await write(id, petro, { kind: 'story', text: 'Як тато заблукав у лісі по гриби' }, later(11));
+    const before = (await countVisibleItems(db, [id], petro)).get(id);
+
+    expect(await setItemHidden(db, { adminId: olia, groupId: id, itemId: gone.id, hidden: true, now: later(12) })).toEqual({ ok: true, changed: true });
+    expect(await ids(id, olia, 'owner')).toEqual([kept.id]);
+    expect(await ids(id, petro)).toEqual([kept.id]);
+    expect((await countVisibleItems(db, [id], petro)).get(id)).toBe((before ?? 0) - 1);
+    expect((await countVisibleItems(db, [id], olia)).get(id)).toBe(1);
+
+    const source = makeQuiz([single]);
+    const [made] = await db
+      .insert(quiz)
+      .values({ ownerId: petro, title: 'Вікторина: Родина Квіткових', description: '', settings: source.settings, rounds: source.rounds })
+      .returning();
+    expect(await markUses(db, id, petro, { quizId: made.id, itemIds: [gone.id] }, later(13))).toEqual({ ok: true, marked: 0 });
+    expect(await db.select().from(groupItemUse).where(eq(groupItemUse.itemId, gone.id))).toEqual([]);
+
+    expect(await setItemHidden(db, { adminId: olia, groupId: id, itemId: gone.id, hidden: false, now: later(14) })).toEqual({ ok: true, changed: true });
+    expect(await ids(id, petro)).toEqual([gone.id, kept.id]);
+  });
+});

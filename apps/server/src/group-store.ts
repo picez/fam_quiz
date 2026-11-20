@@ -13,7 +13,7 @@ import {
   type GroupsPage,
   type ProfileCard,
 } from '@quiz/shared';
-import { and, asc, count, desc, eq, inArray, sql, type SQL } from 'drizzle-orm';
+import { and, asc, count, desc, eq, inArray, isNull, or, sql, type SQL } from 'drizzle-orm';
 import type { Db } from './db/client';
 import { familyGroup, follow, groupInvite, groupMember, profile, userBan } from './db/schema';
 import { CODE_ATTEMPTS, isUniqueViolation } from './db/unique';
@@ -25,6 +25,9 @@ type Tx = Parameters<Parameters<Db['transaction']>[0]>[0];
 type Fail<E extends string> = { ok: false; error: E };
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** 63: групу не сховав адміністратор. Прихована — для всіх, і для власника, як неіснуюча (крім картки власника в списку). */
+export const groupShown = isNull(familyGroup.hiddenAt);
 
 /** Код з GROUP_CODE_ALPHABET заданої довжини; байти поза рівним діапазоном відкидаються (без перекосу). */
 export function newCode(length: number, random: (n: number) => Uint8Array = (size) => randomBytes(size)): string {
@@ -113,7 +116,8 @@ export async function membership(db: Db, groupId: string, userId: string): Promi
   const [row] = await db
     .select({ role: groupMember.role })
     .from(groupMember)
-    .where(and(eq(groupMember.groupId, groupId), eq(groupMember.userId, userId)));
+    .innerJoin(familyGroup, eq(familyGroup.id, groupMember.groupId))
+    .where(and(eq(groupMember.groupId, groupId), eq(groupMember.userId, userId), groupShown));
   return row?.role ?? null;
 }
 
@@ -140,7 +144,7 @@ async function groupsOf(db: Db | Tx, userId: string): Promise<number> {
   return Number(row?.n ?? 0);
 }
 
-/** Мої групи — від найновішого вступу — і запрошення до мене. */
+/** Мої групи — від найновішого вступу — і запрошення до мене. Прихована адміністратором — лише власнику, з причиною (63). */
 export async function listGroups(db: Db, userId: string): Promise<GroupsPage> {
   const mine = await db
     .select({ groupId: groupMember.groupId })
@@ -157,18 +161,19 @@ export async function listGroups(db: Db, userId: string): Promise<GroupsPage> {
       role: groupMember.role,
       joinedAt: groupMember.joinedAt,
       people: visiblePeople,
+      hiddenAt: familyGroup.hiddenAt,
+      hiddenReason: familyGroup.hiddenReason,
     })
     .from(groupMember)
     .innerJoin(familyGroup, eq(familyGroup.id, groupMember.groupId))
-    .where(eq(groupMember.userId, userId))
+    .where(and(eq(groupMember.userId, userId), or(groupShown, eq(groupMember.role, 'owner'))))
     .orderBy(desc(groupMember.joinedAt), asc(familyGroup.id));
   const items = await countVisibleItems(db, rows.map((r) => r.id), userId);
-  const groups: GroupCard[] = rows.map((row) => ({
-    ...row,
-    people: Number(row.people),
-    items: items.get(row.id) ?? 0,
-    joinedAt: row.joinedAt.toISOString(),
-  }));
+  const groups: GroupCard[] = rows.map(({ hiddenAt, hiddenReason, ...row }) => {
+    const card: GroupCard = { ...row, people: Number(row.people), items: items.get(row.id) ?? 0, joinedAt: row.joinedAt.toISOString() };
+    if (hiddenAt !== null) card.hidden = { reason: hiddenReason };
+    return card;
+  });
   return { groups, invites: await invitesFor(db, userId) };
 }
 
@@ -250,7 +255,7 @@ export async function updateGroup(db: Db, groupId: string, input: GroupInput, no
     .where(eq(familyGroup.id, groupId));
 }
 
-export async function deleteGroup(db: Db, groupId: string): Promise<void> {
+export async function deleteGroup(db: Db | Tx, groupId: string): Promise<void> {
   await db.delete(familyGroup).where(eq(familyGroup.id, groupId));
 }
 
@@ -271,12 +276,34 @@ async function lockGroup(tx: Tx, groupId: string): Promise<boolean> {
   return row !== undefined;
 }
 
-async function roleIn(db: Db | Tx, groupId: string, userId: string): Promise<GroupRole | null> {
+export async function roleIn(db: Db | Tx, groupId: string, userId: string): Promise<GroupRole | null> {
   const [row] = await db
     .select({ role: groupMember.role })
     .from(groupMember)
     .where(and(eq(groupMember.groupId, groupId), eq(groupMember.userId, userId)));
   return row?.role ?? null;
+}
+
+/** Передача керування не влучила рівно в два рядки: транзакцію відкочено. */
+export class TransferConflict extends Error {}
+
+/**
+ * Обмін ролей під замком групи: fromId (власник) стає учасником, toId (учасник) — власником.
+ * Спершу старий власник — учасник: частковий унікальний індекс не допускає двох власників навіть на мить.
+ * Не влучило рівно в два рядки — TransferConflict.
+ */
+export async function swapOwner(tx: Tx, groupId: string, fromId: string, toId: string): Promise<void> {
+  const demoted = await tx
+    .update(groupMember)
+    .set({ role: 'member' })
+    .where(and(eq(groupMember.groupId, groupId), eq(groupMember.userId, fromId), eq(groupMember.role, 'owner')))
+    .returning({ userId: groupMember.userId });
+  const promoted = await tx
+    .update(groupMember)
+    .set({ role: 'owner' })
+    .where(and(eq(groupMember.groupId, groupId), eq(groupMember.userId, toId), eq(groupMember.role, 'member')))
+    .returning({ userId: groupMember.userId });
+  if (demoted.length !== 1 || promoted.length !== 1) throw new TransferConflict();
 }
 
 export async function transferOwner(
@@ -291,18 +318,7 @@ export async function transferOwner(
       // Перевірка вже під замком: між перевіркою членства на маршруті й цією мить керування могли передати.
       if ((await roleIn(tx, groupId, fromId)) !== 'owner') return { ok: false, error: 'not_owner' } as const;
       if (fromId === toId || (await roleIn(tx, groupId, toId)) !== 'member') return { ok: false, error: 'member_not_found' } as const;
-      // Спершу старий власник — учасник: частковий унікальний індекс не допускає двох власників навіть на мить.
-      const demoted = await tx
-        .update(groupMember)
-        .set({ role: 'member' })
-        .where(and(eq(groupMember.groupId, groupId), eq(groupMember.userId, fromId), eq(groupMember.role, 'owner')))
-        .returning({ userId: groupMember.userId });
-      const promoted = await tx
-        .update(groupMember)
-        .set({ role: 'owner' })
-        .where(and(eq(groupMember.groupId, groupId), eq(groupMember.userId, toId), eq(groupMember.role, 'member')))
-        .returning({ userId: groupMember.userId });
-      if (demoted.length !== 1 || promoted.length !== 1) throw new TransferConflict();
+      await swapOwner(tx, groupId, fromId, toId);
       return { ok: true } as const;
     });
   } catch (error) {
@@ -310,9 +326,6 @@ export async function transferOwner(
     throw error;
   }
 }
-
-/** Передача керування не влучила рівно в два рядки: транзакцію відкочено. */
-class TransferConflict extends Error {}
 
 export async function removeMember(
   db: Db,
@@ -393,7 +406,7 @@ export async function cancelInvite(db: Db, groupId: string, userId: string): Pro
   await db.delete(groupInvite).where(and(eq(groupInvite.groupId, groupId), eq(groupInvite.userId, userId)));
 }
 
-/** Запрошення до людини — найновіші першими. */
+/** Запрошення до людини — найновіші першими; запрошень у приховану адміністратором групу немає (63). */
 export async function invitesFor(db: Db, userId: string): Promise<GroupInviteCard[]> {
   const rows = await db
     .select({
@@ -407,7 +420,7 @@ export async function invitesFor(db: Db, userId: string): Promise<GroupInviteCar
     .from(groupInvite)
     .innerJoin(familyGroup, eq(familyGroup.id, groupInvite.groupId))
     // Запрошення від заблокованого (бан #23) зникає, як запрошення в гру від такого ведучого.
-    .where(and(eq(groupInvite.userId, userId), sql`(${groupInvite.invitedBy} IS NULL OR ${notHidden(groupInvite.invitedBy)})`))
+    .where(and(eq(groupInvite.userId, userId), groupShown, sql`(${groupInvite.invitedBy} IS NULL OR ${notHidden(groupInvite.invitedBy)})`))
     .orderBy(desc(groupInvite.createdAt), asc(familyGroup.id));
   const cards = await profileCards(db, rows.flatMap((r) => (r.from === null ? [] : [r.from])));
   return rows.map((row) => ({
@@ -417,7 +430,7 @@ export async function invitesFor(db: Db, userId: string): Promise<GroupInviteCar
   }));
 }
 
-/** Вступ будь-яким шляхом: група під FOR UPDATE, межі 30 людей і 10 груп, запрошення цієї людини зникає. */
+/** Вступ будь-яким шляхом: група під FOR UPDATE (прихована — як неіснуюча, 63), межі 30 людей і 10 груп, запрошення цієї людини зникає. */
 async function addMember(
   tx: Tx,
   groupId: string,
@@ -425,7 +438,8 @@ async function addMember(
   now: Date,
 ): Promise<{ ok: true } | Fail<'group_not_found' | 'group_full' | 'too_many_groups'>> {
   await lockPerson(tx, userId);
-  if (!(await lockGroup(tx, groupId))) return { ok: false, error: 'group_not_found' };
+  const [locked] = await tx.select({ hiddenAt: familyGroup.hiddenAt }).from(familyGroup).where(eq(familyGroup.id, groupId)).for('update');
+  if (locked === undefined || locked.hiddenAt !== null) return { ok: false, error: 'group_not_found' };
   if ((await roleIn(tx, groupId, userId)) !== null) return { ok: true };
   if ((await peopleIn(tx, groupId)) >= GROUP_LIMITS.membersMax) return { ok: false, error: 'group_full' };
   if ((await groupsOf(tx, userId)) >= GROUP_LIMITS.groupsPerUser) return { ok: false, error: 'too_many_groups' };
@@ -463,7 +477,7 @@ export async function declineInvite(db: Db, groupId: string, userId: string): Pr
 
 async function groupByCode(db: Db, code: string): Promise<typeof familyGroup.$inferSelect | null> {
   if (!GROUP_CODE.test(code)) return null;
-  const [group] = await db.select().from(familyGroup).where(eq(familyGroup.inviteCode, code));
+  const [group] = await db.select().from(familyGroup).where(and(eq(familyGroup.inviteCode, code), groupShown));
   if (group === undefined || !(await repair(db, group.id))) return null;
   return group;
 }
