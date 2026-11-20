@@ -410,6 +410,27 @@ describe('a new wordle question (48)', () => {
   });
 });
 
+describe('a wordle without hints (61)', () => {
+  const wordleOf = (patch: object) => ({ ...newQuestion('wordle'), word: 'колос', ...patch }) as Question;
+  it('a new wordle and a wordle made from another type have no text', () => {
+    expect(newQuestion('wordle').text).toBe('');
+    expect(changeType({ ...newQuestion('single'), text: 'Що росте в полі?' }, 'wordle').text).toBe('');
+  });
+
+  it('saving clears the old text and hint', () => {
+    const saved = cleanedQuestion(wordleOf({ text: 'Ягода з колючого куща', hint: 'Росте при дорозі' }));
+    expect(saved.text).toBe('');
+    expect(saved).not.toHaveProperty('hint');
+    expect(questionSchema.safeParse(saved).success).toBe(true);
+  });
+
+  it('an empty text is no problem for a wordle, still one for other types', () => {
+    expect(problemsOf(quizWith(wordleOf({ text: '' })))).toEqual([]);
+    expect(problemsOf(quizWith(wordleOf({ text: 'Колос у полі' })))).toEqual([]);
+    expect(problemsOf(quizWith({ ...newQuestion('boolean'), text: '' }))).toContain(t('problemNoText', { index: 1 }));
+  });
+});
+
 describe('changeType', () => {
   it('keeps the question text, time and points', () => {
     const source = { ...newQuestion('single'), text: 'Скільки?', timeLimit: 45, points: 500 };
@@ -3787,11 +3808,11 @@ describe('plan 48 editors: wordle', () => {
   const wordle = (patch: Partial<Extract<Question, { type: 'wordle' }>> = {}) => ({ ...(newQuestion('wordle') as Extract<Question, { type: 'wordle' }>), word: 'колос', ...patch });
   const blitz = (question: Question): Quiz => ({ ...quizWith(question), rounds: [{ ...newBlitzRound(), questions: [question] }] });
 
-  it('is offered in classic rounds only, right after letter words; a new one has the default text and timer', () => {
+  it('is offered in classic rounds only, right after letter words; a new one has no text (61) and the default timer', () => {
     const classic = questionTypesFor('classic');
     expect(classic.indexOf('wordle')).toBe(classic.indexOf('letterwords') + 1);
     for (const type of ['blitz', 'final', 'board', 'bets', 'puzzles'] as const) expect(questionTypesFor(type), type).not.toContain('wordle');
-    expect(newQuestion('wordle')).toMatchObject({ type: 'wordle', text: t('wordleDefaultText'), word: '', timeLimit: LIMITS.defaultWordleTime, points: LIMITS.defaultPoints });
+    expect(newQuestion('wordle')).toMatchObject({ type: 'wordle', text: '', word: '', timeLimit: LIMITS.defaultWordleTime, points: LIMITS.defaultPoints });
   });
 
   it('a good word passes; outside a classic round it does not', () => {
@@ -3809,12 +3830,9 @@ describe('plan 48 editors: wordle', () => {
     expect(wrong).toContain(`${LIMITS.minWordleLetters}`);
   });
 
-  it('a text that gives the word away is a problem', () => {
-    expect(problemsOf(quizWith(wordle({ text: 'Це колос' })))).toEqual([t('problemWordleLeak', { index: 1 })]);
-    expect(problemsOf(quizWith(wordle({ text: 'Це колосок' })))).toEqual([]);
-    // Те саме правило, що схеми: слово без апострофа чи з іншим апострофом — теж витік.
-    expect(problemsOf(quizWith(wordle({ word: "пір'я", text: 'Це пірря' })))).toEqual([t('problemWordleLeak', { index: 1 })]);
-    expect(problemsOf(quizWith(wordle({ word: "пір'я", text: 'Це пір’я' })))).toEqual([t('problemWordleLeak', { index: 1 })]);
+  it('an old text that gives the word away is cleared on saving (61), so it is no problem', () => {
+    expect(problemsOf(quizWith(wordle({ text: 'Це колос' })))).toEqual([]);
+    expect(problemsOf(quizWith(wordle({ word: "пір'я", text: 'Це пірря' })))).toEqual([]);
   });
 
   it('cleaning drops a video, so it never blocks saving', () => {
@@ -3823,9 +3841,9 @@ describe('plan 48 editors: wordle', () => {
     expect(clean.video).toBeNull();
   });
 
-  it('changing the type keeps the text; cleaning trims the word; a draft drops a bad word and a video', () => {
+  it('changing the type drops the text (61); cleaning trims the word; a draft drops a bad word and a video', () => {
     const text = { ...newQuestion('text'), text: 'Назвіть слово' } as Question;
-    expect(changeType(text, 'wordle')).toMatchObject({ type: 'wordle', text: 'Назвіть слово', word: '' });
+    expect(changeType(text, 'wordle')).toMatchObject({ type: 'wordle', text: '', word: '' });
     const clean = roundQuestions(cleaned(quizWith(wordle({ word: '  колос ' }))).rounds[0])[0] as Extract<Question, { type: 'wordle' }>;
     expect(clean.word).toBe('колос');
     const stored = (id: string, question: unknown) => {

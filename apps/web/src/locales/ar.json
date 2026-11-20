@@ -4892,7 +4892,6 @@
   "problemWordleLeak": "السؤال {index}: النص يكشف الكلمة",
   "problemWordlePlace": "السؤال {index}: «خمّن الكلمة» يعمل في الجولة الكلاسيكية فقط",
   "problemWordleVideo": "السؤال {index}: بلا فيديو — يحتاج اللاعبون إلى مؤقّت",
-  "wordleDefaultText": "خمّنوا الكلمة",
   "wordleWord": "الكلمة",
   "wordleWordHint": "اسم بصيغة المفرد المرفوع، من 4–7 حروف.",
   "wordleUnknown": "غير موجودة في القاموس: {word}. لن تُحفظ هذه الكلمة.",

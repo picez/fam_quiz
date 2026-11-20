@@ -4704,7 +4704,6 @@
   "problemWordleLeak": "Pytanie {index}: tekst zdradza słowo",
   "problemWordlePlace": "Pytanie {index}: „Zgadnij słowo” działa tylko w rundzie klasycznej",
   "problemWordleVideo": "Pytanie {index}: bez wideo — gracze potrzebują timera",
-  "wordleDefaultText": "Zgadnij słowo",
   "wordleWord": "Słowo",
   "wordleWordHint": "Rzeczownik w mianowniku liczby pojedynczej, 4–7 liter.",
   "wordleUnknown": "Brak w słowniku: {word}. Takie słowo nie zostanie zapisane.",

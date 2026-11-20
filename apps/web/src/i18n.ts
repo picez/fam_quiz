@@ -4490,7 +4490,6 @@ const uk = {
   problemWordleLeak: 'Запитання {index}: текст видає слово',
   problemWordlePlace: 'Запитання {index}: „Вгадай слово“ — лише в класичному раунді',
   problemWordleVideo: 'Запитання {index}: без відео — гравцям потрібен таймер',
-  wordleDefaultText: 'Вгадайте слово',
   wordleWord: 'Слово',
   wordleWordHint: 'Іменник у називному відмінку однини, 4–7 літер.',
   wordleUnknown: 'Немає в словнику: {word}. Таке слово не збережеться.',

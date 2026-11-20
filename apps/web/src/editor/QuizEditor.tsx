@@ -1,5 +1,6 @@
 import { LIMITS, allowedBuffs, questionsOf, roundQuestions, roundTrials, type Question, type QuestionBankItem, type Quiz, type QuizLikes, type Round } from '@quiz/shared';
 import { useEffect, useRef, useState } from 'react';
+import { questionName } from '../format';
 import { t } from '../i18n';
 import {
   booleanCounts,
@@ -453,7 +454,9 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
 
               <ol className={listOpen ? 'question-list is-open' : 'question-list'}>
                 {questions.map((question, index) => {
-                  const text = question.text.trim() === '' ? t('untitled') : question.text;
+                  // 61: «Вгадай слово» без тексту зветься словом («Вгадай слово: ОЖИНА»), поки слова немає — типом.
+                  const name = question.type === 'wordle' ? (question.word.trim() === '' ? t('type_wordle') : questionName(question)) : question.text;
+                  const text = name.trim() === '' ? t('untitled') : name;
                   return (
                     <li
                       key={question.id}

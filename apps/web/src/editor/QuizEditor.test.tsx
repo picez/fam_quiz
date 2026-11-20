@@ -3547,3 +3547,19 @@ describe('RoundSettings: truth preset fakes (52)', () => {
     expect(onChange).toHaveBeenCalledWith({ ...base, fakes: ['а', 'в'] });
   });
 });
+
+describe('QuizEditor wordle without hints (61)', () => {
+  it('the list names a wordle by its word and saving drops its old text and hint', async () => {
+    const wordle = { ...newQuestion('wordle'), text: 'Ягода з колючого куща', hint: 'Росте при дорозі', word: 'ожина' } as Question;
+    const quiz: Quiz = { ...newQuiz(), title: 'Гра', rounds: [{ ...newClassicRound(), questions: [wordle] }] };
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ unknown: [] }), { status: 200, headers: { 'content-type': 'application/json' } })));
+    const { onSave } = open(quiz);
+    expect(document.querySelector('.question-list li')?.textContent).toContain('Вгадай слово: ОЖИНА');
+    expect(screen.queryByDisplayValue('Ягода з колючого куща')).toBeNull();
+    click('Зберегти');
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+    const kept = roundQuestions(saved(onSave).rounds[0])[0];
+    expect(kept).toMatchObject({ type: 'wordle', text: '', word: 'ожина' });
+    expect(kept).not.toHaveProperty('hint');
+  });
+});

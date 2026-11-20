@@ -4620,7 +4620,6 @@
   "problemWordleLeak": "Question {index}: the text gives the word away",
   "problemWordlePlace": "Question {index}: “Guess the word” works only in a classic round",
   "problemWordleVideo": "Question {index}: no video — players need a timer",
-  "wordleDefaultText": "Guess the word",
   "wordleWord": "Word",
   "wordleWordHint": "A noun in the nominative singular, 4–7 letters.",
   "wordleUnknown": "Not in the dictionary: {word}. Such a word will not be saved.",

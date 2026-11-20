@@ -974,6 +974,8 @@ export function QuestionEditor({ question, onChange, types, showPoints = true, s
             }}
           />
         )}
+        {/* 61: у «Вгадай слово» лише слово — тексту запитання немає. */}
+        {question.type !== 'wordle' && (
         <label className="field question-field">
           <span>{t('questionText')}</span>
           <textarea
@@ -984,6 +986,7 @@ export function QuestionEditor({ question, onChange, types, showPoints = true, s
             onChange={(event) => onChange({ ...question, text: event.target.value })}
           />
         </label>
+        )}
         {betsCut && <BetsCutField text={question.text} cut={question.betsCut} phase={betsCut === 'auction' ? 'auction' : 'bets'} onChange={(cut) => onChange({ ...question, betsCut: cut })} />}
         {/* Підказка — для бафів; у «Більше чи менше», «Малюнку» й головоломках бафів немає. */}
         {showHint && question.type !== 'think' && question.type !== 'thinkalike' && question.type !== 'spy' && question.type !== 'wordle' && question.type !== 'moreless' && question.type !== 'drawing' && question.type !== 'melody' && question.type !== 'videoclip' && question.type !== 'jigsaw' && question.type !== 'spotdiff' && question.type !== 'memory' && !isPuzzle(question) && (

@@ -129,4 +129,11 @@ describe('QuestionEditor wordle (48)', () => {
     expect(screen.queryByRole('group', { name: t('revealLabel') })).toBeNull();
     expect(screen.getByText(t('addImage'))).toBeTruthy();
   });
+
+  it('61: wordle has no question text field, only the word', () => {
+    render(<QuestionEditor question={{ ...newQuestion('wordle'), text: 'Ягода з колючого куща' }} onChange={vi.fn()} types={questionTypesFor('classic')} />);
+    expect(screen.queryByLabelText(t('questionText'))).toBeNull();
+    expect(screen.queryByDisplayValue('Ягода з колючого куща')).toBeNull();
+    expect(screen.getByLabelText(t('wordleWord'))).toBeTruthy();
+  });
 });
