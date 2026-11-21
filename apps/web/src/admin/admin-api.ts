@@ -1,7 +1,7 @@
 import { isObjectLike } from '@quiz/shared';
 import type { AdminBroadcast, AdminBroadcasts, BroadcastInput, BroadcastPreview, BroadcastRecipients } from '@quiz/shared';
 import type { AdminBackups, AdminProblemReport, AdminProblemsBadge, AdminServerError } from '@quiz/shared';
-import type { AchievementId, AdminBot, AdminBotLobby, AdminBotPerson, AdminBotPlan, BotCommand, BotPlanInput, GameDetail, GameReplay } from '@quiz/shared';
+import type { AchievementId, AdminBot, AdminRevokeManyResult, AdminBotLobby, AdminBotPerson, AdminBotPlan, BotCommand, BotPlanInput, GameDetail, GameReplay } from '@quiz/shared';
 import type { Announcement, AnnouncementInput, AdminCharts, AdminHealth, AdminLiveList, AdminList, AdminReportItem, AdminLogExport, AdminLogGroup, AdminLogPage, AdminQuizCheck, AdminQuizRow, AdminQuizView, AdminStats, AdminUserDetail, AdminUserRow } from '@quiz/shared';
 import type { AccountMergePreview, MergeSummary } from '@quiz/shared';
 import type { AdminFeedKind, AdminFeedRow, AdminGroupDetail, AdminGroupRow } from '@quiz/shared';
@@ -86,8 +86,9 @@ export const searchBotPeople = (q: string): Promise<ApiData<AdminBotPerson[]>> =
 /** Картка гравця (58): досягнення, ручний досвід, подарунок, видалення акаунта, адмінський перегляд будь-якої гри. */
 export const grantAchievement = (userId: string, achievementId: AchievementId): Promise<ApiResult<object>> =>
   request<object>(`/api/admin/users/${id(userId)}/achievements`, { method: 'POST', body: { achievementId } });
-export const revokeAchievement = (userId: string, achievementId: AchievementId): Promise<ApiResult<object>> =>
-  request<object>(`/api/admin/users/${id(userId)}/achievements/${id(achievementId)}`, { method: 'DELETE' });
+/** 69: «Відібрати вибрані» — один запит на кілька досягнень. */
+export const revokeAchievements = (userId: string, achievementIds: AchievementId[]): Promise<ApiResult<AdminRevokeManyResult>> =>
+  request<AdminRevokeManyResult>(`/api/admin/users/${id(userId)}/achievements/revoke`, { method: 'POST', body: { achievementIds } });
 export const adjustXp = (userId: string, amount: number, reason: string): Promise<ApiResult<{ xp: number; level: number }>> =>
   request<{ xp: number; level: number }>(`/api/admin/users/${id(userId)}/xp`, { method: 'POST', body: { amount, reason } });
 export const giftPrize = (userId: string, prizeId: string, note: string | null): Promise<ApiResult<{ id: string }>> =>

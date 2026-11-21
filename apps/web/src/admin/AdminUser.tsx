@@ -1,10 +1,11 @@
 import { useState, type JSX } from 'react';
 import { Link, Navigate, useParams } from 'react-router-dom';
-import type { AdminUserDetail } from '@quiz/shared';
+import type { AdminUserDetail, AdminUserRow } from '@quiz/shared';
 import type { ApiResult } from '../api';
+import { formatDate } from '../format';
 import { errorText, t } from '../i18n';
+import { nickText } from '../nick';
 import { adminUser } from './admin-api';
-import { UserCard } from './AdminUsers';
 import { useAdminData } from './useAdminData';
 import { CardAchievements } from './card/CardAchievements';
 import { CardDelete } from './card/CardDelete';
@@ -47,7 +48,21 @@ export function AdminUser(): JSX.Element {
       </>
     );
   }
-  return <UserView detail={state.data} reload={state.reload} stale={state.stale === true} />;
+  return <UserView key={state.data.user.id} detail={state.data} reload={state.reload} stale={state.stale === true} />;
+}
+
+/** 69: шапка картки — нік, email і позначки; решта (реєстрація, ігри, вікторини) — в «Огляді». */
+function CardHead({ user }: { user: AdminUserRow }): JSX.Element {
+  return (
+    <header className="admin-user-head">
+      <h2>{nickText(user.nickname)}</h2>
+      <p className="meta" dir="ltr">
+        {user.email}
+      </p>
+      {user.admin && <p className="admin-mark">{t('adminIsAdmin')}</p>}
+      {user.banned !== null && <p className="admin-mark is-banned">{t('adminBanned', { date: formatDate(user.banned.at) })}</p>}
+    </header>
+  );
 }
 
 /** Помилки дії, після яких картка застаріла, а не зникла: перечитати. */
@@ -69,7 +84,8 @@ function UserView({ detail, reload, stale }: { detail: AdminUserDetail; reload: 
     }
     if (result.error === 'not_found') setGone(true);
     else report(errorText(result.error));
-    if (STALE_ERRORS.has(result.error)) reload();
+    // Масова дія зупинилась на помилці, зробивши частину: картка застаріла, перечитуємо.
+    if (STALE_ERRORS.has(result.error) || ((result as { done?: number }).done ?? 0) > 0) reload();
     return false;
   };
 
@@ -85,9 +101,7 @@ function UserView({ detail, reload, stale }: { detail: AdminUserDetail; reload: 
           {t('adminLiveStale')}
         </p>
       )}
-      <ul className="admin-list">
-        <UserCard row={detail.user} link={false} />
-      </ul>
+      <CardHead user={detail.user} />
       <CardOverview detail={detail} />
       <CardAchievements {...props} />
       <CardXp {...props} />

@@ -5,6 +5,7 @@ import { t } from '../../i18n';
 import { nickText } from '../../nick';
 import { adjustXp } from '../admin-api';
 import type { CardProps } from '../AdminUser';
+import { CardFold } from './CardFold';
 
 /** Ціле від −ADMIN_XP_MAX до ADMIN_XP_MAX, не 0; інакше null (кнопка неактивна). */
 function amountOf(draft: string): number | null {
@@ -42,8 +43,7 @@ export function CardXp({ detail, act, busy }: CardProps): JSX.Element {
   };
 
   return (
-    <section className="panel admin-card-section">
-      <h2>{t('adminCardXp')}</h2>
+    <CardFold title={t('adminCardXp')} count={card.xp.length}>
       {card.xp.length > 0 && (
         <ul className="admin-card-lines">
           {card.xp.map((line) => (
@@ -72,6 +72,6 @@ export function CardXp({ detail, act, busy }: CardProps): JSX.Element {
       <p className="meta admin-card-line" role="status">
         {notice}
       </p>
-    </section>
+    </CardFold>
   );
 }

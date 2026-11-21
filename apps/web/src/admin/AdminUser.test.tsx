@@ -87,7 +87,43 @@ const open = () =>
 
 const section = async (name: string) => (await screen.findByRole('heading', { name })).closest('section') as HTMLElement;
 
+/** Розділ розгорнуто (jsdom може не перемикати details від кліку — підстраховуємось). */
+const opened = async (name: string) => {
+  const box = await section(name);
+  const details = box.querySelector('details')!;
+  if (!details.open) fireEvent.click(details.querySelector('summary')!);
+  details.open = true;
+  return box;
+};
+
 describe('AdminUser: the player card (58)', () => {
+  it('every section folds; only the overview starts open; counts in summaries (69)', async () => {
+    open();
+    const names = ['Огляд', 'Досягнення', 'Досвід', 'Останні ігри', 'Вікторини', 'Бани', 'Модерація', 'Призи', "Об'єднати з іншим акаунтом"];
+    for (const name of names) {
+      const box = await section(name);
+      expect(box.querySelector('details.admin-fold'), name).toBeTruthy();
+      expect(box.querySelector('details')!.open, name).toBe(name === 'Огляд');
+    }
+    const countOf = async (name: string) => (await section(name)).querySelector('summary .admin-fold-count')?.textContent;
+    expect(await countOf('Досягнення')).toBe(String(current.card.achievements.length));
+    expect(await countOf('Останні ігри')).toBe(String(current.card.games.length));
+    expect(await countOf('Призи')).toBe(String(current.stock.length + current.awards.length));
+    expect((await section('Досягнення')).querySelector('summary')!.textContent).toContain('забрано: 1');
+    expect(await section('Видалити акаунт')).toBeTruthy();
+  });
+
+  it('an open section stays open after the card is reread (69)', async () => {
+    reply = (call) => (call.method === 'POST' && call.url === '/api/admin/users/u2/xp' ? { status: 200, data: { xp: 400, level: 3 } } : undefined);
+    open();
+    const box = await opened('Досвід');
+    fireEvent.change(within(box).getByLabelText('Зміна (від’ємне число — відняти)'), { target: { value: '100' } });
+    fireEvent.change(within(box).getByLabelText('Причина (обов’язково)'), { target: { value: 'Турнір' } });
+    fireEvent.click(within(box).getByRole('button', { name: 'Додати / відняти досвід' }));
+    await waitFor(() => expect(sent('GET', '/api/admin/users/u2')).toHaveLength(2));
+    expect((await section('Досвід')).querySelector('details')!.open).toBe(true);
+  });
+
   it('shows the overview', async () => {
     open();
     const overview = await section('Огляд');
@@ -106,9 +142,9 @@ describe('AdminUser: the player card (58)', () => {
     expect(await screen.findByText('Після реєстрації ще не заходив(-ла)')).toBeTruthy();
   });
 
-  it('grants an achievement from the missing ones and revokes with a confirm', async () => {
+  it('grants an achievement from the missing ones', async () => {
     open();
-    const box = await section('Досягнення');
+    const box = await opened('Досягнення');
     expect(within(box).getByText('Перша гра')).toBeTruthy();
     expect(within(box).getByText(/Забрано адміністратором/)).toBeTruthy();
     const pick = within(box).getByLabelText('Оберіть досягнення') as HTMLSelectElement;
@@ -123,24 +159,58 @@ describe('AdminUser: the player card (58)', () => {
     await waitFor(() => expect(sent('POST', '/api/admin/users/u2/achievements')).toHaveLength(1));
     expect(sent('POST', '/api/admin/users/u2/achievements')[0]!.body).toEqual({ achievementId: 'first_win' });
     await waitFor(() => expect(sent('GET', '/api/admin/users/u2')).toHaveLength(2));
+  });
 
-    fireEvent.click(within(box).getByRole('button', { name: 'Відібрати' }));
-    expect(window.confirm).toHaveBeenLastCalledWith('Забрати досягнення «Перша гра» у Оля? Досвід за нього теж зникне.');
-    await waitFor(() => expect(sent('DELETE', '/api/admin/users/u2/achievements/first_game')).toHaveLength(1));
+  it('picks achievements and revokes them with one confirm and one request (69)', async () => {
+    current = detail({ card: card({ achievements: [{ id: 'first_game', earnedAt: '2026-09-02T10:00:00.000Z' }, { id: 'first_win', earnedAt: null }], blocked: [] }) });
+    reply = (call) => (call.method === 'POST' && call.url === '/api/admin/users/u2/achievements/revoke' ? { status: 200, data: { revoked: ['first_game'], notOwned: [] } } : undefined);
+    open();
+    const box = await opened('Досягнення');
+    expect(within(box).queryByRole('button', { name: 'Відібрати' })).toBeNull();
+    const revoke = within(box).getByRole('button', { name: 'Відібрати вибрані' }) as HTMLButtonElement;
+    expect(revoke.disabled).toBe(true);
+    const all = within(box).getByRole('checkbox', { name: 'Вибрати всі' }) as HTMLInputElement;
+    fireEvent.click(within(box).getByRole('checkbox', { name: 'Перша гра' }));
+    expect(revoke.disabled).toBe(false);
+    expect(all.indeterminate).toBe(true);
+    fireEvent.click(all);
+    expect(all.checked).toBe(true);
+    expect(all.indeterminate).toBe(false);
+    fireEvent.click(all);
+    expect((within(box).getByRole('checkbox', { name: 'Перша гра' }) as HTMLInputElement).checked).toBe(false);
+    fireEvent.click(within(box).getByRole('checkbox', { name: 'Перша гра' }));
+    fireEvent.click(revoke);
+    expect(window.confirm).toHaveBeenLastCalledWith('Забрати в Оля досягнення (1): Перша гра? Досвід за них теж зникне.');
+    await waitFor(() => expect(sent('POST', '/api/admin/users/u2/achievements/revoke')).toHaveLength(1));
+    expect(sent('POST', '/api/admin/users/u2/achievements/revoke')[0]!.body).toEqual({ achievementIds: ['first_game'] });
+    await waitFor(() => expect(sent('GET', '/api/admin/users/u2')).toHaveLength(2));
+  });
+
+  it('says how many were revoked when some were already taken (69)', async () => {
+    current = detail({ card: card({ achievements: [{ id: 'first_game', earnedAt: null }, { id: 'first_win', earnedAt: null }], blocked: [] }) });
+    reply = (call) => (call.method === 'POST' && call.url === '/api/admin/users/u2/achievements/revoke' ? { status: 200, data: { revoked: ['first_game'], notOwned: ['first_win'] } } : undefined);
+    open();
+    const box = await opened('Досягнення');
+    fireEvent.click(within(box).getByRole('checkbox', { name: 'Вибрати всі' }));
+    fireEvent.click(within(box).getByRole('button', { name: 'Відібрати вибрані' }));
+    expect(await within(box).findByText('Відібрано 1 з 2; решту вже забрали — картку оновлено.')).toBeTruthy();
+    expect(sent('POST', '/api/admin/users/u2/achievements/revoke')[0]!.body).toEqual({ achievementIds: ['first_game', 'first_win'] });
   });
 
   it('a declined confirm sends nothing', async () => {
     vi.mocked(window.confirm).mockReturnValue(false);
     open();
-    const box = await section('Досягнення');
-    fireEvent.click(within(box).getByRole('button', { name: 'Відібрати' }));
+    const box = await opened('Досягнення');
+    fireEvent.click(within(box).getByRole('checkbox', { name: 'Перша гра' }));
+    fireEvent.click(within(box).getByRole('button', { name: 'Відібрати вибрані' }));
+    expect(window.confirm).toHaveBeenCalled();
     expect(calls.filter((call) => call.method !== 'GET')).toEqual([]);
   });
 
   it('manual xp needs a reason', async () => {
     reply = (call) => (call.method === 'POST' && call.url === '/api/admin/users/u2/xp' ? { status: 409, data: { error: 'xp_below_zero' } } : undefined);
     open();
-    const box = await section('Досвід');
+    const box = await opened('Досвід');
     expect(within(box).getByText(/За турнір/)).toBeTruthy();
     const alert = within(box).getByRole('alert');
     expect(alert.textContent).toBe('');
@@ -166,7 +236,7 @@ describe('AdminUser: the player card (58)', () => {
   it('manual xp tells the new level and rereads the card', async () => {
     reply = (call) => (call.method === 'POST' && call.url === '/api/admin/users/u2/xp' ? { status: 200, data: { xp: 400, level: 3 } } : undefined);
     open();
-    const box = await section('Досвід');
+    const box = await opened('Досвід');
     const status = within(box).getByRole('status');
     expect(status.textContent).toBe('');
     fireEvent.change(within(box).getByLabelText('Зміна (від’ємне число — відняти)'), { target: { value: '100' } });
@@ -219,7 +289,7 @@ describe('AdminUser: the player card (58)', () => {
 
   it('gifts one of my prizes with a note and revokes a gift', async () => {
     open();
-    const box = await section('Призи');
+    const box = await opened('Призи');
     expect(within(box).getByRole('link', { name: 'Створити новий приз' }).getAttribute('href')).toBe('/profile/prizes/new?back=/admin/users/u2');
     const pick = (await within(box).findByLabelText('Оберіть приз зі свого складу')) as HTMLSelectElement;
     await waitFor(() => expect(Array.from(pick.options).map((option) => option.textContent)).toEqual(expect.arrayContaining(['Медаль', 'Грамота'])));
@@ -232,18 +302,55 @@ describe('AdminUser: the player card (58)', () => {
     await waitFor(() => expect(sent('POST', '/api/admin/users/u2/gifts')).toHaveLength(1));
     expect(sent('POST', '/api/admin/users/u2/gifts')[0]!.body).toEqual({ prizeId: mine[0]!.id, note: 'З днем народження' });
 
-    expect(within(box).getByText(/^Подарунок від адміністратора · /)).toBeTruthy();
-    expect(within(box).getByText('Дякую')).toBeTruthy();
-    expect(within(box).getAllByRole('button', { name: 'Забрати подарунок' })).toHaveLength(1);
-    fireEvent.click(within(box).getByRole('button', { name: 'Забрати подарунок' }));
-    expect(window.confirm).toHaveBeenLastCalledWith('Забрати подарунок «Зірка» у Оля?');
+    expect(within(box).getByText(/^Подарунок від адміністратора · .* · Дякую$/)).toBeTruthy();
+    fireEvent.click(within(box).getByRole('checkbox', { name: 'Зірка' }));
+    fireEvent.click(within(box).getByRole('button', { name: 'Прибрати вибрані' }));
+    expect(window.confirm).toHaveBeenLastCalledWith('Прибрати з вітрини Оля (1): Зірка? Скасувати не можна.');
     await waitFor(() => expect(sent('DELETE', '/api/admin/gifts/a2')).toHaveLength(1));
+  });
+
+  it('removes a gift and a game award from the showcase with one confirm (69)', async () => {
+    open();
+    const box = await opened('Призи');
+    const confirms = vi.mocked(window.confirm).mock.calls.length;
+    fireEvent.click(within(box).getByRole('checkbox', { name: 'Вибрати всі' }));
+    const remove = within(box).getByRole('button', { name: 'Прибрати вибрані' });
+    fireEvent.click(remove);
+    expect(vi.mocked(window.confirm).mock.calls.length).toBe(confirms + 1);
+    await waitFor(() => expect(sent('DELETE', '/api/admin/gifts/a2')).toHaveLength(1));
+    await waitFor(() => expect(sent('DELETE', '/api/admin/awards/a1')).toHaveLength(1));
+  });
+
+  it('a gift already gone and an award deleted: «Зроблено 1 з 2», the card is reread, not sent home (69)', async () => {
+    reply = (call) => (call.method === 'DELETE' && call.url === '/api/admin/gifts/a2' ? { status: 404, data: { error: 'gift_not_found' } } : undefined);
+    open();
+    const box = await opened('Призи');
+    fireEvent.click(within(box).getByRole('checkbox', { name: 'Вибрати всі' }));
+    fireEvent.click(within(box).getByRole('button', { name: 'Прибрати вибрані' }));
+    expect(await within(box).findByText('Зроблено 1 з 2; решти вже не було — картку оновлено.')).toBeTruthy();
+    expect(sent('DELETE', '/api/admin/awards/a1')).toHaveLength(1);
+    await waitFor(() => expect(sent('GET', '/api/admin/users/u2')).toHaveLength(2));
+    expect(screen.queryByText('головна')).toBeNull();
+  });
+
+  it('a bulk delete that fails halfway shows the error and rereads the card (69)', async () => {
+    const at = '2026-10-02T10:00:00.000Z';
+    current = detail({ stock: [{ id: 'p1', content: { ...content, name: 'Перший' }, status: 'free', createdAt: at }, { id: 'p2', content: { ...content, name: 'Другий' }, status: 'free', createdAt: at }] });
+    reply = (call) => (call.method === 'DELETE' && call.url === '/api/admin/prizes/p2' ? { status: 500, data: { error: 'internal' } } : undefined);
+    open();
+    const box = await opened('Призи');
+    fireEvent.click(within(box).getAllByRole('checkbox', { name: 'Вибрати всі' })[0]!);
+    fireEvent.click(within(box).getByRole('button', { name: 'Видалити вибрані' }));
+    await waitFor(() => expect(sent('DELETE', '/api/admin/prizes/p2')).toHaveLength(1));
+    expect(sent('DELETE', '/api/admin/prizes/p1')).toHaveLength(1);
+    await waitFor(() => expect(within(box).getAllByRole('alert').some((alert) => (alert.textContent ?? '') !== '')).toBe(true));
+    await waitFor(() => expect(sent('GET', '/api/admin/users/u2')).toHaveLength(2));
   });
 
   it('a gift without a note sends null', async () => {
     reply = (call) => (call.method === 'POST' && call.url === '/api/admin/users/u2/gifts' ? { status: 201, data: { id: 'a9' } } : undefined);
     open();
-    const box = await section('Призи');
+    const box = await opened('Призи');
     const pick = (await within(box).findByLabelText('Оберіть приз зі свого складу')) as HTMLSelectElement;
     await waitFor(() => expect(pick.options.length).toBeGreaterThan(1));
     fireEvent.change(pick, { target: { value: mine[1]!.id } });
@@ -254,7 +361,7 @@ describe('AdminUser: the player card (58)', () => {
 
   it('deleting needs the exact nickname', async () => {
     open();
-    const box = await section('Видалити акаунт');
+    const box = await opened('Видалити акаунт');
     const remove = within(box).getByRole('button', { name: 'Видалити акаунт' }) as HTMLButtonElement;
     const typed = within(box).getByLabelText('Введіть нік «Оля», щоб підтвердити');
     expect(remove.disabled).toBe(true);
@@ -273,7 +380,7 @@ describe('AdminUser: the player card (58)', () => {
     current = detail({ user: row({ nickname: null }) });
     reply = (call) => (call.method === 'DELETE' && call.url === '/api/admin/users/u2' ? { status: 400, data: { error: 'confirm_mismatch' } } : undefined);
     open();
-    const box = await section('Видалити акаунт');
+    const box = await opened('Видалити акаунт');
     fireEvent.change(within(box).getByLabelText('Введіть нік «olya@example.com», щоб підтвердити'), { target: { value: 'olya@example.com' } });
     fireEvent.click(within(box).getByRole('button', { name: 'Видалити акаунт' }));
     await waitFor(() => expect(within(box).getByRole('alert').textContent).toBe('Нік не збігається — акаунт не видалено.'));
@@ -282,19 +389,21 @@ describe('AdminUser: the player card (58)', () => {
 
   it('an achievement or gift already taken in another tab keeps the card, says so and rereads it', async () => {
     reply = (call) =>
-      call.method === 'DELETE' && call.url === '/api/admin/users/u2/achievements/first_game'
+      call.method === 'POST' && call.url === '/api/admin/users/u2/achievements/revoke'
         ? { status: 404, data: { error: 'achievement_not_owned' } }
         : call.method === 'DELETE' && call.url === '/api/admin/gifts/a2'
           ? { status: 404, data: { error: 'gift_not_found' } }
           : undefined;
     open();
-    const box = await section('Досягнення');
-    fireEvent.click(within(box).getByRole('button', { name: 'Відібрати' }));
+    const box = await opened('Досягнення');
+    fireEvent.click(within(box).getByRole('checkbox', { name: 'Перша гра' }));
+    fireEvent.click(within(box).getByRole('button', { name: 'Відібрати вибрані' }));
     expect(await within(box).findByText('Цього досягнення в гравця вже немає — картку оновлено.')).toBeTruthy();
     await waitFor(() => expect(sent('GET', '/api/admin/users/u2')).toHaveLength(2));
-    const prizes = await section('Призи');
-    fireEvent.click(within(prizes).getByRole('button', { name: 'Забрати подарунок' }));
-    expect(await within(prizes).findByText('Цього подарунка вже немає — картку оновлено.')).toBeTruthy();
+    const prizes = await opened('Призи');
+    fireEvent.click(within(prizes).getByRole('checkbox', { name: 'Зірка' }));
+    fireEvent.click(within(prizes).getByRole('button', { name: 'Прибрати вибрані' }));
+    expect(await within(prizes).findByText('Зроблено 0 з 1; решти вже не було — картку оновлено.')).toBeTruthy();
     await waitFor(() => expect(sent('GET', '/api/admin/users/u2')).toHaveLength(3));
     expect(screen.queryByText('головна')).toBeNull();
   });
@@ -307,16 +416,23 @@ describe('AdminUser: the player card (58)', () => {
       return reads === 1 ? { status: 200, data: current } : { status: 500, data: { error: 'internal' } };
     };
     open();
-    const box = await section('Досягнення');
+    const box = await opened('Досягнення');
     expect(screen.queryByText('Не вдалося оновити; показано останні дані.')).toBeNull();
-    fireEvent.click(within(box).getByRole('button', { name: 'Відібрати' }));
+    fireEvent.click(within(box).getByRole('checkbox', { name: 'Перша гра' }));
+    reply = (call) => {
+      if (call.method === 'POST') return { status: 200, data: { revoked: ['first_game'], notOwned: [] } };
+      if (call.method !== 'GET' || call.url !== '/api/admin/users/u2') return undefined;
+      reads += 1;
+      return reads === 1 ? { status: 200, data: current } : { status: 500, data: { error: 'internal' } };
+    };
+    fireEvent.click(within(box).getByRole('button', { name: 'Відібрати вибрані' }));
     expect((await screen.findByText('Не вдалося оновити; показано останні дані.')).getAttribute('role')).toBe('status');
   });
 
   it('a balancing xp line is named in the interface language, not by the server', async () => {
     current = detail({ card: card({ xp: [{ id: 'x2', amount: 80, note: '', at: '2026-10-12T10:00:00.000Z', balance: true }] }) });
     open();
-    const box = await section('Досвід');
+    const box = await opened('Досвід');
     expect(within(box).getByText('Вирівнювання до нуля після зняття досягнення')).toBeTruthy();
   });
 });

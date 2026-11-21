@@ -193,6 +193,45 @@ describe('the card routes', () => {
     expect((await call('POST', `/api/admin/users/${BOT_USER_ID}/xp`, { amount: 5, reason: 'x' })).statusCode).toBe(404);
   });
 
+  it('revokes several achievements in one request, each logged', async () => {
+    const target = await person('Дарина');
+    const base = `/api/admin/users/${target.id}`;
+    const url = `${base}/achievements/revoke`;
+    await call('POST', `${base}/achievements`, { achievementId: 'first_game' });
+    await call('POST', `${base}/achievements`, { achievementId: 'first_win' });
+
+    let before = await logCount();
+    const both = await call('POST', url, { achievementIds: ['first_game', 'first_win'] });
+    expect(both.statusCode).toBe(200);
+    expect(both.json()).toEqual({ revoked: ['first_game', 'first_win'], notOwned: [] });
+    expect(await logCount()).toBe(before + 2);
+    expect((await lastLog()).kind).toBe('achievement_revoke');
+    const { card } = (await call('GET', base)).json() as AdminUserDetail;
+    expect(card.blocked).toEqual(expect.arrayContaining(['first_game', 'first_win']));
+    expect(card.achievements.map((a) => a.id)).not.toContain('first_game');
+    expect(card.achievements.map((a) => a.id)).not.toContain('first_win');
+
+    // Одне вже забране (друга вкладка) — решта відбирається, забране в notOwned.
+    await call('POST', `${base}/achievements`, { achievementId: 'first_game' });
+    before = await logCount();
+    const part = await call('POST', url, { achievementIds: ['first_game', 'first_win'] });
+    expect(part.statusCode).toBe(200);
+    expect(part.json()).toEqual({ revoked: ['first_game'], notOwned: ['first_win'] });
+    expect(await logCount()).toBe(before + 1);
+
+    const none = await call('POST', url, { achievementIds: ['first_game'] });
+    expect(none.statusCode).toBe(404);
+    expect(none.json()).toEqual({ error: 'achievement_not_owned' });
+
+    expect((await call('POST', '/api/admin/users/nobody/achievements/revoke', { achievementIds: ['first_game'] })).json()).toEqual({ error: 'not_found' });
+    expect((await call('POST', url, { achievementIds: [] })).statusCode).toBe(400);
+    expect((await call('POST', url, { achievementIds: ['nope'] })).statusCode).toBe(400);
+    expect((await call('POST', url, { achievementIds: ['first_game', 'first_game'] })).statusCode).toBe(400);
+    expect((await call('POST', url, { achievementIds: ['first_game'], extra: 1 })).statusCode).toBe(400);
+    expect((await callOn(ctx.app, 'POST', url, other.cookie, { achievementIds: ['first_game'] })).statusCode).toBe(404);
+    expect((await call('POST', `/api/admin/users/${BOT_USER_ID}/achievements/revoke`, { achievementIds: ['first_game'] })).statusCode).toBe(404);
+  });
+
   it('deleting needs the exact nickname and spares admins', async () => {
     const victim = await person('Оля');
     const path = `/api/admin/users/${victim.id}`;

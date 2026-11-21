@@ -6,6 +6,7 @@ import { errorText, t, type TextKey } from '../../i18n';
 import { adminUsers, mergeAccounts, mergePreview } from '../admin-api';
 import { mergeSummaryText } from '../admin-text';
 import type { CardProps } from '../AdminUser';
+import { CardFold } from './CardFold';
 
 /** Пошук другого акаунта: від двох символів, із затримкою (кожна літера — не запит). */
 const SEARCH_MIN = 2;
@@ -113,8 +114,7 @@ export function CardMerge({ detail, act, busy }: CardProps): JSX.Element {
 
   if (opened !== null) return <Navigate to={`/admin/users/${encodeURIComponent(opened)}`} replace />;
   return (
-    <section className="panel admin-card-section admin-card-merge">
-      <h2>{t('adminMerge')}</h2>
+    <CardFold title={t('adminMerge')} className="admin-card-merge">
       <p>{t('adminMergeLead')}</p>
       <label className="field">
         <span>{t('adminMergeSearch')}</span>
@@ -159,7 +159,7 @@ export function CardMerge({ detail, act, busy }: CardProps): JSX.Element {
       <p className="error admin-card-line" role="alert">
         {error ?? ''}
       </p>
-    </section>
+    </CardFold>
   );
 }
 

@@ -6,7 +6,7 @@ import { type Locator, type Page } from 'playwright-core';
 import { expect, it } from 'vitest';
 import { adminEmails } from '../src/config';
 import { user } from '../src/db/schema';
-import { bodyText, click, expectNoSideScroll, field, join, MENU, myId, open, POLL, register } from './helpers/common';
+import { bodyText, click, expectNoSideScroll, field, join, MENU, myId, open, openSection, POLL, register } from './helpers/common';
 import { ARTIFACTS, base, browser, contexts, ctx, db, exact, flags, problems, relisten, snapshot, useE2eServer } from './helpers/setup';
 
 /**
@@ -140,8 +140,7 @@ async function merge66() {
   await join(olyaB, lobbyCode, 'Оля Нова', false);
   await admin.goto(`${base}/admin/users/${olyaId}`);
   expect(await isLight(admin)).toBe(true);
-  const merge = section(admin, HEADING);
-  await merge.waitFor();
+  const merge = await openSection(admin, HEADING);
   await pickOther(admin, merge);
   await merge.getByText('Хтось із двох зараз у живій грі', { exact: false }).waitFor();
   expect(await merge.getByRole('button', { name: 'Об\'єднати', ...exact }).count(), 'no merge button while one plays').toBe(0);
@@ -178,8 +177,7 @@ async function merge66() {
   contexts.push(darkContext);
   const dark = await darkContext.newPage();
   await dark.goto(`${base}/admin/users/${olyaId}`);
-  const darkMerge = section(dark, HEADING);
-  await darkMerge.waitFor();
+  const darkMerge = await openSection(dark, HEADING);
   expect(await isLight(dark), 'the dark page is dark').toBe(false);
   await pickOther(dark, darkMerge);
   await darkMerge.getByText(/^Перейде на головний: /).waitFor();
@@ -202,15 +200,14 @@ async function merge66() {
   await expect.poll(() => merge.getByRole('button', { name: 'Об\'єднати', ...exact }).count(), POLL).toBe(0);
   await expect.poll(async () => ((await admin.request.get(`${base}/api/admin/users/${olyaBId}`)).status()), POLL).toBe(404);
   expect(admin.url()).toBe(`${base}/admin/users/${olyaId}`);
-  const games = section(admin, 'Останні ігри');
+  const games = await openSection(admin, 'Останні ігри');
   await games.getByRole('link', { name: T_PETRO, ...exact }).waitFor();
   expect(await games.getByRole('link', { name: T_PETRO, ...exact }).count(), 'the shared game is listed once').toBe(1);
   await admin.evaluate(() => scrollTo(0, 0));
   await view(admin, 'merge66-done-360');
   await shotAt(admin, games, 'merge66-done-games-360');
   await dark.reload();
-  await section(dark, 'Останні ігри').waitFor();
-  await shotAt(dark, section(dark, 'Останні ігри'), 'merge66-done-dark-360');
+  await shotAt(dark, await openSection(dark, 'Останні ігри'), 'merge66-done-dark-360');
   await dark.close();
 
   // ── 6. Сесія «Оля Нова» закрита: після перезавантаження — гість. Вхід обома адресами — той самий акаунт Олі з повною історією. ──
