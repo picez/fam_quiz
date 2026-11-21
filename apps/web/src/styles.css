@@ -28223,6 +28223,48 @@ details.admin-fold[open] > summary::before {
   padding-block: 0.25rem;
 }
 
+/* 69: список з прапорцями (PickList) — «Вибрати всі», рядки, одна дія під списком; лише змінні теми. */
+.admin-pick {
+  display: grid;
+  gap: 0.5rem;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.admin-pick-rows {
+  display: grid;
+  gap: 0.25rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.admin-pick-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.25rem 0.6rem;
+  min-height: 2.75rem;
+  min-width: 0;
+}
+
+.admin-pick-row .field,
+.admin-pick-all {
+  min-height: 2.75rem;
+}
+
+.admin-pick-all {
+  padding-block-end: 0.25rem;
+  border-block-end: 1px solid var(--line);
+}
+
+.admin-pick > .btn {
+  justify-self: start;
+  min-height: 2.75rem;
+}
+
 /* 66: об'єднання акаунтів — знайдені акаунти кнопками на всю ширину з переносом довгих email; лише змінні теми. */
 .admin-merge-pick {
   display: flex;
