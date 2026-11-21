@@ -28083,6 +28083,79 @@ a.library-card:focus-visible {
   border-color: var(--signal);
 }
 
+/* 69: список користувачів — один рядок на людину (нік, дата, email), увесь рядок клікабельний; шапка картки; лише змінні теми. */
+.admin-user-rows {
+  display: grid;
+  gap: 0;
+  margin: 0 0 1rem;
+  padding: 0;
+  list-style: none;
+}
+
+.admin-user-row {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) auto minmax(0, 1.6fr);
+  gap: 0.25rem 0.75rem;
+  align-items: center;
+  min-height: 2.75rem;
+  padding: 0.4rem 0.6rem;
+  border-block-end: 1px solid var(--line);
+  overflow-wrap: anywhere;
+}
+
+.admin-user-row:hover {
+  background: var(--surface);
+}
+
+.admin-user-row a::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+}
+
+.admin-user-row:has(a:focus-visible) {
+  outline: 2px solid var(--link);
+  outline-offset: -2px;
+}
+
+.admin-user-nick {
+  min-width: 0;
+}
+
+.admin-user-nick .admin-mark {
+  margin-inline-start: 0.4rem;
+  font-size: 0.8rem;
+}
+
+.admin-user-row .meta {
+  margin: 0;
+}
+
+@media (max-width: 30rem) {
+  .admin-user-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .admin-user-email {
+    grid-column: 1 / -1;
+  }
+}
+
+.admin-user-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.25rem 0.75rem;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.admin-user-head h2,
+.admin-user-head p {
+  margin: 0;
+}
+
 /* 66: об'єднання акаунтів — знайдені акаунти кнопками на всю ширину з переносом довгих email; лише змінні теми. */
 .admin-merge-pick {
   display: flex;

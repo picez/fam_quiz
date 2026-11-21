@@ -50,14 +50,16 @@ const openList = () =>
   );
 
 describe('AdminUsers', () => {
-  it('shows cards with marks and searches', async () => {
+  it('one row per person: nickname link, date, email; marks stay small', async () => {
     vi.mocked(adminUsers).mockResolvedValue(
       page([row({}), row({ id: 'u3', nickname: 'Бан', email: 'ban@example.com', banned: { at: '2026-10-05T10:00:00.000Z', reason: 'спам' } }), row({ id: 'u4', nickname: 'Шеф', email: 'chief@example.com', admin: true })]),
     );
     openList();
     expect(await screen.findByText('olya@example.com')).toBeTruthy();
-    expect(screen.getAllByText('Ігор: 3').length).toBe(3);
-    expect(screen.getByText(/^Заблоковано /)).toBeTruthy();
+    expect(document.querySelectorAll('li.admin-user-row').length).toBe(3);
+    expect(document.querySelector('time[datetime="2026-10-01T10:00:00.000Z"]')).toBeTruthy();
+    expect(screen.queryByText('Ігор: 3')).toBeNull();
+    expect(screen.getByText('Заблоковано')).toBeTruthy();
     expect(screen.getByText('Адмін')).toBeTruthy();
     expect(screen.getByRole('link', { name: 'Оля' }).getAttribute('href')).toBe('/admin/users/u2');
     fireEvent.change(screen.getByLabelText('Пошук за ніком чи email'), { target: { value: 'оля' } });
