@@ -94,6 +94,24 @@ describe('67 wide layout tokens', () => {
   });
 });
 
+describe('67 the player phone screen on a computer', () => {
+  it('on a computer the player phone screen is wider, the waiting pages stay narrow', () => {
+    expect(inBig('.app.player')[0]?.body).toContain('--app-w: var(--w-player);');
+    const touched = minWidthMedia(clean).flatMap(({ body }) => rules(body)).filter(({ selector, body }) => selector.includes('.app.narrow') && /--app-w|max-width/.test(body));
+    expect(touched.map(({ selector }) => selector)).toEqual([]);
+  });
+
+  it('on a computer text choices stand in two columns, picture choices in three', () => {
+    expect(inBig('.app.player .choices')[0]?.body).toContain('grid-template-columns: repeat(2, minmax(0, 1fr));');
+    expect(inBig('.app.player .choices.has-images')[0]?.body).toContain('grid-template-columns: repeat(3, minmax(0, 1fr));');
+  });
+
+  it('answer fields keep a readable width and the duel bar follows the column', () => {
+    expect(inBig('.app.player .field')[0]?.body).toContain('max-inline-size: var(--w-read);');
+    expect(inBig('.duel-banner')[0]?.body).toContain('max-width: min(calc(100vw - 2rem), var(--app-w, 30rem));');
+  });
+});
+
 /** Тіло верхньорівневого правила з цим селектором (для .app, .app.host тощо). */
 function topLevel(selector: string): string {
   return rules(clean).find((rule) => rule.selector === selector)?.body ?? '';

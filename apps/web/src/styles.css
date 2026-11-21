@@ -28678,6 +28678,24 @@ a.library-card:focus-visible {
   .timer-sticky:not(.is-host) .timer-sticky-row {
     max-width: var(--w-player);
   }
+
+  /* Екран гравця: варіанти у два стовпці, картинки у три; поле відповіді не тягнеться на всю колонку. */
+  .app.player .choices {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .app.player .choices.has-images {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .app.player .field {
+    max-inline-size: var(--w-read);
+  }
+
+  /* Смуга дуелі — fixed по центру вікна, а колонка вужча за вікно: довгий текст не розтягує її на весь ПК. */
+  .duel-banner {
+    max-width: min(calc(100vw - 2rem), var(--app-w, 30rem));
+  }
 }
 
 @media (min-width: 1280px) {
