@@ -28712,11 +28712,28 @@ a.library-card:focus-visible {
 @media (min-width: 1600px) {
   :root {
     --w-page: 96rem;
-    --w-player: 56rem;
+    --w-player: 70rem;
     --w-host: 104rem;
     --w-editor: 110rem;
     --w-admin: 110rem;
     --w-stage-board: 76rem;
     --card-min: 22rem;
+  }
+
+  /* Великий монітор: гравець не лишається вузькою смужкою посередині — крупніші запитання й варіанти (≈ 1,15× і 1,1×). */
+  .app.player .question {
+    font-size: 2.3rem;
+  }
+
+  .app.player .question.is-long {
+    font-size: 1.725rem;
+  }
+
+  .app.player .question.is-xlong {
+    font-size: 1.44rem;
+  }
+
+  .app.player .choice {
+    font-size: 1.25rem;
   }
 }

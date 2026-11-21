@@ -148,8 +148,8 @@ async function player67() {
   await join(taras, code, 'Тарас', false);
   await stage.getByText('Тарас').waitFor();
   await wide67(taras, 'player67-wait', async ({ tag }) => {
-    // Очікування — теж екран гравця (.app.player), а не .app.narrow: колонка телефона на ПК, не ширша за 56 rem.
-    expect(await mainWidth67(taras), `wait ${tag}`).toBeLessThanOrEqual(tag === '375' ? 375 : 896);
+    // Очікування — теж екран гравця (.app.player), а не .app.narrow: колонка телефона на ПК, не ширша за 70 rem (1920) чи 52 rem (1366).
+    expect(await mainWidth67(taras), `wait ${tag}`).toBeLessThanOrEqual(tag === '375' ? 375 : tag === '1920' ? 1120 : 832);
   });
 
   await click(host, 'Почати гру');
@@ -172,7 +172,7 @@ async function player67() {
       expect(boxes[1]!.y, 'phone: the second choice under the first').toBeGreaterThan(boxes[0]!.y + 10);
     } else {
       expect(main, `player ${tag}`).toBeGreaterThan(544);
-      expect(main, `player ${tag}`).toBeLessThanOrEqual(width === 1920 ? 896 : 832);
+      expect(main, `player ${tag}`).toBeLessThanOrEqual(width === 1920 ? 1120 : 832);
       expect(Math.abs(boxes[1]!.y - boxes[0]!.y), `${tag}: two choices in a row`).toBeLessThanOrEqual(1);
       expect(boxes[1]!.x, `${tag}: the second to the side of the first`).toBeGreaterThan(boxes[0]!.x + boxes[0]!.w / 2);
     }
@@ -203,7 +203,7 @@ async function player67() {
   });
 }
 
-it('part 67 player: the player phone screen on a computer — the column grows to 52 rem at most, text choices in two columns and picture choices in three, the number field stays at a readable width, the join page stays narrow, the waiting page is the same phone column; the 375 phone is as before and nothing scrolls sideways', async () => {
+it('part 67 player: the player phone screen on a computer — the column grows to 52 rem (70 rem from 1600 px) at most, text choices in two columns and picture choices in three, the number field stays at a readable width, the join page stays narrow, the waiting page is the same phone column; the 375 phone is as before and nothing scrolls sideways', async () => {
   try {
     await player67();
   } catch (error) {

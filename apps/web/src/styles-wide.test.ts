@@ -106,6 +106,13 @@ describe('67 the player phone screen on a computer', () => {
     expect(inBig('.app.player .choices.has-images')[0]?.body).toContain('grid-template-columns: repeat(3, minmax(0, 1fr));');
   });
 
+  it('from 1600 px the player column is 70 rem and the question and choice text grow', () => {
+    const big = minWidthMedia(clean).find(({ width }) => width === '1600')?.body ?? '';
+    expect(big).toContain('--w-player: 70rem;');
+    expect(rules(big).find((rule) => rule.selector === '.app.player .question')?.body).toContain('font-size: 2.3rem;');
+    expect(rules(big).find((rule) => rule.selector === '.app.player .choice')?.body).toContain('font-size: 1.25rem;');
+  });
+
   it('answer fields keep a readable width and the duel bar follows the column', () => {
     expect(inBig('.app.player .field')[0]?.body).toContain('max-inline-size: var(--w-read);');
     expect(inBig('.duel-banner')[0]?.body).toContain('max-width: min(calc(100vw - 2rem), var(--app-w, 30rem));');
