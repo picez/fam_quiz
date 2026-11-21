@@ -36,6 +36,18 @@ const text = (max: number) =>
 
 export const adminGrantSchema = z.object({ achievementId: z.enum(ACHIEVEMENTS) }).strict();
 
+/** 69: «Відібрати вибрані» — від одного до всіх досягнень, без повторів. */
+export const adminRevokeManySchema = z
+  .object({
+    achievementIds: z
+      .array(z.enum(ACHIEVEMENTS))
+      .min(1)
+      .max(ACHIEVEMENTS.length)
+      .refine((ids) => new Set(ids).size === ids.length),
+  })
+  .strict();
+export interface AdminRevokeManyResult { revoked: AchievementId[]; notOwned: AchievementId[] }
+
 export const adminXpSchema = z
   .object({
     amount: z

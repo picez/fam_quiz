@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ADMIN_CARD_GAMES, DELETED_NICKNAME, adminGiftSchema, adminGrantSchema, adminXpSchema } from './player-card';
+import { ADMIN_CARD_GAMES, DELETED_NICKNAME, adminGiftSchema, adminGrantSchema, adminRevokeManySchema, adminXpSchema } from './player-card';
 
 describe('player card (58)', () => {
   it('manual xp is a non-zero integer within 5000 with a reason up to 200', () => {
@@ -29,6 +29,14 @@ describe('player card (58)', () => {
   it('only a known achievement can be granted', () => {
     expect(adminGrantSchema.parse({ achievementId: 'first_win' })).toEqual({ achievementId: 'first_win' });
     expect(adminGrantSchema.safeParse({ achievementId: 'nope' }).success).toBe(false);
+  });
+
+  it('revoking many takes one to all known achievements without repeats', () => {
+    expect(adminRevokeManySchema.parse({ achievementIds: ['first_game', 'first_win'] })).toEqual({ achievementIds: ['first_game', 'first_win'] });
+    expect(adminRevokeManySchema.safeParse({ achievementIds: [] }).success).toBe(false);
+    expect(adminRevokeManySchema.safeParse({ achievementIds: ['nope'] }).success).toBe(false);
+    expect(adminRevokeManySchema.safeParse({ achievementIds: ['first_game', 'first_game'] }).success).toBe(false);
+    expect(adminRevokeManySchema.safeParse({ achievementIds: ['first_game'], extra: 1 }).success).toBe(false);
   });
 
   it('the deleted player mark is data', () => {
