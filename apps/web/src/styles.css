@@ -1,4 +1,18 @@
 :root {
+  /* 67: ширини колонок. Брейкпойнти — сталі числа (змінні в @media не працюють): ≤ 700 — телефон, 701–1023 — планшет
+     (ширини як до 67), ≥ 1024 — ПК, ≥ 1280 — бічні панелі, ≥ 1600 — великий ПК. Токени, що до 1024 px не потрібні, мають значення ПК, щоб var() ніде не був порожнім. */
+  --w-phone: 34rem;
+  --w-tablet: 46rem;
+  --w-read: 42rem;
+  --w-form: 36rem;
+  --w-page: 72rem;
+  --w-player: 48rem;
+  --w-host: 64rem;
+  --w-editor: 68rem;
+  --w-admin: 72rem;
+  --w-stage-board: 60rem;
+  --side-w: clamp(20rem, 24vw, 28rem);
+  --card-min: 18rem;
   --menu-h: 3.75rem;
   --stage: #060505;
   --surface: #0f0b0b;
@@ -274,7 +288,7 @@ a {
   --app-pad: 1.25rem;
   padding: max(1.25rem, env(safe-area-inset-top)) var(--app-pad) max(1.5rem, env(safe-area-inset-bottom));
   margin: 0 auto;
-  max-width: 34rem;
+  max-width: var(--app-w, var(--w-phone));
 }
 
 .app.narrow {
@@ -282,7 +296,7 @@ a {
 }
 
 .app.host {
-  max-width: 46rem;
+  --app-w: var(--w-tablet);
   /* Липка панель дій (≈5rem) не має закривати рядок, до якого прокручує браузер. */
   scroll-padding-bottom: 6rem;
 }
@@ -1201,13 +1215,13 @@ button.choice {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  max-width: 34rem;
+  max-width: var(--w-phone);
   margin: 0 auto;
   padding-inline: 1.25rem;
 }
 
 .timer-sticky.is-host .timer-sticky-row {
-  max-width: 46rem;
+  max-width: var(--w-tablet);
 }
 
 .timer-sticky-left {
@@ -1639,7 +1653,7 @@ body:has(.timer-sticky) .host .live-notices {
 
 .app.wide,
 .app.editor {
-  max-width: 46rem;
+  --app-w: var(--w-tablet);
 }
 
 .btn-quiet {
@@ -1882,7 +1896,7 @@ a.banner {
 /* ---------- Редактор «список і сцена» ---------- */
 
 .app.editor {
-  max-width: 68rem;
+  --app-w: var(--w-editor);
 }
 
 .editor-grid {
@@ -27295,7 +27309,7 @@ a.library-card:focus-visible {
 
 /* Пульт: дошка в колонці ≤ 46 rem, сторінка гортається — клітинку задає лише ширина колонки. */
 .host-wordle .wordle-board {
-  --board-cell: clamp(0.85rem, calc((min(100vw, 46rem) - 6rem) / var(--boards, 1) / (var(--letters, 5) + 1.8)), 1.75rem);
+  --board-cell: clamp(0.85rem, calc((min(100vw, var(--w-tablet)) - 6rem) / var(--boards, 1) / (var(--letters, 5) + 1.8)), 1.75rem);
 }
 
 /* Ширина дошки — не менша за сітку й до частки ряду, що їй припадає (≤ 12 rem): тег і бали стають в один-два рядки,
@@ -28620,4 +28634,71 @@ a.library-card:focus-visible {
 .group-card .group-hidden {
   color: var(--signal);
   font-weight: 700;
+}
+
+/* ---------- 67: великі екрани ---------- */
+/* Брейкпойнти: ≤ 700 телефон, 701–1023 планшет (ширини як до 67), ≥ 1024 ПК, ≥ 1280 бічні панелі, ≥ 1600 великий ПК.
+   Усе нове — лише в min-width нижче: телефон і планшет не міняються. */
+@media (min-width: 1024px) {
+  :root {
+    --w-page: 72rem;
+    --w-player: 48rem;
+    --w-host: 64rem;
+    --w-editor: 80rem;
+    --w-admin: 72rem;
+    --card-min: 18rem;
+  }
+
+  .app.wide {
+    --app-w: var(--w-page);
+    --app-pad: clamp(1.25rem, 2.5vw, 2.5rem);
+  }
+
+  .app.host {
+    --app-w: var(--w-host);
+    --app-pad: clamp(1.25rem, 2.5vw, 2.5rem);
+  }
+
+  .app.player {
+    --app-w: var(--w-player);
+    --app-pad: clamp(1.25rem, 2.5vw, 2.5rem);
+  }
+
+  /* Суцільний текст і поля форм не розтягуються на всю колонку: ≈ 70 знаків у рядку. */
+  .app.wide > :is(p, .field, form),
+  .app.host > p {
+    max-inline-size: var(--w-read);
+  }
+
+  /* Липка смужка таймера стоїть рівно над колонкою. */
+  .timer-sticky.is-host .timer-sticky-row {
+    max-width: var(--w-host);
+  }
+
+  .timer-sticky:not(.is-host) .timer-sticky-row {
+    max-width: var(--w-player);
+  }
+}
+
+@media (min-width: 1280px) {
+  :root {
+    --w-page: 80rem;
+    --w-player: 52rem;
+    --w-host: 88rem;
+    --w-editor: 92rem;
+    --w-admin: 92rem;
+    --card-min: 20rem;
+  }
+}
+
+@media (min-width: 1600px) {
+  :root {
+    --w-page: 96rem;
+    --w-player: 56rem;
+    --w-host: 104rem;
+    --w-editor: 110rem;
+    --w-admin: 110rem;
+    --w-stage-board: 76rem;
+    --card-min: 22rem;
+  }
 }
