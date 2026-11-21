@@ -95,7 +95,7 @@ describe('the big «Велика гра ІІІ» quiz', () => {
     expect(survival?.type === 'survival' ? [survival.trial, survival.trials.length] : null).toEqual(['luck', 0]);
     const quest = quiz.rounds.find((r) => r.type === 'quest');
     expect(quest?.type === 'quest' ? quest.bonus : null).toEqual({ kind: 'buff', buff: 'double', first: 3 });
-    expect(quiz.settings.teams?.count).toBe(2);
+    expect(quiz.settings.teams).toBeUndefined();
     expect(types).not.toContain('spy');
     const blitz = quiz.rounds.find((r) => r.type === 'blitz');
     expect(blitz?.type === 'blitz' ? blitz.check : null).toBe('manual');
