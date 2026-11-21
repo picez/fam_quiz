@@ -24,10 +24,21 @@ export function sortOf(state: GameState, playerId: string): SortProgress {
   return { queue: [...state.presented], sorted: [], misses: 0, lockedUntil: null, missed: null };
 }
 
-/** Чи відповідає гравець на це сортування: на звичайній клітинці поля — лише той, хто вибрав; інакше будь-який гравець. */
+/**
+ * Хто сортує сам на очах у всіх: на звичайній клітинці поля — той, хто вибрав; у проданому запитанні «Аукціону» —
+ * переможець торгу (єдиний запис play.final.wagers); інакше null — сортують усі.
+ */
+export function soleSorter(state: GameState, play: Play): string | null {
+  if (play.board !== undefined) return play.board.kind === 'normal' ? play.board.chooserId : null;
+  if (state.quiz.rounds[play.roundIndex]?.type !== 'auction' || play.final === undefined) return null;
+  return Object.keys(play.final.wagers)[0] ?? null;
+}
+
+/** Чи відповідає гравець на це сортування: на звичайній клітинці поля чи в проданому «Аукціоні» — лише той, хто сортує сам; інакше будь-який гравець. */
 export function sortsHere(state: GameState, play: Play, playerId: string): boolean {
   if (!state.players.some((p) => p.id === playerId)) return false;
-  return play.board === undefined || play.board.kind !== 'normal' || play.board.chooserId === playerId;
+  const sole = soleSorter(state, play);
+  return sole === null || sole === playerId;
 }
 
 /** Бали за sortedCount слів за правилами раунду (× множник раунду, на полі ще × множник клітинки; ціна клітинки не діє). */
@@ -201,9 +212,12 @@ export function sortMarks(question: SortQuestion, progress: SortProgress, finish
     .filter((mark) => mark.misses > 0 || mark.late);
 }
 
-/** Де живий показ дозволено (11d): 'all' — звичайна клітинка поля; 'team' — командна гра поза нею; null — сортують усі одночасно. */
+/**
+ * Де живий показ дозволено (11d): 'all' — сортує один на очах у всіх (звичайна клітинка поля, продане запитання «Аукціону»);
+ * 'team' — командна гра поза ними; null — сортують усі одночасно.
+ */
 export function sortAudience(state: GameState, play: Play): 'all' | 'team' | null {
-  if (play.board?.kind === 'normal') return 'all';
+  if (soleSorter(state, play) !== null) return 'all';
   return teamsOn(state) ? 'team' : null;
 }
 

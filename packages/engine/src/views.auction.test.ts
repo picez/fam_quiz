@@ -3,6 +3,7 @@ import { AUCTION_BID_MS, AUCTION_OPEN_MS, type Answer, type AuctionRound, type Q
 import { adjustScore } from './adjust';
 import { placeWager } from './final';
 import { lock, next, pause, start, submitAnswer, type GameState } from './game';
+import { sortAudience, sortOf, sortWord, tiltRefusal } from './sort';
 import { hostView, playerView, stageView } from './views';
 import { auctionRound, betsRound, bool, classicRound, finalRound, makeRoundsQuiz, numeric, single, sortQ, withId, withPoints } from './testing/fixtures';
 import { lobbyWith, must } from './testing/helpers';
@@ -222,5 +223,56 @@ describe('auction views (27b)', () => {
       expect(Object.hasOwn(hostView(state), 'auction')).toBe(false);
       expect(Object.hasOwn(phone(state, 'p1').me, 'auction')).toBe(false);
     }
+  });
+});
+
+describe('auction sort question views (sold: one sorter, everyone watches)', () => {
+  const sorting = withId(sortQ, 's1');
+  const head = (state: GameState, id: string) => sortQ.words.find((w) => w.id === sortOf(state, id).queue[0]);
+
+  it('a sold sort question: the winner sorts, the stage and other phones watch his live sort', () => {
+    let s = sell(bid(toBidding({}, [sorting]), [['p2', 100]]));
+    const now = t0 + 2000;
+    // Решта не сортує й не нахиляє картку: сортує лише переможець.
+    expect(tiltRefusal(s, 'p1', head(s, 'p1')?.id ?? '', 'c1', now)).toBe('not_your_turn');
+    expect(tiltRefusal(s, 'p2', head(s, 'p2')?.id ?? '', 'c1', now)).toBeNull();
+    expect(sortAudience(s, s.plays[s.questionIndex])).toBe('all');
+    const word = head(s, 'p2');
+    s = must(sortWord(s, 'p2', word?.id ?? '', word?.categoryId ?? '', now));
+
+    const stage = stageView(s).sort;
+    expect(stage?.rows.map((row) => row.playerId)).toEqual(['p2']);
+    expect(stage?.words).not.toBeNull();
+    expect(stage?.live).toMatchObject({ sorterId: 'p2', nickname: 'Тарас', sorted: 1 });
+
+    const watcher = phone(s, 'p1');
+    expect(watcher.me.sort).toBeNull();
+    expect(watcher.sort?.live).toMatchObject({ sorterId: 'p2', sorted: 1 });
+    expect(watcher.sort?.words).not.toBeNull();
+
+    // Той, хто сортує, бачить лише свою картку: ні слів, ні живого показу.
+    const winner = phone(s, 'p2');
+    expect(winner.me.sort).toMatchObject({ sorted: 1, canSort: true, watched: true });
+    expect(winner.sort?.live).toBeNull();
+    expect(winner.sort?.words).toBeNull();
+  });
+
+  it('on locked and reveal the watcher still sees the winner result', () => {
+    const s = sell(bid(toBidding({}, [sorting]), [['p2', 100]]));
+    const locked = must(lock(s));
+    expect(phone(locked, 'p1').sort?.live).toMatchObject({ sorterId: 'p2', card: null });
+    const revealed = must(next(locked, t0 + 5000, rng));
+    expect(revealed.phase).toBe('reveal');
+    expect(phone(revealed, 'p1').sort?.live?.marks).not.toBeNull();
+  });
+
+  it('an unsold sort question: everyone sorts on their own, no live view', () => {
+    const s = sell(toBidding({}, [sorting]));
+    expect(sortAudience(s, s.plays[s.questionIndex])).toBeNull();
+    expect(stageView(s).sort?.live).toBeNull();
+    expect(stageView(s).sort?.words).toBeNull();
+    expect(stageView(s).sort?.rows).toHaveLength(4);
+    expect(phone(s, 'p1').me.sort).not.toBeNull();
+    expect(phone(s, 'p3').me.sort).not.toBeNull();
   });
 });

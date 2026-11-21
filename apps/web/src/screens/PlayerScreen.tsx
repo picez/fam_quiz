@@ -957,7 +957,9 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
     // Усно відповідає будь-хто: екран перегляду не потрібен.
     !voice &&
     (me.blitz === null || buzzerOf(view) !== null) &&
-    !(board !== null && !chooserIsMe && me.blitz === null);
+    !(board !== null && !chooserIsMe && me.blitz === null) &&
+    // Глядач проданого запитання «Аукціону» дивиться на переможця, а не на свою команду.
+    !auctionWatching;
 
   const place = me.rank !== null && <p className="place">{t('yourPlace', { rank: me.rank, total: view.playerCount })}</p>;
   // «Правда про гравця» (28b): запитання раунду — факт, варіанти — імена людей гри.
@@ -1264,8 +1266,9 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
             {me.auction !== undefined && view.auction !== undefined && <AuctionResult auction={view.auction} mine={me.auction} />}
             {betsSkipping && me.bets !== undefined && view.bets !== undefined ? (
               <BetResult bets={view.bets} mine={me.bets} playerId={me.id} />
-            ) : auctionWatching ? (
+            ) : auctionWatching && !isSort ? (
               // Глядач проданого запитання: варіанти лише для читання, як на locked, — стежить за відповіддю й без сцени.
+              // Сортування варіантів не має: глядач бачить живий показ переможця (SortWatch нижче), як глядач клітинки поля.
               <SpotlightChoices removed={view.removed} question={question} spotlight={null} reveal={null} placeholder={false} />
             ) : question.type === 'spy' ? (
               // «Шпигун» (38, 50): загальне слово (шпигунові — роль і підказка) й асоціація, потім голос за іменами, останній шанс — лише викритому шпигунові.
@@ -1719,6 +1722,10 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
             <>
               {/* Дивився, як відповідає переможець: його бали й правильна відповідь, а не «Ви не відповіли». */}
               <AuctionResult auction={view.auction} mine={me.auction} />
+              {/* Сортування: як у глядача клітинки поля — категорії з позначками переможця. */}
+              {isSort && question?.sort != null && (
+                <SortReveal categories={question.sort.categories} question={view.reveal !== null && view.reveal.type === 'sort' ? view.reveal : null} total={question.sort.total} marks={view.sort?.live?.marks ?? null} />
+              )}
               {view.reveal !== null && view.reveal.type !== 'wall' && view.reveal.type !== 'survey' && view.reveal.type !== 'pin' && view.reveal.type !== 'sort' && (
                 <p>{t('correctAnswer', { answer: correctText(view.reveal, question?.choices) })}</p>
               )}
