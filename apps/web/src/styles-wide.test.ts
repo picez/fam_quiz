@@ -119,6 +119,21 @@ describe('67 the player phone screen on a computer', () => {
   });
 });
 
+describe('67 host console columns', () => {
+  it('host columns are invisible wrappers below 1280 px and a grid from 1280 px', () => {
+    const selectorOf = (rule: { selector: string }) => rule.selector.split(/[\s,]+/).join(' ');
+    expect(rules(clean).find((rule) => selectorOf(rule) === '.host-cols .host-main .host-side')?.body).toContain('display: contents;');
+    const big = rules(minWidthMedia(clean).find(({ width }) => width === '1280')?.body ?? '');
+    const cols = big.find((rule) => rule.selector === '.host-cols')?.body ?? '';
+    expect(cols).toContain('display: grid;');
+    expect(cols).toContain('grid-template-columns: minmax(0, 1fr) var(--side-w);');
+    const column = big.find((rule) => selectorOf(rule) === '.host-main .host-side')?.body ?? '';
+    expect(column).toContain('display: flex;');
+    expect(column).toContain('flex-direction: column;');
+    expect(column).toContain('gap: 1.25rem;');
+  });
+});
+
 /** Тіло верхньорівневого правила з цим селектором (для .app, .app.host тощо). */
 function topLevel(selector: string): string {
   return rules(clean).find((rule) => rule.selector === selector)?.body ?? '';

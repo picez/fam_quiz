@@ -28637,6 +28637,13 @@ a.library-card:focus-visible {
 }
 
 /* ---------- 67: великі екрани ---------- */
+/* Колонки пульта: нижче 1280 px обгортки не існують для верстки — flex-gap .app і порядок блоків як до 67. */
+.host-cols,
+.host-main,
+.host-side {
+  display: contents;
+}
+
 /* Брейкпойнти: ≤ 700 телефон, 701–1023 планшет (ширини як до 67), ≥ 1024 ПК, ≥ 1280 бічні панелі, ≥ 1600 великий ПК.
    Усе нове — лише в min-width нижче: телефон і планшет не міняються. */
 @media (min-width: 1024px) {
@@ -28666,7 +28673,8 @@ a.library-card:focus-visible {
 
   /* Суцільний текст і поля форм не розтягуються на всю колонку: ≈ 70 знаків у рядку. */
   .app.wide > :is(p, .field, form),
-  .app.host > p {
+  .app.host > p,
+  .host-main > p {
     max-inline-size: var(--w-read);
   }
 
@@ -28698,7 +28706,33 @@ a.library-card:focus-visible {
   }
 }
 
+/* Дошка wordle на пульті: клітинка від ширини колонки (на 1024–1279 пульт ще в одну колонку). */
+@media (min-width: 1024px) and (max-width: 1279px) {
+  .host-wordle .wordle-board {
+    --board-cell: clamp(0.85rem, calc((min(100vw, var(--w-host)) - 6rem) / var(--boards, 1) / (var(--letters, 5) + 1.8)), 1.75rem);
+  }
+}
+
 @media (min-width: 1280px) {
+  .host-cols {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) var(--side-w);
+    align-items: start;
+    gap: 1.25rem 2rem;
+  }
+
+  .host-main,
+  .host-side {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+    min-width: 0;
+  }
+
+  .host-wordle .wordle-board {
+    --board-cell: clamp(0.85rem, calc((min(100vw, var(--w-host)) - var(--side-w) - 2rem - 6rem) / var(--boards, 1) / (var(--letters, 5) + 1.8)), 1.75rem);
+  }
+
   :root {
     --w-page: 80rem;
     --w-player: 52rem;

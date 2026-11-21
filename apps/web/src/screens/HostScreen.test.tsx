@@ -4335,3 +4335,41 @@ describe('HostScreen sticky timer (55)', () => {
     expect(document.body.querySelector('.timer-sticky-left')?.textContent).toBe('20 с');
   });
 });
+
+describe('HostScreen: 67 columns', () => {
+  const standings = [
+    { participantId: 'p1', nickname: 'Олена', score: 750, totalTimeMs: 1, rank: 1 },
+    { participantId: 'p2', nickname: 'Тарас', score: 0, totalTimeMs: 1, rank: 2 },
+  ];
+
+  it('during a question the players, the scores and the links sit in the side column, the question in the main one', () => {
+    show(during('question', single, { standings, endsAt: Date.now() + 20_000 }));
+    const main = document.querySelector('.host-cols > .host-main')!;
+    const side = document.querySelector('.host-cols > .host-side')!;
+    expect(main).not.toBeNull();
+    expect(side).not.toBeNull();
+    expect(main.textContent).toContain('Столиця України?');
+    expect(side.querySelector('h2')?.textContent).toBe('Гравці: 2');
+    expect(side.querySelector('details.host-scores')).not.toBeNull();
+    expect(side.querySelector('nav.links')).not.toBeNull();
+    expect(main.querySelector('details.host-scores, nav.links')).toBeNull();
+    expect(document.querySelector('footer.actions')?.closest('.host-cols')).toBeNull();
+  });
+
+  it('in the lobby the players list and the lobby extras are in the side column', () => {
+    show(view());
+    const side = document.querySelector('.host-cols > .host-side')!;
+    expect(side.textContent).toContain('Гравці: 2');
+    expect(side.textContent).toContain('Запросити друзів');
+    expect(document.querySelector('.host-main')?.textContent).not.toContain('Запросити друзів');
+  });
+
+  it('the finished game keeps its standings and prizes in the main column', () => {
+    show(view({ phase: 'finished', questionIndex: 1, standings }));
+    const main = document.querySelector('.host-cols > .host-main')!;
+    const side = document.querySelector('.host-cols > .host-side')!;
+    expect(main.textContent).toContain('Гру завершено');
+    expect(main.querySelector('.menu-links, nav')).not.toBeNull();
+    expect(side.textContent).not.toContain('Гру завершено');
+  });
+});

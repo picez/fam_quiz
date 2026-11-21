@@ -2,7 +2,7 @@ import { mkdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { type Page } from 'playwright-core';
 import { expect, it } from 'vitest';
-import { classicRound, makeRoundsQuiz, numeric, single } from '@quiz/engine/testing';
+import { classicRound, makeRoundsQuiz, numeric, single, text } from '@quiz/engine/testing';
 import { open, register, join, click, field, png29d, step27a, reveal28a, next27a } from './helpers/common';
 import { exact, base, ARTIFACTS, shot, snapshot, afterSplash, useE2eServer } from './helpers/setup';
 
@@ -206,6 +206,99 @@ async function player67() {
 it('part 67 player: the player phone screen on a computer — the column grows to 52 rem (70 rem from 1600 px) at most, text choices in two columns and picture choices in three, the number field stays at a readable width, the join page stays narrow, the waiting page is the same phone column; the 375 phone is as before and nothing scrolls sideways', async () => {
   try {
     await player67();
+  } catch (error) {
+    await snapshot();
+    throw error;
+  }
+}, 300_000);
+
+/** Ведучий, сцена 1920 × 1080 і четверо гравців-телефонів (один із 20-літерним ніком); гра на одне текстове запитання. */
+async function hostGame67() {
+  const host = await open('host67h', 1280, 900);
+  await register(host, 'host', 'Ірина Ведуча', 'host67h@example.com');
+  const data = { ...makeRoundsQuiz([classicRound('r67h', [{ ...text, id: 'q67h', text: 'Яке місто називають перлиною біля моря?', accepted: ['Одеса'], timeLimit: 40 }] as never)], { leaderboard: 'end' }), title: 'Пульт на ПК 67' };
+  const saved = await host.request.post(`${base}/api/quizzes`, { data });
+  expect(saved.ok(), await saved.text()).toBe(true);
+  await host.goto(`${base}/quizzes`);
+  await host.locator('.quiz-list li', { hasText: 'Пульт на ПК 67' }).getByRole('button', { name: 'Грати', ...exact }).click();
+  await host.waitForURL(/\/host\/\d{6}$/);
+  const code = host.url().slice(-6);
+  const stageUrl = (await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href'))!;
+  const stage = await open('stage67h', 1920, 1080);
+  await stage.goto(stageUrl);
+  const phones: Page[] = [];
+  for (const nick of ['Олена', 'Тарас', 'Максим', 'Олександрович-Довгий']) {
+    const page = await open(`${nick}67h`, 375, 812);
+    await join(page, code, nick, false);
+    phones.push(page);
+  }
+  await stage.getByText('Олександрович-Довгий').waitFor();
+  return { host, stage, phones, code };
+}
+
+/** Бічна колонка праворуч від основної на ПК, під нею — на телефоні; нижня липка панель не накриває останній рядок бічної. */
+async function expectColumns67(host: Page, tag: string) {
+  const geometry = (await host.evaluate(`(() => {
+    const box = (selector) => { const el = document.querySelector(selector); if (!el) return null; const r = el.getBoundingClientRect(); return { x: r.x, y: r.y, w: r.width, bottom: r.bottom, right: r.right }; };
+    return { main: box('.host-main'), side: box('.host-side'), footer: box('footer.actions') };
+  })()`)) as { main: { x: number; y: number; w: number; bottom: number } | null; side: { x: number; y: number; w: number; bottom: number } | null; footer: { y: number } | null };
+  expect(geometry.main, `${tag}: host-main`).not.toBeNull();
+  expect(geometry.side, `${tag}: host-side`).not.toBeNull();
+  if (tag === '375') {
+    // display: contents: обгортки не мають власного прямокутника — порядок блоків як до 67 перевіряє нульова ширина.
+    expect(geometry.side!.w, 'phone: no side column box').toBe(0);
+  } else {
+    expect(geometry.side!.x, `${tag}: the side column is to the right of the main one`).toBeGreaterThan(geometry.main!.x + geometry.main!.w - 1);
+  }
+}
+
+async function host67() {
+  const { host, stage, phones } = await hostGame67();
+  // ── Лобі: список гравців і додатки лобі в бічній колонці. ──
+  await host.getByRole('heading', { name: 'Гравці: 4' }).waitFor();
+  await wide67(host, 'host67-lobby', async ({ tag }) => {
+    await expectColumns67(host, tag);
+    expect(await mainWidth67(host), `lobby ${tag}`).toBeLessThanOrEqual(tag === '1920' ? 1664 : 1408);
+  });
+
+  await click(host, 'Почати гру');
+  await afterSplash(host, stage, ...phones);
+  await step27a(host, 'Почати раунд');
+  await afterSplash(host, stage, ...phones);
+  await phones[0]!.getByLabel('Ваша відповідь', exact).waitFor();
+  await phones[0]!.getByLabel('Ваша відповідь', exact).fill('Одеса');
+  await click(phones[0]!, 'Відповісти');
+  await phones[1]!.getByLabel('Ваша відповідь', exact).fill('Львів');
+  await click(phones[1]!, 'Відповісти');
+  await host.getByRole('timer').first().waitFor();
+
+  // ── Запитання: на ПК гравці видно без прокрутки (1920), бічна колонка праворуч. ──
+  await wide67(host, 'host67-question', async ({ tag }) => {
+    await expectColumns67(host, tag);
+    const heading = host.getByRole('heading', { name: 'Гравці: 4' });
+    const box = (await heading.boundingBox())!;
+    if (tag === '1920') expect(box.y + box.height, '1920: the players list is visible without scrolling').toBeLessThanOrEqual(1080);
+    // Липка панель дій не накриває останній рядок бічної колонки, коли сторінку прокручено донизу.
+    await host.evaluate('window.scrollTo(0, document.documentElement.scrollHeight)');
+    const bottoms = (await host.evaluate(`(() => ({ side: document.querySelector('.host-side').lastElementChild.getBoundingClientRect().bottom, footer: document.querySelector('footer.actions').getBoundingClientRect().top }))()`)) as { side: number; footer: number };
+    expect(bottoms.side, `${tag}: the last side element above the sticky actions`).toBeLessThanOrEqual(bottoms.footer + 0.5);
+    await host.evaluate('window.scrollTo(0, 0)');
+  });
+
+  // ── Підсумок: у головній колонці. ──
+  await reveal28a(host);
+  await next27a(host);
+  await host.getByText('Гру завершено').first().waitFor();
+  await wide67(host, 'host67-finished', async ({ tag }) => {
+    await expectColumns67(host, tag);
+    expect(await host.locator('.host-main').getByText('Гру завершено').count(), `${tag}: the summary in the main column`).toBeGreaterThan(0);
+    expect(await host.locator('.host-side').getByText('Гру завершено').count(), `${tag}: no summary in the side column`).toBe(0);
+  });
+}
+
+it('part 67 host: the host console on a computer — from 1280 px the question and live answers fill the main column while the players, scores and links stand in a side column (nothing is hidden behind the sticky actions), the 375 phone keeps the old order, the finished summary stays in the main column', async () => {
+  try {
+    await host67();
   } catch (error) {
     await snapshot();
     throw error;
