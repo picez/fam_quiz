@@ -1,5 +1,5 @@
 import { isBotUser, levelOf, MERGE_LOGINS, type AccountMergePreview, type MergeRefusal, type MergeSide, type MergeSummary } from '@quiz/shared';
-import { and, eq, or, sql } from 'drizzle-orm';
+import { and, eq, notInArray, or, sql } from 'drizzle-orm';
 import { deleteAccount, hasPair } from './account-delete';
 import { MERGE_JSON_RULES } from './account-merge-history';
 import { loginOf } from './account-merge-people';
@@ -21,6 +21,8 @@ export interface MergeInput {
   secondaryId: string;
   now: Date;
   adminEmails: ReadonlySet<string>;
+  /** Коди кімнат у пам'яті цього процесу: їх перевіряє RoomManager.inLiveGame, а рядок live_room пишеться із запізненням. */
+  localRooms?: ReadonlySet<string>;
 }
 
 export type MergeOutcome = { ok: true; summary: MergeSummary; after: { level: number; xp: number } } | { ok: false; error: 'not_found' | MergeRefusal };
@@ -37,7 +39,7 @@ class MergeRollback extends Error {
  * перевіряє маршрут через RoomManager.inLiveGame): ведучий чи пара в playerUsers, а фаза не finished. Рядок без фази — теж
  * живий (обережно: об'єднання таку кімнату не переписало б).
  */
-export async function liveInDb(db: Db | Tx, userIds: string[]): Promise<boolean> {
+export async function liveInDb(db: Db | Tx, userIds: string[], localRooms: ReadonlySet<string> = new Set()): Promise<boolean> {
   if (userIds.length === 0) return false;
   const rows = await db
     .select({ code: liveRoom.code })
@@ -46,6 +48,7 @@ export async function liveInDb(db: Db | Tx, userIds: string[]): Promise<boolean>
       and(
         or(...userIds.flatMap((id) => [hasPair(liveRoom.data, id), sql`${liveRoom.data}->>'hostUserId' = ${id}::text`])),
         sql`coalesce(${liveRoom.data}->'state'->>'phase', '') <> 'finished'`,
+        ...(localRooms.size === 0 ? [] : [notInArray(liveRoom.code, [...localRooms])]),
       ),
     )
     .limit(1);
@@ -78,7 +81,7 @@ async function lockAndCheck(tx: Tx, input: MergeInput): Promise<{ secondaryEmail
   if (S === adminId || (await isAdmin(tx, adminEmails, S))) return { error: 'merge_admin' };
   if (P !== adminId && (await isAdmin(tx, adminEmails, P))) return { error: 'merge_admin' };
   if ((await isBanned(tx, P)) || (await isBanned(tx, S))) return { error: 'merge_banned' };
-  if (await liveInDb(tx, [P, S])) return { error: 'merge_live' };
+  if (await liveInDb(tx, [P, S], input.localRooms)) return { error: 'merge_live' };
   return { secondaryEmail: emails.get(S)! };
 }
 

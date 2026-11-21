@@ -1086,6 +1086,11 @@ export class RoomManager {
     return removed;
   }
 
+  /** Об'єднання акаунтів (66): коди кімнат у пам'яті цього процесу — для них правду каже пам'ять, не рядок live_room. */
+  roomCodes(): Set<string> {
+    return new Set(this.live.keys());
+  }
+
   /** Об'єднання акаунтів (66): чи акаунт у живій кімнаті цього процесу — фаза не finished, а він ведучий чи має місце. */
   inLiveGame(userId: string): boolean {
     for (const room of this.live.values()) {

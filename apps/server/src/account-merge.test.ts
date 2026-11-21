@@ -183,6 +183,8 @@ describe('mergeAccounts', () => {
     await db.insert(liveRoom).values({ code, roomId: randomUUID(), data: { hostUserId: ADMIN, playerUsers: [['p1', secondary]], state: { phase: 'question' } }, updatedAt: NOW });
     expect(await merge(primary, secondary)).toEqual({ ok: false, error: 'merge_live' });
     expect((await preview(primary, secondary))!.refusal).toBe('merge_live');
+    // Кімната в пам'яті цього процесу (її перевіряє маршрут): рядок live_room ще не встиг записати кінець гри — не відмова.
+    expect((await previewMerge(db, { ...input(primary, secondary, ADMIN), localRooms: new Set([code]) }))!.refusal).toBeNull();
     // Завершена кімната в базі — не жива гра.
     await db.update(liveRoom).set({ data: { hostUserId: ADMIN, playerUsers: [['p1', secondary]], state: { phase: 'finished' } } }).where(eq(liveRoom.code, code));
     expect((await preview(primary, secondary))!.refusal).toBeNull();

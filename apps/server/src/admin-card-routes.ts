@@ -130,7 +130,7 @@ export async function registerPlayerCardRoutes(app: FastifyInstance, deps: Admin
     if (unknownUser(P) || unknownUser(S)) return reply.code(404).send(NOT_FOUND);
     if (P === S) return reply.code(400).send({ error: 'merge_same' });
     if (manager.frozen) return reply.code(503).send({ error: 'restarting' });
-    const input = { adminId: me.id, primaryId: P, secondaryId: S, now: now(), adminEmails };
+    const input = { adminId: me.id, primaryId: P, secondaryId: S, now: now(), adminEmails, localRooms: manager.roomCodes() };
     const preview = await previewMerge(db, input, liveHere(P, S) ? 'merge_live' : null);
     return preview === null ? reply.code(404).send(NOT_FOUND) : (preview satisfies AccountMergePreview);
   });
@@ -157,7 +157,7 @@ export async function registerPlayerCardRoutes(app: FastifyInstance, deps: Admin
       // Одразу після фіксації, ще до рівня (announce усередині mergeAccounts): сесії S уже видалено транзакцією (його /api/me — 401);
       // місця S у кімнатах пам'яті — до P, щоб рекордер (user_id з playerUsers, події в черзі — за місцем) лишив зв'язок з головним
       // і жоден запис між фіксацією й перев'язкою не впирався в зовнішній ключ видаленого S.
-      outcome = await mergeAccounts(db, { adminId: me.id, primaryId: P, secondaryId: S, now: now(), adminEmails }, () => {
+      outcome = await mergeAccounts(db, { adminId: me.id, primaryId: P, secondaryId: S, now: now(), adminEmails, localRooms: manager.roomCodes() }, () => {
         manager.rebindUser(S, P);
       });
     } catch (error) {
