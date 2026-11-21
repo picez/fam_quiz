@@ -28114,6 +28114,11 @@ a.library-card:focus-visible {
   inset: 0;
 }
 
+/* Єдине кільце фокусу — на рядку, а не на посиланні всередині. */
+.admin-user-row a:focus-visible {
+  outline: none;
+}
+
 .admin-user-row:has(a:focus-visible) {
   outline: 2px solid var(--link);
   outline-offset: -2px;
@@ -28187,8 +28192,13 @@ details.admin-fold[open] > summary::before {
   transform: rotate(45deg);
 }
 
+/* RTL: border-inline-end — ліва межа, тож закритий розділ дивиться вліво, відкритий — вниз. */
 [dir='rtl'] details.admin-fold:not([open]) > summary::before {
-  transform: rotate(45deg) scaleX(-1);
+  transform: rotate(45deg);
+}
+
+[dir='rtl'] details.admin-fold[open] > summary::before {
+  transform: rotate(-45deg);
 }
 
 .admin-fold-title {
