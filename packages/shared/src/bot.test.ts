@@ -27,7 +27,9 @@ it('the bot domain is reserved for any address and any case', () => {
 
 it('62: bot commands — bare actions, a person by id, a team form without the host choice', () => {
   expect(BOT_TIME_SECONDS).toBe(30);
-  expect([...BOT_COMMAND_TYPES]).toEqual(['start', 'pause', 'resume', 'end', 'skip', 'time', 'end-round', 'kick', 'release', 'team-form']);
+  expect([...BOT_COMMAND_TYPES]).toEqual(['start', 'pause', 'resume', 'end', 'skip', 'time', 'end-round', 'kick', 'release', 'team-form', 'adjust']);
+  expect(botCommandSchema.parse({ type: 'adjust', playerId: 'p1', points: 1700 })).toEqual({ type: 'adjust', playerId: 'p1', points: 1700 });
+  for (const points of [0, 1.5, 10_001, -10_001]) expect(botCommandSchema.safeParse({ type: 'adjust', playerId: 'p1', points }).success).toBe(false);
   expect(botCommandSchema.parse({ type: 'skip' })).toEqual({ type: 'skip' });
   expect(botCommandSchema.parse({ type: 'kick', playerId: 'p1' })).toEqual({ type: 'kick', playerId: 'p1' });
   expect(botCommandSchema.parse({ type: 'team-form', form: 'dice' })).toEqual({ type: 'team-form', form: 'dice' });
