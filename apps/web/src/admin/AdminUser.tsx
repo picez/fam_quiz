@@ -84,7 +84,8 @@ function UserView({ detail, reload, stale }: { detail: AdminUserDetail; reload: 
     }
     if (result.error === 'not_found') setGone(true);
     else report(errorText(result.error));
-    if (STALE_ERRORS.has(result.error)) reload();
+    // Масова дія зупинилась на помилці, зробивши частину: картка застаріла, перечитуємо.
+    if (STALE_ERRORS.has(result.error) || ((result as { done?: number }).done ?? 0) > 0) reload();
     return false;
   };
 

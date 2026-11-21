@@ -20,12 +20,17 @@ export function CardAchievements({ detail, act, busy }: CardProps): JSX.Element 
   const missing = ACHIEVEMENTS.filter((id) => !owned.has(id));
   const nickname = nickText(user.nickname);
 
+  // act на початку кожної дії викликає report(null): тоді ж гасимо застарілий рядок стану.
+  const report = (message: string | null) => {
+    setError(message);
+    if (message === null) setNotice('');
+  };
+
   const grant = async (id: AchievementId) => {
-    if (await act(t('adminCardGrantConfirm', { name: nameOf(id), nickname }), () => grantAchievement(user.id, id), setError)) setPick('');
+    if (await act(t('adminCardGrantConfirm', { name: nameOf(id), nickname }), () => grantAchievement(user.id, id), report)) setPick('');
   };
 
   const revokePicked = (ids: AchievementId[], names: string[]) => {
-    setNotice('');
     return act(
       t('adminCardRevokePickedConfirm', { nickname, count: ids.length, names: names.join(', ') }),
       async () => {
@@ -33,7 +38,7 @@ export function CardAchievements({ detail, act, busy }: CardProps): JSX.Element 
         if (result.ok && result.notOwned.length > 0) setNotice(t('adminCardRevokePartial', { done: result.revoked.length, count: ids.length }));
         return result;
       },
-      setError,
+      report,
     );
   };
 

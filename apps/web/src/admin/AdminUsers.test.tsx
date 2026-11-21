@@ -150,7 +150,7 @@ describe('AdminUser', () => {
     await waitFor(() => expect(deletePrizeAsAdmin).toHaveBeenCalledWith('p1'));
     expect(deletePrizeAsAdmin).toHaveBeenCalledTimes(1);
     expect(window.confirm).toHaveBeenCalledTimes(1);
-    fireEvent.click(await screen.findByRole('checkbox', { name: '«Карпати»' }));
+    fireEvent.click(await screen.findByRole('checkbox', { name: '«Карпати» · 1' }));
     fireEvent.click(screen.getByRole('button', { name: 'Прибрати вибрані' }));
     await waitFor(() => expect(deleteAwardAsAdmin).toHaveBeenCalledWith('a1'));
   });

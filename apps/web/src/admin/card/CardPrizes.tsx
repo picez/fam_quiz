@@ -16,13 +16,16 @@ export function CardPrizes({ detail, act, busy }: CardProps): JSX.Element {
   const { user, stock, awards } = detail;
   const [error, setError] = useState<string | null>(null);
   const nickname = nickText(user.nickname);
-  const report = setError;
   const [notice, setNotice] = useState('');
+  // act на початку кожної дії викликає report(null): тоді ж гасимо застарілий рядок стану (і форми подарунка).
+  const report = (message: string | null) => {
+    setError(message);
+    if (message === null) setNotice('');
+  };
   const giftIds = new Set(awards.filter((award) => award.gift !== null).map((award) => award.id));
   const names = (picked: PickItem[]) => picked.map((item) => item.name).join(', ');
   // Масова дія: одне підтвердження, запити по черзі; те, чого вже немає, — пропуск з рядком стану.
   const bulk = (confirmText: string, picked: PickItem[], run: (item: PickItem) => Promise<ApiResult<object>>) => {
-    setNotice('');
     return act(
       confirmText,
       async () => {
@@ -54,7 +57,7 @@ export function CardPrizes({ detail, act, busy }: CardProps): JSX.Element {
       ) : (
         <PickList
           title={t('adminShowcase')}
-          items={awards.map((award: AdminAward) => ({ id: award.id, name: award.gift !== null ? award.content.name : `«${award.quizTitle}»`, meta: awardMeta(award) }))}
+          items={awards.map((award: AdminAward) => ({ id: award.id, name: award.gift !== null ? award.content.name : `«${award.quizTitle}» · ${award.place}`, meta: awardMeta(award) }))}
           action={t('adminCardRemovePicked')}
           danger
           busy={busy}

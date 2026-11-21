@@ -321,6 +321,32 @@ describe('AdminUser: the player card (58)', () => {
     await waitFor(() => expect(sent('DELETE', '/api/admin/awards/a1')).toHaveLength(1));
   });
 
+  it('a gift already gone and an award deleted: «Зроблено 1 з 2», the card is reread, not sent home (69)', async () => {
+    reply = (call) => (call.method === 'DELETE' && call.url === '/api/admin/gifts/a2' ? { status: 404, data: { error: 'gift_not_found' } } : undefined);
+    open();
+    const box = await opened('Призи');
+    fireEvent.click(within(box).getByRole('checkbox', { name: 'Вибрати всі' }));
+    fireEvent.click(within(box).getByRole('button', { name: 'Прибрати вибрані' }));
+    expect(await within(box).findByText('Зроблено 1 з 2; решти вже не було — картку оновлено.')).toBeTruthy();
+    expect(sent('DELETE', '/api/admin/awards/a1')).toHaveLength(1);
+    await waitFor(() => expect(sent('GET', '/api/admin/users/u2')).toHaveLength(2));
+    expect(screen.queryByText('головна')).toBeNull();
+  });
+
+  it('a bulk delete that fails halfway shows the error and rereads the card (69)', async () => {
+    const at = '2026-10-02T10:00:00.000Z';
+    current = detail({ stock: [{ id: 'p1', content: { ...content, name: 'Перший' }, status: 'free', createdAt: at }, { id: 'p2', content: { ...content, name: 'Другий' }, status: 'free', createdAt: at }] });
+    reply = (call) => (call.method === 'DELETE' && call.url === '/api/admin/prizes/p2' ? { status: 500, data: { error: 'internal' } } : undefined);
+    open();
+    const box = await opened('Призи');
+    fireEvent.click(within(box).getAllByRole('checkbox', { name: 'Вибрати всі' })[0]!);
+    fireEvent.click(within(box).getByRole('button', { name: 'Видалити вибрані' }));
+    await waitFor(() => expect(sent('DELETE', '/api/admin/prizes/p2')).toHaveLength(1));
+    expect(sent('DELETE', '/api/admin/prizes/p1')).toHaveLength(1);
+    await waitFor(() => expect(within(box).getAllByRole('alert').some((alert) => (alert.textContent ?? '') !== '')).toBe(true));
+    await waitFor(() => expect(sent('GET', '/api/admin/users/u2')).toHaveLength(2));
+  });
+
   it('a gift without a note sends null', async () => {
     reply = (call) => (call.method === 'POST' && call.url === '/api/admin/users/u2/gifts' ? { status: 201, data: { id: 'a9' } } : undefined);
     open();

@@ -16,7 +16,7 @@ describe('runEach (69)', () => {
 
   it('stops on any other error', async () => {
     const run = vi.fn(async (item: string) => (item === 'b' ? { ok: false as const, error: 'restarting' } : { ok: true as const }));
-    expect(await runEach(['a', 'b', 'c'], run)).toEqual({ ok: false, error: 'restarting' });
+    expect(await runEach(['a', 'b', 'c'], run)).toEqual({ ok: false, error: 'restarting', done: 1 });
     expect(run).toHaveBeenCalledTimes(2);
   });
 });

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type JSX, type ReactNode } from 'react';
+import { useEffect, useId, useRef, useState, type JSX, type ReactNode } from 'react';
 import { t } from '../../i18n';
 
 export interface PickItem {
@@ -11,6 +11,7 @@ export interface PickItem {
 export function PickList({ title, items, action, danger = false, busy, onRun }: { title: string; items: PickItem[]; action: string; danger?: boolean; busy: boolean; onRun: (picked: PickItem[]) => Promise<boolean> }): JSX.Element {
   const [picked, setPicked] = useState<ReadonlySet<string>>(new Set());
   const allRef = useRef<HTMLInputElement>(null);
+  const uid = useId();
   // Видимий вибір — перетин з наявними: після перечитування зниклі випадають самі.
   const chosen = items.filter((item) => picked.has(item.id));
   const all = items.length > 0 && chosen.length === items.length;
@@ -37,15 +38,18 @@ export function PickList({ title, items, action, danger = false, busy, onRun }: 
         {t('adminPickAll')}
       </label>
       <ul className="admin-pick-rows">
-        {items.map((item) => (
+        {items.map((item) => {
+          const metaId = `${uid}-${item.id}`;
+          return (
           <li key={item.id} className="admin-pick-row">
             <label className="field field-check">
-              <input type="checkbox" checked={picked.has(item.id)} onChange={() => toggle(item.id)} />
+              <input type="checkbox" checked={picked.has(item.id)} onChange={() => toggle(item.id)} aria-describedby={item.meta !== undefined && item.meta !== null ? metaId : undefined} />
               <span dir="auto">{item.name}</span>
             </label>
-            {item.meta !== undefined && item.meta !== null && <span className="meta">{item.meta}</span>}
+            {item.meta !== undefined && item.meta !== null && <span className="meta" id={metaId}>{item.meta}</span>}
           </li>
-        ))}
+          );
+        })}
       </ul>
       <button type="button" className={danger ? 'btn btn-danger' : 'btn'} disabled={busy || chosen.length === 0} onClick={() => void run()}>
         {action}
