@@ -131,6 +131,7 @@ describe('67 host console columns', () => {
     expect(column).toContain('display: flex;');
     expect(column).toContain('flex-direction: column;');
     expect(column).toContain('gap: 1.25rem;');
+    expect(big.find((rule) => rule.selector === '.host-side .team-forms')?.body).toContain('grid-template-columns: minmax(0, 1fr);');
   });
 });
 

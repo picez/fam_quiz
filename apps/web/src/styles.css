@@ -28729,6 +28729,11 @@ a.library-card:focus-visible {
     min-width: 0;
   }
 
+  /* Вузька бічна колонка: способи формування команд — в один стовпець, інакше ⓘ сусіднього способу накриває перемикач. */
+  .host-side .team-forms {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
   .host-wordle .wordle-board {
     --board-cell: clamp(0.85rem, calc((min(100vw, var(--w-host)) - var(--side-w) - 2rem - 6rem) / var(--boards, 1) / (var(--letters, 5) + 1.8)), 1.75rem);
   }
