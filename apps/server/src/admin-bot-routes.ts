@@ -62,6 +62,7 @@ const BOT_ROOM_LOG: Record<BotCommand['type'], AdminActionKind> = {
   kick: 'bot_room_kick',
   release: 'bot_room_release',
   'team-form': 'bot_room_teams',
+  adjust: 'bot_room_adjust',
 };
 
 /** Картка кімнати бота: нічого із запитань і відповідей — лише прапорець відкритого запитання. */
@@ -165,10 +166,10 @@ export async function registerAdminBotRoutes(app: FastifyInstance, deps: AdminDe
     const room = manager.get(code);
     // Нік людини — до дії: після вилучення її в кімнаті вже немає.
     let text: string | undefined;
-    if (room !== undefined && (command.type === 'kick' || command.type === 'release')) {
+    if (room !== undefined && (command.type === 'kick' || command.type === 'release' || command.type === 'adjust')) {
       const { state } = room;
       const who = teamsOn(state) ? memberOf(state, command.playerId) : state.players.find((p) => p.id === command.playerId);
-      text = who?.nickname;
+      text = who === undefined ? undefined : command.type === 'adjust' ? who.nickname + ': ' + (command.points > 0 ? '+' : '') + command.points : who.nickname;
     }
     const done = manager.botAct(code, command);
     if (!done.ok) return done.error === 'game_not_found' ? reply.code(404).send(NOT_FOUND) : reply.code(409).send({ error: done.error });

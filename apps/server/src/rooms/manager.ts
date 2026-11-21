@@ -2601,6 +2601,11 @@ export class RoomManager {
         return this.authorAct(room, null, { type: command.type, playerId: command.playerId });
       case 'team-form':
         return this.authorAct(room, null, { type: 'team-form', form: command.form });
+      case 'adjust': {
+        // Бали від адміна (як від ведучого); у командній грі — команді цієї людини.
+        const target = teamsOn(state) ? (teamOf(state, command.playerId) ?? command.playerId) : command.playerId;
+        return this.apply(room, adjustScore(state, target, command.points, this.now()));
+      }
     }
   }
 

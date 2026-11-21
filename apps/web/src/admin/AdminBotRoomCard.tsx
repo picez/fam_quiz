@@ -1,6 +1,6 @@
 import { useEffect, useState, type JSX } from 'react';
 import { Link } from 'react-router-dom';
-import { BOT_TEAM_FORMS, BOT_TIME_SECONDS, LOBBY_PASSWORD_MAX, LOBBY_PASSWORD_MIN, type AdminBotLobby, type AdminBotRoom, type AdminBotRoomPerson, type AdminBotStatus, type BotAction, type BotCommand } from '@quiz/shared';
+import { BOT_TEAM_FORMS, BOT_TIME_SECONDS, LIMITS, LOBBY_PASSWORD_MAX, LOBBY_PASSWORD_MIN, type AdminBotLobby, type AdminBotRoom, type AdminBotRoomPerson, type AdminBotStatus, type BotAction, type BotCommand } from '@quiz/shared';
 import { t, type TextKey } from '../i18n';
 import { nickText } from '../nick';
 
@@ -29,6 +29,8 @@ export function AdminBotRoomCard({ room, busy, onCommand, onLobby }: { room: Adm
   const saved = room.lobby.password;
   const [draft, setDraft] = useState(saved ?? '');
   const [shown, setShown] = useState(false);
+  /** «Бали» людині: чернетка суми за id людини. */
+  const [points, setPoints] = useState<Record<string, string>>({});
   /** Після перечитування — збережений пароль у полі (як у лобі ведучого). */
   useEffect(() => {
     setDraft(saved ?? '');
@@ -48,6 +50,19 @@ export function AdminBotRoomCard({ room, busy, onCommand, onLobby }: { room: Adm
   };
   const end = () => asked(t('adminBotEndConfirm', { code: room.code, title: room.title }), { type: 'end' });
   const kick = (person: AdminBotRoomPerson) => asked(t('kickConfirm', { name: nickText(person.nickname) }), { type: 'kick', playerId: person.id });
+  /** Ціле, не 0, за модулем до LIMITS.maxAdjust (мінус — і «−», і «-»); інакше null. */
+  const pointsOf = (id: string): number | null => {
+    const raw = (points[id] ?? '').trim().replace('−', '-');
+    if (!/^[-+]?[0-9]+$/.test(raw)) return null;
+    const n = Number(raw);
+    return n !== 0 && Math.abs(n) <= LIMITS.maxAdjust ? n : null;
+  };
+  const adjust = (person: AdminBotRoomPerson) => {
+    const n = pointsOf(person.id);
+    if (n === null) return;
+    asked(t('adminBotAdjustConfirm', { points: (n > 0 ? '+' : '') + n, name: nickText(person.nickname) }), { type: 'adjust', playerId: person.id, points: n });
+    setPoints((all) => ({ ...all, [person.id]: '' }));
+  };
   const release = (person: AdminBotRoomPerson) => asked(t('slotReleaseConfirm', { nickname: nickText(person.nickname) }), { type: 'release', playerId: person.id });
 
   return (
@@ -176,6 +191,21 @@ export function AdminBotRoomCard({ room, busy, onCommand, onLobby }: { room: Adm
                       <button type="button" className="btn" disabled={busy} aria-describedby={`${ids}-p-${person.id}`} onClick={() => release(person)}>
                         {t('slotRelease')}
                       </button>
+                    )}
+                    {!inLobby && (
+                      <>
+                        <input
+                          className="admin-bot-points"
+                          inputMode="numeric"
+                          aria-label={t('adminBotPointsLabel', { name: nickText(person.nickname) })}
+                          placeholder={t('points')}
+                          value={points[person.id] ?? ''}
+                          onChange={(e) => setPoints((all) => ({ ...all, [person.id]: e.target.value }))}
+                        />
+                        <button type="button" className="btn" disabled={busy || pointsOf(person.id) === null} aria-describedby={`${ids}-p-${person.id}`} onClick={() => adjust(person)}>
+                          {t('adjustApply')}
+                        </button>
+                      </>
                     )}
                   </div>
                 </li>

@@ -17810,6 +17810,11 @@ details.admin-round > summary > .admin-round-title {
   overflow-wrap: anywhere;
 }
 
+.admin-bot-points {
+  width: 6.5rem;
+  min-width: 0;
+}
+
 .admin-bot-room-list .admin-actions {
   margin-top: 0;
 }

@@ -313,6 +313,25 @@ describe('admin bot routes (54)', () => {
     ctx.manager.botAct(code, 'end');
   });
 
+  it('adjust gives a player points like the host, logged with the nickname and the sum', async () => {
+    const id = await botQuiz();
+    const { code } = (await asAdmin('POST', `/api/admin/bot/quizzes/${id}/games`)).json() as { code: string };
+    const joined = ctx.manager.join(code, 'Анна');
+    if (!joined.ok) throw new Error(joined.error);
+    const lobby = await asAdmin('POST', `/api/admin/bot/rooms/${code}/adjust`, { playerId: joined.playerId, points: 1700 });
+    expect(lobby.statusCode).toBe(409);
+    expect(lobby.json()).toEqual({ error: 'wrong_phase' });
+    expect((await asAdmin('POST', `/api/admin/bot/rooms/${code}/start`)).statusCode).toBe(204);
+    expect((await asAdmin('POST', `/api/admin/bot/rooms/${code}/adjust`, { playerId: joined.playerId, points: 0 })).statusCode).toBe(400);
+    expect((await asAdmin('POST', `/api/admin/bot/rooms/${code}/adjust`, { playerId: joined.playerId, points: 10_001 })).statusCode).toBe(400);
+    expect((await asAdmin('POST', `/api/admin/bot/rooms/${code}/adjust`, { playerId: joined.playerId, points: 1700 })).statusCode).toBe(204);
+    expect(await lastLog()).toMatchObject({ kind: 'bot_room_adjust', details: { title: TITLE, code, text: 'Анна: +1700' } });
+    const state = ctx.manager.get(code)!.state;
+    expect(state.players.find((p) => p.id === joined.playerId)!.score).toBe(1700);
+    expect(state.adjustments.at(-1)).toMatchObject({ playerId: joined.playerId, points: 1700, source: 'host' });
+    ctx.manager.botAct(code, 'end');
+  });
+
   it('team form in a team quiz', async () => {
     const id = await botQuiz({ ...makeRoundsQuiz([classicRound('r0', [{ ...single, timeLimit: 30 }])], { teams: defaultTeams(2) }), title: TITLE });
     const { code } = (await asAdmin('POST', `/api/admin/bot/quizzes/${id}/games`)).json() as { code: string };

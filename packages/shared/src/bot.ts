@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { lobbyPasswordSchema } from './lobby';
+import { LIMITS } from './quiz';
 
 /** The «Квіз-бот» account: a fixed user row that hosts autopilot games and can never sign in. */
 export const BOT_USER_ID = 'quiz-bot';
@@ -23,10 +24,12 @@ export const botCommandSchema = z.discriminatedUnion('type', [
   z.object({ type: z.enum(BOT_ACTIONS) }).strict(),
   z.object({ type: z.enum(BOT_PERSON_ACTIONS), playerId: z.string().min(1).max(64) }).strict(),
   z.object({ type: z.literal('team-form'), form: z.enum(BOT_TEAM_FORMS) }).strict(),
+  // Бали від адміна людині (у командній грі — її команді): ціле, не 0, за модулем до LIMITS.maxAdjust, як у ведучого.
+  z.object({ type: z.literal('adjust'), playerId: z.string().min(1).max(64), points: z.number().int().min(-LIMITS.maxAdjust).max(LIMITS.maxAdjust).refine((n) => n !== 0) }).strict(),
 ]);
 export type BotCommand = z.infer<typeof botCommandSchema>;
 /** 62: every command type, for checking the `:action` of a route. */
-export const BOT_COMMAND_TYPES = [...BOT_ACTIONS, ...BOT_PERSON_ACTIONS, 'team-form'] as const;
+export const BOT_COMMAND_TYPES = [...BOT_ACTIONS, ...BOT_PERSON_ACTIONS, 'team-form', 'adjust'] as const;
 /** 62: the bot room lobby the admin sets: shown in the lobby list or not, and an optional password. */
 export const adminBotLobbySchema = z.object({ listed: z.boolean(), password: lobbyPasswordSchema.nullable() }).strict();
 export type AdminBotLobby = z.infer<typeof adminBotLobbySchema>;
