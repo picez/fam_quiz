@@ -387,8 +387,12 @@ function Result({ view, strokes = [] }: { view: PlayerView; strokes?: Stroke[] }
   // «Мільйонер»: учасник бачить сходинку, а не бали за запитання.
   const climber = view.me.ladder?.role === 'contestant' ? view.ladder : null;
   const stepLevel = climber === null ? null : (climber.steps[climber.current]?.level ?? null);
-  const title =
-    climber !== null && result !== null
+  // Апеляція (12f), яку зал підтримав: не «Неправильно» з 0 чи мінусом, а «Зараховано залом» і бали разом із поверненими.
+  const appealed = climber === null && result !== null && (result.appeal ?? 0) > 0;
+  const earned = result === null ? 0 : result.points + (result.appeal ?? 0);
+  const title = appealed
+    ? t('resultAppealed')
+    : climber !== null && result !== null
       ? result.grade === 'correct' && stepLevel !== null
         ? t('ladderStepRight', { level: num(stepLevel) })
         : t('ladderStepWrong')
@@ -401,7 +405,7 @@ function Result({ view, strokes = [] }: { view: PlayerView; strokes?: Stroke[] }
           : t('resultWrong');
   // Тон — за правильністю: правильна відповідь зелена й з галочкою, навіть коли балів 0
   // (учасник драбини; «Ставки», де всі відповіли правильно й банк порожній).
-  const tone = result !== null && result.grade === 'correct' ? 'is-correct' : climber !== null ? 'is-wrong' : result === null || result.points <= 0 ? 'is-wrong' : 'is-correct';
+  const tone = appealed || (result !== null && result.grade === 'correct') ? 'is-correct' : climber !== null ? 'is-wrong' : result === null || result.points <= 0 ? 'is-wrong' : 'is-correct';
   return (
     <section className={`result ${tone}`}>
       <h2>{title}</h2>
@@ -410,7 +414,7 @@ function Result({ view, strokes = [] }: { view: PlayerView; strokes?: Stroke[] }
         <p className="wipeout-bank">{view.me.wipeout.status === 'burned' ? t('wipeoutBurned') : t('wipeoutBank', { bank: num(view.me.wipeout.bank) })}</p>
       ) : (
         <>
-          {result !== null && result.points !== 0 && <p className="earned">{signed(result.points)}</p>}
+          {result !== null && earned !== 0 && <p className="earned">{signed(earned)}</p>}
           {result !== null && result.streakBonus > 0 && <p className="streak-bonus">{t('streakBonusLine', { points: result.streakBonus })}</p>}
         </>
       )}

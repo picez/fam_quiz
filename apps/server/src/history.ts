@@ -24,6 +24,7 @@ import {
   RESUME_OPTIONS,
   roundSchema,
   survivorsAfter,
+  undoLedger,
   upgradeQuiz,
   wipeoutStandings,
   type AdjustmentSource,
@@ -168,6 +169,7 @@ function cellResult(
   nicknames: Map<string, string>,
   given: { participantId: string; points: number }[],
   standings: { participantId: string; nickname: string }[],
+  appealPoints: (participantId: string) => number,
 ): GameQuestionResult['cell'] {
   if (ref?.cell === undefined) return null;
   const round = quiz.rounds[ref.roundIndex];
@@ -188,7 +190,8 @@ function cellResult(
     category: found.category.title,
     ...priced,
     chooser: nicknames.get(chooserId) ?? null,
-    points: own.length === 0 ? null : own.reduce((sum, a) => sum + a.points, 0),
+    // Апеляція (12f), яку зал підтримав: бали вибравшого — разом із рядком 'appeal', а не мінус чи 0 самої відповіді.
+    points: own.length === 0 ? null : own.reduce((sum, a) => sum + a.points, 0) + appealPoints(chooserId),
   };
 }
 
@@ -718,6 +721,19 @@ export async function hostGameWithFacts(db: Db, hostId: string | null, id: strin
 
   // Усі рядки, і людей теж: голоси опитувань і хмари стоять на рядках людей.
   const nicknames = new Map(participants.map((p) => [p.id, p.nickname]));
+  // Скасовані рядки (12a): нескасовані рядки 'appeal' (12f) під запитанням додаються до балів клітинки поля.
+  const undone = undoLedger(
+    adjustments.map((a) => ({
+      seq: a.seq,
+      who: a.participantId,
+      source: a.source,
+      ...(a.undoesQuestion !== null ? { undoes: { question: a.undoesQuestion } } : a.undoesSeq !== null ? { undoes: { seq: a.undoesSeq } } : {}),
+    })),
+  ).adjustments;
+  const appealPointsAt = (index: number) => (participantId: string) =>
+    adjustments
+      .filter((a) => a.source === 'appeal' && a.participantId === participantId && a.afterQuestion - 1 === index && !undone.has(a.seq))
+      .reduce((sum, a) => sum + a.points, 0);
   // Зіпсований знімок не валить деталі: турнірна таблиця є, запитань і раундів немає.
   const questions = played.flatMap(({ roundIndex, question, ref }, index) => {
     // Знімок не змінюється, тож запитання з журналу в ньому є; перевірка лише від зіпсованого рядка.
@@ -735,7 +751,7 @@ export async function hostGameWithFacts(db: Db, hostId: string | null, id: strin
         type: question.type,
         answered: distinct(main.filter((a) => a.attempt !== PENALTY_ATTEMPT).map((a) => a.participantId)),
         accepted: distinct(main.filter((a) => a.accepted && a.attempt !== PENALTY_ATTEMPT).map((a) => a.participantId)),
-        cell: quiz === null ? null : cellResult(quiz, ref, nicknames, given, standings),
+        cell: quiz === null ? null : cellResult(quiz, ref, nicknames, given, standings, appealPointsAt(index)),
         question: cloudRows === undefined || question.type !== 'survey' ? question : { ...question, rows: cloudRows },
         ...(cloudRows === undefined ? {} : { surveyFromCloud: true as const }),
         ...(ref?.bluff === undefined ? {} : { bluff: bluffResult(ref, nicknames) }),

@@ -2996,6 +2996,7 @@
   "resultNone": "You didn't answer",
   "resultPartial": "Partly correct",
   "resultWrong": "Wrong",
+  "resultAppealed": "⚖️ Accepted by the room",
   "resume": "Resume",
   "resumeError": "Couldn't load previous games.",
   "resumeFill": "Fill in from a previous game",

@@ -2365,6 +2365,8 @@ export interface PlayerResult {
   /** Бонус за серію; входить у points. */
   streakBonus: number;
   points: number;
+  /** Бали апеляції, яку зал підтримав (12f, нескасовані рядки 'appeal' під цим запитанням); у points не входять. Без апеляції ключа немає. */
+  appeal?: number;
 }
 
 /** Таблиця балів для кнопки «Таблиця»: full — усі гравці, інакше лише власний рядок (leaderboard 'end'). */
@@ -2553,6 +2555,8 @@ export interface HostResponse {
   grade: Grade | null;
   streakBonus: number;
   points: number;
+  /** Бали апеляції, яку зал підтримав (12f, нескасовані рядки 'appeal' під цим запитанням); у points не входять. Без апеляції ключа немає. */
+  appeal?: number;
   overridden: boolean;
   buff: BuffKind | null;
   /** Запасне запитання, на яке дано відповідь (з правильною відповіддю); null — основне. */

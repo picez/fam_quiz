@@ -256,6 +256,17 @@ function SkipNote({ board, view, offsetMs }: { board: HostBoard; view: HostView;
   return view.paused && view.phase === 'board' ? <p className="banner is-away">{t('chooserAwayPaused', { name })}</p> : null;
 }
 
+/** Вердикт рядка відповіді; апеляція, яку зал підтримав (12f), — «⚖️ зараховано» замість «не зараховано» (коротко: рядок пульта вузький). */
+function ResponseVerdict({ response, overridden }: { response: HostView['responses'][number]; overridden: boolean }) {
+  if ((response.appeal ?? 0) > 0) return <span className="tag is-correct">⚖️ {t('accepted')}</span>;
+  return (
+    <span className={response.grade === 'wrong' ? 'tag is-wrong' : 'tag is-correct'}>
+      {t(response.grade === 'partial' ? 'partialTag' : response.accepted ? 'accepted' : 'rejected')}
+      {overridden && `, ${t('changedByHost')}`}
+    </span>
+  );
+}
+
 /** Згорнута панель «Бали за раундами» (11f): таблиця монтується лише відкритою. */
 function HostScores({ view }: { view: HostView }) {
   const [open, setOpen] = useState(false);
@@ -1178,10 +1189,8 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
                           {response.spare !== null && <SpareMark spare={response.spare} />}
                           {response.grade !== null && (
                             <>
-                              <span className={response.grade === 'wrong' ? 'tag is-wrong' : 'tag is-correct'}>
-                                {t(response.grade === 'partial' ? 'partialTag' : response.accepted ? 'accepted' : 'rejected')}
-                              </span>
-                              <span className="score" dir="ltr">{num(response.points)}</span>
+                              <ResponseVerdict response={response} overridden={false} />
+                              <span className="score" dir="ltr">{num(response.points + (response.appeal ?? 0))}</span>
                             </>
                           )}
                         </>
@@ -1451,11 +1460,8 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
                   {!isFinal && response.grade !== null && response.silent && <span className="score" dir="ltr">{num(response.points)}</span>}
                   {!isFinal && response.grade !== null && !response.silent && (
                     <>
-                      <span className={response.grade === 'wrong' ? 'tag is-wrong' : 'tag is-correct'}>
-                        {t(response.grade === 'partial' ? 'partialTag' : response.accepted ? 'accepted' : 'rejected')}
-                        {response.overridden && `, ${t('changedByHost')}`}
-                      </span>
-                      <span className="score" dir="ltr">{num(response.points)}</span>
+                      <ResponseVerdict response={response} overridden={response.overridden} />
+                      <span className="score" dir="ltr">{num(response.points + (response.appeal ?? 0))}</span>
                       {response.awayPenalty && <span className="meta response-penalty">{t('awayPenaltyComing')}</span>}
                     </>
                   )}

@@ -211,6 +211,11 @@ async function appeal12f() {
   await expectStageInView(stage, 'p12f-stage-yes');
   await shot(stage, 'p12f-stage-yes');
   await expect.poll(() => textOf(result(olya)), POLL).toBe('⚖️ Зараховано! +200');
+  // Результат Олі — не «Неправильно» без балів, а зараховано залом з поверненими балами.
+  await expect.poll(() => textOf(olya.locator('section.result h2')), POLL).toBe('⚖️ Зараховано залом');
+  expect(await textOf(olya.locator('section.result .earned'))).toBe('+200');
+  expect(await olya.locator('section.result.is-correct').count()).toBe(1);
+  await shot(olya, 'p12f-phone-yes');
   await expect.poll(() => sheet(petro).count(), POLL).toBe(0);
   await expect.poll(() => textOf(result(petro)), POLL).toBe('⚖️ Зараховано! +200');
   await expect.poll(() => rowScore('Оля'), POLL).toBe('200');
@@ -220,11 +225,20 @@ async function appeal12f() {
   expect(await textOf(passed.locator('.appeal-passed'))).toBe('Зал уже зарахував — щоб змінити оцінку, скасуйте бали в «↶ Бали», коли перейдете далі');
   expect(await passed.textContent()).toContain('Оля');
   expect(await passed.getByRole('button').count(), 'the passed row keeps grade buttons').toBe(0);
+  expect(await textOf(passed.locator('.tag'))).toBe('⚖️ зараховано');
+  expect(await textOf(passed.locator('.score'))).toBe('200');
+  await shot(host, 'p12f-host-yes');
   expect(await host.evaluate(HEADER_ONE_LINE), 'p12f-host-yes: the host header wraps').toBe(true);
   await expectNoSideScroll(host, 'p12f-host-yes');
   await step(next);
   await expect.poll(() => textOf(standing('Оля')), POLL).toBe('200');
   expect(await textOf(standing('Петро'))).toBe('200');
+  // Бали за щойно закрите запитання в таблиці: апеляція Олі — +200, а не 0.
+  const gain = (name: string) => stage.locator('.standings li', { has: stage.locator('.name', { hasText: new RegExp(`^${name}`) }) }).locator('.round-gain');
+  expect(await textOf(gain('Оля'))).toBe('+200 за запитання');
+  expect(await textOf(gain('Петро'))).toBe('+200 за запитання');
+  await shot(stage, 'p12f-stage-table-yes');
+  await shot(olya, 'p12f-phone-table-yes');
   expect(await textOf(standing('Іра'))).toBe('0');
   expect(await card(stage).count(), 'the card outlives the reveal').toBe(0);
 

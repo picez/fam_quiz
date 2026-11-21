@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { eq } from 'drizzle-orm';
 import { factInput } from '@quiz/engine';
-import { classicRound, makeRoundsQuiz, single, withId } from '@quiz/engine/testing';
+import { boardRound, classicRound, makeRoundsQuiz, single, withId } from '@quiz/engine/testing';
 import { defaultTeams, factTable, gameAwards, gameCard } from '@quiz/shared';
-import { answer, appeal, AWAY_ATTEMPT, participant, scoreAdjustment, user } from './db/schema';
+import { answer, appeal, AWAY_ATTEMPT, game, participant, scoreAdjustment, user } from './db/schema';
 import { hostGame, hostGameWithFacts } from './history';
 import { attachRecorder } from './recorder';
 import { RoomManager, type Room } from './rooms/manager';
@@ -154,6 +154,52 @@ describe('history: appeal (12f)', () => {
     expect(stored?.detail.facts.awards).toEqual(gameAwards(live));
     expect(stored?.detail.facts.table).toEqual(factTable(live));
     expect(gameCard(stored?.factInput ?? live, olya)?.appeals).toEqual({ won: 1, lost: 1 });
+  });
+
+  it('a board cell the hall passed shows the points with the appeal row, not the minus of the answer; an undone appeal row does not count', async () => {
+    const db = await createTestDb();
+    await db.insert(user).values({ id: HOST, name: 'Ведуча', email: 'appeal-host@example.com' });
+    const cell = (id: string) => ({ ...withId(single, id), points: 200 });
+    const round = boardRound('g1', [
+      { title: 'Міста', cells: [cell('c11'), cell('c12'), cell('c13')] },
+      { title: 'Річки', cells: [cell('c21'), cell('c22'), cell('c23')] },
+      { title: 'Гори', cells: [cell('c31'), cell('c32'), cell('c33')] },
+    ]);
+    const { gameId, participantIds } = await seedGame(db, {
+      hostId: HOST,
+      startedAt: new Date(2026, 0, 4),
+      snapshot: makeRoundsQuiz([round]),
+      questionsPlayed: 2,
+      players: [
+        {
+          userId: null,
+          nickname: 'Оля',
+          score: 0,
+          rank: 1,
+          rows: [
+            { questionIndex: 0, accepted: false, points: -200, payload: wrong },
+            { questionIndex: 1, accepted: false, points: -200, payload: wrong },
+          ],
+          adjustments: [
+            { seq: 1, afterQuestion: 1, points: 400, source: 'appeal' },
+            { seq: 2, afterQuestion: 2, points: 400, source: 'appeal' },
+            { seq: 3, afterQuestion: 2, points: -400, source: 'undo', undoesSeq: 2 },
+          ],
+        },
+      ],
+      appeals: [
+        { participant: 0, seq: 1, questionIndex: 0, yes: 2, no: 0, outcome: 'yes' },
+        { participant: 0, seq: 2, questionIndex: 1, yes: 2, no: 0, outcome: 'yes' },
+      ],
+    });
+    const olya = participantIds[0]!;
+    await db
+      .update(game)
+      .set({ plays: ['c11', 'c12'].map((id) => ({ roundIndex: 0, questionId: id, cell: { cellId: id, chooserId: olya } })) })
+      .where(eq(game.id, gameId));
+    const detail = await hostGame(db, HOST, gameId);
+    expect(detail?.questions[0].cell).toMatchObject({ chooser: 'Оля', points: 200 });
+    expect(detail?.questions[1].cell).toMatchObject({ chooser: 'Оля', points: -200 });
   });
 
   it('a participant with only an away mark still shows the appeal on a row without an answer', async () => {

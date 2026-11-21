@@ -3500,6 +3500,17 @@ describe('appeal (12f)', () => {
     expect(document.querySelector('.appeal-card.is-host .appeal-result')?.textContent).toBe('⚖️ Зараховано! +875');
   });
 
+  it('a passed grade appeal: the row shows the returned points, not «не зараховано» with 0', () => {
+    const passed = responses.map((r) => (r.playerId === 'p1' ? { ...r, points: -200, appeal: 875 } : r));
+    show(during('reveal', textQuestion, { responses: passed, appeal: appeal({ outcome: 'yes', endsAt: null, waiting: 0 }) }));
+    const olena = screen.getByText('Адеса').closest('li') as HTMLElement;
+    expect(within(olena).getByText('⚖️ зараховано').classList.contains('is-correct')).toBe(true);
+    expect(within(olena).queryByText('не зараховано')).toBeNull();
+    expect(olena.querySelector('.score')?.textContent).toBe('675');
+    const taras = screen.getByText('Одесса').closest('li') as HTMLElement;
+    expect(within(taras).getByText('не зараховано')).toBeTruthy();
+  });
+
   it('an undone passed appeal brings the grade buttons back and says the decision was undone', () => {
     show(during('reveal', textQuestion, { responses, appeal: appeal({ outcome: 'yes', endsAt: null, waiting: 0, points: 0, undone: true }) }));
     const olena = screen.getByText('Адеса').closest('li') as HTMLElement;
