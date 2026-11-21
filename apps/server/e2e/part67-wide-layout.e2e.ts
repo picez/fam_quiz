@@ -1,9 +1,10 @@
 import { mkdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { type Page } from 'playwright-core';
+import { type Socket } from 'socket.io-client';
 import { expect, it } from 'vitest';
 import { classicRound, makeRoundsQuiz, numeric, single, text } from '@quiz/engine/testing';
-import { open, register, join, click, field, png29d, step27a, reveal28a, next27a } from './helpers/common';
+import { open, register, join, click, field, png29d, step27a, reveal28a, next27a, pilotPlayer, emitOk } from './helpers/common';
 import { exact, base, ARTIFACTS, shot, snapshot, afterSplash, useE2eServer } from './helpers/setup';
 
 /**
@@ -299,6 +300,69 @@ async function host67() {
 it('part 67 host: the host console on a computer — from 1280 px the question and live answers fill the main column while the players, scores and links stand in a side column (nothing is hidden behind the sticky actions), the 375 phone keeps the old order, the finished summary stays in the main column', async () => {
   try {
     await host67();
+  } catch (error) {
+    await snapshot();
+    throw error;
+  }
+}, 300_000);
+
+/** Сцена не гортається й не має бічної прокрутки на екрані ПК і ноутбука; на 375 лише без бічної прокрутки (її робить wide67). */
+async function expectStageFits67(stage: Page, name: string, size: (typeof SIZES_67)[number]) {
+  if (size.tag === '375') return;
+  const height = (await stage.evaluate('document.documentElement.scrollHeight')) as number;
+  expect(height, `${name}-${size.tag}: the stage scrolls (${height}px of ${size.height})`).toBeLessThanOrEqual(size.height);
+}
+
+async function stage67() {
+  const sockets: Socket[] = [];
+  try {
+    const host = await open('host67s', 1280, 900);
+    await register(host, 'host', 'Ірина Ведуча', 'host67s@example.com');
+    const data = { ...makeRoundsQuiz([classicRound('r67s', [{ ...text, id: 'q67s', text: 'Яке місто називають перлиною біля моря?', accepted: ['Одеса'], timeLimit: 40 }] as never)], { leaderboard: 'end' }), title: 'Сцена на ПК 67' };
+    const saved = await host.request.post(`${base}/api/quizzes`, { data });
+    expect(saved.ok(), await saved.text()).toBe(true);
+    await host.goto(`${base}/quizzes`);
+    await host.locator('.quiz-list li', { hasText: 'Сцена на ПК 67' }).getByRole('button', { name: 'Грати', ...exact }).click();
+    await host.waitForURL(/\/host\/\d{6}$/);
+    const code = host.url().slice(-6);
+    const stageUrl = (await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href'))!;
+    const stage = await open('stage67s', 1920, 1080);
+    await stage.goto(stageUrl);
+    const nicks = ['Олена', 'Тарас', 'Максим', 'Олександрович-Довгий', 'Ліда', 'Назар'];
+    const pilots = [];
+    for (const nick of nicks) pilots.push(await pilotPlayer(sockets, code, nick));
+    await stage.getByText('Назар').waitFor();
+    await click(host, 'Почати гру');
+    await afterSplash(host, stage);
+    await step27a(host, 'Почати раунд');
+    await afterSplash(host, stage);
+    for (const [index, pilot] of pilots.entries()) await emitOk(pilot, 'player:answer', { type: 'text', value: index % 2 === 0 ? 'Одеса' : 'Львів' });
+
+    await stage.getByText('Яке місто називають перлиною біля моря?').first().waitFor();
+    await wide67(stage, 'stage67-question', async (size) => {
+      await expectStageFits67(stage, 'question', size);
+      if (size.tag === '1920') {
+        // Дошка .stage-board є лише в частині розкладок: де вона є, на 1920 вона ширша за 960 px.
+        const boards = stage.locator('.stage-board');
+        if ((await boards.count()) > 0) expect((await boards.first().boundingBox())!.width, '1920: the stage board is wider than 960 px').toBeGreaterThan(960);
+      }
+    });
+    await reveal28a(host);
+    await next27a(host);
+    await host.getByText('Гру завершено').first().waitFor();
+    await afterSplash(stage);
+    await stage.locator('.standings').first().waitFor();
+    await wide67(stage, 'stage67-standings', async (size) => {
+      await expectStageFits67(stage, 'standings', size);
+    });
+  } finally {
+    for (const socket of sockets) socket.close();
+  }
+}
+
+it('part 67 stage: the stage on a big screen — the question and the standings of six players fit 1920 × 1080 and 1366 × 768 without scrolling, boards grow past 960 px from 1600 px, nothing scrolls sideways on a 375 screen', async () => {
+  try {
+    await stage67();
   } catch (error) {
     await snapshot();
     throw error;

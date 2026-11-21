@@ -134,6 +134,26 @@ describe('67 host console columns', () => {
   });
 });
 
+describe('67 stage boards', () => {
+  it('stage boards read one token and grow only from 1600 px', () => {
+    const all = rules(clean);
+    const top = (selector: string) => all.find((rule) => rule.selector === selector)?.body ?? '';
+    expect(top('.stage-board')).toContain('width: min(100%, var(--w-stage-board));');
+    expect(top('.stage-survey .survey-board')).toContain('max-width: var(--w-stage-board);');
+    expect(top('.stage-bluff .bluff-board')).toContain('max-width: var(--w-stage-board);');
+    for (const selector of ['.quest-stage-prompt', '.quest-stage .quest-lock', '.quest-table-wrap']) expect(top(selector), selector).toContain('max-width: var(--w-stage-board);');
+    const media = minWidthMedia(clean);
+    const changing = media.filter(({ body }) => rules(body).some((rule) => rule.selector === ':root' && rule.body.includes('--w-stage-board')));
+    expect(changing.map(({ width }) => width)).toEqual(['1600']);
+    expect(changing[0]!.body).toContain('--w-stage-board: 76rem;');
+    // Усе, що в розділі 67 торкається сцени, — лише від 1600 px.
+    const stageIn = media.filter(({ width, body }) => width !== '1600' && /--w-|--app-w/.test(body) && rules(body).some((rule) => /\.stage|\.truth-stage/.test(rule.selector)));
+    expect(stageIn.map(({ width }) => width)).toEqual([]);
+    const big = rules(media.find(({ width }) => width === '1600')?.body ?? '');
+    expect(big.find((rule) => rule.selector === '.stage .question-video')?.body).toContain('max-width: min(100%, calc(62vh * 16 / 9));');
+  });
+});
+
 /** Тіло верхньорівневого правила з цим селектором (для .app, .app.host тощо). */
 function topLevel(selector: string): string {
   return rules(clean).find((rule) => rule.selector === selector)?.body ?? '';

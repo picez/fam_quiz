@@ -1526,7 +1526,7 @@ body:has(.timer-sticky) .host .live-notices {
 .stage-board {
   display: grid;
   gap: 3vh;
-  width: min(100%, 60rem);
+  width: min(100%, var(--w-stage-board));
   margin: 0 auto;
 }
 
@@ -10735,7 +10735,7 @@ button.wall-tile:disabled {
 .stage-survey .survey-board {
   flex: 1 1 0;
   min-height: 0;
-  max-width: 60rem;
+  max-width: var(--w-stage-board);
 }
 
 .stage-survey .survey-board .survey-row {
@@ -10984,7 +10984,7 @@ button.wall-tile:disabled {
 .stage-bluff .bluff-board {
   flex: 1 1 0;
   min-height: 0;
-  max-width: 60rem;
+  max-width: var(--w-stage-board);
   gap: 0.25rem;
 }
 
@@ -23652,7 +23652,7 @@ input.sudoku-editor-cell:focus-visible {
 
 .quest-stage-prompt {
   margin: 0;
-  max-width: 60rem;
+  max-width: var(--w-stage-board);
   text-align: center;
   overflow-wrap: anywhere;
 }
@@ -23660,7 +23660,7 @@ input.sudoku-editor-cell:focus-visible {
 .quest-stage .quest-lock {
   --quest-cell-max: clamp(2.5rem, 6vw, 6rem);
   flex: none;
-  max-width: 60rem;
+  max-width: var(--w-stage-board);
 }
 
 .quest-stage .quest-cell {
@@ -23788,7 +23788,7 @@ input.sudoku-editor-cell:focus-visible {
   width: 100%;
   min-width: 0;
   min-height: 0;
-  max-width: 60rem;
+  max-width: var(--w-stage-board);
   margin-inline: auto;
   overflow: hidden;
   container-type: size;
@@ -28769,5 +28769,18 @@ a.library-card:focus-visible {
 
   .app.player .choice {
     font-size: 1.25rem;
+  }
+
+  /* Сцена: відео росте до висоти екрана, а не 960 px; тексти нагороди й печатки лишаються читабельними. */
+  .stage .question-video {
+    max-width: min(100%, calc(62vh * 16 / 9));
+  }
+
+  .stage-board.is-award .award-body {
+    max-width: min(100%, 64rem);
+  }
+
+  .truth-stage .truth-seal {
+    max-width: min(100%, 72rem);
   }
 }
