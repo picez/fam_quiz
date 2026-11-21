@@ -2309,6 +2309,35 @@ describe('PlayerScreen: sort', () => {
       show(view({ phase: 'reveal', questionIndex: 0, round: boardRound, board: sortBoard, question: sortQ, sort: { ...info(), live: liveOf({ card: null, marks }) }, reveal: fullSort, me: { ...me, sort: null } }));
       expect(document.querySelector('.sort-reveal.is-open .sort-mark')?.textContent).toBe('✗2');
     });
+
+    describe('a sold auction sort question', () => {
+      const auctionRound: RoundInfo = { index: 0, total: 1, title: 'Сад', type: 'auction', partial: false, description: '', brief: emptyBrief('auction'), times: null };
+      const auction = {
+        theme: 'Сад', index: 0, total: 1, price: 400, mode: 'step' as const, step: 100, loss: 'bid' as const, teaser: null, bid: 300,
+        leader: olya, next: 0, endsAt: null, remainingMs: null, totalMs: 5000, open: false, result: null,
+      };
+      const watching = { ...me, sort: null, auction: { status: 'watching' as const, limit: 600, next: 0, canBid: false } };
+
+      it('a watcher sees the winner live sort, not an empty screen', () => {
+        show(onQuestion({ round: auctionRound, auction, question: sortQ, sort: { ...info(), live: liveOf() }, me: watching }));
+        expect(screen.getByText('Відповідає Оля — запитання куплено за 300')).toBeTruthy();
+        expect(document.querySelector('.sort-live-card')?.textContent).toBe('Буряк');
+        expect(screen.getByText('Овочі')).toBeTruthy();
+        expect(document.querySelector('.sort-card')).toBeNull();
+        expect(screen.queryByRole('button', { name: /Категорія/ })).toBeNull();
+      });
+
+      it('a watcher still sees the winner sort on locked and the winner marks on the reveal', () => {
+        show(view({ phase: 'locked', questionIndex: 0, round: auctionRound, auction, question: sortQ, sort: { ...info(), live: liveOf({ card: null, sorted: 2 }) }, me: watching }));
+        expect(document.querySelector('.sort-play.is-watching')).not.toBeNull();
+        expect(screen.getByText('Чекаємо на розкриття')).toBeTruthy();
+        cleanup();
+        const marks = [{ wordId: 'w2', misses: 2, late: false }];
+        show(view({ phase: 'reveal', questionIndex: 0, round: auctionRound, auction: { ...auction, result: { grade: 'partial' as const, points: 200 } }, question: sortQ, sort: { ...info(), live: liveOf({ card: null, marks }) }, reveal: fullSort, me: watching }));
+        expect(document.querySelectorAll('.sort-reveal.is-open li')).toHaveLength(4);
+        expect(document.querySelector('.sort-reveal.is-open .sort-mark')?.textContent).toBe('✗2');
+      });
+    });
   });
 
   it('after the sort the phone shows the own result and later the grouping', () => {

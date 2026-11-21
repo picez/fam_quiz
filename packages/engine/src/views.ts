@@ -248,7 +248,7 @@ import { memoryOf, settleMemory } from './memory';
 import { snippetHeard, type SnippetQuestion } from './snippets';
 import { notStarted } from './splash';
 import { puzzleSize, puzzleSolution, puzzleSolved, scoredCells } from './puzzles';
-import { lastSortMove, sortAudience, sortMarks, sortOf, sortSeq, sortsHere } from './sort';
+import { lastSortMove, soleSorter, sortAudience, sortMarks, sortOf, sortSeq, sortsHere } from './sort';
 import { wallOf, wallsHere } from './wall';
 import { isAuthor } from './autopilot';
 import { cloudTally, cloudVoters } from './votes';
@@ -2320,7 +2320,10 @@ function sortInfo(state: GameState): SortInfo | null {
   const open = currentSort(state);
   if (open === null) return null;
   const { play } = open;
-  const players = play.board === undefined ? state.players : state.players.filter((p) => p.id === play.board?.chooserId);
+  // Продане запитання «Аукціону» сортує лише переможець — як клітинку поля той, хто вибрав.
+  const sole = soleSorter(state, play);
+  const only = play.board?.chooserId ?? sole;
+  const players = only === null ? state.players : state.players.filter((p) => p.id === only);
   const rows = players.map((player): SortRow => {
     const record = recordOf(state, state.questionIndex, player.id);
     const progress = sortOf(state, player.id);
@@ -2341,13 +2344,11 @@ function sortInfo(state: GameState): SortInfo | null {
   const won = blitz && closed ? state.players.find((p) => recordOf(state, state.questionIndex, p.id)?.accepted) : undefined;
   // Слова за абеткою: порядок автора видав би групування за категоріями.
   const words =
-    play.board === undefined
+    only === null
       ? null
       : open.question.words.map(({ id, text }) => ({ id, text })).sort((a, b) => a.text.localeCompare(b.text, 'uk'));
-  // Живий показ — лише там, де сортує одна сторона на очах у всіх: звичайна клітинка поля.
-  const chooserId = play.board?.chooserId;
-  const live =
-    sortAudience(state, play) === 'all' && chooserId !== undefined && state.players.some((p) => p.id === chooserId) ? sortLive(state, open, chooserId) : null;
+  // Живий показ — лише там, де сортує одна сторона на очах у всіх: звичайна клітинка поля чи продане запитання «Аукціону».
+  const live = sole !== null && state.players.some((p) => p.id === sole) ? sortLive(state, open, sole) : null;
   return { total: open.question.words.length, rows, winner: won === undefined ? null : blitzPlayer(state, won.id), words, live };
 }
 
@@ -4001,7 +4002,8 @@ function buildOwnView(state: GameState, playerId: string): Omit<PlayerView, 'tea
     // Питання на виживання (16a) телефони отримують усі — як і сцена: решта дивиться його лише для читання.
     // Правильна відповідь (trial.reveal) — лише після закриття, як і на сцені.
     // Слова й живий показ клітинки сортування — для глядачів; той, хто сортує, бачить лише власну поточну картку.
-    ...(shared.sort !== null && (shared.sort.words !== null || shared.sort.live !== null) && open?.board.chooserId === playerId
+    // Продане запитання «Аукціону»: так само для переможця торгу.
+    ...(shared.sort !== null && (shared.sort.words !== null || shared.sort.live !== null) && (open?.board.chooserId ?? (play === undefined ? null : soleSorter(state, play))) === playerId
       ? { sort: { ...shared.sort, words: null, live: null } }
       : {}),
     role: 'player',
