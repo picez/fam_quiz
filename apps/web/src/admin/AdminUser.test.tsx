@@ -302,12 +302,23 @@ describe('AdminUser: the player card (58)', () => {
     await waitFor(() => expect(sent('POST', '/api/admin/users/u2/gifts')).toHaveLength(1));
     expect(sent('POST', '/api/admin/users/u2/gifts')[0]!.body).toEqual({ prizeId: mine[0]!.id, note: 'З днем народження' });
 
-    expect(within(box).getByText(/^Подарунок від адміністратора · /)).toBeTruthy();
-    expect(within(box).getByText('Дякую')).toBeTruthy();
-    expect(within(box).getAllByRole('button', { name: 'Забрати подарунок' })).toHaveLength(1);
-    fireEvent.click(within(box).getByRole('button', { name: 'Забрати подарунок' }));
-    expect(window.confirm).toHaveBeenLastCalledWith('Забрати подарунок «Зірка» у Оля?');
+    expect(within(box).getByText(/^Подарунок від адміністратора · .* · Дякую$/)).toBeTruthy();
+    fireEvent.click(within(box).getByRole('checkbox', { name: 'Зірка' }));
+    fireEvent.click(within(box).getByRole('button', { name: 'Прибрати вибрані' }));
+    expect(window.confirm).toHaveBeenLastCalledWith('Прибрати з вітрини Оля (1): Зірка? Скасувати не можна.');
     await waitFor(() => expect(sent('DELETE', '/api/admin/gifts/a2')).toHaveLength(1));
+  });
+
+  it('removes a gift and a game award from the showcase with one confirm (69)', async () => {
+    open();
+    const box = await opened('Призи');
+    const confirms = vi.mocked(window.confirm).mock.calls.length;
+    fireEvent.click(within(box).getByRole('checkbox', { name: 'Вибрати всі' }));
+    const remove = within(box).getByRole('button', { name: 'Прибрати вибрані' });
+    fireEvent.click(remove);
+    expect(vi.mocked(window.confirm).mock.calls.length).toBe(confirms + 1);
+    await waitFor(() => expect(sent('DELETE', '/api/admin/gifts/a2')).toHaveLength(1));
+    await waitFor(() => expect(sent('DELETE', '/api/admin/awards/a1')).toHaveLength(1));
   });
 
   it('a gift without a note sends null', async () => {
@@ -364,8 +375,9 @@ describe('AdminUser: the player card (58)', () => {
     expect(await within(box).findByText('Цього досягнення в гравця вже немає — картку оновлено.')).toBeTruthy();
     await waitFor(() => expect(sent('GET', '/api/admin/users/u2')).toHaveLength(2));
     const prizes = await opened('Призи');
-    fireEvent.click(within(prizes).getByRole('button', { name: 'Забрати подарунок' }));
-    expect(await within(prizes).findByText('Цього подарунка вже немає — картку оновлено.')).toBeTruthy();
+    fireEvent.click(within(prizes).getByRole('checkbox', { name: 'Зірка' }));
+    fireEvent.click(within(prizes).getByRole('button', { name: 'Прибрати вибрані' }));
+    expect(await within(prizes).findByText('Зроблено 0 з 1; решти вже не було — картку оновлено.')).toBeTruthy();
     await waitFor(() => expect(sent('GET', '/api/admin/users/u2')).toHaveLength(3));
     expect(screen.queryByText('головна')).toBeNull();
   });

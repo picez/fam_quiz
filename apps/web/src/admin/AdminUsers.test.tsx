@@ -145,9 +145,13 @@ describe('AdminUser', () => {
     vi.mocked(deletePrizeAsAdmin).mockResolvedValue({ ok: true });
     vi.mocked(deleteAwardAsAdmin).mockResolvedValue({ ok: true });
     openUser();
-    fireEvent.click(await screen.findByRole('button', { name: 'Видалити приз' }));
+    fireEvent.click(await screen.findByRole('checkbox', { name: 'Кубок' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Видалити вибрані' }));
     await waitFor(() => expect(deletePrizeAsAdmin).toHaveBeenCalledWith('p1'));
-    fireEvent.click(await screen.findByRole('button', { name: 'Прибрати нагороду' }));
+    expect(deletePrizeAsAdmin).toHaveBeenCalledTimes(1);
+    expect(window.confirm).toHaveBeenCalledTimes(1);
+    fireEvent.click(await screen.findByRole('checkbox', { name: '«Карпати»' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Прибрати вибрані' }));
     await waitFor(() => expect(deleteAwardAsAdmin).toHaveBeenCalledWith('a1'));
   });
 
