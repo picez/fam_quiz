@@ -48,7 +48,7 @@ export function AdminUser(): JSX.Element {
       </>
     );
   }
-  return <UserView detail={state.data} reload={state.reload} stale={state.stale === true} />;
+  return <UserView key={state.data.user.id} detail={state.data} reload={state.reload} stale={state.stale === true} />;
 }
 
 /** 69: шапка картки — нік, email і позначки; решта (реєстрація, ігри, вікторини) — в «Огляді». */

@@ -28156,6 +28156,73 @@ a.library-card:focus-visible {
   margin: 0;
 }
 
+/* 69: розділи картки, що згортаються — нативні details/summary; закритий розділ займає один рядок; лише змінні теми. */
+details.admin-fold > summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.25rem 0.6rem;
+  min-height: 2.75rem;
+  align-content: center;
+  cursor: pointer;
+  list-style: none;
+}
+
+details.admin-fold > summary::-webkit-details-marker {
+  display: none;
+}
+
+details.admin-fold > summary::before {
+  content: '';
+  align-self: center;
+  width: 0.5rem;
+  height: 0.5rem;
+  border-inline-end: 2px solid currentColor;
+  border-block-end: 2px solid currentColor;
+  transform: rotate(-45deg);
+  transition: transform 0.15s;
+}
+
+details.admin-fold[open] > summary::before {
+  transform: rotate(45deg);
+}
+
+[dir='rtl'] details.admin-fold:not([open]) > summary::before {
+  transform: rotate(45deg) scaleX(-1);
+}
+
+.admin-fold-title {
+  display: inline;
+  margin: 0;
+  font-size: 1.15rem;
+}
+
+.admin-fold-count {
+  box-sizing: border-box;
+  min-width: 1.6rem;
+  padding: 0 0.4rem;
+  border-radius: 999px;
+  background: var(--track);
+  font-weight: 700;
+  text-align: center;
+}
+
+.admin-fold-body {
+  display: grid;
+  gap: 0.75rem;
+  min-width: 0;
+  margin-block-start: 0.5rem;
+}
+
+/* gap панелі не діє всередині <details>; порожній рядок тривоги/стану не лишає зайвої порожнечі (як у .resume-panel). */
+.admin-fold-body > .admin-card-line:empty {
+  margin-block-start: -0.75rem;
+}
+
+.admin-card-section:has(> details:not([open])) {
+  padding-block: 0.25rem;
+}
+
 /* 66: об'єднання акаунтів — знайдені акаунти кнопками на всю ширину з переносом довгих email; лише змінні теми. */
 .admin-merge-pick {
   display: flex;

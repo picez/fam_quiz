@@ -4,14 +4,14 @@ import type { AdminUserDetail } from '@quiz/shared';
 import { formatDate, num } from '../../format';
 import { countText, t } from '../../i18n';
 import { nickText } from '../../nick';
+import { CardFold } from './CardFold';
 
 /** Останні ігри (→ адмінський перегляд гри), вікторини (→ перегляд вікторини) й історія банів (58). */
 export function CardGames({ detail }: { detail: AdminUserDetail }): JSX.Element {
   const { games, quizzes, bans } = detail.card;
   return (
     <>
-      <section className="panel admin-card-section">
-        <h2>{t('adminCardGames')}</h2>
+      <CardFold title={t('adminCardGames')} count={games.length}>
         {games.length === 0 ? (
           <p className="meta">{t('adminCardNoGames')}</p>
         ) : (
@@ -26,9 +26,8 @@ export function CardGames({ detail }: { detail: AdminUserDetail }): JSX.Element 
             ))}
           </ul>
         )}
-      </section>
-      <section className="panel admin-card-section">
-        <h2>{t('adminCardQuizzes')}</h2>
+      </CardFold>
+      <CardFold title={t('adminCardQuizzes')} count={quizzes.length}>
         {quizzes.length === 0 ? (
           <p className="meta">{t('adminCardNoQuizzes')}</p>
         ) : (
@@ -43,9 +42,8 @@ export function CardGames({ detail }: { detail: AdminUserDetail }): JSX.Element 
             ))}
           </ul>
         )}
-      </section>
-      <section className="panel admin-card-section">
-        <h2>{t('adminCardBans')}</h2>
+      </CardFold>
+      <CardFold title={t('adminCardBans')} count={bans.length}>
         {bans.length === 0 ? (
           <p className="meta">{t('adminCardNoBans')}</p>
         ) : (
@@ -58,7 +56,7 @@ export function CardGames({ detail }: { detail: AdminUserDetail }): JSX.Element 
             ))}
           </ul>
         )}
-      </section>
+      </CardFold>
     </>
   );
 }

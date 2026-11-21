@@ -7,6 +7,7 @@ import { errorText, t } from '../../i18n';
 import { nickText } from '../../nick';
 import { deleteAwardAsAdmin, deletePrizeAsAdmin, giftPrize, revokeGift } from '../admin-api';
 import type { CardProps } from '../AdminUser';
+import { CardFold } from './CardFold';
 
 /** Призи гравця: склад, вітрина (подарунок адміна — «Забрати подарунок») і подарунок зі свого складу адміна (58). */
 export function CardPrizes({ detail, act, busy }: CardProps): JSX.Element {
@@ -15,8 +16,7 @@ export function CardPrizes({ detail, act, busy }: CardProps): JSX.Element {
   const nickname = nickText(user.nickname);
   const report = setError;
   return (
-    <section className="panel admin-card-section">
-      <h2>{t('adminPrizes')}</h2>
+    <CardFold title={t('adminPrizes')} count={stock.length + awards.length}>
       <h3>{t('adminStock')}</h3>
       {stock.length === 0 ? (
         <p className="meta">{t('adminNoPrizes')}</p>
@@ -65,7 +65,7 @@ export function CardPrizes({ detail, act, busy }: CardProps): JSX.Element {
       <p className="error admin-card-line" role="alert">
         {error ?? ''}
       </p>
-    </section>
+    </CardFold>
   );
 }
 

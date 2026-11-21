@@ -87,7 +87,43 @@ const open = () =>
 
 const section = async (name: string) => (await screen.findByRole('heading', { name })).closest('section') as HTMLElement;
 
+/** Розділ розгорнуто (jsdom може не перемикати details від кліку — підстраховуємось). */
+const opened = async (name: string) => {
+  const box = await section(name);
+  const details = box.querySelector('details')!;
+  if (!details.open) fireEvent.click(details.querySelector('summary')!);
+  details.open = true;
+  return box;
+};
+
 describe('AdminUser: the player card (58)', () => {
+  it('every section folds; only the overview starts open; counts in summaries (69)', async () => {
+    open();
+    const names = ['Огляд', 'Досягнення', 'Досвід', 'Останні ігри', 'Вікторини', 'Бани', 'Модерація', 'Призи', "Об'єднати з іншим акаунтом"];
+    for (const name of names) {
+      const box = await section(name);
+      expect(box.querySelector('details.admin-fold'), name).toBeTruthy();
+      expect(box.querySelector('details')!.open, name).toBe(name === 'Огляд');
+    }
+    const countOf = async (name: string) => (await section(name)).querySelector('summary .admin-fold-count')?.textContent;
+    expect(await countOf('Досягнення')).toBe(String(current.card.achievements.length));
+    expect(await countOf('Останні ігри')).toBe(String(current.card.games.length));
+    expect(await countOf('Призи')).toBe(String(current.stock.length + current.awards.length));
+    expect((await section('Досягнення')).querySelector('summary')!.textContent).toContain('забрано: 1');
+    expect(await section('Видалити акаунт')).toBeTruthy();
+  });
+
+  it('an open section stays open after the card is reread (69)', async () => {
+    reply = (call) => (call.method === 'POST' && call.url === '/api/admin/users/u2/xp' ? { status: 200, data: { xp: 400, level: 3 } } : undefined);
+    open();
+    const box = await opened('Досвід');
+    fireEvent.change(within(box).getByLabelText('Зміна (від’ємне число — відняти)'), { target: { value: '100' } });
+    fireEvent.change(within(box).getByLabelText('Причина (обов’язково)'), { target: { value: 'Турнір' } });
+    fireEvent.click(within(box).getByRole('button', { name: 'Додати / відняти досвід' }));
+    await waitFor(() => expect(sent('GET', '/api/admin/users/u2')).toHaveLength(2));
+    expect((await section('Досвід')).querySelector('details')!.open).toBe(true);
+  });
+
   it('shows the overview', async () => {
     open();
     const overview = await section('Огляд');
@@ -108,7 +144,7 @@ describe('AdminUser: the player card (58)', () => {
 
   it('grants an achievement from the missing ones and revokes with a confirm', async () => {
     open();
-    const box = await section('Досягнення');
+    const box = await opened('Досягнення');
     expect(within(box).getByText('Перша гра')).toBeTruthy();
     expect(within(box).getByText(/Забрано адміністратором/)).toBeTruthy();
     const pick = within(box).getByLabelText('Оберіть досягнення') as HTMLSelectElement;
@@ -132,7 +168,7 @@ describe('AdminUser: the player card (58)', () => {
   it('a declined confirm sends nothing', async () => {
     vi.mocked(window.confirm).mockReturnValue(false);
     open();
-    const box = await section('Досягнення');
+    const box = await opened('Досягнення');
     fireEvent.click(within(box).getByRole('button', { name: 'Відібрати' }));
     expect(calls.filter((call) => call.method !== 'GET')).toEqual([]);
   });
@@ -140,7 +176,7 @@ describe('AdminUser: the player card (58)', () => {
   it('manual xp needs a reason', async () => {
     reply = (call) => (call.method === 'POST' && call.url === '/api/admin/users/u2/xp' ? { status: 409, data: { error: 'xp_below_zero' } } : undefined);
     open();
-    const box = await section('Досвід');
+    const box = await opened('Досвід');
     expect(within(box).getByText(/За турнір/)).toBeTruthy();
     const alert = within(box).getByRole('alert');
     expect(alert.textContent).toBe('');
@@ -166,7 +202,7 @@ describe('AdminUser: the player card (58)', () => {
   it('manual xp tells the new level and rereads the card', async () => {
     reply = (call) => (call.method === 'POST' && call.url === '/api/admin/users/u2/xp' ? { status: 200, data: { xp: 400, level: 3 } } : undefined);
     open();
-    const box = await section('Досвід');
+    const box = await opened('Досвід');
     const status = within(box).getByRole('status');
     expect(status.textContent).toBe('');
     fireEvent.change(within(box).getByLabelText('Зміна (від’ємне число — відняти)'), { target: { value: '100' } });
@@ -219,7 +255,7 @@ describe('AdminUser: the player card (58)', () => {
 
   it('gifts one of my prizes with a note and revokes a gift', async () => {
     open();
-    const box = await section('Призи');
+    const box = await opened('Призи');
     expect(within(box).getByRole('link', { name: 'Створити новий приз' }).getAttribute('href')).toBe('/profile/prizes/new?back=/admin/users/u2');
     const pick = (await within(box).findByLabelText('Оберіть приз зі свого складу')) as HTMLSelectElement;
     await waitFor(() => expect(Array.from(pick.options).map((option) => option.textContent)).toEqual(expect.arrayContaining(['Медаль', 'Грамота'])));
@@ -243,7 +279,7 @@ describe('AdminUser: the player card (58)', () => {
   it('a gift without a note sends null', async () => {
     reply = (call) => (call.method === 'POST' && call.url === '/api/admin/users/u2/gifts' ? { status: 201, data: { id: 'a9' } } : undefined);
     open();
-    const box = await section('Призи');
+    const box = await opened('Призи');
     const pick = (await within(box).findByLabelText('Оберіть приз зі свого складу')) as HTMLSelectElement;
     await waitFor(() => expect(pick.options.length).toBeGreaterThan(1));
     fireEvent.change(pick, { target: { value: mine[1]!.id } });
@@ -254,7 +290,7 @@ describe('AdminUser: the player card (58)', () => {
 
   it('deleting needs the exact nickname', async () => {
     open();
-    const box = await section('Видалити акаунт');
+    const box = await opened('Видалити акаунт');
     const remove = within(box).getByRole('button', { name: 'Видалити акаунт' }) as HTMLButtonElement;
     const typed = within(box).getByLabelText('Введіть нік «Оля», щоб підтвердити');
     expect(remove.disabled).toBe(true);
@@ -273,7 +309,7 @@ describe('AdminUser: the player card (58)', () => {
     current = detail({ user: row({ nickname: null }) });
     reply = (call) => (call.method === 'DELETE' && call.url === '/api/admin/users/u2' ? { status: 400, data: { error: 'confirm_mismatch' } } : undefined);
     open();
-    const box = await section('Видалити акаунт');
+    const box = await opened('Видалити акаунт');
     fireEvent.change(within(box).getByLabelText('Введіть нік «olya@example.com», щоб підтвердити'), { target: { value: 'olya@example.com' } });
     fireEvent.click(within(box).getByRole('button', { name: 'Видалити акаунт' }));
     await waitFor(() => expect(within(box).getByRole('alert').textContent).toBe('Нік не збігається — акаунт не видалено.'));
@@ -288,11 +324,11 @@ describe('AdminUser: the player card (58)', () => {
           ? { status: 404, data: { error: 'gift_not_found' } }
           : undefined;
     open();
-    const box = await section('Досягнення');
+    const box = await opened('Досягнення');
     fireEvent.click(within(box).getByRole('button', { name: 'Відібрати' }));
     expect(await within(box).findByText('Цього досягнення в гравця вже немає — картку оновлено.')).toBeTruthy();
     await waitFor(() => expect(sent('GET', '/api/admin/users/u2')).toHaveLength(2));
-    const prizes = await section('Призи');
+    const prizes = await opened('Призи');
     fireEvent.click(within(prizes).getByRole('button', { name: 'Забрати подарунок' }));
     expect(await within(prizes).findByText('Цього подарунка вже немає — картку оновлено.')).toBeTruthy();
     await waitFor(() => expect(sent('GET', '/api/admin/users/u2')).toHaveLength(3));
@@ -307,7 +343,7 @@ describe('AdminUser: the player card (58)', () => {
       return reads === 1 ? { status: 200, data: current } : { status: 500, data: { error: 'internal' } };
     };
     open();
-    const box = await section('Досягнення');
+    const box = await opened('Досягнення');
     expect(screen.queryByText('Не вдалося оновити; показано останні дані.')).toBeNull();
     fireEvent.click(within(box).getByRole('button', { name: 'Відібрати' }));
     expect((await screen.findByText('Не вдалося оновити; показано останні дані.')).getAttribute('role')).toBe('status');
@@ -316,7 +352,7 @@ describe('AdminUser: the player card (58)', () => {
   it('a balancing xp line is named in the interface language, not by the server', async () => {
     current = detail({ card: card({ xp: [{ id: 'x2', amount: 80, note: '', at: '2026-10-12T10:00:00.000Z', balance: true }] }) });
     open();
-    const box = await section('Досвід');
+    const box = await opened('Досвід');
     expect(within(box).getByText('Вирівнювання до нуля після зняття досягнення')).toBeTruthy();
   });
 });

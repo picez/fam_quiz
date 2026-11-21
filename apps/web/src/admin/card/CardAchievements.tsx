@@ -5,6 +5,7 @@ import { t, type TextKey } from '../../i18n';
 import { nickText } from '../../nick';
 import { grantAchievement, revokeAchievement } from '../admin-api';
 import type { CardProps } from '../AdminUser';
+import { CardFold } from './CardFold';
 
 const nameOf = (id: AchievementId): string => t(`achievement_${id}` as TextKey);
 
@@ -22,8 +23,7 @@ export function CardAchievements({ detail, act, busy }: CardProps): JSX.Element 
   };
 
   return (
-    <section className="panel admin-card-section">
-      <h2>{t('adminCardAchievements')}</h2>
+    <CardFold title={t('adminCardAchievements')} count={card.achievements.length} hint={card.blocked.length > 0 ? t('adminCardBlockedCount', { count: card.blocked.length }) : null}>
       {card.achievements.length === 0 ? (
         <p className="meta">{t('adminCardNoAchievements')}</p>
       ) : (
@@ -69,6 +69,6 @@ export function CardAchievements({ detail, act, busy }: CardProps): JSX.Element 
       <p className="error admin-card-line" role="alert">
         {error ?? ''}
       </p>
-    </section>
+    </CardFold>
   );
 }

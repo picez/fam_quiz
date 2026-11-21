@@ -3,6 +3,7 @@ import { t } from '../../i18n';
 import { nickText } from '../../nick';
 import { actOnProfileReport, banUser, unbanUser } from '../admin-api';
 import type { CardProps } from '../AdminUser';
+import { CardFold } from './CardFold';
 
 /** Модерація: бан / розбан і «Скинути нік» / «Скинути аватар» (58, та сама дія, що й зі скарги); адміну — лише розбан. */
 export function CardModeration({ detail, act, busy }: CardProps): JSX.Element | null {
@@ -12,7 +13,7 @@ export function CardModeration({ detail, act, busy }: CardProps): JSX.Element | 
   const nickname = nickText(user.nickname);
   if (user.admin && user.banned === null) return null;
   return (
-    <section className="panel admin-card-section">
+    <CardFold title={t('adminCardModeration')} hint={user.banned !== null ? t('adminBannedShort') : null}>
       {user.banned !== null ? (
         <>
           {user.banned.reason !== null && <p>{t('adminReasonShown', { reason: user.banned.reason })}</p>}
@@ -48,6 +49,6 @@ export function CardModeration({ detail, act, busy }: CardProps): JSX.Element | 
       <p className="error admin-card-line" role="alert">
         {error ?? ''}
       </p>
-    </section>
+    </CardFold>
   );
 }

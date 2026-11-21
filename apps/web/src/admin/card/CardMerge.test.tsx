@@ -177,7 +177,7 @@ describe('CardMerge (66)', () => {
     await waitFor(() => expect(sent('GET', '/api/admin/users/u3')).toHaveLength(1));
     expect(window.confirm).toHaveBeenCalledWith('Об\'єднати Оля з Ольга? Це не скасувати.');
     expect(sent('POST', '/api/admin/users/u3/merge')[0]!.body).toEqual({ secondaryId: 'u2', confirm: 'Оля' });
-    await waitFor(() => expect(within(document.querySelector('.admin-list') as HTMLElement).getByText('olga@example.com')).toBeTruthy());
+    await waitFor(() => expect(within(document.querySelector('.admin-user-head') as HTMLElement).getByText('olga@example.com')).toBeTruthy());
     expect(screen.queryByText(/^Разом: /)).toBeNull();
   });
 
