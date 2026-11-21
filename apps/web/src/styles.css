@@ -28572,10 +28572,13 @@ a.library-card:focus-visible {
   border: 0;
 }
 
+/* Підпис групи — як підпис поля поруч (field compact): усі фільтри в один рівень (черга 45, п. 8). */
 .admin-filters legend {
-  margin-bottom: 0.35rem;
+  margin-bottom: 0.25rem;
   padding: 0;
-  font-weight: 700;
+  color: var(--dim);
+  font-size: 0.8125rem;
+  font-weight: 400;
 }
 
 .admin-filters select {

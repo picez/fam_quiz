@@ -36,7 +36,8 @@ function usePeopleSearch(query: string): { found: AdminBotPerson[]; error: strin
  * Вибір людей за ніком (56, винесено в 59): вибрані — списком з «×», пошук — кнопками; понад `max` додати не можна.
  * `id` — префікс id поля пошуку (на сторінці можуть бути два вибори).
  */
-export function PeoplePicker({ id, value, onChange, max }: { id: string; value: PickedPerson[]; onChange: (next: PickedPerson[]) => void; max: number }): JSX.Element {
+/** quietLabel — підпис «Пошук за ніком» лише для читачів екрана: у фільтрі його заступає заголовок групи, і поле стає в рівень із сусідами. */
+export function PeoplePicker({ id, value, onChange, max, quietLabel = false }: { id: string; value: PickedPerson[]; onChange: (next: PickedPerson[]) => void; max: number; quietLabel?: boolean }): JSX.Element {
   const [query, setQuery] = useState('');
   const search = usePeopleSearch(query);
   const found = search.found.filter((person) => !value.some((chosen) => chosen.id === person.id));
@@ -57,7 +58,7 @@ export function PeoplePicker({ id, value, onChange, max }: { id: string; value: 
         </ul>
       )}
       <label className="field compact" htmlFor={searchId}>
-        <span>{t('adminBotPlanSearch')}</span>
+        <span className={quietLabel ? 'sr-only' : undefined}>{t('adminBotPlanSearch')}</span>
         <input id={searchId} type="search" value={query} maxLength={40} autoComplete="off" onChange={(e) => setQuery(e.target.value)} />
       </label>
       {search.error !== null && <p className="error">{search.error}</p>}

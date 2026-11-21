@@ -77,6 +77,7 @@ export function AdminFeed(): JSX.Element {
             id="admin-feed-person"
             value={filter.person === null ? [] : [filter.person]}
             max={1}
+            quietLabel
             onChange={(next) => change({ ...filter, person: next[0] ?? null, page: 1 })}
           />
         </fieldset>
