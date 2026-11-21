@@ -24,6 +24,9 @@ function sameText(summary: MergeSummary): string | null {
   return parts.length === 0 ? null : parts.join(', ');
 }
 
+/** Як на сервері: без пробілів по краях, після NFC, з урахуванням регістру. */
+export const confirmMatches = (typed: string, confirm: string): boolean => typed.trim().normalize('NFC') === confirm.normalize('NFC');
+
 /**
  * Об'єднання з іншим акаунтом (66): пошук другого акаунта, вибір головного, перегляд «що куди перейде» (сервер проходить
  * об'єднання й відкочує його), відмова — причина замість кнопки; кнопка активна лише, коли набрано точно мітку акаунта,
@@ -92,7 +95,7 @@ export function CardMerge({ detail, act, busy }: CardProps): JSX.Element {
     const here = view.primary.id === user.id;
     const done = await act(
       t('adminMergeConfirm', { secondary: label(view.secondary), primary: label(view.primary) }),
-      () => mergeAccounts(view.primary.id, view.secondary.id, typed.trim()),
+      () => mergeAccounts(view.primary.id, view.secondary.id, typed.trim().normalize('NFC')),
       setError,
       here,
     );
@@ -193,7 +196,7 @@ function MergeView({ view, typed, setTyped, busy, onMerge }: { view: AccountMerg
             <span>{t('adminMergeType', { nickname: view.confirm })}</span>
             <input type="text" value={typed} onChange={(event) => setTyped(event.target.value)} autoComplete="off" spellCheck={false} maxLength={200} />
           </label>
-          <button type="button" className="btn btn-danger" disabled={busy || typed.trim() !== view.confirm} onClick={onMerge}>
+          <button type="button" className="btn btn-danger" disabled={busy || !confirmMatches(typed, view.confirm)} onClick={onMerge}>
             {t('adminMergeButton')}
           </button>
         </>

@@ -200,3 +200,15 @@ describe('CardMerge (66)', () => {
     expect(await within(merge).findByText('Спершу розбань')).toBeTruthy();
   });
 });
+
+describe('confirmMatches (66)', () => {
+  it('compares like the server: trimmed, NFC, case-sensitive', async () => {
+    const { confirmMatches } = await import('./CardMerge');
+    const composed = 'Йосип';
+    const decomposed = composed.normalize('NFD');
+    expect(decomposed).not.toBe(composed);
+    expect(confirmMatches(`  ${decomposed} `, composed)).toBe(true);
+    expect(confirmMatches(composed.toUpperCase(), composed)).toBe(false);
+    expect(confirmMatches('Йоси', composed)).toBe(false);
+  });
+});
