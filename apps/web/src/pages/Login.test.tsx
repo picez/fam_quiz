@@ -179,6 +179,11 @@ describe('Login with Google', () => {
     expect((await screen.findByRole('alert')).textContent).toBe('Акаунт заблоковано.');
   });
 
+  it('explains a Google sign-in on an address merged into another account (66)', async () => {
+    open('/login?error=email_merged');
+    expect((await screen.findByRole('alert')).textContent).toBe('Ця адреса вже приєднана до іншого акаунта — увійди з нею й паролем');
+  });
+
   it('explains a sign-in that Google or the server turned down', async () => {
     open('/login?error=access_denied');
     expect((await screen.findByRole('alert')).textContent).toBe('Не вдалося увійти через Google. Спробуйте ще раз.');

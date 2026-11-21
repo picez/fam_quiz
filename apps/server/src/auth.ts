@@ -44,7 +44,12 @@ export function createAuth(db: Db, options: AuthOptions) {
           before: async (created) => {
             if (isBotDomainEmail(created.email)) throw new APIError('BAD_REQUEST', { code: 'EMAIL_RESERVED', message: 'EMAIL_RESERVED' });
             // 66: адреса акаунта, злитого з іншим, — псевдонім головного; ні пароль, ні новий Google не створять на неї третій акаунт.
-            if (await isMergedEmail(db, created.email)) throw new APIError('BAD_REQUEST', { code: 'EMAIL_MERGED', message: 'EMAIL_MERGED' });
+            if (await isMergedEmail(db, created.email)) {
+              // Google-помилку Better Auth перетворює на свій редирект: прапорець каже проксі вести на /login?error=email_merged.
+              const notice = banNotice.getStore();
+              if (notice) notice.merged = true;
+              throw new APIError('BAD_REQUEST', { code: 'EMAIL_MERGED', message: 'EMAIL_MERGED' });
+            }
           },
         },
       },

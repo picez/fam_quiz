@@ -6,7 +6,7 @@ import { createAuth } from './auth';
 import { banNotice, banUser, unbanUser } from './bans';
 import { adminEmails } from './config';
 import type { Db } from './db/client';
-import { user, userBan } from './db/schema';
+import { mergedEmail, user, userBan } from './db/schema';
 import { TEST_AUTH, cookieOf, signUp } from './testing/accounts';
 import { createTestDb } from './testing/test-db';
 
@@ -70,6 +70,33 @@ describe('a ban closes every way in', () => {
     expect(bannedRedirect(302, false)).toBeNull();
     expect(bannedRedirect(200, true)).toBeNull();
     expect(bannedRedirect(403, true)).toBeNull();
+  });
+
+  it('bannedRedirect sends a new Google account on a merged address to the explanation (66)', () => {
+    expect(bannedRedirect(302, false, true)).toBe('/login?error=email_merged');
+    expect(bannedRedirect(302, true, true)).toBe('/login?error=account_banned');
+    expect(bannedRedirect(400, false, true)).toBeNull();
+  });
+
+  it('the user hook raises the merged notice when an account would be created on a merged address (66)', async () => {
+    const auth = createAuth(db, TEST_AUTH);
+    const owner = await account('Головна');
+    const alias = `merged-${Date.now()}@example.com`;
+    await db.insert(mergedEmail).values({ email: alias, userId: owner.id, mergedAt: new Date() });
+    const signUpOn = (email: string) =>
+      new Request(new URL('/api/auth/sign-up/email', TEST_AUTH.baseURL), {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ email, password: 'pass-word-123', name: 'Хтось' }),
+      });
+    const merged: { banned: boolean; merged?: boolean } = { banned: false };
+    const refused = await banNotice.run(merged, () => auth.handler(signUpOn(alias)));
+    expect(refused.status).toBe(400);
+    expect(merged.merged).toBe(true);
+    const fresh: { banned: boolean; merged?: boolean } = { banned: false };
+    const ok = await banNotice.run(fresh, () => auth.handler(signUpOn(`fresh-${Date.now()}@example.com`)));
+    expect(ok.status).toBe(200);
+    expect(fresh.merged).toBeUndefined();
   });
 
   it('the session hook raises the ban notice for a banned sign-in only', async () => {

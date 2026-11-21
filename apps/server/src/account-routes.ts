@@ -40,8 +40,11 @@ export interface AccountDeps {
 }
 
 /** 3xx і banned → '/login?error=account_banned'; інакше null (Location не чіпаємо). */
-export function bannedRedirect(status: number, banned: boolean): string | null {
-  return banned && status >= 300 && status < 400 ? '/login?error=account_banned' : null;
+export function bannedRedirect(status: number, banned: boolean, merged = false): string | null {
+  if (status < 300 || status >= 400) return null;
+  if (banned) return '/login?error=account_banned';
+  // 66: новий Google-акаунт на адресу, злиту з іншим акаунтом, — пояснення замість загальної помилки Google.
+  return merged ? '/login?error=email_merged' : null;
 }
 
 export interface CurrentUser {
@@ -90,7 +93,7 @@ export async function registerAccountRoutes(
       // 66: адреса акаунта, злитого з іншим, при вході й відновленні пароля веде в головний акаунт; реєстрацію на неї відхиляє хук.
       const body = hasBody ? await loginBodyFor(deps.db, request.method, url.pathname, request.body) : undefined;
       // Хук сесії ставить прапорець, коли вхід відхилено баном; редирект Google тоді веде на сторінку входу з поясненням.
-      const notice = { banned: false };
+      const notice: { banned: boolean; merged?: boolean } = { banned: false };
       const response = await banNotice.run(notice, () =>
         auth.handler(
           new Request(url, {
@@ -100,7 +103,7 @@ export async function registerAccountRoutes(
           }),
         ),
       );
-      const location = bannedRedirect(response.status, notice.banned);
+      const location = bannedRedirect(response.status, notice.banned, notice.merged === true);
       reply.status(response.status);
       response.headers.forEach((value, key) => {
         reply.header(key, value);
