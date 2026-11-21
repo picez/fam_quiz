@@ -19,9 +19,12 @@ export function auctionBidFits(round: BidRules, bid: number, amount: number): bo
   return round.bidMode === 'step' ? amount === next : amount >= next;
 }
 
-/** Бали переможця торгу: правильно — ціна + ставка; помилка — мінус ставка (або мінус ставка й ціна). */
+/**
+ * Бали переможця торгу: ставка — плата за запитання, приз — його ціна. Правильно — ціна мінус ставка (переплатив — у мінусі);
+ * помилка — мінус ставка (або мінус ставка й ціна).
+ */
 export function auctionPoints(round: Pick<AuctionRound, 'loss'>, price: number, bid: number, correct: boolean): number {
-  if (correct) return price + bid;
+  if (correct) return price - bid;
   return round.loss === 'bid_price' ? -bid - price : -bid;
 }
 

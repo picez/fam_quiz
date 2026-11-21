@@ -215,13 +215,13 @@ describe('the auction round (27b)', () => {
     expect(s.phase).toBe('finished');
   });
 
-  it('the winner gains price and bid when right', () => {
+  it('the winner pays the bid and gains the price when right (overpaying ends in minus)', () => {
     const sold = sell(bid(toBidding({ bidMode: 'free' }), [['p1', 400]]));
     const s = reveal(must(submitAnswer(sold, 'p1', right, t0 + 2000)));
     expect(s.phase).toBe('reveal');
-    expect(pointsOf(s, 'p1')).toBe(600);
+    expect(pointsOf(s, 'p1')).toBe(-200);
     expect(Object.keys(current(s).answers)).toEqual(['p1']);
-    expect(scores(s)).toEqual([1400, 500, 300, 0]);
+    expect(scores(s)).toEqual([600, 500, 300, 0]);
   });
 
   it('a sold sort question is priced per word times words', () => {
@@ -233,7 +233,7 @@ describe('the auction round (27b)', () => {
       s = must(sortWord(s, 'p1', head?.id ?? '', head?.categoryId ?? '', t0 + 2000 + i * 100));
     }
     s = reveal(s);
-    expect(pointsOf(s, 'p1')).toBe(140);
+    expect(pointsOf(s, 'p1')).toBe(-60);
   });
 
   it('pending debuffs fire only for the winner of a sold question', () => {
@@ -329,7 +329,7 @@ describe('the auction round (27b)', () => {
     const second = must(next(board, t0 + 50_000, rng));
     expect(second.phase).toBe('wager');
     expect(second.final).toMatchObject({ wagers: {}, allIn: [], order: [], shown: 0, split: false });
-    expect(second.final?.limits).toEqual({ p1: 1100, p2: 500, p3: 300, p4: 0 });
+    expect(second.final?.limits).toEqual({ p1: 900, p2: 500, p3: 300, p4: 0 });
     expect(second.endsAt).toBe(t0 + 50_000 + AUCTION_OPEN_MS);
 
     const straight = must(next(reveal(answered({ leaderboard: 'end' })), t0 + 40_000, rng));
@@ -384,10 +384,10 @@ describe('the auction round (27b)', () => {
     expect(locked.phase).toBe('locked');
     expect(recordOf(locked, locked.questionIndex, 'p1')).toMatchObject({ grade: 'wrong', points: -100 });
     const graded = must(override(locked, 'p1', 'correct'));
-    expect(pointsOf(graded, 'p1')).toBe(300);
+    expect(pointsOf(graded, 'p1')).toBe(100);
     const shown = reveal(graded);
-    expect(pointsOf(shown, 'p1')).toBe(300);
-    expect(scores(shown)).toEqual([1100, 500, 300, 0]);
+    expect(pointsOf(shown, 'p1')).toBe(100);
+    expect(scores(shown)).toEqual([900, 500, 300, 0]);
     const regraded = must(override(shown, 'p1', 'wrong'));
     expect(pointsOf(regraded, 'p1')).toBe(-100);
     expect(scores(regraded)).toEqual([700, 500, 300, 0]);

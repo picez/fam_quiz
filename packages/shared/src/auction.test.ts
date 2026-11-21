@@ -24,10 +24,12 @@ describe('auction rules (27b)', () => {
   });
 
   it('points by the loss mode', () => {
-    expect(auctionPoints({ loss: 'bid' }, 200, 400, true)).toBe(600);
+    expect(auctionPoints({ loss: 'bid' }, 200, 400, true)).toBe(-200);
+    expect(auctionPoints({ loss: 'bid' }, 500, 100, true)).toBe(400);
+    expect(auctionPoints({ loss: 'bid' }, 500, 20000, true)).toBe(-19500);
     expect(auctionPoints({ loss: 'bid' }, 200, 400, false)).toBe(-400);
     expect(auctionPoints({ loss: 'bid_price' }, 200, 400, false)).toBe(-600);
-    expect(auctionPoints({ loss: 'bid_price' }, 200, 400, true)).toBe(600);
+    expect(auctionPoints({ loss: 'bid_price' }, 200, 400, true)).toBe(-200);
   });
 
   it('the price of a sort question is per word times words', () => {

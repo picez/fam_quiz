@@ -1398,7 +1398,8 @@ describe('recorder: board', () => {
 
     const rowsOf = async (index: number) =>
       (await db.select().from(answer).where(eq(answer.questionIndex, index))).map((a) => [a.participantId, a.wager, a.points, a.accepted]);
-    expect(await rowsOf(1)).toEqual([[olena, 400, 600, true]]);
+    // Ставка — плата: ціна 200 мінус ставка 400.
+    expect(await rowsOf(1)).toEqual([[olena, 400, -200, true]]);
     expect(await rowsOf(2)).toEqual(
       expect.arrayContaining([
         [olena, null, 0, false],

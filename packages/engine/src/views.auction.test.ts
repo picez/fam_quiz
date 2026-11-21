@@ -182,9 +182,9 @@ describe('auction views (27b)', () => {
     const revealed = must(next(answered, t0 + 3000, rng));
     expect(revealed.phase).toBe('reveal');
     for (const view of [stageView(revealed), phone(revealed, 'p3'), hostView(revealed)]) {
-      expect(view.auction).toMatchObject({ bid: 400, leader: { nickname: 'Олена' }, result: { grade: 'correct', points: 600 } });
+      expect(view.auction).toMatchObject({ bid: 400, leader: { nickname: 'Олена' }, result: { grade: 'correct', points: -200 } });
     }
-    expect(phone(revealed, 'p1').me.result?.points).toBe(600);
+    expect(phone(revealed, 'p1').me.result?.points).toBe(-200);
     for (const id of ['p2', 'p3', 'p4']) expect(phone(revealed, id).me.result).toBeNull();
   });
 
