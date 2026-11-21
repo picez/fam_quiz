@@ -5229,6 +5229,16 @@ describe('PlayerScreen bets (27a)', () => {
     show(view({ phase: 'reveal', round, questionIndex: 0, question: publicQuestion, reveal: fullQuestion, bets: { ...bets, teaser: null, rows: [row] }, me: { ...mine({ status: 'playing', wager: 200, canBet: false }), result } }));
     expect(screen.getByText('Ставка 200: +500 з банку')).toBeTruthy();
   });
+
+  it('a right answer with an empty bank (everyone was right) is green, not red', () => {
+    const result = { accepted: true, accuracy: 1, grade: 'correct' as const, streakBonus: 0, points: 0 };
+    const row = { playerId: 'p1', nickname: 'Олена', wager: 200, grade: 'correct' as const, points: 0, score: 600 };
+    show(view({ phase: 'reveal', round, questionIndex: 0, question: publicQuestion, reveal: fullQuestion, bets: { ...bets, teaser: null, rows: [row] }, me: { ...mine({ status: 'playing', wager: 200, canBet: false }), result } }));
+    expect(screen.getByText('Ставку збережено')).toBeTruthy();
+    const section = document.querySelector('section.result');
+    expect(section?.classList.contains('is-correct')).toBe(true);
+    expect(section?.classList.contains('is-wrong')).toBe(false);
+  });
 });
 
 describe('PlayerScreen auction (27b)', () => {

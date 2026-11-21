@@ -399,8 +399,9 @@ function Result({ view, strokes = [] }: { view: PlayerView; strokes?: Stroke[] }
         : result.grade === 'partial'
           ? t('resultPartial')
           : t('resultWrong');
-  // Учасник драбини завжди має 0 балів: тон — за правильністю.
-  const tone = climber !== null ? (result?.grade === 'correct' ? 'is-correct' : 'is-wrong') : result === null || result.points <= 0 ? 'is-wrong' : 'is-correct';
+  // Тон — за правильністю: правильна відповідь зелена й з галочкою, навіть коли балів 0
+  // (учасник драбини; «Ставки», де всі відповіли правильно й банк порожній).
+  const tone = result !== null && result.grade === 'correct' ? 'is-correct' : climber !== null ? 'is-wrong' : result === null || result.points <= 0 ? 'is-wrong' : 'is-correct';
   return (
     <section className={`result ${tone}`}>
       <h2>{title}</h2>
