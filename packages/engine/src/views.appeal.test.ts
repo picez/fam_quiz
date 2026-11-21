@@ -260,3 +260,36 @@ describe('team appeals', () => {
     }
   });
 });
+
+describe('the points of an accepted appeal (owner bug: the table showed 0 or a minus)', () => {
+  const yes = () => must(castAppealVote(voted, 'p3', 1, true, T1 + 2000));
+
+  it('the phone result and the host row carry the appeal points next to the points of the answer', () => {
+    const s = yes();
+    expect(playerView(s, 'p1')?.me.result).toMatchObject({ grade: 'wrong', points: 0, appeal: 100 });
+    expect(hostView(s).responses.find((r) => r.playerId === 'p1')).toMatchObject({ grade: 'wrong', points: 0, appeal: 100 });
+    // Без апеляції ключа немає.
+    expect(playerView(s, 'p2')?.me.result).not.toHaveProperty('appeal');
+    expect(hostView(s).responses.find((r) => r.playerId === 'p2')).not.toHaveProperty('appeal');
+    expect(playerView(reveal, 'p1')?.me.result).not.toHaveProperty('appeal');
+  });
+
+  it('the table between questions counts the appeal in the points of the question just closed', () => {
+    const s = must(next(yes(), T1 + 3000, rng));
+    expect(s.phase).toBe('leaderboard');
+    expect(Object.fromEntries(stageView(s).standings!.map((row) => [row.nickname, [row.score, row.question]]))).toEqual({
+      Оля: [100, 100],
+      Петро: [100, 100],
+      Іра: [100, 100],
+    });
+    expect(playerView(s, 'p1')?.standings?.find((row) => row.participantId === 'p1')?.question).toBe(100);
+  });
+
+  it('an undone appeal row gives nothing (defensive)', () => {
+    const s = yes();
+    const row = s.adjustments.find((a) => a.source === 'appeal')!;
+    const undone = addAdjustment(s, row.playerId, -row.points, T1 + 3000, 'undo', { undoes: { seq: row.seq }, batch: s.adjustmentSeq + 1, roundIndex: row.roundIndex });
+    expect(playerView(undone, 'p1')?.me.result).not.toHaveProperty('appeal');
+    expect(hostView(undone).responses.find((r) => r.playerId === 'p1')).not.toHaveProperty('appeal');
+  });
+});

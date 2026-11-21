@@ -3026,6 +3026,7 @@
   "resultNone": "No has respondido",
   "resultPartial": "Correcto en parte",
   "resultWrong": "Incorrecto",
+  "resultAppealed": "⚖️ Aceptada por el público",
   "resume": "Continuar",
   "resumeError": "No se han podido cargar las partidas anteriores.",
   "resumeFill": "Rellenar con la partida anterior",

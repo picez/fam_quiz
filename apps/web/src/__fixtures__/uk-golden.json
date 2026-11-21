@@ -113,6 +113,7 @@
   "resultCorrect": "Правильно!",
   "resultPartial": "Частково правильно",
   "resultWrong": "Неправильно",
+  "resultAppealed": "⚖️ Зараховано залом",
   "resultNone": "Ви не відповіли",
   "earned": "+{points}",
   "correctAnswer": "Правильна відповідь: {answer}",

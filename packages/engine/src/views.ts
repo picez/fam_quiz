@@ -204,7 +204,7 @@ import { questAfter, questOpened, questRoundOf, questSolved, questWindowOpen, ty
 import { thinkBallot, thinkHit, thinkLivesAfter, thinkOffOf, thinkPlaces, thinkPlayOf, thinkRoundOf, thinkRoundPlays, thinkVerdicts, thinkWatches } from './think';
 import { inTruthDeck, nextTruthQuestion, truthCount, truthFaked, truthRealCount, truthGuessers, truthHeld, truthOpen, truthPlayOf, truthRoundOf, truthSkipped } from './truth';
 import { presentPlayers } from './present';
-import { appealView, playerAppeal } from './appeal';
+import { appealAdjustmentTotal, appealView, playerAppeal } from './appeal';
 import { undoPanel } from './undo';
 import { resumeLobby } from './carry';
 import { activeDebuff, debuffsOff, ghostTarget, lastPurchase, shopBlock, shownDebuff } from './debuffs';
@@ -3664,16 +3664,27 @@ function publicStandings(state: GameState): Standing[] | null {
   const hidden = state.phase === 'leaderboard' && (currentRound(state)?.type === 'wipeout' || currentRound(state)?.type === 'ladder' || inSurvivalRound(state));
   const rows = !hidden && WITH_STANDINGS.includes(state.phase) ? withRounds(rankPlayers(state.players), scoreLinesByPlayer(state), roundCount(state)) : null;
   // Між запитаннями — ще й бали кожного за щойно закрите запитання (беклог 13).
-  const standings = rows !== null && state.phase === 'leaderboard' && !heldStates.has(state) ? rows.map((row) => ({ ...row, question: questionPoints(scoreLinesByPlayer(state), row.participantId, state.questionIndex) })) : rows;
+  const standings = rows !== null && state.phase === 'leaderboard' && !heldStates.has(state) ? rows.map((row) => ({ ...row, question: questionPoints(state, scoreLinesByPlayer(state), row.participantId, state.questionIndex) })) : rows;
   standingsCache.set(state, standings);
   return standings;
 }
 
 type LinesByPlayer = ReadonlyMap<string, readonly PlayerScoreLine[]>;
 
-/** Сума рядків гравця за запитанням questionIndex (усі спроби, штрафи, бафи). */
-function questionPoints(byPlayer: LinesByPlayer, playerId: string, questionIndex: number): number {
-  return (byPlayer.get(playerId) ?? []).reduce((sum, line) => (line.questionIndex === questionIndex ? sum + line.points : sum), 0);
+/**
+ * Сума рядків гравця за запитанням questionIndex (усі спроби, штрафи, бафи) і нескасованих рядків 'appeal' (12f) під ним:
+ * зал зарахував відповідь — таблиця показує повернені бали, а не 0 чи мінус запису.
+ */
+function questionPoints(state: GameState, byPlayer: LinesByPlayer, playerId: string, questionIndex: number): number {
+  const own = (byPlayer.get(playerId) ?? []).reduce((sum, line) => (line.questionIndex === questionIndex ? sum + line.points : sum), 0);
+  return own + appealAdjustmentTotal(state, playerId, questionIndex);
+}
+
+/** Бали апеляції (12f) учасника на поточному запитанні для результату телефона й рядка пульта: { appeal } або {} без нескасованих рядків 'appeal'. */
+function appealExtra(state: GameState, playerId: string): { appeal?: number } {
+  if (state.questionIndex < 0) return {};
+  const points = appealAdjustmentTotal(state, playerId, state.questionIndex);
+  return points === 0 ? {} : { appeal: points };
 }
 
 function breakdownFor(byPlayer: LinesByPlayer, playerId: string): ScoreBreakdown {
@@ -4010,6 +4021,7 @@ function buildOwnView(state: GameState, playerId: string): Omit<PlayerView, 'tea
               grade: record.grade,
               streakBonus: record.streakBonus,
               points: wagerRound(currentRound(state)) ? visible : record.points,
+              ...appealExtra(state, playerId),
             }
           : null,
       blitz: playerBlitz(state, playerId),
@@ -4152,6 +4164,7 @@ export function hostView(state: GameState): HostView {
         grade: unscored ? null : record.grade,
         streakBonus: record.streakBonus,
         points: record.points,
+        ...(unscored ? {} : appealExtra(state, player.id)),
         overridden: record.overridden,
         buff: record.buff ?? null,
         spare: spareOf(state, record.spare),

@@ -4648,6 +4648,25 @@ describe('PlayerScreen appeal (12f)', () => {
     expect(screen.getByRole('button', { name: '⚖️ Оскаржити штраф (лишилось 1)' })).toBeTruthy();
   });
 
+  it('an accepted appeal: the result is no longer «Неправильно» with 0 or a minus — it shows the points the hall returned', () => {
+    // Поле з мінусом: запис −200, рядок апеляції +400 — разом +200.
+    show(revealOf({ appeal: { ...open, outcome: 'yes', waiting: 0, points: 400 }, me: { ...me, result: { ...wrong, points: -200, appeal: 400 }, appeal: mine() } }));
+    const result = document.querySelector('section.result') as HTMLElement;
+    expect(result.classList.contains('is-correct')).toBe(true);
+    expect(within(result).getByRole('heading').textContent).toBe('⚖️ Зараховано залом');
+    expect(within(result).getByText('+200').classList.contains('earned')).toBe(true);
+    expect(within(result).queryByText('−200')).toBeNull();
+    cleanup();
+    // Класика: запис 0, апеляція +100.
+    show(revealOf({ appeal: { ...open, outcome: 'yes', waiting: 0, points: 100 }, me: { ...me, result: { ...wrong, appeal: 100 }, appeal: mine() } }));
+    expect(document.querySelector('section.result .earned')?.textContent).toBe('+100');
+    cleanup();
+    // Без апеляції — як було.
+    show(revealOf({}, mine()));
+    expect(document.querySelector('section.result')?.classList.contains('is-wrong')).toBe(true);
+    expect(document.querySelector('section.result h2')?.textContent).toBe('Неправильно');
+  });
+
   it('45a: the appellant whose appeal passed reads that it is kept; others do not', () => {
     const kept = 'Оскарження прийнято — воно лишається у вас';
     show(revealOf({ appeal: { ...open, outcome: 'yes', waiting: 0 } }, mine()));

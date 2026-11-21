@@ -132,6 +132,8 @@ const uk = {
   resultCorrect: 'Правильно!',
   resultPartial: 'Частково правильно',
   resultWrong: 'Неправильно',
+  /** Відповідь не зарахована, але зал підтримав апеляцію (12f): результат телефона й рядок пульта. */
+  resultAppealed: '⚖️ Зараховано залом',
   resultNone: 'Ви не відповіли',
   earned: '+{points}',
   correctAnswer: 'Правильна відповідь: {answer}',
