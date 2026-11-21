@@ -1,8 +1,9 @@
-import { ACHIEVEMENTS, BOT_USER_ID, adminDeleteSchema, adminGiftSchema, adminGrantSchema, adminXpSchema, isBotUser, type AchievementId, type GameDetail } from '@quiz/shared';
+import { ACHIEVEMENTS, BOT_USER_ID, adminDeleteSchema, adminGiftSchema, adminGrantSchema, adminMergeSchema, adminXpSchema, isBotUser, type AccountMergePreview, type AchievementId, type GameDetail } from '@quiz/shared';
 import { eq } from 'drizzle-orm';
 import type { FastifyInstance, FastifyRequest, RouteShorthandOptions } from 'fastify';
 import type { CurrentUser } from './account-routes';
 import { deleteAccount } from './account-delete';
+import { mergeAccounts, mergeLabel, previewMerge, type MergeOutcome } from './account-merge';
 import { isAdmin } from './admin';
 import type { AdminDeps } from './admin-routes';
 import { user } from './db/schema';
@@ -116,6 +117,58 @@ export async function registerPlayerCardRoutes(app: FastifyInstance, deps: Admin
     }
     if (result === 'cannot_delete_admin') return reply.code(409).send({ error: 'cannot_delete_admin' });
     return result === 'deleted' ? reply.code(204).send() : reply.code(404).send(NOT_FOUND);
+  });
+
+  // Об'єднання акаунтів (66): :id — головний (P, лишається), другий (S) — :otherId чи secondaryId тіла. Жива гра в пам'яті цього
+  // процесу й зупинка — тут, до транзакції; решта відмов (адмін, бан, кімнати інших процесів у базі) — під замком у mergeAccounts.
+  const liveHere = (P: string, S: string): boolean => manager.inLiveGame(P) || manager.inLiveGame(S);
+
+  app.get<{ Params: { id: string; otherId: string } }>('/api/admin/users/:id/merge/:otherId', read, async (request, reply) => {
+    const me = await adminOf(request);
+    if (me === null) return reply.code(404).send(NOT_FOUND);
+    const { id: P, otherId: S } = request.params;
+    if (unknownUser(P) || unknownUser(S)) return reply.code(404).send(NOT_FOUND);
+    if (P === S) return reply.code(400).send({ error: 'merge_same' });
+    if (manager.frozen) return reply.code(503).send({ error: 'restarting' });
+    const input = { adminId: me.id, primaryId: P, secondaryId: S, now: now(), adminEmails, localRooms: manager.roomCodes() };
+    const preview = await previewMerge(db, input, liveHere(P, S) ? 'merge_live' : null);
+    return preview === null ? reply.code(404).send(NOT_FOUND) : (preview satisfies AccountMergePreview);
+  });
+
+  app.post<UserParams>('/api/admin/users/:id/merge', write, async (request, reply) => {
+    const me = await adminOf(request);
+    if (me === null) return reply.code(404).send(NOT_FOUND);
+    const { id: P } = request.params;
+    if (unknownUser(P)) return reply.code(404).send(NOT_FOUND);
+    const body = adminMergeSchema.safeParse(request.body ?? {});
+    if (!body.success) return reply.code(400).send(INVALID);
+    const S = body.data.secondaryId;
+    if (unknownUser(S)) return reply.code(404).send(NOT_FOUND);
+    if (P === S) return reply.code(400).send({ error: 'merge_same' });
+    // На зупинці кімнати вже записані й віддаються наступному процесу: перев'язати місця в них уже не вийде.
+    if (manager.frozen) return reply.code(503).send({ error: 'restarting' });
+    if (liveHere(P, S)) return reply.code(409).send({ error: 'merge_live' });
+    const label = await mergeLabel(db, S);
+    if (label === null) return reply.code(404).send(NOT_FOUND);
+    // Точний збіг з регістром (план: confirm.trim() дорівнює мітці), але після NFC: «й», набране розкладеною формою, — той самий нік.
+    if (body.data.confirm.trim().normalize('NFC') !== label.normalize('NFC')) return reply.code(400).send({ error: 'confirm_mismatch' });
+    let outcome: MergeOutcome;
+    try {
+      // Одразу після фіксації, ще до рівня (announce усередині mergeAccounts): сесії S уже видалено транзакцією (його /api/me — 401);
+      // місця S у кімнатах пам'яті — до P, щоб рекордер (user_id з playerUsers, події в черзі — за місцем) лишив зв'язок з головним
+      // і жоден запис між фіксацією й перев'язкою не впирався в зовнішній ключ видаленого S.
+      outcome = await mergeAccounts(db, { adminId: me.id, primaryId: P, secondaryId: S, now: now(), adminEmails, localRooms: manager.roomCodes() }, () => {
+        manager.rebindUser(S, P);
+      });
+    } catch (error) {
+      reportError(error, { where: 'admin-merge-accounts' });
+      return reply.code(500).send({ error: 'merge_failed' });
+    }
+    if (!outcome.ok) {
+      if (outcome.error === 'not_found') return reply.code(404).send(NOT_FOUND);
+      return reply.code(outcome.error === 'merge_same' ? 400 : 409).send({ error: outcome.error });
+    }
+    return reply.code(200).send({ primaryId: P, summary: outcome.summary });
   });
 
   app.get<UserParams>('/api/admin/games/:id', read, async (request, reply) => {

@@ -7,8 +7,8 @@ import { ensureProfile } from './profiles';
 
 type Tx = Parameters<Parameters<Db['transaction']>[0]>[0];
 
-/** Прапорець «вхід відхилено баном» для поточного запиту до Better Auth (задача 3). */
-export const banNotice = new AsyncLocalStorage<{ banned: boolean }>();
+/** Прапорці поточного запиту до Better Auth: вхід відхилено баном (задача 3) чи новий Google-акаунт на злиту адресу (66). */
+export const banNotice = new AsyncLocalStorage<{ banned: boolean; merged?: boolean }>();
 
 /** Саме «є бан» (адмінка, banUser). Для приховування від інших — isHidden. */
 export async function isBanned(db: Db | Tx, userId: string): Promise<boolean> {

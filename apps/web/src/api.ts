@@ -52,6 +52,7 @@ const AUTH_CODES: [prefix: string, code: string][] = [
   ['INVALID_ORIGIN', 'wrong_address'],
   ['MISSING_OR_NULL_ORIGIN', 'wrong_address'],
   ['ACCOUNT_BANNED', 'account_banned'],
+  ['EMAIL_MERGED', 'email_merged'],
 ];
 
 function errorCode(data: unknown): string {

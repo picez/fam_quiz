@@ -119,6 +119,17 @@ describe('Login', () => {
     fill('Пароль', '1234567');
     expect((screen.getByRole('button', { name: 'Зареєструватися' }) as HTMLButtonElement).disabled).toBe(true);
   });
+
+  it('explains an address that was merged into another account (66)', async () => {
+    vi.mocked(signUp).mockResolvedValueOnce({ ok: false, error: 'email_merged' });
+    open();
+    fireEvent.click(screen.getByRole('button', { name: 'Створити акаунт' }));
+    fill('Ваше ім’я', 'Олена');
+    fill('Email', 'old@example.com');
+    fill('Пароль', 'password1');
+    fireEvent.click(screen.getByRole('button', { name: 'Зареєструватися' }));
+    expect((await screen.findByRole('alert')).textContent).toBe('Ця адреса вже приєднана до іншого акаунта — увійди з нею й паролем');
+  });
 });
 
 describe('Login with Google', () => {
@@ -166,6 +177,11 @@ describe('Login with Google', () => {
   it('says the account is blocked when the server sends a banned person back', async () => {
     open('/login?error=account_banned');
     expect((await screen.findByRole('alert')).textContent).toBe('Акаунт заблоковано.');
+  });
+
+  it('explains a Google sign-in on an address merged into another account (66)', async () => {
+    open('/login?error=email_merged');
+    expect((await screen.findByRole('alert')).textContent).toBe('Ця адреса вже приєднана до іншого акаунта — увійди з нею й паролем');
   });
 
   it('explains a sign-in that Google or the server turned down', async () => {

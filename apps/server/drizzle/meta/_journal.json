@@ -344,6 +344,13 @@
       "when": 1795203139990,
       "tag": "0048_game_events",
       "breakpoints": true
+    },
+    {
+      "idx": 49,
+      "version": "7",
+      "when": 1795209905427,
+      "tag": "0049_merged_email",
+      "breakpoints": true
     }
   ]
 }

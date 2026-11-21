@@ -115,6 +115,8 @@ describe('hiding the admin panel (Review Focus 3)', () => {
     ['POST', `/api/admin/users/${UUID}/gifts`],
     ['DELETE', `/api/admin/gifts/${UUID}`],
     ['DELETE', `/api/admin/users/${UUID}`],
+    ['GET', '/api/admin/users/u1/merge/u2'],
+    ['POST', '/api/admin/users/u1/merge'],
     ['GET', `/api/admin/games/${UUID}`],
     ['GET', `/api/admin/games/${UUID}/replay`],
     ['GET', '/api/admin/bot'],

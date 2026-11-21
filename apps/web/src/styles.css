@@ -28078,6 +28078,25 @@ a.library-card:focus-visible {
   border-color: var(--signal);
 }
 
+/* 66: об'єднання акаунтів — знайдені акаунти кнопками на всю ширину з переносом довгих email; лише змінні теми. */
+.admin-merge-pick {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.5rem;
+  max-width: 100%;
+  min-width: 0;
+  text-align: start;
+  overflow-wrap: anywhere;
+}
+
+.admin-merge-pick.is-picked {
+  border-color: var(--link);
+}
+
+.admin-merge-total {
+  font-weight: 700;
+}
+
 /* Рядки тривоги й стану стоять з першого показу; порожні не додають проміжку панелі. */
 .admin-card-section .admin-card-line:empty {
   margin-block-start: -1rem;

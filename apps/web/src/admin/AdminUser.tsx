@@ -9,6 +9,7 @@ import { useAdminData } from './useAdminData';
 import { CardAchievements } from './card/CardAchievements';
 import { CardDelete } from './card/CardDelete';
 import { CardGames } from './card/CardGames';
+import { CardMerge } from './card/CardMerge';
 import { CardModeration } from './card/CardModeration';
 import { CardOverview } from './card/CardOverview';
 import { CardPrizes } from './card/CardPrizes';
@@ -93,6 +94,8 @@ function UserView({ detail, reload, stale }: { detail: AdminUserDetail; reload: 
       <CardGames detail={detail} />
       <CardModeration {...props} />
       <CardPrizes {...props} />
+      {/* 66: за ключем — після переходу на картку головного розділ починає з чистого. */}
+      <CardMerge key={detail.user.id} {...props} />
       {!detail.user.admin && <CardDelete {...props} />}
     </div>
   );

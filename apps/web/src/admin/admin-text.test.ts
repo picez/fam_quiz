@@ -1,7 +1,7 @@
-import type { AdminLogEntry, Question } from '@quiz/shared';
+import { emptyMergeSummary, type AdminLogEntry, type Question } from '@quiz/shared';
 import { describe, expect, it } from 'vitest';
 import { feedText } from '../feed/feed-text';
-import { bytesText, durationText, kyivWhenText, logLine, questionConfirm, questionLines, uptimeText } from './admin-text';
+import { bytesText, durationText, kyivWhenText, logLine, mergeSummaryText, questionConfirm, questionLines, uptimeText } from './admin-text';
 
 const entry = (over: Partial<AdminLogEntry>): AdminLogEntry => ({ id: 'l1', at: '2026-11-01T10:00:00.000Z', admin: 'Адмін', kind: 'ban', target: 'Богдан', details: {}, ...over });
 const base = { imageUrl: null, video: null, timeLimit: 30, points: 1000 };
@@ -172,5 +172,15 @@ describe('logLine for feed and group moderation (63)', () => {
   it('writes the record lines and the other group lines', () => {
     expect(logLine(entry({ kind: 'group_item_hide', target: 'Петро', details: { title: 'Родина', text: 'Бабуся свистить' } }))).toContain('запис «Бабуся свистить» у групі «Родина»');
     for (const kind of ['group_restore', 'group_member_remove', 'group_delete', 'group_item_show'] as const) expect(logLine(entry({ kind, details: { title: 'Родина' } })), kind).toContain('«Родина»');
+  });
+});
+
+describe('logLine for account merging (66)', () => {
+  it('the merge log line lists the non-zero counts', () => {
+    const merge = { ...emptyMergeSummary(), games: 3, quizzes: 1, xp: 120, sameGames: 2, logins: ['google' as const] };
+    expect(mergeSummaryText(merge)).toBe('ігор: 3, вікторин: 1, досвіду: 120');
+    expect(mergeSummaryText(emptyMergeSummary())).toBe('нічого');
+    expect(logLine(entry({ kind: 'account_merge', target: 'Оля', details: { text: 'Ольга', merge } }))).toBe('Адмін об\'єднав(-ла) акаунт Ольга з акаунтом Оля: ігор: 3, вікторин: 1, досвіду: 120');
+    expect(logLine(entry({ kind: 'account_merge', target: 'Оля', details: { text: 'olga@example.com', merge: emptyMergeSummary() } }))).toBe('Адмін об\'єднав(-ла) акаунт olga@example.com з акаунтом Оля: нічого');
   });
 });

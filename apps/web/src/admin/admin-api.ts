@@ -3,6 +3,7 @@ import type { AdminBroadcast, AdminBroadcasts, BroadcastInput, BroadcastPreview,
 import type { AdminBackups, AdminProblemReport, AdminProblemsBadge, AdminServerError } from '@quiz/shared';
 import type { AchievementId, AdminBot, AdminBotLobby, AdminBotPerson, AdminBotPlan, BotCommand, BotPlanInput, GameDetail, GameReplay } from '@quiz/shared';
 import type { Announcement, AnnouncementInput, AdminCharts, AdminHealth, AdminLiveList, AdminList, AdminReportItem, AdminLogExport, AdminLogGroup, AdminLogPage, AdminQuizCheck, AdminQuizRow, AdminQuizView, AdminStats, AdminUserDetail, AdminUserRow } from '@quiz/shared';
+import type { AccountMergePreview, MergeSummary } from '@quiz/shared';
 import type { AdminFeedKind, AdminFeedRow, AdminGroupDetail, AdminGroupRow } from '@quiz/shared';
 import { fetchData, request, type ApiData, type ApiResult } from '../api';
 
@@ -95,6 +96,12 @@ export const revokeGift = (awardId: string): Promise<ApiResult<object>> => reque
 /** `confirm` — нік (чи email без ніку), набраний адміном; сервер порівнює точно, після обрізання країв. */
 export const deleteUserAsAdmin = (userId: string, confirm: string): Promise<ApiResult<object>> =>
   request<object>(`/api/admin/users/${id(userId)}`, { method: 'DELETE', body: { confirm } });
+/** 66: що перейде з secondaryId на primaryId; відмова (адмін, бан, жива гра) — у refusal, не помилкою. */
+export const mergePreview = (primaryId: string, secondaryId: string): Promise<ApiData<AccountMergePreview>> =>
+  fetchData<AccountMergePreview>(`/api/admin/users/${id(primaryId)}/merge/${id(secondaryId)}`);
+/** 66: об'єднання; `confirm` — мітка акаунта, що зникне (нік чи email), сервер порівнює після обрізання країв. */
+export const mergeAccounts = (primaryId: string, secondaryId: string, confirm: string): Promise<ApiResult<{ primaryId: string; summary: MergeSummary }>> =>
+  request<{ primaryId: string; summary: MergeSummary }>(`/api/admin/users/${id(primaryId)}/merge`, { method: 'POST', body: { secondaryId, confirm } });
 export const adminGame = (gameId: string): Promise<ApiData<GameDetail>> => fetchData<GameDetail>(`/api/admin/games/${id(gameId)}`);
 /** 65: повтор гри по кроках; гра ще йде — 409 replay_running. */
 export const adminGameReplay = (gameId: string): Promise<ApiData<GameReplay>> => fetchData<GameReplay>(`/api/admin/games/${id(gameId)}/replay`);

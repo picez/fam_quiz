@@ -1184,3 +1184,19 @@ export const problemReport = pgTable(
   },
   (table) => [index('problem_report_status_created_idx').on(table.status, table.createdAt), index('problem_report_user_idx').on(table.userId, table.createdAt)],
 );
+
+/**
+ * Псевдонім адреси (66): після об'єднання акаунтів адреса другорядного акаунта (у нижньому регістрі) веде
+ * в головний — вхід нею відкриває головний, реєстрація на неї заборонена. Видалення головного звільняє псевдоніми.
+ */
+export const mergedEmail = pgTable(
+  'merged_email',
+  {
+    email: text('email').primaryKey(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    mergedAt: at('merged_at').notNull(),
+  },
+  (table) => [index('merged_email_user_idx').on(table.userId)],
+);
