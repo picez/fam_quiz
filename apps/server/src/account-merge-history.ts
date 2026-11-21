@@ -324,11 +324,15 @@ const savedGameRule: MergeRule = {
  */
 const liveRoomRule: MergeRule = {
   keys: ['live_room.data'],
-  async run(tx, { primaryId: P, secondaryId: S, secondaryWonGames }) {
+  async run(tx, { primaryId: P, secondaryId: S, secondaryWonGames, localRooms }) {
+    // Кімната цього процесу могла вже скінчитися в пам'яті, а рядок ще показує стару фазу: її теж переписати, інакше
+    // відновлення після збою вписало б видаленого S у рядки гри.
+    const finished = sql`${liveRoom.data}->'state'->>'phase' = 'finished'`;
+    const phaseOk = localRooms.size === 0 ? finished : or(finished, inArray(liveRoom.code, [...localRooms]));
     const rows = await tx
       .select({ code: liveRoom.code, roomId: liveRoom.roomId, data: liveRoom.data })
       .from(liveRoom)
-      .where(and(or(hasPair(liveRoom.data, S), sql`${liveRoom.data}->>'hostUserId' = ${S}::text`), sql`${liveRoom.data}->'state'->>'phase' = 'finished'`));
+      .where(and(or(hasPair(liveRoom.data, S), sql`${liveRoom.data}->>'hostUserId' = ${S}::text`), phaseOk));
     for (const row of rows) {
       if (!isRecord(row.data)) continue;
       // room.id = id гри.

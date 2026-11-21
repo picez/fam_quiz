@@ -402,6 +402,23 @@ describe('json rules', () => {
     expect(rooms.get(`${code}-b`)).toEqual({ hostUserId: olia, playerUsers: [['p1', primary], ['p2', olia]], state: { phase: 'finished' } });
   });
 
+  it('a room of this process that finished in memory is rewritten even while its live_room row still shows an older phase', async () => {
+    const { primary, secondary } = await pair();
+    const olia = await person('Оля друга');
+    const code = `mr-local-${n}`;
+    const other = `${code}-other`;
+    const data = (phase: string) => ({ hostUserId: secondary, playerUsers: [['p1', secondary], ['p2', olia]], state: { phase } });
+    await db.insert(liveRoom).values([
+      { code, roomId: randomUUID(), data: data('reveal'), updatedAt: NOW },
+      { code: other, roomId: randomUUID(), data: data('reveal'), updatedAt: NOW },
+    ]);
+    await json(mergeContext(primary, secondary, 'Оля', new Set([code])));
+    const rooms = new Map((await db.select().from(liveRoom).where(inArray(liveRoom.code, [code, other]))).map((row) => [row.code, row.data]));
+    expect(rooms.get(code)).toEqual({ hostUserId: primary, playerUsers: [['p1', primary], ['p2', olia]], state: { phase: 'reveal' } });
+    // Кімната іншого процесу з незавершеною фазою — не правило JSON (її відмовляє mergeAccounts), тож не чіпається.
+    expect(rooms.get(other)).toEqual(data('reveal'));
+  });
+
   it('when the secondary seat scored more, the saved game and the room keep that seat for the primary, like the game rows and events', async () => {
     const { primary, secondary, ctx } = await pair();
     const host = await person('Марта');

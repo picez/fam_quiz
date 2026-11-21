@@ -94,7 +94,7 @@ async function runMerge(tx: Tx, input: MergeInput): Promise<MergeOutcome> {
   const checked = await lockAndCheck(tx, input);
   if ('error' in checked) return { ok: false, error: checked.error };
   const label = (await mergeLabel(tx, S)) ?? checked.secondaryEmail;
-  const ctx = mergeContext(P, S, (await ensureProfile(tx as unknown as Db, P))?.nickname ?? null);
+  const ctx = mergeContext(P, S, (await ensureProfile(tx as unknown as Db, P))?.nickname ?? null, input.localRooms);
   await applyMergeRules(tx, ctx, MERGE_RULES);
   await applyMergeRules(tx, ctx, MERGE_JSON_RULES);
   await rememberMergedEmail(tx, { email: checked.secondaryEmail, userId: P, now });
@@ -122,7 +122,12 @@ async function announce(db: Db, userId: string, now: Date): Promise<void> {
 export async function mergeAccounts(db: Db, input: MergeInput, committed?: () => void | Promise<void>): Promise<MergeOutcome> {
   const outcome = await db.transaction((tx) => runMerge(tx, input));
   if (!outcome.ok) return outcome;
-  await committed?.();
+  // Об'єднання вже зафіксовано: збій перев'язки кімнат лише звітує, а не перетворює успіх на 500.
+  try {
+    await committed?.();
+  } catch (error) {
+    reportError(error, { where: 'account-merge-committed' });
+  }
   await announce(db, input.primaryId, input.now);
   return outcome;
 }

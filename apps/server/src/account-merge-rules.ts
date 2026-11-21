@@ -15,6 +15,8 @@ export interface MergeContext {
   secondaryWonGames: Set<string>;
   /** Досягнення, які S отримав раніше за P (правило user_achievement, задача 4). */
   earlierOnSecondary: Set<AchievementId>;
+  /** Коди кімнат у пам'яті цього процесу (маршрут уже відмовив живу гру): їхні рядки live_room переписуються, хоч би яку фазу ще показували. */
+  localRooms: ReadonlySet<string>;
 }
 
 /** Правило однієї чи кількох колонок з ключем на user.id; keys — 'таблиця.колонка' (схема-тест звіряє їх з базою). */
@@ -23,8 +25,8 @@ export interface MergeRule {
   run(tx: Tx, ctx: MergeContext): Promise<void>;
 }
 
-export function mergeContext(primaryId: string, secondaryId: string, primaryNickname: string | null): MergeContext {
-  return { primaryId, secondaryId, primaryNickname, summary: emptyMergeSummary(), secondaryWonGames: new Set(), earlierOnSecondary: new Set() };
+export function mergeContext(primaryId: string, secondaryId: string, primaryNickname: string | null, localRooms: ReadonlySet<string> = new Set()): MergeContext {
+  return { primaryId, secondaryId, primaryNickname, summary: emptyMergeSummary(), secondaryWonGames: new Set(), earlierOnSecondary: new Set(), localRooms };
 }
 
 /**
