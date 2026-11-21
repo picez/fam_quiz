@@ -3069,7 +3069,7 @@
   "roundFactsTitle": "Fakten der Runde",
   "roundGain": "{points} für die Runde",
   "roundHowTitle": "So läuft die Runde",
-  "roundHow_auction": "Vor jeder Frage wird geboten: Sichtbar sind nur das Thema und der Preis. Wer am meisten bietet, antwortet: das Gebot wird bezahlt, eine richtige Antwort bringt den Preis der Frage; falsch — nur minus Gebot. Niemand bietet — alle antworten.",
+  "roundHow_auction": "Vor jeder Frage wird geboten: Sichtbar sind nur das Thema und der Preis. Wer am meisten bietet, antwortet: eine richtige Antwort gibt das Gebot zurück und bringt den Preis der Frage; falsch — minus Gebot. Niemand bietet — alle antworten.",
   "roundHow_bets": "Vor jeder Frage — ein geheimer Einsatz: Nur der Anfang der Frage ist sichtbar. Der Mindesteinsatz steigt mit jeder Frage. Ein Fehler gibt den Einsatz in die Bank, richtige Antworten teilen sie.",
   "roundHow_blitz": "Du kennst die Antwort? Drück „Antworten“ am Handy, um dich anzustellen.",
   "roundHow_blitzInstant": "Keine Taste: Antworte sofort am Handy – es zählt, wer schneller ist.",

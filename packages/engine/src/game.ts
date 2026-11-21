@@ -1781,7 +1781,7 @@ export function finalOutcome(state: GameState): BankOutcome | null {
     correct: recordOf(state, state.questionIndex, player.id)?.grade === 'correct',
   }));
   if (round.type === 'auction') {
-    // Правильно — ціна − ставка (ставка — плата); помилка — −ставка (або −ставка − ціна за loss: 'bid_price').
+    // Правильно — ціна (ставка повертається); помилка — −ставка (або −ставка − ціна за loss: 'bid_price').
     const points = Object.fromEntries(entries.map((e) => [e.playerId, auctionPoints(round, auctionPrice(play.question), e.wager, e.correct)]));
     return { bank: 0, refund: false, points };
   }

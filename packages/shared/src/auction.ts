@@ -20,11 +20,11 @@ export function auctionBidFits(round: BidRules, bid: number, amount: number): bo
 }
 
 /**
- * Бали переможця торгу: ставка — плата за запитання, приз — його ціна. Правильно — ціна мінус ставка (переплатив — у мінусі);
+ * Бали переможця торгу (рішення власника 2026-11-21): ставка — застава. Правильно — ставка повертається, приз — ціна запитання;
  * помилка — мінус ставка (або мінус ставка й ціна).
  */
 export function auctionPoints(round: Pick<AuctionRound, 'loss'>, price: number, bid: number, correct: boolean): number {
-  if (correct) return price - bid;
+  if (correct) return price;
   return round.loss === 'bid_price' ? -bid - price : -bid;
 }
 

@@ -3103,7 +3103,7 @@
   "roundFactsTitle": "Curiosidades de la ronda",
   "roundGain": "{points} en la ronda",
   "roundHowTitle": "Cómo va la ronda",
-  "roundHow_auction": "Antes de cada pregunta hay una puja: solo se ven el tema y el precio. Quien puja más responde: paga su puja y un acierto le da el precio de la pregunta; error — solo menos la puja. Si nadie puja, responden todos.",
+  "roundHow_auction": "Antes de cada pregunta hay una puja: solo se ven el tema y el precio. Quien puja más responde: un acierto le devuelve la puja y le da el precio de la pregunta; error — menos la puja. Si nadie puja, responden todos.",
   "roundHow_bets": "Antes de cada pregunta, una apuesta secreta: solo se ve el principio de la pregunta. La apuesta mínima crece con cada pregunta. Un fallo manda la apuesta al bote y los aciertos lo reparten.",
   "roundHow_blitz": "¿Sabes la respuesta? Pulsa «Responder» en el móvil para ponerte en la cola.",
   "roundHow_blitzInstant": "No hay botón: responded enseguida en el móvil; cuenta quién es más rápido.",

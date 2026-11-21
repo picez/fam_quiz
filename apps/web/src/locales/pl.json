@@ -3104,7 +3104,7 @@
   "roundFactsTitle": "Ciekawostki rundy",
   "roundGain": "{points} za rundę",
   "roundHowTitle": "Jak przebiega runda",
-  "roundHow_auction": "Przed każdym pytaniem jest licytacja: widać tylko temat i cenę. Kto da najwięcej, ten odpowiada: płaci stawkę, a dobra odpowiedź przynosi cenę pytania; błąd — tylko minus stawka. Nikt nie licytuje — odpowiadają wszyscy.",
+  "roundHow_auction": "Przed każdym pytaniem jest licytacja: widać tylko temat i cenę. Kto da najwięcej, ten odpowiada: dobra odpowiedź zwraca stawkę i przynosi cenę pytania; błąd — minus stawka. Nikt nie licytuje — odpowiadają wszyscy.",
   "roundHow_bets": "Przed każdym pytaniem — tajny zakład: widać tylko początek pytania. Minimalny zakład rośnie z każdym pytaniem. Błąd oddaje zakład do banku, poprawne odpowiedzi go dzielą.",
   "roundHow_blitz": "Znasz odpowiedź — naciśnij „Odpowiedz” na telefonie, żeby stanąć w kolejce.",
   "roundHow_blitzInstant": "Przycisku nie ma: od razu odpowiadaj na telefonie — liczy się, kto szybszy.",

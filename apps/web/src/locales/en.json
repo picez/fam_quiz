@@ -3069,7 +3069,7 @@
   "roundFactsTitle": "Round trivia",
   "roundGain": "{points} for the round",
   "roundHowTitle": "How the round works",
-  "roundHow_auction": "Before each question there is bidding: only the theme and the price are visible. Whoever bids the most answers: they pay the bid, and a correct answer brings the price of the question; wrong — just minus the bid. No bids — everyone answers.",
+  "roundHow_auction": "Before each question there is bidding: only the theme and the price are visible. Whoever bids the most answers: a correct answer returns the bid and brings the price of the question; wrong — minus the bid. No bids — everyone answers.",
   "roundHow_bets": "Before every question — a secret bet: only the start of the question is visible. The minimum bet grows with each question. A wrong answer gives the bet to the bank, correct ones share it.",
   "roundHow_blitz": "Know the answer? Press “Answer” on your phone to join the queue.",
   "roundHow_blitzInstant": "There's no button: answer on your phone straight away — speed matters.",

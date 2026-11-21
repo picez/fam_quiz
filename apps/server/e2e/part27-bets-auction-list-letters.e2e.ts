@@ -534,16 +534,16 @@ async function auctionGame27b() {
     name: await row.locator('.name').textContent(),
     stake: await row.locator('.wager-stake').textContent(),
     delta: await row.locator('.wager-delta').textContent(),
-  }).toEqual({ name: 'Оля', stake: 'ставка 400', delta: '−200' });
+  }).toEqual({ name: 'Оля', stake: 'ставка 400', delta: '+200' });
   // Кадри розкриття — після появи підсвітки правильного варіанта й картки результату.
   if (process.env.E2E_SHOTS === '1') await sleep(1500);
   await shot(stage, 'auction27b-stage-reveal');
-  // Ставка — плата: Оля переплатила (400 за запитання на 200), тож правильна відповідь — у мінус.
-  // Переможець бачить звичайну картку результату з балами (зелену — відповідь правильна), решта — рядок «Правильно: −200».
-  await olya.locator('.result.is-correct').getByText('−200', exact).waitFor();
-  await taras.locator('.auction-points').getByText('Правильно: −200', exact).waitFor();
+  // Ставка — застава: Оля переплатила (400 за запитання на 200), але правильна відповідь повертає ставку й дає ціну.
+  // Переможець бачить звичайну картку результату з балами (зелену — відповідь правильна), решта — рядок «Правильно: +200».
+  await olya.locator('.result.is-correct').getByText('+200', exact).waitFor();
+  await taras.locator('.auction-points').getByText('Правильно: +200', exact).waitFor();
   await shot(olya, 'auction27b-phone-winner');
-  await scores(['600', '500', '300', '0']);
+  await scores(['1000', '500', '300', '0']);
 
   // ── А2 (ціна 300): нічого не видно, ведучий продає одразу після ставки. ──
   await step27a(host, 'Далі');
@@ -563,7 +563,7 @@ async function auctionGame27b() {
   await step27a(host, 'Показати відповідь');
   await taras.locator('.result').getByText('−100', exact).waitFor();
   await olya.locator('.auction-points').getByText('Помилка: −100', exact).waitFor();
-  await scores(['600', '400', '300', '0']);
+  await scores(['1000', '400', '300', '0']);
 
   // ── А3 (ціна 200): видно весь текст, ніхто не ставить, відповідають усі. ──
   await step27a(host, 'Далі');
@@ -582,7 +582,7 @@ async function auctionGame27b() {
   await field(jose, es27b.yourAnswer!).fill('8');
   await click(jose, es27b.submit!);
   await step27a(host, 'Показати відповідь');
-  await scores(['800', '600', '300', '200']);
+  await scores(['1200', '600', '300', '200']);
 
   // ── Б1 (будь-яка сума, ціна 300, помилка — ставка й ціна): межа ставки балами. ──
   await step27a(host, 'Далі');
@@ -614,18 +614,18 @@ async function auctionGame27b() {
   await step27a(host, 'Показати відповідь');
   await ira.locator('.result').getByText('−600', exact).waitFor();
   await taras.locator('.auction-points').getByText('Помилка: −600', exact).waitFor();
-  await scores(['800', '600', '−300', '200']);
+  await scores(['1200', '600', '−300', '200']);
 
-  // ── Б2 (ціна 400): Оля 300, ведучий продає, правильно: 400 − 300. ──
+  // ── Б2 (ціна 400): Оля 300, ведучий продає, правильно: ставка повертається, +400. ──
   await step27a(host, 'Далі');
   await stage.locator('.bets-stage-teaser').getByText('Який океан', exact).waitFor();
   await bid27b(olya, 300);
   await step27a(host, 'Продано');
   await olya.getByRole('button', { name: /Тихий/ }).click();
   await step27a(host, 'Показати відповідь');
-  await olya.locator('.result').getByText('+100', exact).waitFor();
-  await ira.locator('.auction-points').getByText('Правильно: +100', exact).waitFor();
-  await scores(['900', '600', '−300', '200']);
+  await olya.locator('.result').getByText('+400', exact).waitFor();
+  await ira.locator('.auction-points').getByText('Правильно: +400', exact).waitFor();
+  await scores(['1600', '600', '−300', '200']);
 
   // ── Історія гри: покупець і непродане запитання. ──
   await step27a(host, 'Далі');
@@ -635,7 +635,7 @@ async function auctionGame27b() {
   const sold = host.locator('.rows.stacked > li', { hasText: 'Яке місто є столицею Австралії?' });
   const toggle = sold.getByText(/Відповіді \(\d+\)/);
   if ((await toggle.count()) > 0) await toggle.click();
-  await sold.getByText('Оля — куплено за 400: −200').waitFor();
+  await sold.getByText('Оля — куплено за 400: +200').waitFor();
   await host.locator('.rows.stacked > li', { hasText: 'Скільки ніг у павука?' }).getByText('Ніхто не купив — відповідали всі', exact).waitFor();
 
   expect(problems).toEqual([]);

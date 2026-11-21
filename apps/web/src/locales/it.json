@@ -3103,7 +3103,7 @@
   "roundFactsTitle": "Curiosità del round",
   "roundGain": "{points} nel round",
   "roundHowTitle": "Come si svolge il round",
-  "roundHow_auction": "Prima di ogni domanda c’è un’asta: si vedono solo il tema e il prezzo. Chi offre di più risponde: paga l’offerta e una risposta giusta porta il prezzo della domanda; sbagliata — solo meno l’offerta. Nessuna offerta — rispondono tutti.",
+  "roundHow_auction": "Prima di ogni domanda c’è un’asta: si vedono solo il tema e il prezzo. Chi offre di più risponde: una risposta giusta restituisce l’offerta e porta il prezzo della domanda; sbagliata — meno l’offerta. Nessuna offerta — rispondono tutti.",
   "roundHow_bets": "Prima di ogni domanda — una scommessa segreta: si vede solo l'inizio della domanda. La scommessa minima cresce a ogni domanda. Un errore manda la scommessa al montepremi, le risposte giuste lo dividono.",
   "roundHow_blitz": "Sai la risposta? Premi «Rispondi» sul telefono per metterti in coda.",
   "roundHow_blitzInstant": "Non c'è pulsante: rispondete subito sul telefono; conta chi è più veloce.",
