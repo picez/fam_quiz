@@ -115,11 +115,21 @@ describe('67 the player phone screen on a computer', () => {
 
   it('answer fields keep a readable width and the duel bar follows the column', () => {
     expect(inBig('.app.player .field')[0]?.body).toContain('max-inline-size: var(--w-read);');
-    expect(inBig('.duel-banner')[0]?.body).toContain('max-width: min(calc(100vw - 2rem), var(--app-w, 30rem));');
+    expect(inBig('.app.player > .duel-banner')[0]?.body).toContain('max-width: min(calc(100vw - 2rem), var(--app-w, 30rem));');
+    // Смуга на сцені (.app.stage без --app-w) не звужується.
+    expect(inBig('.duel-banner').filter((rule) => !rule.selector.includes('.app.player >'))).toEqual([]);
+    expect(inBig('.app.player .field + .btn')[0]?.body).toContain('max-inline-size: var(--w-read);');
+    expect(inBig('.has-images:has(> :nth-child(4):last-child)')[0]?.body).toContain('repeat(2, minmax(0, 1fr))');
   });
 });
 
 describe('67 host console columns', () => {
+  it('the lobby is one wide area, not a split with an empty main column', () => {
+    const big = rules(minWidthMedia(clean).find(({ width }) => width === '1280')?.body ?? '');
+    expect(big.find((rule) => rule.selector === '.host-cols.is-lobby')?.body).toContain('grid-template-columns: minmax(0, 1fr);');
+    expect(big.find((rule) => rule.selector === '.host-cols.is-lobby .host-side')?.body).toContain('repeat(auto-fit');
+  });
+
   it('host columns are invisible wrappers below 1280 px and a grid from 1280 px', () => {
     const selectorOf = (rule: { selector: string }) => rule.selector.split(/[\s,]+/).join(' ');
     expect(rules(clean).find((rule) => selectorOf(rule) === '.host-cols .host-main .host-side')?.body).toContain('display: contents;');

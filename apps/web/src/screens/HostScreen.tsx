@@ -674,7 +674,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
       </header>
 
       {/* 67: від 1280 px — запитання й відповіді ліворуч, гравці, бали й посилання у бічній колонці; нижче 1280 обгортки display: contents, порядок у DOM той самий. */}
-      <div className="host-cols">
+      <div className={phase === 'lobby' ? 'host-cols is-lobby' : 'host-cols'}>
       <div className="host-main">
 
       {view.paused && (

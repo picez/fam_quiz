@@ -28,7 +28,7 @@ async function viewportShot67(page: Page, name: string) {
   await page.screenshot({ path: resolve(ARTIFACTS, 'shots', `${name}.png`) });
 }
 
-/** Кадр лише видимої частини + повний кадр; без бічної прокрутки на кожному розмірі. */
+/** Кадр лише видимої частини (повний — лише з E2E_FULL=1); без бічної прокрутки на кожному розмірі. */
 async function wide67(page: Page, name: string, check?: (size: (typeof SIZES_67)[number]) => Promise<void>) {
   for (const size of SIZES_67) {
     await page.setViewportSize({ width: size.width, height: size.height });
@@ -36,7 +36,7 @@ async function wide67(page: Page, name: string, check?: (size: (typeof SIZES_67)
     expect(await page.evaluate('document.documentElement.scrollWidth <= innerWidth'), `${name}-${size.tag}: horizontal scroll`).toBe(true);
     await check?.(size);
     await viewportShot67(page, `${name}-${size.tag}`);
-    await shot(page, `${name}-${size.tag}-full`);
+    if (process.env.E2E_FULL === '1') await shot(page, `${name}-${size.tag}-full`);
   }
 }
 
@@ -189,7 +189,7 @@ async function player67() {
     const boxes = await choiceBoxes(taras);
     expect(boxes.length, `images ${tag}`).toBe(4);
     const firstRow = boxes.filter((box) => Math.abs(box.y - boxes[0]!.y) <= 1).length;
-    expect(firstRow, `images ${tag}: choices in the first row`).toBe(tag === '375' ? 2 : 3);
+    expect(firstRow, `images ${tag}: choices in the first row (four pictures stand 2 x 2)`).toBe(2);
   });
   await taras.locator('.choices.has-images .choice').nth(1).click();
 
@@ -238,7 +238,7 @@ async function hostGame67() {
 }
 
 /** Бічна колонка праворуч від основної на ПК, під нею — на телефоні; нижня липка панель не накриває останній рядок бічної. */
-async function expectColumns67(host: Page, tag: string) {
+async function expectColumns67(host: Page, tag: string, lobby = false) {
   const geometry = (await host.evaluate(`(() => {
     const box = (selector) => { const el = document.querySelector(selector); if (!el) return null; const r = el.getBoundingClientRect(); return { x: r.x, y: r.y, w: r.width, bottom: r.bottom, right: r.right }; };
     return { main: box('.host-main'), side: box('.host-side'), footer: box('footer.actions') };
@@ -248,6 +248,9 @@ async function expectColumns67(host: Page, tag: string) {
   if (tag === '375') {
     // display: contents: обгортки не мають власного прямокутника — порядок блоків як до 67 перевіряє нульова ширина.
     expect(geometry.side!.w, 'phone: no side column box').toBe(0);
+  } else if (lobby) {
+    // Лобі: порожньої головної колонки немає — бічні блоки на всю ширину під рядком фази.
+    expect(geometry.side!.w, `${tag}: the lobby uses the full width`).toBeGreaterThan(geometry.main!.w - 2);
   } else {
     expect(geometry.side!.x, `${tag}: the side column is to the right of the main one`).toBeGreaterThan(geometry.main!.x + geometry.main!.w - 1);
   }
@@ -258,7 +261,7 @@ async function host67() {
   // ── Лобі: список гравців і додатки лобі в бічній колонці. ──
   await host.getByRole('heading', { name: 'Гравці: 4' }).waitFor();
   await wide67(host, 'host67-lobby', async ({ tag }) => {
-    await expectColumns67(host, tag);
+    await expectColumns67(host, tag, true);
     expect(await mainWidth67(host), `lobby ${tag}`).toBeLessThanOrEqual(tag === '1920' ? 1664 : 1408);
   });
 

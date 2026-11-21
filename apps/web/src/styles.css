@@ -28696,12 +28696,22 @@ a.library-card:focus-visible {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
+  /* Рівно чотири картинки — 2 × 2, а не 3 + 1. */
+  .app.player .choices.has-images:has(> :nth-child(4):last-child) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .app.player .field {
     max-inline-size: var(--w-read);
   }
 
+  /* Кнопка під полем такої ж ширини, як поле. */
+  .app.player .field + .btn {
+    max-inline-size: var(--w-read);
+  }
+
   /* Смуга дуелі — fixed по центру вікна, а колонка вужча за вікно: довгий текст не розтягує її на весь ПК. */
-  .duel-banner {
+  .app.player > .duel-banner {
     max-width: min(calc(100vw - 2rem), var(--app-w, 30rem));
   }
 }
@@ -28727,6 +28737,33 @@ a.library-card:focus-visible {
     flex-direction: column;
     gap: 1.25rem;
     min-width: 0;
+  }
+
+  /* Лобі: у головній колонці майже нічого — не ділимо, а розкладаємо блоки лобі (гравці, хто бачить гру, команди, посилання) сіткою на всю ширину. */
+  .host-cols.is-lobby {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .host-cols.is-lobby .host-side {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 24rem), 1fr));
+    align-items: start;
+    gap: 1.25rem 2rem;
+  }
+
+  /* Короткі підписи й посилання — на всю ширину сітки; список гравців — у кілька колонок. */
+  .host-cols.is-lobby .host-side > :is(p, nav, .panel:first-child) {
+    grid-column: 1 / -1;
+  }
+
+  .host-cols.is-lobby .host-side .rows {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(18rem, 1fr));
+    gap: 0.5rem 1rem;
+  }
+
+  .host-cols.is-lobby .host-side .team-forms {
+    grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
   }
 
   /* Вузька бічна колонка: способи формування команд — в один стовпець, інакше ⓘ сусіднього способу накриває перемикач. */
