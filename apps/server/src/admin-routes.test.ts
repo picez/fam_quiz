@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { blitzRound, bool, classicRound, makeQuiz, makeRoundsQuiz, multi, numeric, order, single, text, withId } from '@quiz/engine/testing';
 import { ADMIN_LOG_GROUP_KINDS, BOT_USER_ID } from '@quiz/shared';
-import type { AdminQuizCheck, Announcement, AdminCharts, AdminHealth, AdminList, AdminLiveList, AdminLogEntry, AdminReportItem, LibraryPage, AdminQuizView, AdminStats, AdminUserDetail, CalendarEvent, PrizeContent, PrizeItem, PrizePlacesInfo, Question, Quiz } from '@quiz/shared';
+import type { AdminQuizCheck, Announcement, AdminHealth, AdminMetrics, AdminList, AdminLiveList, AdminLogEntry, AdminReportItem, LibraryPage, AdminQuizView, AdminStats, AdminUserDetail, CalendarEvent, PrizeContent, PrizeItem, PrizePlacesInfo, Question, Quiz } from '@quiz/shared';
 import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import * as adminModule from './admin';
@@ -134,7 +134,7 @@ describe('hiding the admin panel (Review Focus 3)', () => {
     ['PUT', '/api/admin/bot/rooms/123456/manual'],
     ['GET', '/api/admin/live'],
     ['POST', '/api/admin/live/123456/close'],
-    ['GET', '/api/admin/charts'],
+    ['GET', '/api/admin/metrics?period=7'],
     ['GET', '/api/admin/health'],
     ['GET', '/api/admin/announcement'],
     ['PUT', '/api/admin/announcement'],
@@ -576,14 +576,50 @@ describe('live games (39-A1)', () => {
 });
 
 describe('charts and health (39-A3)', () => {
-  it('gives 30 days and caches them for 10 minutes', async () => {
-    const first = (await call('GET', '/api/admin/charts', a.cookie)).json() as AdminCharts;
-    expect(first.days).toHaveLength(30);
-    expect(first.days.at(-1)!.day).toBe(new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Kyiv' }).format(new Date()));
-    await startGame(ctx.app, makeQuiz([single]), o.cookie);
-    const second = (await call('GET', '/api/admin/charts', a.cookie)).json() as AdminCharts;
-    expect(second).toEqual(first);
-    expect(JSON.stringify(first)).not.toContain('@');
+  it('gives the metrics of a period and caches each period for 10 minutes; the old charts address is gone (71)', async () => {
+    const queries: string[] = [];
+    const own = await createTestDb({ onQuery: (query) => queries.push(query) });
+    const app = await buildApp({ db: own, auth: TEST_AUTH, adminEmails: emails });
+    try {
+      const signed = await signUp(app.app, 'Метрики');
+      await own.update(user).set({ emailVerified: true }).where(eq(user.email, signed.email));
+      emails.add(signed.email.toLowerCase());
+      const response = await callOn(app.app, 'GET', '/api/admin/metrics?period=7', signed.cookie);
+      expect(response.statusCode).toBe(200);
+      const first = response.json() as AdminMetrics;
+      expect(first.period).toBe(7);
+      expect(first.buckets).toHaveLength(7);
+      expect(first.buckets.at(-1)!.start).toBe(new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Kyiv' }).format(new Date()));
+      expect(JSON.stringify(first)).not.toContain('@');
+
+      await startGame(app.app, makeQuiz([single]), signed.cookie);
+      queries.length = 0;
+      const second = (await callOn(app.app, 'GET', '/api/admin/metrics?period=7', signed.cookie)).json() as AdminMetrics;
+      expect(second).toEqual(first);
+      expect(queries.filter((query) => query.includes('"game"'))).toEqual([]);
+
+      queries.length = 0;
+      const month = (await callOn(app.app, 'GET', '/api/admin/metrics?period=30', signed.cookie)).json() as AdminMetrics;
+      expect(month.buckets).toHaveLength(30);
+      expect(queries.some((query) => query.includes('from "game" g'))).toBe(true);
+      const byDefault = (await callOn(app.app, 'GET', '/api/admin/metrics', signed.cookie)).json() as AdminMetrics;
+      expect(byDefault.period).toBe(30);
+    } finally {
+      await app.app.close();
+    }
+  });
+
+  it('a bad period is 400; a player and a guest get 404; /api/admin/charts no longer exists (71)', async () => {
+    const bad = await call('GET', '/api/admin/metrics?period=31', a.cookie);
+    expect(bad.statusCode).toBe(400);
+    expect(bad.json()).toEqual({ error: 'invalid_payload' });
+    expect((await call('GET', '/api/admin/metrics?period=7&x=1', a.cookie)).statusCode).toBe(400);
+    for (const cookie of [o.cookie, undefined]) {
+      const hidden = await call('GET', '/api/admin/metrics?period=7', cookie);
+      expect(hidden.statusCode).toBe(404);
+      expect(hidden.json()).toEqual(NOT_FOUND);
+    }
+    expect((await call('GET', '/api/admin/charts', a.cookie)).statusCode).toBe(404);
   });
 
   it('shows the newest backup from the list, uptime, memory, rooms and connections', async () => {
@@ -622,6 +658,74 @@ describe('charts and health (39-A3)', () => {
       expect(healed.backup).toEqual({ state: 'ok', at: '2026-11-16T10:05:00.000Z', bytes: 3_500_000 });
     } finally {
       await broken.app.close();
+    }
+  });
+
+  it('adds the server version, Node.js, live rooms, database rows, stored copies and problems; the database part is cached for a minute (71)', async () => {
+    const queries: string[] = [];
+    const own = await createTestDb({ onQuery: (query) => queries.push(query) });
+    await ensureBotAccount(own);
+    const key = 'backups/db/2026-11-16T10-05-00Z-m0040.jsonl.gz';
+    const app = await buildApp({
+      db: own,
+      auth: TEST_AUTH,
+      adminEmails: emails,
+      commit: 'abc1234def',
+      backupList: async () => [
+        { key, size: 3_500_000, lastModified: new Date('2026-11-16T10:05:00Z') },
+        { key: 'backups/db/notes.txt', size: 10, lastModified: new Date('2026-11-16T10:05:00Z') },
+      ],
+      maxRooms: 7,
+    });
+    try {
+      const signed = await signUp(app.app, 'Стан');
+      await own.update(user).set({ emailVerified: true }).where(eq(user.email, signed.email));
+      emails.add(signed.email.toLowerCase());
+      // /api/me позначає день відвідування (коли профіль уже є) — рядок activity_day.
+      await callOn(app.app, 'GET', '/api/me/profile', signed.cookie);
+      await callOn(app.app, 'GET', '/api/me', signed.cookie);
+      const health = (await callOn(app.app, 'GET', '/api/admin/health', signed.cookie)).json() as AdminHealth;
+      expect(health.server.node).toBe(process.version);
+      expect(health.server.commit).toBe('abc1234');
+      expect(Date.parse(health.server.startedAt)).toBeLessThanOrEqual(Date.now());
+      expect(health.memory.heapTotal).toBeGreaterThan(0);
+      expect(health.live).toMatchObject({ lobby: 0, playing: 0, maxRooms: 7, restarting: false });
+      expect(health.db?.rows.user).toBe(1);
+      expect(health.db?.rows.activity_day).toBe(1);
+      expect(health.backups).toEqual({ count: 1, bytes: 3_500_000 });
+      expect(health.problems).toEqual({ errors24h: 0, errorKinds24h: 0, errorsNew: 0, problemsOpen: 0, reportsOpen: 0 });
+      expect(JSON.stringify(health)).not.toContain('@');
+
+      queries.length = 0;
+      await callOn(app.app, 'GET', '/api/admin/health', signed.cookie);
+      expect(queries.filter((query) => query.includes('count(*)'))).toEqual([]);
+    } finally {
+      await app.app.close();
+    }
+  });
+
+  it('a failing database part leaves db and problems empty, the rest still answers (71)', async () => {
+    let failing = false;
+    const own = await createTestDb({
+      onQuery: (query) => {
+        if (failing && query.includes('"game_event"')) throw new Error('db down');
+      },
+    });
+    const app = await buildApp({ db: own, auth: TEST_AUTH, adminEmails: emails });
+    try {
+      const signed = await signUp(app.app, 'Збій');
+      await own.update(user).set({ emailVerified: true }).where(eq(user.email, signed.email));
+      emails.add(signed.email.toLowerCase());
+      failing = true;
+      const response = await callOn(app.app, 'GET', '/api/admin/health', signed.cookie);
+      expect(response.statusCode).toBe(200);
+      const health = response.json() as AdminHealth;
+      expect(health.db).toBeNull();
+      expect(health.problems).toBeNull();
+      expect(health.server.node).toBe(process.version);
+      expect(health.backups).toBeNull();
+    } finally {
+      await app.app.close();
     }
   });
 });

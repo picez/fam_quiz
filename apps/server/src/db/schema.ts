@@ -1232,3 +1232,18 @@ export const inboxItem = pgTable(
     index('inbox_item_broadcast_idx').on(table.broadcastId),
   ],
 );
+
+/** 71: людина була на сайті цього київського дня; і скільки активного часу провела в редакторі. Без змісту й без IP. */
+export const activityDay = pgTable(
+  'activity_day',
+  {
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    /** 'YYYY-MM-DD' за Києвом. */
+    day: text('day').notNull(),
+    editorSec: integer('editor_sec').notNull().default(0),
+    editorSessions: integer('editor_sessions').notNull().default(0),
+  },
+  (table) => [primaryKey({ columns: [table.userId, table.day] }), index('activity_day_day_idx').on(table.day)],
+);

@@ -5,10 +5,10 @@ import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { me } from '../api';
 import { Admin } from './Admin';
-import { adminCharts, adminErrors, adminFeed, adminGroup, adminHealth, adminProblems, adminProblemsBadge, adminReportedQuiz, adminReports, adminStats, resolveServerError } from './admin-api';
+import { adminErrors, adminMetrics, adminFeed, adminGroup, adminHealth, adminProblems, adminProblemsBadge, adminReportedQuiz, adminReports, adminStats, resolveServerError } from './admin-api';
 
 vi.mock('../api', () => ({ me: vi.fn() }));
-vi.mock('./admin-api', () => ({ adminStats: vi.fn(), adminCharts: vi.fn(), adminHealth: vi.fn(), adminProblemsBadge: vi.fn(), adminProblems: vi.fn(), adminReports: vi.fn(), adminReportedQuiz: vi.fn(), adminErrors: vi.fn(), resolveServerError: vi.fn(), adminFeed: vi.fn(), adminGroup: vi.fn(), searchBotPeople: vi.fn() }));
+vi.mock('./admin-api', () => ({ adminStats: vi.fn(), adminMetrics: vi.fn(), adminHealth: vi.fn(), adminProblemsBadge: vi.fn(), adminProblems: vi.fn(), adminReports: vi.fn(), adminReportedQuiz: vi.fn(), adminErrors: vi.fn(), resolveServerError: vi.fn(), adminFeed: vi.fn(), adminGroup: vi.fn(), searchBotPeople: vi.fn() }));
 
 const stats = {
   users: { total: 12, new7: 3, new30: 5, online: 2 },
@@ -38,7 +38,7 @@ const account = (admin: boolean) => ({ ok: true as const, id: 'u1', name: 'Ол�
 
 beforeEach(() => {
   vi.clearAllMocks();
-  vi.mocked(adminCharts).mockResolvedValue({ ok: false, error: 'offline' });
+  vi.mocked(adminMetrics).mockResolvedValue({ ok: false, error: 'offline' });
   vi.mocked(adminHealth).mockResolvedValue({ ok: false, error: 'offline' });
   vi.mocked(adminProblemsBadge).mockResolvedValue({ ok: true, data: { errors: 0, reports: 0, complaints: 0 } });
   vi.mocked(adminReports).mockResolvedValue({ ok: false, error: 'offline' });

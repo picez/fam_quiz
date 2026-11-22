@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ADMIN_ACTION_KINDS, ADMIN_LOG_GROUP_KINDS, ADMIN_LOG_GROUPS, adminBotCopySchema, adminListQuerySchema, adminLogFilterSchema, adminLogQuerySchema, adminPages, banSchema } from './admin';
+import { ADMIN_ACTION_KINDS, ADMIN_LOG_GROUP_KINDS, ADMIN_LOG_GROUPS, adminBotCopySchema, adminListQuerySchema, adminLogFilterSchema, adminLogQuerySchema, adminPages, banSchema, ADMIN_METRIC_PERIODS, adminMetricsQuerySchema, editorTimeSchema, metricBucket } from './admin';
 
 describe('adminListQuerySchema', () => {
   it('defaults and coerces', () => {
@@ -80,5 +80,43 @@ describe('admin log groups (63)', () => {
     expect(() => adminLogQuerySchema.parse({ extra: '1' })).toThrow();
     expect(() => adminLogFilterSchema.parse({ page: '1' })).toThrow();
     expect(adminLogFilterSchema.parse({ groups: 'players' })).toEqual({ groups: ['players'] });
+  });
+});
+
+describe('adminMetricsQuerySchema (71)', () => {
+  it('coerces the period and defaults to 30', () => {
+    expect(adminMetricsQuerySchema.parse({ period: '30' })).toEqual({ period: 30 });
+    expect(adminMetricsQuerySchema.parse({ period: '365' })).toEqual({ period: 365 });
+    expect(adminMetricsQuerySchema.parse({})).toEqual({ period: 30 });
+  });
+  it('rejects other periods and extra fields', () => {
+    expect(() => adminMetricsQuerySchema.parse({ period: '0' })).toThrow();
+    expect(() => adminMetricsQuerySchema.parse({ period: '31' })).toThrow();
+    expect(() => adminMetricsQuerySchema.parse({ period: 'abc' })).toThrow();
+    expect(() => adminMetricsQuerySchema.parse({ period: '7', extra: '1' })).toThrow();
+  });
+});
+
+describe('editorTimeSchema (71)', () => {
+  it('accepts a portion of seconds', () => {
+    expect(editorTimeSchema.parse({ seconds: 60, start: true })).toEqual({ seconds: 60, start: true });
+    expect(editorTimeSchema.parse({ seconds: 1, start: false })).toEqual({ seconds: 1, start: false });
+  });
+  it('rejects bad portions', () => {
+    expect(() => editorTimeSchema.parse({ seconds: 0, start: true })).toThrow();
+    expect(() => editorTimeSchema.parse({ seconds: 91, start: true })).toThrow();
+    expect(editorTimeSchema.parse({ seconds: 90, start: false })).toEqual({ seconds: 90, start: false });
+    expect(() => editorTimeSchema.parse({ seconds: 1.5, start: true })).toThrow();
+    expect(() => editorTimeSchema.parse({ seconds: 60 })).toThrow();
+    expect(() => editorTimeSchema.parse({ seconds: 60, start: true, quizId: 'x' })).toThrow();
+  });
+});
+
+describe('metric periods (71)', () => {
+  it('has four periods; the year goes by weeks', () => {
+    expect(ADMIN_METRIC_PERIODS).toEqual([7, 30, 90, 365]);
+    expect(metricBucket(365)).toBe('week');
+    expect(metricBucket(90)).toBe('day');
+    expect(metricBucket(7)).toBe('day');
   });
 });

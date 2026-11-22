@@ -1,5 +1,6 @@
 import { z } from 'zod';
-import type { Quiz } from './quiz';
+import type { Quiz, RoundType } from './quiz';
+import type { QuestionType } from './question-types';
 import type { PrizeContent, PrizePlace } from './prizes';
 import { pageCount } from './paging';
 import type { GroupEmoji } from './groups';
@@ -15,8 +16,6 @@ export const ADMIN_REASON_MAX = 500;
 export const ADMIN_QUERY_MAX = 100;
 /** 53: як часто вкладка «Живі ігри» оновлюється сама. */
 export const ADMIN_LIVE_REFRESH_MS = 10_000;
-/** 53: скільки днів (до сьогодні включно) показують графіки статистики. */
-export const ADMIN_CHART_DAYS = 30;
 /** 53: скільки живуть у кеші графіки й список резервних копій. */
 export const ADMIN_CACHE_MS = 600_000;
 export const ADMIN_ACTION_KINDS = ['ban', 'unban', 'quiz_delete', 'question_delete', 'prize_delete', 'award_delete', 'library_hide', 'library_restore', 'report_dismiss', 'appeal_reject', 'nickname_reset', 'avatar_reset', 'game_close', 'announcement_set', 'announcement_clear', 'bot_game_start', 'bot_copy', 'bot_quiz_delete', 'bot_plan_create', 'bot_plan_update', 'bot_plan_cancel', 'bot_plan_run', 'bot_plan_fail', 'quiz_view', 'achievement_grant', 'achievement_revoke', 'xp_adjust', 'prize_gift', 'gift_revoke', 'account_delete', 'bot_room_start', 'bot_room_pause', 'bot_room_resume', 'bot_room_end', 'bot_room_skip', 'bot_room_time', 'bot_room_end_round', 'bot_room_kick', 'bot_room_release', 'bot_room_teams', 'bot_room_lobby', 'bot_room_adjust', 'push_broadcast', 'feed_hide', 'feed_show', 'group_hide', 'group_restore', 'group_member_remove', 'group_owner_transfer', 'group_delete', 'group_item_hide', 'group_item_show', 'server_error_resolve', 'problem_resolve', 'problem_reply', 'backup_now', 'game_replay_view', 'account_merge', 'bot_room_host_open', 'bot_room_manual_on', 'bot_room_manual_off', 'bot_room_grade', 'bot_room_undo', 'bot_room_debuff', 'bot_room_hint'] as const;
@@ -62,10 +61,28 @@ export interface AdminLiveRoom {
   stageUrl: string;
 }
 export interface AdminLiveList { rooms: AdminLiveRoom[]; at: string }
-export interface AdminChartDay { day: string; players: number; games: number; finished: number; completion: number | null; returns: number | null }
-export interface AdminCharts { days: AdminChartDay[]; computedAt: string }
 export type AdminBackupInfo = { state: 'ok'; at: string; bytes: number } | { state: 'none' | 'off' | 'error' };
-export interface AdminHealth { backup: AdminBackupInfo; uptimeSec: number; memory: { rss: number; heapUsed: number }; rooms: number; connections: number; checkedAt: string }
+/** 71: таблиці, рядки яких рахує «Стан». */
+export const ADMIN_HEALTH_TABLES = ['user', 'quiz', 'game', 'participant', 'answer', 'game_event', 'saved_game', 'activity_day'] as const;
+export type AdminHealthTable = (typeof ADMIN_HEALTH_TABLES)[number];
+export interface AdminHealth {
+  backup: AdminBackupInfo;
+  uptimeSec: number;
+  memory: { rss: number; heapUsed: number; heapTotal: number; external: number };
+  rooms: number;
+  connections: number;
+  checkedAt: string;
+  /** 71: версія, Node.js, запуск, процесор і затримка циклу подій за останню хвилину (null — ще немає знімка). */
+  server: { commit: string | null; node: string; startedAt: string; cpuPercent: number | null; lagMs: { p50: number; p99: number; max: number } | null };
+  /** 71: живі кімнати за станом. */
+  live: { lobby: number; playing: number; paused: number; bot: number; autopilot: number; playersOnline: number; playersTotal: number; maxRooms: number; restarting: boolean };
+  /** 71: null — запит до бази впав, «Стан» показується й без цього. */
+  db: { bytes: number | null; rows: Record<AdminHealthTable, number>; push: { subscriptions: number; people: number } } | null;
+  /** 71: копії в сховищі; null — список недоступний. */
+  backups: { count: number; bytes: number } | null;
+  /** 71: null — запит до бази впав. */
+  problems: { errors24h: number; errorKinds24h: number; errorsNew: number; problemsOpen: number; reportsOpen: number } | null;
+}
 export interface AdminBotQuiz { id: string; title: string; rounds: number; questions: number; truth: boolean; updatedAt: string; /** 57: лічильники останньої перевірки цієї версії; null — не перевіряли чи змінено після перевірки. */ check: { errors: number; warnings: number } | null }
 export type AdminBotStatus = 'lobby' | 'playing' | 'paused' | 'finished';
 /** 62: one person of a bot room on the admin card. */
@@ -141,6 +158,107 @@ export const banSchema = z
       .transform((r) => (r ? r : null)),
   })
   .strict();
+
+/** 71: періоди вкладки «Метрики»; рік — 52 тижні. */
+export const ADMIN_METRIC_PERIODS = [7, 30, 90, 365] as const;
+export type AdminMetricPeriod = (typeof ADMIN_METRIC_PERIODS)[number];
+export const metricBucket = (period: AdminMetricPeriod): 'day' | 'week' => (period === 365 ? 'week' : 'day');
+export const adminMetricsQuerySchema = z
+  .object({
+    period: z.coerce
+      .number()
+      .int()
+      .refine((n): n is AdminMetricPeriod => (ADMIN_METRIC_PERIODS as readonly number[]).includes(n))
+      .default(30),
+  })
+  .strict();
+/** 71: активний час у редакторі — порція від клієнта; start — перша порція цього відкриття редактора.
+ * Порція — не більше 90 с: клієнт шле хвилину, а більша стеля дозволила б «накрутити» день за хвилини. */
+export const EDITOR_TIME_MAX_SEC = 90;
+export const editorTimeSchema = z.object({ seconds: z.number().int().min(1).max(EDITOR_TIME_MAX_SEC), start: z.boolean() }).strict();
+export type EditorTimeInput = z.infer<typeof editorTimeSchema>;
+
+/** 71: один кошик метрик — день або тиждень (рік). Частки й середні — null, коли ділити нема на що. */
+export interface AdminMetricBucket {
+  /** Київський день початку кошика, 'YYYY-MM-DD'. */
+  start: string;
+  /** 1 або 7. */
+  days: number;
+  /** Різні акаунти, що заходили на сайт (activity_day). */
+  active: number;
+  /** Різні акаунти, що зіграли гру. */
+  players: number;
+  games: number;
+  finished: number;
+  aborted: number;
+  /** Ігри за ведучим: людина сама, автопілот людини, бот. */
+  hosted: number;
+  autopilot: number;
+  bot: number;
+  /** Дограно, %. */
+  completion: number | null;
+  /** Повернення, % (для тижня — на останній день тижня). */
+  returns: number | null;
+  /** Середнє людей у дограній грі. */
+  avgPlayers: number | null;
+  /** Сума тривалостей дограних ігор, хв (кожна ≤ 240). */
+  gameMin: number;
+  /** Тривалість × людей, хв. */
+  playerMin: number;
+  newUsers: number;
+  newQuizzes: number;
+  editorMin: number;
+}
+/** 71: підсумок за період. */
+export interface AdminMetricsSummary {
+  games: number;
+  finished: number;
+  completion: number | null;
+  avgPlayers: number | null;
+  medianGameMin: number | null;
+  avgGameMin: number | null;
+  gameHours: number;
+  playerHours: number;
+  hosted: number;
+  autopilot: number;
+  bot: number;
+  newUsers: number;
+  /** % нових акаунтів, що зіграли гру протягом 7 днів після реєстрації; лише акаунти, яким уже є 7 днів; null — таких немає. */
+  activation: number | null;
+  /** Середнє активних на день — лише за дні від trackedSince; null — період цілком до початку обліку. */
+  dau: number | null;
+  /** Різні акаунти за останні 7 / 30 днів періоду; null — період цілком до початку обліку. */
+  wau: number | null;
+  mau: number | null;
+  /** Середнє активних на день за останні 30 днів періоду (від trackedSince) ÷ mau, %. */
+  stickiness: number | null;
+  editorHours: number;
+  editorSessions: number;
+  editorSessionMin: number | null;
+  editors: number;
+  newQuizzes: number;
+}
+export interface AdminMetricsTopQuiz { id: string; title: string; author: string; games: number; avgPlayers: number | null; avgMin: number | null }
+export interface AdminMetricsTopEditor { userId: string; nickname: string; minutes: number; sessions: number }
+export interface AdminMetrics {
+  period: AdminMetricPeriod;
+  bucket: 'day' | 'week';
+  buckets: AdminMetricBucket[];
+  summary: AdminMetricsSummary;
+  /** Такий самий підсумок за попередній рівний період; null — там немає ні гри, ні рядка активності. */
+  previous: AdminMetricsSummary | null;
+  /** Найраніший день activity_day; null — даних ще немає. */
+  trackedSince: string | null;
+  topQuizzes: AdminMetricsTopQuiz[];
+  roundTypes: { type: RoundType; games: number }[];
+  questionTypes: { type: QuestionType; plays: number }[];
+  /** Зі скількох дограних ігор пораховано questionTypes (межа — 1000 найновіших). */
+  questionTypesGames: number;
+  /** 24 числа: старти ігор за годиною за Києвом. */
+  hours: number[];
+  topEditors: AdminMetricsTopEditor[];
+  computedAt: string;
+}
 
 export const adminBotCopySchema = z.object({ quizId: z.string().uuid() }).strict();
 

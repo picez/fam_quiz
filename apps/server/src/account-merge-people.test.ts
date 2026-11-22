@@ -10,6 +10,7 @@ import type { Db } from './db/client';
 import {
   account,
   achievementBlock,
+  activityDay,
   adminAction,
   announcement,
   botPlan,
@@ -554,6 +555,30 @@ describe('people rules', () => {
     expect(mine.find((row) => row.broadcastId === b1)).toMatchObject({ id: kept.id, readAt: NOW });
     expect(mine.find((row) => row.broadcastId === b2)?.readAt).toBeNull();
     expect(await db.select().from(inboxItem).where(eq(inboxItem.userId, secondary))).toEqual([]);
+    expect(ctx.summary).toEqual(summaryBefore);
+  });
+
+  it('activity days of the secondary are summed into the primary, the caps of seconds and sessions hold', async () => {
+    const { primary, secondary, ctx } = await pair();
+    await db.insert(activityDay).values([
+      { userId: primary, day: '2026-11-20', editorSec: 100, editorSessions: 150 },
+      { userId: secondary, day: '2026-11-20', editorSec: 57_550, editorSessions: 120 },
+      { userId: secondary, day: '2026-11-21', editorSec: 30, editorSessions: 1 },
+      // День лише з відвідуванням — нулі, теж переноситься.
+      { userId: secondary, day: '2026-11-22' },
+    ]);
+    const summaryBefore = structuredClone(ctx.summary);
+
+    await merge(ctx);
+
+    const days = await db.select().from(activityDay).where(eq(activityDay.userId, primary));
+    expect(days.map((row) => [row.day, row.editorSec, row.editorSessions]).sort()).toEqual([
+      // Обидві стелі дня: 16 год і 200 сесій.
+      ['2026-11-20', 57_600, 200],
+      ['2026-11-21', 30, 1],
+      ['2026-11-22', 0, 0],
+    ]);
+    expect(await db.select().from(activityDay).where(eq(activityDay.userId, secondary))).toEqual([]);
     expect(ctx.summary).toEqual(summaryBefore);
   });
 
