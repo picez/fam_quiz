@@ -439,6 +439,15 @@ describe('HostScreen', () => {
     expect(screen.queryByRole('button', { name: 'Завершити гру' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Вилучити' })).toBeNull();
   });
+
+  it('marks the columns as the lobby layout only in the lobby phase', () => {
+    const { unmount } = render(<HostScreen view={view()} code="123456" stageUrl="x" joinUrl="y" send={vi.fn(async () => ({ ok: true as const }))} />);
+    expect(document.querySelector('.host-cols.is-lobby')).not.toBeNull();
+    unmount();
+    show(view({ phase: 'finished', questionIndex: 1, standings: [] }));
+    expect(document.querySelector('.host-cols')).not.toBeNull();
+    expect(document.querySelector('.host-cols.is-lobby')).toBeNull();
+  });
 });
 
 describe('HostScreen: question image', () => {
@@ -4369,7 +4378,7 @@ describe('HostScreen: 67 columns', () => {
     const main = document.querySelector('.host-cols > .host-main')!;
     const side = document.querySelector('.host-cols > .host-side')!;
     expect(main.textContent).toContain('Гру завершено');
-    expect(main.querySelector('.menu-links, nav')).not.toBeNull();
+    expect(main.querySelector('.menu-links')).not.toBeNull();
     expect(side.textContent).not.toContain('Гру завершено');
   });
 });

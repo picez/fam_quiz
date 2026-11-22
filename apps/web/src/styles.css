@@ -28879,8 +28879,10 @@ details.admin-fold[open] > summary::before {
 
   /* Суцільний текст і поля форм не розтягуються на всю колонку: ≈ 70 знаків у рядку. */
   .app.wide > :is(p, .field, form),
+  .admin-body > :is(p, .field, form:not(.admin-filters)),
   .app.host > p,
-  .host-main > p {
+  .host-main > p,
+  .host-side > p {
     max-inline-size: var(--w-read);
   }
 
@@ -28958,7 +28960,7 @@ details.admin-fold[open] > summary::before {
   }
 
   /* Короткі підписи й посилання — на всю ширину сітки; список гравців — у кілька колонок. */
-  .host-cols.is-lobby .host-side > :is(p, nav, .panel:first-child) {
+  .host-cols.is-lobby .host-side > :is(p, nav, .panel:first-child, .invite-toggle) {
     grid-column: 1 / -1;
   }
 
@@ -29080,7 +29082,7 @@ details.admin-fold[open] > summary::before {
     display: grid;
     grid-template-columns: minmax(12rem, 15rem) minmax(0, 1fr);
     column-gap: 2rem;
-    row-gap: 0;
+    row-gap: 1rem;
     align-content: start;
   }
 
@@ -29107,7 +29109,7 @@ details.admin-fold[open] > summary::before {
 
   /* Список користувачів — у два стовпчики рядків. */
   .admin-user-rows {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(26rem, 1fr));
     column-gap: 2rem;
   }
 

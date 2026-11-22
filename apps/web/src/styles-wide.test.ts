@@ -91,6 +91,7 @@ describe('67 wide layout tokens', () => {
     expect(inBig('.app.host')[0]?.body).toContain('--app-w: var(--w-host);');
     expect(inBig('.app.player')[0]?.body).toContain('--app-w: var(--w-player);');
     expect(inBig('.app.wide > :is(p, .field, form)')[0]?.body).toContain('max-inline-size: var(--w-read);');
+    expect(inBig('.admin-body > :is(p, .field, form:not(.admin-filters))')[0]?.body).toContain('max-inline-size: var(--w-read);');
   });
 });
 

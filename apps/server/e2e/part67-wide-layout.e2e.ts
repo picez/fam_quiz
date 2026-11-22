@@ -464,7 +464,7 @@ async function admin67() {
       expect(box.bodyX, `${name} ${tag}: tabs on the left`).toBeGreaterThan(box.navX + box.navW - 1);
       if (name === 'admin67-users') {
         const rows = await sameRow('.admin-user-row');
-        expect(rows.inFirstRow, `users ${tag}: two columns of rows`).toBeGreaterThanOrEqual(2);
+        expect(rows.inFirstRow, `users ${tag}: columns of rows`).toBeGreaterThanOrEqual(tag === '1920' ? 3 : 2);
       }
       if (name === 'admin67-quizzes') {
         const cards = await sameRow('.admin-list:not(.is-rows) > li');
