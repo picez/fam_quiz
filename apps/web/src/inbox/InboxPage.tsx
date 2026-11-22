@@ -39,7 +39,7 @@ function ItemCard({ item }: { item: InboxItem }): JSX.Element {
             </p>
           )}
         </>
-      ) : (
+      ) : item.kind === 'problem_reply' ? (
         <>
           <blockquote className="inbox-quote meta" dir="auto">
             {t('inboxYouWrote', { text: item.problem.text })}
@@ -51,7 +51,7 @@ function ItemCard({ item }: { item: InboxItem }): JSX.Element {
             <Link to="/report">{t('inboxAllProblems')}</Link>
           </p>
         </>
-      )}
+      ) : null}
     </li>
   );
 }
