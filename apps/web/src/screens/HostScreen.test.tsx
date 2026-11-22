@@ -4409,6 +4409,8 @@ describe('HostScreen: bot host (68)', () => {
     showBot(view({ resume }), true);
     expect(document.querySelector('details.resume-panel')).toBeNull();
     expect(document.querySelector('.lobby-access')).toBeNull();
+    // Запрошення друзів, призи й ліга живуть за акаунтом ведучого: у грі бота їх немає.
+    expect(screen.queryByRole('button', { name: 'Запросити друзів' })).toBeNull();
     expect(button('Почати гру')).toBeTruthy();
   });
 });
