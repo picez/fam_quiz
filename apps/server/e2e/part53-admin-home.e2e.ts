@@ -196,14 +196,14 @@ async function live53() {
   await view(admin, 'admin53-log-360');
 }
 
-it('part 53: charts and health — four 30-day charts with tables for screen readers and the health block with the last backup, uptime, memory, rooms and connections', async () => {
+it('part 53: charts and health — the four former 30-day charts (now in «Метрики за період») with tables for screen readers and the health block with the last backup, uptime, memory, rooms and connections', async () => {
   await withAdmin(charts53);
 }, 300_000);
 
 async function charts53() {
   const admin = await adminPage('admin53-stats');
   const guest = await open('guest53-stats', 360, 740);
-  for (const path of ['charts', 'health']) {
+  for (const path of ['metrics?period=30', 'health']) {
     expect((await guest.request.get(`${base}/api/admin/${path}`)).status()).toBe(404);
     const own = await admin.request.get(`${base}/api/admin/${path}`);
     expect(own.status()).toBe(200);
@@ -212,26 +212,28 @@ async function charts53() {
 
   await admin.goto(`${base}/admin`);
   expect(await isLight(admin)).toBe(true);
-  const figures = admin.locator('.admin-charts figure.day-bars');
-  await figures.first().waitFor();
-  expect(await figures.count()).toBe(4);
+  await admin.locator('.admin-metrics figure.chart-card').first().waitFor();
+  // Чотири колишні графіки — за заголовками (71: тепер серед карток «Метрик за період», 30 днів за замовчуванням).
+  const FORMER = ['Активні гравці (акаунти, що зіграли гру)', 'Ігор за день', 'Дограно до кінця, %', 'Повернення, %'];
+  const figures = FORMER.map((title) => admin.locator('.admin-metrics figure.chart-card', { has: admin.getByRole('heading', { name: title, ...exact }) }));
+  for (const figure of figures) expect(await figure.count()).toBe(1);
   // У свіжій e2e-базі частина графіків — самі нулі й прогалини: тоді рядок «Немає даних…» замість порожньої рамки.
   let drawn = 0;
   for (let i = 0; i < 4; i++) {
-    const figure = figures.nth(i);
+    const figure = figures[i]!;
     if ((await figure.locator('svg[role="img"]').count()) === 1) {
       drawn += 1;
       expect(await figure.locator('table.sr-only tbody tr').count(), `chart ${i}: 30 days`).toBe(30);
       // Нульовий день — без стовпчика, тож червоних рисок на осі немає.
       const zeroDays = await figure.locator('table.sr-only tbody tr td:nth-child(2)').evaluateAll((cells) => cells.filter((cell) => cell.textContent === '0' || cell.textContent === '—').length);
-      expect(await figure.locator('rect').count(), `chart ${i}: bars only for non-zero days`).toBe(30 - zeroDays);
+      expect(await figure.locator('rect.chart-bar').count(), `chart ${i}: bars only for non-zero days`).toBe(30 - zeroDays);
     } else {
       await figure.getByText('Немає даних за ці дні.', exact).waitFor();
       expect(await figure.locator('table').count()).toBe(0);
     }
   }
   expect(drawn, 'at least the players or games chart has data').toBeGreaterThan(0);
-  await admin.getByRole('heading', { name: 'Останні 30 днів', ...exact }).scrollIntoViewIfNeeded();
+  await admin.getByRole('heading', { name: 'Метрики за період', ...exact }).scrollIntoViewIfNeeded();
   await viewportShot(admin, 'admin53-charts-360');
 
   const health = admin.locator('.admin-health');
@@ -240,7 +242,10 @@ async function charts53() {
   const line = await backup.locator('dd').innerText();
   expect(line).toContain('16 листопада 2026');
   expect(line).toContain('3,3 МБ');
-  for (const label of ['Сервер працює', 'Живі кімнати']) await health.getByText(label, exact).waitFor();
+  // 71: час роботи — у рядку «Запущено» («… (працює …)»), окремого «Сервер працює» вже немає.
+  for (const label of ['Запущено', 'Живі кімнати']) await health.getByText(label, exact).waitFor();
+  await health.getByText(/\(працює /).waitFor();
+  expect(await health.getByText('Сервер працює', exact).count()).toBe(0);
   await health.getByText(/Пам.ять процесу/).waitFor();
   await health.getByText(/З.єднання/).waitFor();
   await health.scrollIntoViewIfNeeded();
