@@ -19,6 +19,7 @@ import {
   type ProfileUpdate,
   type ProfileWin,
 } from '@quiz/shared';
+import { markActiveDay } from './activity';
 import { and, asc, count, eq, inArray, isNull, like, lt, ne, or } from 'drizzle-orm';
 import type { CurrentUser } from './account-routes';
 import { achievementList, antiHidden, syncAchievements } from './achievement-store';
@@ -162,10 +163,14 @@ export async function friendsOf(db: Db, userId: string): Promise<FriendCard[]> {
 
 /** Людина щойно була на сайті (беклог 9): мітка оновлюється не частіше ніж раз на хвилину; без профілю — нічого. */
 export async function touchSeen(db: Db, userId: string): Promise<void> {
-  await db
+  const now = new Date();
+  const moved = await db
     .update(profile)
-    .set({ lastSeenAt: new Date() })
-    .where(and(eq(profile.userId, userId), or(isNull(profile.lastSeenAt), lt(profile.lastSeenAt, new Date(Date.now() - 60_000)))));
+    .set({ lastSeenAt: now })
+    .where(and(eq(profile.userId, userId), or(isNull(profile.lastSeenAt), lt(profile.lastSeenAt, new Date(now.getTime() - 60_000)))))
+    .returning({ id: profile.userId });
+  // 71: день відвідування — лише коли мітку справді оновлено (не частіше раз на хвилину).
+  if (moved.length > 0) await markActiveDay(db, userId, now);
 }
 
 /** Підказки пошуку друга (беклог 9): до SEARCH_LIMIT профілів, чий нікнейм починається з query (за nickname_key), крім себе. */

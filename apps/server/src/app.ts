@@ -19,6 +19,7 @@ import { registerLobbyRoutes } from './lobby-routes';
 import { registerSavedGameRoutes } from './saved-games';
 import { registerChallengeRoutes } from './challenge-routes';
 import { registerProfileRoutes } from './profile-routes';
+import { registerActivityRoutes } from './activity-routes';
 import { registerProblemRoutes } from './problem-routes';
 import { registerInboxRoutes } from './inbox-routes';
 import { registerPrizeRoutes } from './prize-routes';
@@ -167,6 +168,7 @@ export async function buildApp(options: AppOptions) {
   await registerUploadRoutes(app, { storage: imageStorage, currentUser });
   await registerStickerRoutes(app, { storage: imageStorage, fixtures: options.stickerFixtures ?? false });
   await registerProfileRoutes(app, { db: options.db, currentUser });
+  await registerActivityRoutes(app, { db: options.db, currentUser });
   await registerPrizeRoutes(app, { db: options.db, manager, locate, currentUser });
   await registerShowcaseRoutes(app, { db: options.db, currentUser });
   const announcements = announcementCache(options.db, () => Date.now());
