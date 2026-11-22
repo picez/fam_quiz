@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import { BOT_ACTIONS, BOT_COMMAND_TYPES, BOT_TIME_SECONDS, adminBotLobbySchema, botCommandSchema, BOT_EMAIL, BOT_NICKNAME, BOT_PLAYER_ID, BOT_ROOMS_MAX, BOT_USER_ID, isBotDomainEmail, isBotUser } from './bot';
+import { BOT_ACTIONS, BOT_COMMAND_TYPES, BOT_MANUAL_GRACE_MS, BOT_TIME_SECONDS, adminBotLobbySchema, adminBotManualSchema, botCommandSchema, BOT_EMAIL, BOT_NICKNAME, BOT_PLAYER_ID, BOT_ROOMS_MAX, BOT_USER_ID, isBotDomainEmail, isBotUser } from './bot';
 
 it('the bot is one fixed account that can never receive mail', () => {
   expect(BOT_USER_ID).toBe('quiz-bot');
@@ -42,4 +42,13 @@ it('62: the bot lobby — listed and an optional trimmed password of 4 to 32 cha
   expect(adminBotLobbySchema.safeParse({ listed: false, password: null }).success).toBe(true);
   for (const bad of [{ listed: true, password: 'abc' }, { listed: true, password: 'x'.repeat(33) }, { listed: true, password: null, extra: 1 }, { password: null }])
     expect(adminBotLobbySchema.safeParse(bad).success).toBe(false);
+});
+
+it('68: manual mode of a bot room — on or off, nothing else; the grace is a minute', () => {
+  expect(BOT_MANUAL_GRACE_MS).toBe(60_000);
+  expect(adminBotManualSchema.parse({ on: true })).toEqual({ on: true });
+  expect(adminBotManualSchema.parse({ on: false })).toEqual({ on: false });
+  expect(adminBotManualSchema.safeParse({ on: true, admin: 'a1' }).success).toBe(false);
+  expect(adminBotManualSchema.safeParse({ on: 'yes' }).success).toBe(false);
+  expect(adminBotManualSchema.safeParse({}).success).toBe(false);
 });

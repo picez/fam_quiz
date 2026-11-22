@@ -2658,6 +2658,8 @@ export interface PaceWindow { from: number; until: number }
 export interface HostPace { next: PaceWindow | null; lock: PaceWindow | null; skip: PaceWindow | null }
 
 export interface HostView extends BaseView {
+  /** 68: є лише в зрізі пульта адміна в кімнаті бота; manual — режим «Керую сам», mine — його взяв цей адмін. */
+  botHost?: { manual: boolean; mine: boolean };
   /** Гра для ліги (45): група й бали рядків після фінішу або «замало». Ставить сервер; рушій ключа не ставить. */
   league?: HostLeagueView;
   /** «Нові досягнення» (12j): у каруселі «Нагород гри» є слайд досягнень — кнопка показу потрібна й без нагород. Ставить сервер; немає — false. */

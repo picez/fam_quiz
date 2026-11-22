@@ -22,6 +22,8 @@ const room = (over: Partial<AdminBotRoom> = {}): AdminBotRoom => ({
   people: [],
   teams: null,
   continued: false,
+  manual: false,
+  hosts: 0,
   ...over,
 });
 const quiz = (over: Partial<AdminBotQuiz> = {}): AdminBotQuiz => ({ id: QUIZ_ID, title: 'Річки України', rounds: 2, questions: 10, truth: false, updatedAt: '2026-11-18T10:00:00.000Z', check: null, ...over });

@@ -80,6 +80,9 @@ function botRoomView(room: Room): AdminBotRoom {
     people,
     teams: teamsOn(state) ? { form: state.teams.form } : null,
     continued: room.continued !== null,
+    // 68: тимчасово; задача 6 віддасть справжній режим і пульти.
+    manual: false,
+    hosts: 0,
     code: room.code,
     title: room.state.quiz.title,
     status: botStatus(room),

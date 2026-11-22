@@ -22,6 +22,8 @@ const room = (over: Partial<AdminBotRoom> = {}): AdminBotRoom => ({
   ],
   teams: null,
   continued: false,
+  manual: false,
+  hosts: 0,
   ...over,
 });
 
