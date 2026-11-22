@@ -12,6 +12,7 @@ import {
   type AdminGroupMember,
   type AdminGroupRow,
   type AdminList,
+  type GroupItemInput,
 } from '@quiz/shared';
 import { and, asc, desc, eq, sql, type SQL } from 'drizzle-orm';
 import { logAction } from './bans';
@@ -19,6 +20,7 @@ import type { Db } from './db/client';
 import { familyGroup, feedEvent, groupInvite, groupItem, groupMember, profile, user, userBan, userLike } from './db/schema';
 import { eventLikes } from './feed-store';
 import type { Fail } from './calendar-store';
+import { createBotItem } from './group-items';
 import { deleteGroup, groupsOf, lockPerson, peopleIn, roleIn, swapOwner } from './group-store';
 import { addGroupAdded } from './inbox-store';
 import { containsPattern } from './like-escape';
@@ -349,6 +351,31 @@ export async function adminAddMember(
     await logAction(tx, { adminId: input.adminId, kind: 'group_member_add', targetUserId: input.userId, details: { title: group.name }, now: input.now });
     return { ok: true as const, changed: true as const, groupName: group.name };
   });
+}
+
+/** 72: запис у групу від Квіз-бота; ціль у журналі — власник групи, у деталях — назва групи й перші 200 символів. */
+export async function adminAddItem(
+  db: Db,
+  input: { adminId: string; groupId: string; item: GroupItemInput; now: Date },
+): Promise<{ ok: true; itemId: string } | Fail<'group_not_found' | 'group_hidden' | 'group_items_full' | 'about_not_member' | 'bot_unavailable'>> {
+  if (!UUID.test(input.groupId)) return { ok: false, error: 'group_not_found' };
+  // Бота немає, якщо його пошту зайняв інший рядок (ensureBotAccount): тоді й автора для запису немає.
+  const [bot] = await db.select({ id: user.id }).from(user).where(eq(user.id, BOT_USER_ID));
+  if (bot === undefined) return { ok: false, error: 'bot_unavailable' };
+  const made = await createBotItem(db, {
+    groupId: input.groupId,
+    input: input.item,
+    now: input.now,
+    log: async (tx, row, groupName) =>
+      logAction(tx, {
+        adminId: input.adminId,
+        kind: 'group_item_add',
+        targetUserId: await ownerOf(tx, input.groupId),
+        details: { title: groupName, text: row.text.slice(0, 200) },
+        now: input.now,
+      }),
+  });
+  return made.ok ? { ok: true, itemId: made.row.id } : made;
 }
 
 /** 63: «Сховати»/«Показати» запис групи; ціль — автор (чи null), у журналі — назва групи й перші 200 символів. */

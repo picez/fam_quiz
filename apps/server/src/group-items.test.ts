@@ -1,9 +1,10 @@
-import type { GroupItemInput } from '@quiz/shared';
+import { BOT_USER_ID, type GroupItemInput } from '@quiz/shared';
 import { eq } from 'drizzle-orm';
 import { beforeAll, describe, expect, it } from 'vitest';
 import type { Db } from './db/client';
 import { familyGroup, groupItem, groupMember, profile, user, userBan } from './db/schema';
-import { createItem, deleteItem, listItems, updateItem } from './group-items';
+import { ensureBotAccount } from './bot-account';
+import { createBotItem, createItem, deleteItem, listItems, updateItem } from './group-items';
 import { createGroup, groupDetail, joinByCode, leaveGroup, listGroups } from './group-store';
 import { ensureProfile } from './profiles';
 import { createTestDb } from './testing/test-db';
@@ -265,5 +266,56 @@ describe('hidden group records (63)', () => {
 
     expect(await setItemHidden(db, { adminId: olia, groupId: id, itemId: gone.id, hidden: false, now: later(14) })).toEqual({ ok: true, changed: true });
     expect(await ids(id, petro)).toEqual([gone.id, kept.id]);
+  });
+});
+
+describe('records from the quiz bot (72)', () => {
+  beforeAll(async () => {
+    await ensureBotAccount(db);
+  });
+
+  const noLog = async () => {};
+
+  it('a bot record shows the bot card, not «вже не в групі»; the owner may delete it, a member may not', async () => {
+    const { id, olia, petro } = await family();
+    const made = await createBotItem(db, { groupId: id, input: { ...base, text: 'Бабуся свистить', about: [{ kind: 'member', userId: olia }] }, now: later(10), log: noLog });
+    if (!made.ok) throw new Error(made.error);
+    expect(made.row).toMatchObject({ authorId: BOT_USER_ID, about: [{ kind: 'member', userId: olia, name: nick(olia) }] });
+    const [bot] = await db.select({ nickname: profile.nickname, avatar: profile.avatar }).from(profile).where(eq(profile.userId, BOT_USER_ID));
+    const [forPetro] = await listItems(db, id, petro, 'member');
+    expect(forPetro).toMatchObject({ id: made.row.id, author: { id: BOT_USER_ID, nickname: 'Квіз-бот', avatar: bot.avatar }, mine: false, canDelete: false });
+    const [forOlia] = await listItems(db, id, olia, 'owner');
+    expect(forOlia).toMatchObject({ author: { id: BOT_USER_ID }, canDelete: true });
+    expect(await deleteItem(db, id, made.row.id, petro, 'member')).toEqual({ ok: false, error: 'not_author' });
+    expect(await deleteItem(db, id, made.row.id, olia, 'owner')).toEqual({ ok: true });
+  });
+
+  it('a former member stays without an author next to a bot record', async () => {
+    const { id, olia, petro } = await family();
+    const byPetro = await write(id, petro, { text: 'Петрів запис' });
+    const made = await createBotItem(db, { groupId: id, input: { ...base, text: 'Від бота' }, now: later(11), log: noLog });
+    expect(made.ok).toBe(true);
+    expect((await leaveGroup(db, id, petro)).ok).toBe(true);
+    const list = await listItems(db, id, olia, 'owner');
+    expect(list.find((i) => i.id === byPetro.id)).toMatchObject({ author: null });
+    expect(list.find((i) => i.id !== byPetro.id)).toMatchObject({ author: { id: BOT_USER_ID } });
+  });
+
+  it('refuses a hidden or unknown group, «про кого» outside the group and the 501st record; log only on success', async () => {
+    const { id, olia } = await family();
+    const stranger = await person('Чужий');
+    let logged = 0;
+    const log = async () => {
+      logged += 1;
+    };
+    expect(await createBotItem(db, { groupId: id, input: { ...base, text: 'Про чужого', about: [{ kind: 'member', userId: stranger }] }, now: later(1), log })).toEqual({ ok: false, error: 'about_not_member' });
+    await db.update(familyGroup).set({ hiddenAt: T }).where(eq(familyGroup.id, id));
+    expect(await createBotItem(db, { groupId: id, input: { ...base, text: 'Сховано' }, now: later(2), log })).toEqual({ ok: false, error: 'group_hidden' });
+    await db.update(familyGroup).set({ hiddenAt: null }).where(eq(familyGroup.id, id));
+    await db.insert(groupItem).values(Array.from({ length: 500 }, (_, i) => ({ groupId: id, authorId: olia, kind: 'fact' as const, text: `Факт ${i}` })));
+    expect(await createBotItem(db, { groupId: id, input: { ...base, text: 'Зайвий' }, now: later(3), log })).toEqual({ ok: false, error: 'group_items_full' });
+    await db.delete(familyGroup).where(eq(familyGroup.id, id));
+    expect(await createBotItem(db, { groupId: id, input: { ...base, text: 'Нікуди' }, now: later(4), log })).toEqual({ ok: false, error: 'group_not_found' });
+    expect(logged).toBe(0);
   });
 });

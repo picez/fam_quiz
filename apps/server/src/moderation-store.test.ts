@@ -1,11 +1,13 @@
 import { randomUUID } from 'node:crypto';
-import { ADMIN_PAGE_SIZE, BOT_USER_ID, type FeedData, type GroupInput } from '@quiz/shared';
+import { ADMIN_PAGE_SIZE, BOT_USER_ID, type FeedData, type GroupInput, type GroupItemInput } from '@quiz/shared';
 import { and, eq } from 'drizzle-orm';
 import { beforeAll, describe, expect, it } from 'vitest';
+import { ensureBotAccount } from './bot-account';
 import type { Db } from './db/client';
 import { adminAction, familyGroup, feedEvent, groupInvite, groupItem, groupMember, inboxItem, profile, user, userBan, userLike } from './db/schema';
 import { createGroup, membership, roleIn, transferOwner } from './group-store';
 import {
+  adminAddItem,
   adminAddMember,
   adminDeleteGroup,
   adminFeed,
@@ -390,5 +392,54 @@ describe('moderation store: adding (72)', () => {
     expect(results.filter((r) => r.ok)).toHaveLength(1);
     expect(results.filter((r) => !r.ok)).toEqual([{ ok: false, error: 'member_too_many_groups' }]);
     expect(await inboxOf(busy)).toHaveLength(1);
+  });
+});
+
+describe('moderation store: a record from the quiz bot (72)', () => {
+  const plain: GroupItemInput = { kind: 'fact', text: '', about: [], answer: null, year: null, photo: null, surprise: false };
+
+  it('no bot account (its email taken) is bot_unavailable; nothing written, nothing logged', async () => {
+    const olya = await person('Оля');
+    const id = await group(olya, 'Без бота');
+    await db.delete(user).where(eq(user.id, BOT_USER_ID));
+    const before = (await logOf('group_item_add')).length;
+    expect(await adminAddItem(db, { adminId: 'adm', groupId: id, item: { ...plain, text: 'Від бота' }, now: T(1) })).toEqual({ ok: false, error: 'bot_unavailable' });
+    expect(await db.select().from(groupItem).where(eq(groupItem.groupId, id))).toEqual([]);
+    expect((await logOf('group_item_add')).length).toBe(before);
+    expect(await ensureBotAccount(db)).toBe(true);
+  });
+
+  it('adds a record authored by the bot, «про кого» with the nickname of the moment; the log targets the owner', async () => {
+    const olya = await person('Оля');
+    const petro = await person('Петро');
+    const id = await group(olya, 'Карпатські вечори');
+    await join(id, petro, T(1));
+    const long = `Дідусь Іван щоліта ходив на Говерлу ${'і'.repeat(250)}`;
+    const done = await adminAddItem(db, { adminId: 'adm', groupId: id, item: { ...plain, text: long, about: [{ kind: 'member', userId: petro }], year: 1975 }, now: T(2) });
+    if (!done.ok) throw new Error(done.error);
+    const [row] = await db.select().from(groupItem).where(eq(groupItem.id, done.itemId));
+    expect(row).toMatchObject({ groupId: id, authorId: BOT_USER_ID, text: long, about: [{ kind: 'member', userId: petro, name: 'Петро' }], year: 1975, photo: null, surprise: false, createdAt: T(2) });
+    const logged = (await logOf('group_item_add')).filter((a) => a.details.title === 'Карпатські вечори');
+    expect(logged).toHaveLength(1);
+    expect(logged[0]).toMatchObject({ adminId: 'adm', targetUserId: olya, targetLabel: 'Оля', details: { title: 'Карпатські вечори', text: long.slice(0, 200) } });
+    // Бот не стає учасником.
+    expect(await roleIn(db, id, BOT_USER_ID)).toBeNull();
+  });
+
+  it('refuses «про кого» outside the group, a hidden, unknown or full group — no row, no log', async () => {
+    const olya = await person('Оля');
+    const stranger = await person('Чужий');
+    const id = await group(olya, 'Повна скриня');
+    const before = (await logOf('group_item_add')).length;
+    expect(await adminAddItem(db, { adminId: 'adm', groupId: id, item: { ...plain, text: 'Про чужого', about: [{ kind: 'member', userId: stranger }] }, now: T(1) })).toEqual({ ok: false, error: 'about_not_member' });
+    expect(await adminAddItem(db, { adminId: 'adm', groupId: randomUUID(), item: { ...plain, text: 'Нікуди' }, now: T(1) })).toEqual({ ok: false, error: 'group_not_found' });
+    expect(await adminAddItem(db, { adminId: 'adm', groupId: 'not-a-uuid', item: { ...plain, text: 'Нікуди' }, now: T(1) })).toEqual({ ok: false, error: 'group_not_found' });
+    await setGroupHidden(db, { adminId: 'adm', groupId: id, hidden: true, reason: null, now: T(1) });
+    expect(await adminAddItem(db, { adminId: 'adm', groupId: id, item: { ...plain, text: 'Сховано' }, now: T(2) })).toEqual({ ok: false, error: 'group_hidden' });
+    await setGroupHidden(db, { adminId: 'adm', groupId: id, hidden: false, reason: null, now: T(2) });
+    await db.insert(groupItem).values(Array.from({ length: 500 }, (_, i) => ({ groupId: id, authorId: olya, kind: 'fact' as const, text: `Факт ${i}` })));
+    expect(await adminAddItem(db, { adminId: 'adm', groupId: id, item: { ...plain, text: 'Зайвий' }, now: T(3) })).toEqual({ ok: false, error: 'group_items_full' });
+    expect(await db.select().from(groupItem).where(and(eq(groupItem.groupId, id), eq(groupItem.authorId, BOT_USER_ID)))).toEqual([]);
+    expect((await logOf('group_item_add')).length).toBe(before);
   });
 });
