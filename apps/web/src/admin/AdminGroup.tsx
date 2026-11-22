@@ -7,13 +7,15 @@ import { errorText, t, type TextKey } from '../i18n';
 import { nickText } from '../nick';
 import { AdminPager } from './Admin';
 import { adminGroup, deleteGroupAsAdmin, passGroupOwner, removeGroupMember, setGroupHidden, setGroupItemHidden } from './admin-api';
+import { AddItemSection, AddMemberSection } from './AdminGroupAdd';
 import { GroupRowCard } from './AdminGroups';
 import { useAdminData } from './useAdminData';
 
 /** Помилки дії, після яких картка застаріла (людини чи запису вже немає, власник змінився): перечитати. */
-const STALE_ERRORS = new Set(['member_not_found', 'item_not_found', 'owner_must_transfer']);
+// 72: і додавання — людина вже в групі, група повна чи прихована, записів 500.
+const STALE_ERRORS = new Set(['member_not_found', 'item_not_found', 'owner_must_transfer', 'already_member', 'group_full', 'member_too_many_groups', 'group_items_full', 'group_hidden']);
 
-/** Картка сімейної групи (63): стан, ховання з причиною, учасники, записи сторінками й видалення за назвою. */
+/** Картка сімейної групи (63): стан, ховання з причиною, учасники, записи сторінками й видалення за назвою; 72 — додати учасника й запис. */
 export function AdminGroup(): JSX.Element {
   const { id = '' } = useParams();
   const [page, setPage] = useState(1);
@@ -112,8 +114,11 @@ function GroupView({ detail, reload, onPage }: { detail: AdminGroupDetail; reloa
         </ul>
       </section>
 
+      <AddMemberSection group={group} busy={busy} act={act} reload={reload} />
+
       <section className="panel admin-card-section">
         <h2>{t('adminGroupItems')}</h2>
+        <AddItemSection group={group} members={members} busy={busy} act={act} reload={reload} />
         {items.rows.length === 0 ? (
           <p className="meta">{t('adminGroupItemsEmpty')}</p>
         ) : (
