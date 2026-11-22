@@ -25,6 +25,7 @@ import { registerInboxRoutes } from './inbox-routes';
 import { registerPrizeRoutes } from './prize-routes';
 import { registerShowcaseRoutes } from './showcase-routes';
 import { registerAdminRoutes } from './admin-routes';
+import { processStats } from './process-stats';
 import { createBotSchedule } from './bot-schedule';
 import { announcementCache } from './announcement-store';
 import { registerAnnouncementRoutes } from './announcement-routes';
@@ -148,6 +149,9 @@ export async function buildApp(options: AppOptions) {
     });
   }
   await app.register(rateLimit, { global: false });
+  // 71: процесор і затримка циклу подій для «Стану» — один знімач на застосунок.
+  const stats = processStats();
+  app.addHook('onClose', async () => stats.stop());
 
   app.get('/health', async () => ({ ok: true }));
 
@@ -176,7 +180,7 @@ export async function buildApp(options: AppOptions) {
   await registerInboxRoutes(app, { db: options.db, currentUser });
   await registerAnnouncementRoutes(app, { cache: announcements });
   const push = options.push === undefined ? null : createPushService({ db: options.db, ...options.push, log: (message, error) => log.error({ err: error }, message) });
-  await registerAdminRoutes(app, { db: options.db, manager, adminEmails: options.adminEmails ?? new Set<string>(), currentUser, backupList: options.backupList, backups: options.backups, announcements, maxRooms, storage: imageStorage, checkFetch: options.checkFetch ?? offlineFetch, checkResolve: options.checkResolve ?? offlineResolve, push });
+  await registerAdminRoutes(app, { db: options.db, manager, adminEmails: options.adminEmails ?? new Set<string>(), currentUser, backupList: options.backupList, backups: options.backups, announcements, maxRooms, storage: imageStorage, checkFetch: options.checkFetch ?? offlineFetch, checkResolve: options.checkResolve ?? offlineResolve, push, processStats: stats });
   const invites = new Invites(manager);
   await registerInviteRoutes(app, { db: options.db, manager, invites, currentUser });
   const gate = new LobbyGate(options.db, invites, () => manager.now());

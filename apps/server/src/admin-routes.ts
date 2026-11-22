@@ -2,6 +2,7 @@ import { ADMIN_CACHE_MS, ANNOUNCEMENT_MAX_DAYS, BOT_USER_ID, adminListQuerySchem
 import { eq } from 'drizzle-orm';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { CurrentUser } from './account-routes';
+import type { ProcessStats } from './process-stats';
 import { isAdmin } from './admin';
 import { adminCharts } from './admin-charts';
 import type { PushService } from './push';
@@ -53,6 +54,8 @@ export interface AdminDeps {
   checkResolve?: CheckResolve;
   /** Push-служба (59): без неї розсилка йде лише у «Вхідні» (70). */
   push: PushService | null;
+  /** 71: знімач процесора й затримки циклу подій для «Стану»; без нього — null. */
+  processStats?: Pick<ProcessStats, 'snapshot'>;
   now?: () => Date;
 }
 
