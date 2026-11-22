@@ -28829,6 +28829,14 @@ details.admin-fold[open] > summary::before {
 }
 
 /* ---------- 67: великі екрани ---------- */
+/* Тіло адмінки: те саме, що .app, — прямі діти маршруту лишаються в тому ж стовпчику з тим же проміжком. */
+.admin-body {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  min-width: 0;
+}
+
 /* Колонки пульта: нижче 1280 px обгортки не існують для верстки — flex-gap .app і порядок блоків як до 67. */
 .host-cols,
 .host-main,
@@ -29043,6 +29051,70 @@ details.admin-fold[open] > summary::before {
   }
 
   .answer-rows.option-rows > .btn {
+    grid-column: 1 / -1;
+  }
+}
+
+/* ---------- 67: адмінка ---------- */
+@media (min-width: 1024px) {
+  .app.admin-page {
+    --app-w: var(--w-admin);
+  }
+
+  /* Списки карток — сіткою; списки-рядки (журнал, помилки, стрічка, копії) лишаються в один стовпчик. */
+  .admin-list:not(.is-rows) {
+    grid-template-columns: repeat(auto-fill, minmax(var(--card-min), 1fr));
+    align-items: start;
+  }
+}
+
+@media (min-width: 1280px) {
+  /* Вкладки збоку, вміст праворуч; заголовок — на весь рядок. */
+  .app.admin-page {
+    display: grid;
+    grid-template-columns: minmax(12rem, 15rem) minmax(0, 1fr);
+    column-gap: 2rem;
+    row-gap: 0;
+    align-content: start;
+  }
+
+  .admin-page > .brand {
+    grid-column: 1 / -1;
+  }
+
+  .admin-page > .admin-tabs {
+    flex-direction: column;
+    overflow-x: visible;
+    align-self: start;
+    margin-block: 0;
+  }
+
+  .admin-tabs a.btn {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  /* Пошук не тягнеться на всю колонку. */
+  .admin-search {
+    max-inline-size: var(--w-read);
+  }
+
+  /* Список користувачів — у два стовпчики рядків. */
+  .admin-user-rows {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    column-gap: 2rem;
+  }
+
+  /* Картка гравця: розділи у дві колонки; шапка, огляд, об’єднання й видалення — на весь рядок. */
+  .admin-player-card {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
+  }
+
+  .admin-player-card > :not(.admin-card-section),
+  .admin-player-card > .admin-card-overview,
+  .admin-player-card > .admin-card-merge,
+  .admin-player-card > .admin-card-delete {
     grid-column: 1 / -1;
   }
 }

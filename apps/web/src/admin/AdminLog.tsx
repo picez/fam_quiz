@@ -157,7 +157,7 @@ export function AdminLog(): JSX.Element {
           {state.data.rows.length === 0 ? (
             <p className="meta">{filtered ? t('adminLogNothing') : t('adminLogEmpty')}</p>
           ) : (
-            <ul className="admin-list">
+            <ul className="admin-list is-rows">
               {state.data.rows.map((entry) => (
                 <li key={entry.id} className="admin-card">
                   <p className="meta">{formatDate(entry.at)}</p>

@@ -4,8 +4,11 @@ import { type Page } from 'playwright-core';
 import { type Socket } from 'socket.io-client';
 import { expect, it } from 'vitest';
 import { classicRound, makeRoundsQuiz, multi, numeric, single, text } from '@quiz/engine/testing';
-import { open, register, join, click, field, png29d, step27a, reveal28a, next27a, pilotPlayer, emitOk } from './helpers/common';
-import { exact, base, ARTIFACTS, shot, snapshot, afterSplash, useE2eServer } from './helpers/setup';
+import { eq } from 'drizzle-orm';
+import { adminEmails } from '../src/config';
+import { user } from '../src/db/schema';
+import { open, register, join, click, field, png29d, step27a, reveal28a, next27a, pilotPlayer, emitOk, myId } from './helpers/common';
+import { exact, base, ARTIFACTS, shot, snapshot, afterSplash, useE2eServer, ctx, db, flags, relisten } from './helpers/setup';
 
 /**
  * Наскрізні тести: частина 67 — адаптивна верстка для великих екранів (колонка сторінки, ПК 1920 і 1366, телефон 375 без змін).
@@ -415,5 +418,76 @@ it('part 67 editor: the quiz editor on a computer — the page is wider than 68 
   } catch (error) {
     await snapshot();
     throw error;
+  }
+}, 300_000);
+
+const ADMIN_EMAIL_67 = 'admin67@example.com';
+
+async function admin67() {
+  const admin = await open('admin67a', 1920, 1080);
+  await register(admin, 'menu', 'Адмін 67', ADMIN_EMAIL_67);
+  await db.update(user).set({ emailVerified: true }).where(eq(user.email, ADMIN_EMAIL_67));
+  const authors: Page[] = [];
+  for (const [index, name] of ['Оксана', 'Богдан', 'Дмитро'].entries()) {
+    const person = await open(`67a${index}`, 1280, 800);
+    await register(person, 'menu', name, `person67a${index}@example.com`);
+    const data = { ...makeRoundsQuiz([classicRound(`r67a${index}`, [{ ...single, id: `q67a${index}`, text: `Запитання ${index + 1}: яке місто називають перлиною біля моря?` }] as never)], { leaderboard: 'end' }), title: `Вікторина адмінки 67 ${index + 1}` };
+    const saved = await person.request.post(`${base}/api/quizzes`, { data });
+    expect(saved.ok(), await saved.text()).toBe(true);
+    authors.push(person);
+  }
+  const someone = await myId(authors[0]!);
+
+  const side = (tag: string) =>
+    admin.evaluate(`(() => { const n = document.querySelector('nav.admin-tabs').getBoundingClientRect(); const b = document.querySelector('.admin-body').getBoundingClientRect(); return { navX: n.x, navW: n.width, bodyX: b.x, bodyW: b.width, scrolls: document.querySelector('nav.admin-tabs').scrollWidth > document.querySelector('nav.admin-tabs').clientWidth }; })()`) as Promise<{ navX: number; navW: number; bodyX: number; bodyW: number; scrolls: boolean }>;
+  const sameRow = (selector: string) =>
+    admin.evaluate(`(() => { const r = [...document.querySelectorAll('${selector}')].map((el) => el.getBoundingClientRect()); return { count: r.length, inFirstRow: r.filter((box) => Math.abs(box.y - r[0].y) <= 1).length }; })()`) as Promise<{ count: number; inFirstRow: number }>;
+
+  for (const [name, path] of [
+    ['admin67-stats', '/admin'],
+    ['admin67-users', '/admin/users'],
+    ['admin67-user', `/admin/users/${someone}`],
+    ['admin67-log', '/admin/log'],
+    ['admin67-quizzes', '/admin/quizzes'],
+  ] as const) {
+    await admin.goto(`${base}${path}`);
+    await admin.locator('.admin-body').waitFor();
+    await admin.waitForLoadState('networkidle');
+    await wide67(admin, name, async ({ tag }) => {
+      const box = await side(tag);
+      if (tag === '375') {
+        expect(box.navX, `${name} 375: tabs as a row above`).toBeLessThanOrEqual(box.bodyX + 1);
+        expect(box.navW, `${name} 375`).toBeLessThanOrEqual(375);
+        return;
+      }
+      if (tag === '1920') expect(box.bodyW, `${name}: the body is wide`).toBeGreaterThan(1200);
+      expect(box.bodyX, `${name} ${tag}: tabs on the left`).toBeGreaterThan(box.navX + box.navW - 1);
+      if (name === 'admin67-users') {
+        const rows = await sameRow('.admin-user-row');
+        expect(rows.inFirstRow, `users ${tag}: two columns of rows`).toBeGreaterThanOrEqual(2);
+      }
+      if (name === 'admin67-quizzes') {
+        const cards = await sameRow('.admin-list:not(.is-rows) > li');
+        expect(cards.count, 'quizzes: three cards').toBeGreaterThanOrEqual(3);
+        expect(cards.inFirstRow, `quizzes ${tag}: cards in a grid`).toBeGreaterThanOrEqual(3);
+      }
+    });
+  }
+}
+
+it('part 67 admin: the admin on a computer — wider page, tabs as a side column from 1280 px, user rows in two columns, quiz cards in a grid, the player card in two columns; on a 375 phone the tabs are a scrolling row and nothing scrolls sideways', async () => {
+  flags.restarting = true;
+  await ctx.shutdown();
+  await relisten({ adminEmails: adminEmails({ ADMIN_EMAILS: ADMIN_EMAIL_67 }) });
+  flags.restarting = false;
+  try {
+    await admin67();
+  } catch (error) {
+    await snapshot();
+    throw error;
+  } finally {
+    flags.restarting = true;
+    await ctx.shutdown().catch(() => undefined);
+    await relisten();
   }
 }, 300_000);

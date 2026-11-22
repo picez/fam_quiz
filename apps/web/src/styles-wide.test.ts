@@ -178,6 +178,22 @@ describe('67 quiz editor', () => {
   });
 });
 
+describe('67 admin', () => {
+  it('admin: tabs on the side from 1280 px, card lists as a grid, row lists in one column', () => {
+    const media = minWidthMedia(clean);
+    const at = (width: string, selector: string) => media.filter((item) => item.width === width).flatMap(({ body }) => rules(body)).find((rule) => rule.selector === selector)?.body ?? '';
+    expect(at('1024', '.app.admin-page')).toContain('--app-w: var(--w-admin);');
+    expect(at('1024', '.admin-list:not(.is-rows)')).toContain('repeat(auto-fill, minmax(var(--card-min), 1fr))');
+    expect(at('1280', '.app.admin-page')).toContain('display: grid;');
+    expect(at('1280', '.app.admin-page')).toContain('grid-template-columns: minmax(12rem, 15rem) minmax(0, 1fr);');
+    expect(at('1280', '.admin-page > .brand')).toContain('grid-column: 1 / -1;');
+    expect(at('1280', '.admin-page > .admin-tabs')).toContain('flex-direction: column;');
+    expect(at('1280', '.admin-page > .admin-tabs')).toContain('overflow-x: visible;');
+    // Нижче 1280 вкладки лишаються рядком: сітка адмінки лише в min-width: 1280.
+    expect(topLevel('.admin-body')).toContain('flex-direction: column;');
+  });
+});
+
 /** Тіло верхньорівневого правила з цим селектором (для .app, .app.host тощо). */
 function topLevel(selector: string): string {
   return rules(clean).find((rule) => rule.selector === selector)?.body ?? '';

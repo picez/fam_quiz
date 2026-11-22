@@ -78,7 +78,7 @@ function GroupView({ detail, reload, onPage }: { detail: AdminGroupDetail; reloa
       <Link className="quiet-link" to="/admin/groups">
         {t('adminGroupBack')}
       </Link>
-      <ul className="admin-list">
+      <ul className="admin-list is-rows">
         <GroupRowCard row={group} link={false} />
       </ul>
       <p className="error admin-action-line" role="alert">
@@ -105,7 +105,7 @@ function GroupView({ detail, reload, onPage }: { detail: AdminGroupDetail; reloa
 
       <section className="panel admin-card-section">
         <h2>{t('adminGroupMembersTitle')}</h2>
-        <ul className="admin-list">
+        <ul className="admin-list is-rows">
           {members.map((member) => (
             <MemberRow key={member.id} member={member} groupName={group.name} busy={busy} act={actAndReload} groupId={group.id} />
           ))}
@@ -117,7 +117,7 @@ function GroupView({ detail, reload, onPage }: { detail: AdminGroupDetail; reloa
         {items.rows.length === 0 ? (
           <p className="meta">{t('adminGroupItemsEmpty')}</p>
         ) : (
-          <ul className="admin-list">
+          <ul className="admin-list is-rows">
             {items.rows.map((item) => (
               <ItemRow key={item.id} item={item} busy={busy} onToggle={() => void actAndReload(null, () => setGroupItemHidden(group.id, item.id, !item.hidden))} />
             ))}

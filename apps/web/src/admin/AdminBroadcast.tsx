@@ -262,7 +262,7 @@ export function AdminBroadcast(): JSX.Element {
         {rows.length === 0 ? (
           <p className="meta">{t('adminBroadcastHistoryEmpty')}</p>
         ) : (
-          <ul className="admin-list">
+          <ul className="admin-list is-rows">
             {rows.map((row) => (
               <li key={row.id} className="admin-card">
                 <p className="meta">

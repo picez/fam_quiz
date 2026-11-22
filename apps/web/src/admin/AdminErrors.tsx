@@ -145,7 +145,7 @@ function ServerErrors(): JSX.Element {
           {rows.length === 0 ? (
             <p className="meta">{t('adminErrorsEmpty')}</p>
           ) : (
-            <ul className="admin-list">
+            <ul className="admin-list is-rows">
               {rows.map((row) => (
                 <ServerErrorCard key={row.id} row={row} busy={busy} onResolve={() => void resolve(row)} />
               ))}
@@ -290,7 +290,7 @@ function PlayerReports(): JSX.Element {
           {state.data.rows.length === 0 ? (
             <p className="meta">{t('adminProblemsEmpty')}</p>
           ) : (
-            <ul className="admin-list">
+            <ul className="admin-list is-rows">
               {state.data.rows.map((row) => (
                 <ReportCard
                   key={row.id}

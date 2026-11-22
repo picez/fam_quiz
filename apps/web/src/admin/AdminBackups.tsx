@@ -173,7 +173,7 @@ export function AdminBackups(): JSX.Element {
         </div>
       </section>
       {data !== null && data.rows.length > 0 && (
-        <ul className="admin-list" aria-label={t('adminTabBackups')}>
+        <ul className="admin-list is-rows" aria-label={t('adminTabBackups')}>
           {data.rows.map((row) => (
             <BackupRowItem key={row.key} row={row} failed={copyFailed === row.key} onCopy={() => void copy(row.key)} />
           ))}
