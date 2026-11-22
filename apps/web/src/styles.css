@@ -29118,3 +29118,74 @@ details.admin-fold[open] > summary::before {
     grid-column: 1 / -1;
   }
 }
+
+/* ---------- 67: головна, списки, бібліотека, стрічка, історія ---------- */
+@media (min-width: 1024px) {
+  /* Списки карток — сіткою; висота картки своя (кнопки в картці переносяться самі). */
+  .quiz-list,
+  .library-list,
+  .feed-list {
+    grid-template-columns: repeat(auto-fill, minmax(var(--card-min), 1fr));
+    align-items: start;
+  }
+
+  /* Головна: плитки й «Приєднатися» не розлітаються на всю сторінку. */
+  .app.start {
+    --app-w: 64rem;
+  }
+
+  .start-menu {
+    grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+  }
+
+  /* Сторінка вікторини в бібліотеці — суцільний текст: читана ширина. */
+  .app.library-quiz {
+    --app-w: var(--w-read);
+  }
+
+  /* Довідка: темою — сітка карток (кожна ≈ читана ширина), заголовок теми — на весь рядок; вступ і пошук тримають --w-read. */
+  .host-help > section {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(26rem, 1fr));
+    gap: 1rem;
+    align-items: start;
+  }
+
+  .host-help .help-entry {
+    margin-top: 0;
+  }
+
+  .host-help > section > h2 {
+    grid-column: 1 / -1;
+    margin-bottom: 0;
+  }
+
+  /* Кнопка «Запланувати гру» не тягнеться на всю сторінку. */
+  .app.feed-page > button {
+    align-self: flex-start;
+  }
+
+  .library-rounds {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    column-gap: 1.5rem;
+  }
+
+  .app.wide > .stats {
+    grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+  }
+}
+
+@media (min-width: 1280px) {
+  /* Завершена гра: панелі у дві колонки; шапка, вкладки й широкі таблиці — на весь рядок. */
+  .app.game-history {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-auto-flow: row dense;
+    column-gap: 1.25rem;
+    align-items: start;
+  }
+
+  .app.game-history > :is(h1, .brand, .meta, .history-tabs, .error, .wide-panel, .bar, .result-image-button) {
+    grid-column: 1 / -1;
+  }
+}

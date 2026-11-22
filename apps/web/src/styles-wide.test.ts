@@ -194,6 +194,35 @@ describe('67 admin', () => {
   });
 });
 
+describe('67 lists, start, history', () => {
+  /** Правила з усіх @media (min-width: width), чий селектор містить part. */
+  const found = (width: string, part: string) =>
+    minWidthMedia(clean).filter((item) => item.width === width).flatMap(({ body }) => rules(body)).filter((rule) => rule.selector.replace(/\s+/g, ' ').includes(part));
+
+  it('lists become card grids on a computer', () => {
+    const list = found('1024', '.quiz-list')[0];
+    expect(list?.body).toContain('grid-template-columns: repeat(auto-fill, minmax(var(--card-min), 1fr));');
+    expect(list?.selector).toMatch(/\.library-list[\s\S]*\.feed-list/);
+    expect(found('1024', '.start-menu')[0]?.body).toContain('repeat(auto-fit, minmax(12rem, 1fr))');
+    expect(found('1024', '.app.start')[0]?.body).toContain('--app-w: 64rem;');
+  });
+
+  it('a library quiz keeps a reading width, help lays topic cards out as a grid', () => {
+    expect(found('1024', '.app.library-quiz')[0]?.body).toContain('--app-w: var(--w-read);');
+    const help = found('1024', '.host-help > section').find((rule) => rule.body.includes('display: grid;'));
+    expect(help?.body).toContain('grid-template-columns: repeat(auto-fill, minmax(26rem, 1fr));');
+    expect(found('1024', '.host-help > section > h2')[0]?.body).toContain('grid-column: 1 / -1;');
+  });
+
+  it('a finished game page lays its panels out in two columns from 1280 px', () => {
+    const grid = found('1280', '.app.game-history').find((rule) => rule.body.includes('display: grid;'));
+    expect(grid?.body).toContain('grid-template-columns: repeat(2, minmax(0, 1fr));');
+    const full = found('1280', '.app.game-history > :is(')[0];
+    expect(full?.body).toContain('grid-column: 1 / -1;');
+    expect(full?.selector).toContain('.wide-panel');
+  });
+});
+
 /** Тіло верхньорівневого правила з цим селектором (для .app, .app.host тощо). */
 function topLevel(selector: string): string {
   return rules(clean).find((rule) => rule.selector === selector)?.body ?? '';

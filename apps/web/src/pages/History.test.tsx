@@ -209,6 +209,14 @@ describe('GameHistory result image (38c)', () => {
 });
 
 describe('GameHistory', () => {
+  it('the page is a game-history column and the wide panels are marked (67)', async () => {
+    vi.mocked(getGame).mockResolvedValue({ ok: true, data: detail });
+    const { container } = open('/history/g1');
+    await screen.findByRole('heading', { name: 'Географія' });
+    expect(container.querySelector('main.app.game-history')).not.toBeNull();
+    expect(container.querySelector('section.panel.wide-panel')).not.toBeNull();
+  });
+
   it('shows the final table and how each question went', async () => {
     vi.mocked(getGame).mockResolvedValue({ ok: true, data: detail });
     open('/history/g1');

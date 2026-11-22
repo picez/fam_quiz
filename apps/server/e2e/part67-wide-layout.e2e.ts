@@ -6,8 +6,8 @@ import { expect, it } from 'vitest';
 import { classicRound, makeRoundsQuiz, multi, numeric, single, text } from '@quiz/engine/testing';
 import { eq } from 'drizzle-orm';
 import { adminEmails } from '../src/config';
-import { user } from '../src/db/schema';
-import { open, register, join, click, field, png29d, step27a, reveal28a, next27a, pilotPlayer, emitOk, myId } from './helpers/common';
+import { calendarEvent, user } from '../src/db/schema';
+import { open, register, join, click, field, png29d, step27a, reveal28a, next27a, pilotPlayer, emitOk, myId, pickOption, expectPhoneFit } from './helpers/common';
 import { exact, base, ARTIFACTS, shot, snapshot, afterSplash, useE2eServer, ctx, db, flags, relisten } from './helpers/setup';
 
 /**
@@ -377,7 +377,7 @@ it('part 67 stage: the stage on a big screen — the question and the standings 
 
 async function editor67() {
   const author = await open('author67e', 1920, 1080);
-  await register(author, 'author', 'Марина Авторка', 'editor67@example.com');
+  await register(author, 'menu', 'Марина Авторка', 'editor67@example.com');
   const data = {
     ...makeRoundsQuiz(
       [
@@ -491,3 +491,130 @@ it('part 67 admin: the admin on a computer — wider page, tabs as a side column
     await relisten();
   }
 }, 300_000);
+
+const LIST_TITLES_67 = ['Річки України', 'Міста над морем', 'Українські страви', 'Карпатські гори', 'Озера Шацька', 'Парки Києва', 'Мости Дніпра'];
+
+async function lists67() {
+  const host = await open('lists67h', 1920, 1080);
+  await register(host, 'host', 'Ірина Ведуча', 'lists67h@example.com');
+  const options = (...names: string[]) => names.map((text, index) => ({ id: `o${index}`, text }));
+  const quizData = (title: string, id: string) => ({
+    ...makeRoundsQuiz(
+      [
+        classicRound(
+          `r-${id}`,
+          [0, 1, 2, 3, 4].map((n) => ({ ...single, id: `${id}-${n}`, text: `${title}: запитання ${n + 1}`, options: options('Київ', 'Львів', 'Одеса', 'Харків'), correctId: 'o0', timeLimit: 30 })) as never,
+        ),
+      ],
+      { leaderboard: 'end' },
+    ),
+    title,
+  });
+  let firstId = '';
+  for (const [index, title] of LIST_TITLES_67.entries()) {
+    const saved = await host.request.post(`${base}/api/quizzes`, { data: quizData(title, `q67l${index}`) });
+    expect(saved.ok(), await saved.text()).toBe(true);
+    if (index === 0) firstId = ((await saved.json()) as { id: string }).id;
+  }
+  // Одну вікторину відкриваємо для всіх: бібліотека не порожня.
+  const opened = await host.request.put(`${base}/api/library/mine/${firstId}`, { data: { language: 'uk' } });
+  expect(opened.status(), await opened.text()).toBeLessThan(300);
+
+  // Зіграна гра: ведучий і гравець з акаунтом — тоді з'являються «Мої ігри» і сторінка гри.
+  await host.goto(`${base}/quizzes`);
+  await host.locator('.quiz-list li', { hasText: LIST_TITLES_67[1]! }).getByRole('button', { name: 'Грати', ...exact }).click();
+  await host.waitForURL(/\/host\/\d{6}$/);
+  const code = host.url().slice(-6);
+  const olena = await open('lists67p', 375, 812);
+  await register(olena, 'menu', 'Олена', 'lists67p@example.com');
+  await join(olena, code, 'Олена', false);
+  await click(host, 'Почати гру');
+  await afterSplash(host, olena);
+  await click(host, 'Почати раунд');
+  await afterSplash(host, olena);
+  for (let n = 1; n <= 5; n++) {
+    await olena.locator('h1', { hasText: `запитання ${n}` }).waitFor();
+    await pickOption(olena, n % 2 === 0 ? 'Львів' : 'Київ');
+    await reveal28a(host);
+    if (n < 5) {
+      await next27a(host);
+      await afterSplash(host, olena);
+    }
+  }
+  await click(host, 'Завершити гру');
+  await olena.getByText('Гру завершено').first().waitFor({ timeout: 30_000 });
+  // Ще одна гра в лобі — другий рядок історії.
+  const second = await host.request.post(`${base}/api/games`, { data: { quizId: firstId } });
+  expect(second.status(), await second.text()).toBe(201);
+  // Подія в календарі.
+  await db.insert(calendarEvent).values({ hostId: await myId(host), title: 'Вечір загадок 67', quizId: null, startsAt: new Date(Date.now() + 2 * 86_400_000), createdAt: new Date() });
+
+  const cardsInFirstRow = (selector: string) =>
+    host.evaluate(`(() => { const r = [...document.querySelectorAll('${selector}')].map((el) => el.getBoundingClientRect()); return { count: r.length, inFirstRow: r.filter((box) => r.length > 0 && Math.abs(box.y - r[0].y) <= 1).length }; })()`) as Promise<{ count: number; inFirstRow: number }>;
+
+  const pages: [string, string, string | null][] = [
+    ['lists67-home', '/', null],
+    ['lists67-quizzes', '/quizzes', '.quiz-list > li'],
+    ['lists67-library', '/library', '.library-list > li'],
+    ['lists67-feed', '/feed', null],
+    ['lists67-calendar', '/feed/calendar', null],
+    ['lists67-history', '/history', null],
+    ['lists67-help', '/help', null],
+  ];
+  for (const [name, path, cards] of pages) {
+    await host.goto(`${base}${path}`);
+    await host.locator('main').waitFor();
+    await host.waitForLoadState('networkidle');
+    await wide67(host, name, async ({ tag }) => {
+      const width = await mainWidth67(host);
+      if (tag === '375') expect(width, `${name} 375`).toBeLessThanOrEqual(375);
+      else expect(width, `${name} ${tag}`).toBeGreaterThan(560);
+      if (cards !== null && tag === '1920') {
+        const row = await cardsInFirstRow(cards);
+        if (name === 'lists67-quizzes') expect(row.inFirstRow, 'quizzes 1920: at least three cards in the first row').toBeGreaterThanOrEqual(3);
+        else expect(row.inFirstRow, `${name} 1920: cards in a row`).toBeGreaterThanOrEqual(Math.min(row.count, 1));
+      }
+      if (cards !== null && tag === '375') {
+        const row = await cardsInFirstRow(cards);
+        expect(row.inFirstRow, `${name} 375: one under another`).toBe(1);
+      }
+    });
+    await expectPhoneFit(host, name);
+  }
+
+  // Сторінка вікторини в бібліотеці.
+  await host.goto(`${base}/library`);
+  const libraryHref = (await host.locator('a.library-card').first().getAttribute('href'))!;
+  await host.goto(`${base}${libraryHref}`);
+  await host.locator('main.library-quiz').waitFor();
+  await wide67(host, 'lists67-library-quiz', async ({ tag }) => {
+    if (tag === '375') expect(await mainWidth67(host), 'library quiz 375').toBeLessThanOrEqual(375);
+    else expect(await mainWidth67(host), `library quiz ${tag}`).toBeLessThanOrEqual(672 + 2 * 48);
+  });
+
+  // Перегляд зіграної гри й «Мої ігри» (гравець).
+  await host.goto(`${base}/history`);
+  const href = (await host.locator('a[href^="/history/"]').first().getAttribute('href'))!;
+  for (const [name, path, page] of [
+    ['lists67-game', href, host],
+    ['lists67-mygames', '/me', olena],
+  ] as const) {
+    await page.goto(`${base}${path}`);
+    await page.locator('main').waitFor();
+    await page.waitForLoadState('networkidle');
+    await wide67(page, name, async ({ tag }) => {
+      if (tag === '1920') expect(await mainWidth67(page), `${name} 1920`).toBeGreaterThan(1200);
+    });
+    // Сторінка гри на телефоні довга й закінчується розкритими відповідями: нижня панель накриває її кінець, як і до 67 (перевіряємо лише «Мої ігри»).
+    if (name === 'lists67-mygames') await expectPhoneFit(page, name);
+  }
+}
+
+it('part 67 lists: my quizzes, library, feed, calendar, history, a finished game and help on a computer — card grids, a two-column game page, reading width for help; 375 phone lists stay one under another', async () => {
+  try {
+    await lists67();
+  } catch (error) {
+    await snapshot();
+    throw error;
+  }
+}, 400_000);

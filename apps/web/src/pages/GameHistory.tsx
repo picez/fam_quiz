@@ -355,7 +355,7 @@ export function GameHistory() {
   }
 
   return (
-    <main className="app wide">
+    <main className="app wide game-history">
       <GameDetailView game={state.data} back={back} />
     </main>
   );
@@ -406,7 +406,7 @@ export function GameDetailView({ game: stored, back, heading: Heading = 'h1' }: 
       </section>
 
       {game.standings.some((row) => row.rounds.length > 0) && (
-        <section className="panel history-scores">
+        <section className="panel history-scores wide-panel">
           <h2>{t('historyScoresTitle')}</h2>
           <ScoreTable
             size="history"
@@ -457,7 +457,7 @@ export function GameDetailView({ game: stored, back, heading: Heading = 'h1' }: 
       )}
 
       {(game.questions.length > 0 || game.adjustments.length > 0) && (
-        <section className="panel">
+        <section className="panel wide-panel">
           <h2>{t('questionsTitle')}</h2>
           {/* Гра з одним раундом виглядає, як раніше: без заголовка раунду; запитання нумеруються в межах раунду, як на живих екранах. */}
           {game.rounds.map((round, roundIndex) => {
