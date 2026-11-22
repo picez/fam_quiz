@@ -2,6 +2,7 @@ import {
   ADMIN_PAGE_SIZE,
   ADMIN_QUERY_MAX,
   BOT_USER_ID,
+  GROUP_LIMITS,
   adminPages,
   pageOffset,
   type AdminFeedKind,
@@ -15,10 +16,11 @@ import {
 import { and, asc, desc, eq, sql, type SQL } from 'drizzle-orm';
 import { logAction } from './bans';
 import type { Db } from './db/client';
-import { familyGroup, feedEvent, groupInvite, groupItem, groupMember, profile, userBan, userLike } from './db/schema';
+import { familyGroup, feedEvent, groupInvite, groupItem, groupMember, profile, user, userBan, userLike } from './db/schema';
 import { eventLikes } from './feed-store';
 import type { Fail } from './calendar-store';
-import { deleteGroup, roleIn, swapOwner } from './group-store';
+import { deleteGroup, groupsOf, lockPerson, peopleIn, roleIn, swapOwner } from './group-store';
+import { addGroupAdded } from './inbox-store';
 import { containsPattern } from './like-escape';
 
 type Tx = Parameters<Parameters<Db['transaction']>[0]>[0];
@@ -313,6 +315,39 @@ export async function adminDeleteGroup(
     await logAction(tx, { adminId: input.adminId, kind: 'group_delete', targetUserId: await ownerOf(tx, group.id), details: { title: group.name }, now: input.now });
     await deleteGroup(tx, group.id);
     return { ok: true as const, changed: true };
+  });
+}
+
+/**
+ * 72: адмін додає людину до групи напряму (без запрошення й без дружби з власником). Замки — людина, потім група, як у group-store;
+ * межі ті самі (30 людей, 10 видимих груп); прихована група — спершу повернути. Її запрошення в цю групу зникає.
+ * Сповіщення — рядок у «Вхідних» людини в тій самій транзакції (пуш — окремо, у маршруті); власнику — нічого.
+ */
+export async function adminAddMember(
+  db: Db,
+  input: { adminId: string; groupId: string; userId: string; now: Date },
+): Promise<
+  | { ok: true; changed: true; groupName: string }
+  | Fail<'group_not_found' | 'user_not_found' | 'member_banned' | 'group_hidden' | 'already_member' | 'group_full' | 'member_too_many_groups'>
+> {
+  if (!UUID.test(input.groupId)) return { ok: false, error: 'group_not_found' };
+  return db.transaction(async (tx) => {
+    await lockPerson(tx, input.userId);
+    const group = await lockedGroup(tx, input.groupId);
+    if (group === undefined) return { ok: false as const, error: 'group_not_found' as const };
+    const [person] = input.userId === BOT_USER_ID ? [] : await tx.select({ id: user.id }).from(user).where(eq(user.id, input.userId));
+    if (person === undefined) return { ok: false as const, error: 'user_not_found' as const };
+    const [banned] = await tx.select({ id: userBan.userId }).from(userBan).where(eq(userBan.userId, input.userId));
+    if (banned !== undefined) return { ok: false as const, error: 'member_banned' as const };
+    if (group.hiddenAt !== null) return { ok: false as const, error: 'group_hidden' as const };
+    if ((await roleIn(tx, group.id, input.userId)) !== null) return { ok: false as const, error: 'already_member' as const };
+    if ((await peopleIn(tx, group.id)) >= GROUP_LIMITS.membersMax) return { ok: false as const, error: 'group_full' as const };
+    if ((await groupsOf(tx, input.userId)) >= GROUP_LIMITS.groupsPerUser) return { ok: false as const, error: 'member_too_many_groups' as const };
+    await tx.insert(groupMember).values({ groupId: group.id, userId: input.userId, role: 'member', joinedAt: input.now });
+    await tx.delete(groupInvite).where(and(eq(groupInvite.groupId, group.id), eq(groupInvite.userId, input.userId)));
+    await addGroupAdded(tx, { userId: input.userId, groupId: group.id, now: input.now });
+    await logAction(tx, { adminId: input.adminId, kind: 'group_member_add', targetUserId: input.userId, details: { title: group.name }, now: input.now });
+    return { ok: true as const, changed: true as const, groupName: group.name };
   });
 }
 

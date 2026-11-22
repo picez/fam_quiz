@@ -1210,6 +1210,7 @@ export const mergedEmail = pgTable(
  * «Вхідні» людини (70): розсилка адміна чи відповідь на «Щось не працює». Рядок лише посилається на
  * push_broadcast / problem_report — текст читається з'єднанням, без копії. Розсилка розкладається по рядку
  * на людину в мить створення; одна розсилка — раз на людину, одна відповідь — раз на скаргу.
+ * 72: group_added — адмін додав людину до групи; назва читається з самої групи, група зникла — рядок теж.
  */
 export const inboxItem = pgTable(
   'inbox_item',
@@ -1218,9 +1219,10 @@ export const inboxItem = pgTable(
     userId: text('user_id')
       .notNull()
       .references(() => user.id, { onDelete: 'cascade' }),
-    kind: text('kind').$type<'broadcast' | 'problem_reply'>().notNull(),
+    kind: text('kind').$type<'broadcast' | 'problem_reply' | 'group_added'>().notNull(),
     broadcastId: uuid('broadcast_id').references(() => pushBroadcast.id, { onDelete: 'cascade' }),
     problemId: uuid('problem_id').references(() => problemReport.id, { onDelete: 'cascade' }),
+    groupId: uuid('group_id').references(() => familyGroup.id, { onDelete: 'cascade' }),
     createdAt: at('created_at').notNull(),
     readAt: at('read_at'),
   },
@@ -1230,6 +1232,7 @@ export const inboxItem = pgTable(
     index('inbox_item_user_created_idx').on(table.userId, table.createdAt),
     index('inbox_item_unread_idx').on(table.userId).where(sql`read_at is null`),
     index('inbox_item_broadcast_idx').on(table.broadcastId),
+    index('inbox_item_group_idx').on(table.groupId),
   ],
 );
 

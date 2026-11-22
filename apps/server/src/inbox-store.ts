@@ -1,12 +1,13 @@
 import { INBOX_MAX, INBOX_QUOTE_MAX, type InboxItem, type InboxPage } from '@quiz/shared';
 import { and, count, desc, eq, isNull, lte } from 'drizzle-orm';
 import type { Db } from './db/client';
-import { inboxItem, problemReport, pushBroadcast } from './db/schema';
+import { familyGroup, inboxItem, problemReport, pushBroadcast } from './db/schema';
 import { truncateChars } from './error-mask';
 
 /**
  * «Вхідні» (70): розсилки адміна й відповіді на «Щось не працює». Рядок inbox_item лише посилається
  * на розсилку чи скаргу — текст береться з'єднанням. Елементи людина не видаляє; показ — INBOX_MAX найновіших.
+ * 72: «тебе додали до групи» — посилання на групу, назва жива; видалили групу — зник і рядок.
  */
 type Tx = Parameters<Parameters<Db['transaction']>[0]>[0];
 
@@ -27,10 +28,13 @@ export async function inboxPage(db: Db, userId: string): Promise<InboxPage> {
       problemAt: problemReport.createdAt,
       problemText: problemReport.text,
       reply: problemReport.reply,
+      groupId: familyGroup.id,
+      groupName: familyGroup.name,
     })
     .from(inboxItem)
     .leftJoin(pushBroadcast, eq(pushBroadcast.id, inboxItem.broadcastId))
     .leftJoin(problemReport, eq(problemReport.id, inboxItem.problemId))
+    .leftJoin(familyGroup, eq(familyGroup.id, inboxItem.groupId))
     .where(eq(inboxItem.userId, userId))
     .orderBy(desc(inboxItem.createdAt), desc(inboxItem.id))
     .limit(INBOX_MAX);
@@ -46,6 +50,8 @@ export async function inboxPage(db: Db, userId: string): Promise<InboxPage> {
         reply: row.reply,
         problem: { id: row.problemId, at: row.problemAt.toISOString(), text: truncateChars(row.problemText, INBOX_QUOTE_MAX) },
       });
+    } else if (row.kind === 'group_added' && row.groupId !== null && row.groupName !== null) {
+      items.push({ ...base, kind: 'group_added', group: { id: row.groupId, title: row.groupName } });
     }
   }
   return { items, unread: await inboxUnread(db, userId) };
@@ -80,4 +86,9 @@ export async function addBroadcast(tx: Db | Tx, input: { broadcastId: string; us
       .values(chunk.map((userId) => ({ userId, kind: 'broadcast' as const, broadcastId: input.broadcastId, createdAt: input.now })))
       .onConflictDoNothing();
   }
+}
+
+/** 72: адмін додав людину до групи — у її «Вхідні», у тій самій транзакції, що й вступ. */
+export async function addGroupAdded(tx: Db | Tx, input: { userId: string; groupId: string; now: Date }): Promise<void> {
+  await tx.insert(inboxItem).values({ userId: input.userId, kind: 'group_added', groupId: input.groupId, createdAt: input.now });
 }

@@ -1,8 +1,8 @@
 import { eq } from 'drizzle-orm';
 import { beforeAll, describe, expect, it } from 'vitest';
 import type { Db } from './db/client';
-import { inboxItem, problemReport, pushBroadcast, user } from './db/schema';
-import { addBroadcast, addProblemReply, inboxPage, inboxUnread, markInboxRead } from './inbox-store';
+import { familyGroup, inboxItem, problemReport, pushBroadcast, user } from './db/schema';
+import { addBroadcast, addGroupAdded, addProblemReply, inboxPage, inboxUnread, markInboxRead } from './inbox-store';
 import { createTestDb } from './testing/test-db';
 
 const BASE = Date.parse('2026-11-20T10:00:00.000Z');
@@ -95,5 +95,23 @@ describe('inbox store (70)', () => {
     await db.transaction((tx) => addBroadcast(tx, { broadcastId: id, userIds: people, now: at(1) }));
     await db.transaction((tx) => addBroadcast(tx, { broadcastId: id, userIds: people, now: at(2) }));
     expect(await db.select().from(inboxItem).where(eq(inboxItem.broadcastId, id))).toHaveLength(1001);
+  });
+});
+
+describe('inbox store: added to a group (72)', () => {
+  it('shows the group with its current title; a deleted group takes the notice with it', async () => {
+    const olya = await person();
+    const [group] = await db.insert(familyGroup).values({ name: 'Карпатські вечори', emoji: '🌻', inviteCode: `inbox-${n}` }).returning();
+    await db.transaction((tx) => addGroupAdded(tx, { userId: olya, groupId: group.id, now: at(3) }));
+    let page = await inboxPage(db, olya);
+    expect(page.items).toEqual([{ id: expect.any(String), at: at(3).toISOString(), read: false, kind: 'group_added', group: { id: group.id, title: 'Карпатські вечори' } }]);
+    expect(page.unread).toBe(1);
+    // Назва — жива: перейменували групу — у «Вхідних» нова назва.
+    await db.update(familyGroup).set({ name: 'Поліські вечори' }).where(eq(familyGroup.id, group.id));
+    page = await inboxPage(db, olya);
+    expect(page.items[0]).toMatchObject({ kind: 'group_added', group: { id: group.id, title: 'Поліські вечори' } });
+    await db.delete(familyGroup).where(eq(familyGroup.id, group.id));
+    expect(await db.select().from(inboxItem).where(eq(inboxItem.userId, olya))).toEqual([]);
+    expect(await inboxUnread(db, olya)).toBe(0);
   });
 });

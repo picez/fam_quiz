@@ -365,6 +365,13 @@
       "when": 1795324551817,
       "tag": "0051_activity_day",
       "breakpoints": true
+    },
+    {
+      "idx": 52,
+      "version": "7",
+      "when": 1795330650231,
+      "tag": "0052_inbox_group",
+      "breakpoints": true
     }
   ]
 }
