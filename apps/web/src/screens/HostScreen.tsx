@@ -45,6 +45,7 @@ import { answerText, correctText, markText, num, questionClass, questionLabel, q
 import { countText as countLabel, errorText, t, type TextKey } from '../i18n';
 import { ProblemLink } from '../problems/ProblemLink';
 import { momentOf } from '../problems/problem-moment';
+import { PushInvite } from '../push/PushInvite';
 import { RoundBriefing, RoundFacts } from './RoundBriefing';
 import type { Send } from '../live/types';
 import { BlitzCellNotes, Board, BoardLegend } from './Board';
@@ -1559,6 +1560,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
               {stageGone && <p className="meta">{t('awardsNoStage')}</p>}
             </>
           )}
+          <PushInvite />
           <MenuLinks role="host" />
         </section>
       )}

@@ -14193,13 +14193,13 @@ button.wall-tile:disabled {
 
 /* Шостий пункт (Адмінка для адміна): на вузькому екрані пункти ділять ширину порівну, значок і підпис трохи менші, щоб нічого не виходило за межі. */
 @media (max-width: 400px) {
-  .menu:has(> a:nth-of-type(6)) a {
+  .menu:has(> a:nth-of-type(6):not(.menu-inbox)) a {
     gap: 0;
     font-size: clamp(0.625rem, 3vw, 0.75rem);
     letter-spacing: -0.02em;
   }
 
-  .menu:has(> a:nth-of-type(6)) a span {
+  .menu:has(> a:nth-of-type(6):not(.menu-inbox)) a span {
     font-size: 1.125rem;
   }
 }
@@ -28602,7 +28602,6 @@ details.admin-fold[open] > summary::before {
   min-width: 0;
 }
 
-.admin-errors-views,
 .admin-errors-filter {
   display: flex;
   flex-wrap: wrap;
@@ -28610,7 +28609,6 @@ details.admin-fold[open] > summary::before {
   min-width: 0;
 }
 
-.admin-errors-views .btn,
 .admin-errors-filter .btn {
   flex: 1 1 auto;
   min-height: 2.75rem;
@@ -28619,7 +28617,6 @@ details.admin-fold[open] > summary::before {
   white-space: normal;
 }
 
-.admin-errors-views .btn[aria-current='page'],
 .admin-errors-filter .btn[aria-pressed='true'] {
   border-color: var(--paper);
   font-weight: 700;
@@ -29433,4 +29430,31 @@ details.admin-fold[open] > summary::before {
 .inbox-quote {
   padding-inline-start: 0.75rem;
   border-inline-start: 2px solid var(--line);
+}
+
+/* 70: тиха панель «Не пропускай новини» після гри. */
+.push-invite {
+  display: grid;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.push-invite h2,
+.push-invite p {
+  margin: 0;
+}
+
+.push-invite-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.push-invite-actions .btn {
+  flex: 1 1 auto;
+  min-height: 2.75rem;
+}
+
+.push-invite p[role='status']:empty {
+  display: none;
 }
