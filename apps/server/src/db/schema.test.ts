@@ -3,7 +3,17 @@ import { eq, sql } from 'drizzle-orm';
 import { describe, expect, it } from 'vitest';
 import { makeQuiz, single } from '@quiz/engine/testing';
 import { createTestDb, createTestDbUpTo } from '../testing/test-db';
+import type { Db } from './client';
 import { quiz, user } from './schema';
+
+/** Вікторина в базі до пізніших міграцій: сирий SQL, бо схема drizzle вже знає нові колонки quiz (73: folder_id), а база — ще ні. */
+async function oldQuiz(db: Db, ownerId: string, title: string): Promise<string> {
+  const source = makeQuiz([single]);
+  const id = randomUUID();
+  await db.execute(sql`INSERT INTO "quiz" ("id", "owner_id", "title", "description", "settings", "rounds")
+    VALUES (${id}, ${ownerId}, ${title}, '', ${JSON.stringify(source.settings)}::jsonb, ${JSON.stringify(source.rounds)}::jsonb)`);
+  return id;
+}
 
 describe('database schema', () => {
   it('stores a quiz with its rounds and settings and returns them unchanged', async () => {
@@ -491,8 +501,7 @@ describe('group item uses (12l)', () => {
     await db.insert(user).values({ id: 'u1', name: 'Оля', email: 'olia@example.com' });
     await db.execute(sql`INSERT INTO "family_group" ("id", "name", "emoji", "invite_code") VALUES (${groupId}, 'Родина Квіткових', '🌻', 'abcdefghjm')`);
     await db.execute(sql`INSERT INTO "group_item" ("group_id", "author_id", "kind", "text") VALUES (${groupId}, 'u1', 'story', 'Як тато заблукав у лісі по гриби')`);
-    const source = makeQuiz([single]);
-    await db.insert(quiz).values({ ownerId: 'u1', title: 'T', description: '', settings: source.settings, rounds: source.rounds });
+    await oldQuiz(db, 'u1', 'T');
 
     await migrateRest();
 
@@ -576,7 +585,7 @@ describe('challenges (38a)', () => {
     const { db, migrateRest } = await createTestDbUpTo('0037_cosmetics_34');
     await db.insert(user).values({ id: 'a', name: 'Автор', email: 'a@example.com' });
     const source = makeQuiz([single]);
-    await db.insert(quiz).values({ ownerId: 'a', title: 'Q', description: '', settings: source.settings, rounds: source.rounds });
+    await oldQuiz(db, 'a', 'Q');
     await db.insert(game).values({
       id: '11111111-1111-4111-8111-111111111111',
       hostId: 'a',
@@ -767,9 +776,8 @@ describe('library (38g)', () => {
       { id: 'a', name: 'Автор', email: 'a@example.com' },
       { id: 'b', name: 'Гравець', email: 'b@example.com' },
     ]);
-    const source = makeQuiz([single]);
-    const [q] = await db.insert(quiz).values({ ownerId: 'a', title: 'Q', description: '', settings: source.settings, rounds: source.rounds }).returning();
-    await db.insert(userLike).values({ userId: 'b', kind: 'quiz', targetUserId: 'a', quizId: q.id, createdAt: T });
+    const quizId = await oldQuiz(db, 'a', 'Q');
+    await db.insert(userLike).values({ userId: 'b', kind: 'quiz', targetUserId: 'a', quizId, createdAt: T });
     await db.insert(adminAction).values({ at: T, adminId: 'a', adminLabel: 'Автор', kind: 'ban', targetUserId: 'b', targetLabel: 'Гравець', details: {} });
 
     await migrateRest();
@@ -863,8 +871,7 @@ describe('announcement (53)', () => {
     const { adminAction, announcement } = await import('./schema');
     const { db, migrateRest } = await createTestDbUpTo('0040_library');
     await db.insert(user).values({ id: 'a', name: 'Адмін', email: 'a@example.com' });
-    const source = makeQuiz([single]);
-    await db.insert(quiz).values({ ownerId: 'a', title: 'Q', description: '', settings: source.settings, rounds: source.rounds });
+    await oldQuiz(db, 'a', 'Q');
     await db.insert(adminAction).values({ at: T, adminId: 'a', adminLabel: 'Адмін', kind: 'ban', targetUserId: null, targetLabel: '', details: {} });
 
     await migrateRest();
@@ -1094,5 +1101,43 @@ describe('game events (65)', () => {
 
     await db.delete(game).where(eq(game.id, gameId));
     expect(await db.select().from(gameEvent)).toEqual([]);
+  });
+});
+
+describe('quiz folders (migration 0053)', () => {
+  it('migration 0053 adds quiz_folder and quiz.folder_id over an older database; old quizzes stay without a folder and keep their dates', async () => {
+    const { quizFolder } = await import('./schema');
+    const { db, migrateRest } = await createTestDbUpTo('0052_inbox_group');
+    await db.insert(user).values({ id: 'u1', name: 'Олена', email: 'olena@example.com' });
+    const source = makeQuiz([single]);
+    const quizId = randomUUID();
+    // Сирий SQL: схема drizzle вже знає folder_id, а база — ще ні.
+    await db.execute(sql`
+      INSERT INTO "quiz" ("id", "owner_id", "title", "description", "settings", "rounds", "created_at", "updated_at")
+      VALUES (${quizId}, 'u1', 'Річки', '', ${JSON.stringify(source.settings)}::jsonb, ${JSON.stringify(source.rounds)}::jsonb, '2026-10-12T10:00:00Z', '2026-11-03T10:00:00Z')`);
+
+    await migrateRest();
+
+    const [row] = await db.select().from(quiz).where(eq(quiz.id, quizId));
+    expect(row).toMatchObject({ folderId: null, createdAt: new Date('2026-10-12T10:00:00Z'), updatedAt: new Date('2026-11-03T10:00:00Z') });
+    expect(await db.select().from(quizFolder)).toEqual([]);
+  });
+
+  it('a folder name is unique per owner regardless of case; deleting a folder leaves its quizzes without one', async () => {
+    const { quizFolder } = await import('./schema');
+    const db = await createTestDb();
+    await db.insert(user).values([
+      { id: 'u1', name: 'Олена', email: 'olena@example.com' },
+      { id: 'u2', name: 'Петро', email: 'petro@example.com' },
+    ]);
+    const [films] = await db.insert(quizFolder).values({ ownerId: 'u1', name: 'Кіно' }).returning();
+    await expect(db.insert(quizFolder).values({ ownerId: 'u1', name: 'кіно' })).rejects.toThrow();
+    await db.insert(quizFolder).values({ ownerId: 'u2', name: 'кіно' });
+    const source = makeQuiz([single]);
+    const [row] = await db.insert(quiz).values({ ownerId: 'u1', title: 'T', description: '', settings: source.settings, rounds: source.rounds, folderId: films.id }).returning();
+
+    await db.delete(quizFolder).where(eq(quizFolder.id, films.id));
+
+    expect((await db.select().from(quiz).where(eq(quiz.id, row.id)))[0]?.folderId).toBeNull();
   });
 });

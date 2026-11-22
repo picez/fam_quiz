@@ -44,6 +44,7 @@ import {
   pushSubscription,
   serverError,
   quiz,
+  quizFolder,
   savedGame,
   session,
   showcasePin,
@@ -255,6 +256,11 @@ describe('deleteAccount', () => {
       { userId: taras, day: '2026-11-20', editorSec: 300, editorSessions: 1 },
       { userId: olia, day: '2026-11-20' },
     ]);
+    // 73: його категорія з вікториною; в Олі — своя.
+    const [tarasFolder] = await db.insert(quizFolder).values({ ownerId: taras, name: 'Кіно', createdAt: NOW, updatedAt: NOW }).returning();
+    await db.update(quiz).set({ folderId: tarasFolder.id }).where(eq(quiz.id, quizId));
+    const [oliaFolder] = await db.insert(quizFolder).values({ ownerId: olia, name: 'Кіно', createdAt: NOW, updatedAt: NOW }).returning();
+    await db.update(quiz).set({ folderId: oliaFolder.id }).where(eq(quiz.id, oliaQuiz));
     await db.insert(serverError).values({ fingerprint: 'f', where: 'store', name: 'Error', message: 'boom', dayStart: NOW, firstAt: NOW, lastAt: NOW, status: 'resolved', resolvedBy: taras, resolvedAt: NOW });
     const oliaSaved = await seedGame(db, { hostId: olia, status: 'saved', startedAt: PAST, players: [{ userId: taras, nickname: 'Тарас', score: 0, rank: null }] });
     await db.insert(savedGame).values({ gameId: oliaSaved.gameId, data: { v: 1, playerUsers: [['p-taras', taras], ['p-olia', olia]] }, stateVersion: 22, savedAt: NOW });
@@ -291,6 +297,10 @@ describe('deleteAccount', () => {
     // 71: його дні активності зникли, Олин лишився.
     expect(await db.select().from(activityDay).where(eq(activityDay.userId, taras))).toEqual([]);
     expect(await db.select().from(activityDay).where(eq(activityDay.userId, olia))).toHaveLength(1);
+    // 73: його категорії зникли разом з ним, Олина з вікториною лишилася.
+    expect(after.quiz_folder).toBe(0);
+    expect(await db.select().from(quizFolder).where(eq(quizFolder.ownerId, taras))).toEqual([]);
+    expect((await db.select().from(quiz).where(eq(quiz.id, oliaQuiz)))[0]?.folderId).toBe(oliaFolder.id);
     expect((await db.select().from(savedGame).where(eq(savedGame.gameId, oliaSaved.gameId)))[0]?.data).toEqual({ v: 1, playerUsers: [['p-olia', olia]], forgotten: ['p-taras'] });
     const [room] = await db.select().from(liveRoom).where(eq(liveRoom.code, `r-${n}`));
     expect(room.data).toEqual({ playerUsers: [['p-olia', olia]], forgotten: ['p-taras'], continued: { bound: ['p-olia'], carry: null, replaces: null } });
@@ -518,7 +528,7 @@ const HANDLED = [
   'league_point.user_id', 'league_champion.user_id', 'library_entry.owner_id', 'library_copy.user_id', 'user_report.reporter_id',
   'user_report.target_user_id', 'announcement.created_by', 'bot_plan.created_by', 'push_broadcast.created_by',
   'problem_report.user_id', 'problem_report.resolved_by', 'server_error.resolved_by', 'game_event.user_id',
-  'merged_email.user_id', 'inbox_item.user_id', 'activity_day.user_id',
+  'merged_email.user_id', 'inbox_item.user_id', 'activity_day.user_id', 'quiz_folder.owner_id',
 ];
 
 describe('the schema', () => {

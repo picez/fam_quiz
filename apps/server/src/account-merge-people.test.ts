@@ -35,6 +35,7 @@ import {
   pushBroadcast,
   pushSubscription,
   quiz,
+  quizFolder,
   serverError,
   session,
   showcasePin,
@@ -631,5 +632,59 @@ describe('people rules', () => {
     const keys = PEOPLE_RULES.flatMap((rule) => rule.keys);
     expect(new Set(keys).size).toBe(keys.length);
     for (const key of keys) expect(key).toMatch(/^[a-z_]+\.[a-z_]+$/);
+  });
+});
+
+describe('quiz folders (73)', () => {
+  async function folder(ownerId: string, name: string, position: number): Promise<string> {
+    const [row] = await db.insert(quizFolder).values({ ownerId, name, position, createdAt: PAST, updatedAt: PAST }).returning();
+    return row.id;
+  }
+  async function quizIn(ownerId: string, folderId: string, title: string): Promise<string> {
+    const id = await ownQuiz(ownerId, title);
+    await db.update(quiz).set({ folderId, updatedAt: EARLY }).where(eq(quiz.id, id));
+    return id;
+  }
+  const foldersOf = (ownerId: string) => db.select().from(quizFolder).where(eq(quizFolder.ownerId, ownerId)).orderBy(quizFolder.position);
+
+  it('a same-named folder of the secondary merges into the primary one; the rest move after the primary folders', async () => {
+    const { primary, secondary, ctx } = await pair();
+    const films = await folder(primary, 'Кіно', 0);
+    await quizIn(primary, films, 'Фільми 1');
+    await quizIn(primary, films, 'Фільми 2');
+    const theirFilms = await folder(secondary, 'кіно', 0);
+    const forAsia = await folder(secondary, 'Для Асі', 1);
+    const movedFilm = await quizIn(secondary, theirFilms, 'Фільми 3');
+    const asiaQuiz = await quizIn(secondary, forAsia, 'Казки');
+
+    await merge(ctx);
+
+    const mine = await foldersOf(primary);
+    expect(mine.map((f) => [f.id, f.name])).toEqual([
+      [films, 'Кіно'],
+      [forAsia, 'Для Асі'],
+    ]);
+    expect(mine[1]!.position).toBeGreaterThan(mine[0]!.position);
+    expect(await db.select().from(quizFolder).where(eq(quizFolder.id, theirFilms))).toEqual([]);
+    expect(await foldersOf(secondary)).toEqual([]);
+    expect(await db.select().from(quiz).where(eq(quiz.folderId, films))).toHaveLength(3);
+    const [moved] = await db.select().from(quiz).where(eq(quiz.id, movedFilm));
+    expect(moved).toMatchObject({ ownerId: primary, folderId: films, updatedAt: EARLY });
+    const [asia] = await db.select().from(quiz).where(eq(quiz.id, asiaQuiz));
+    expect(asia).toMatchObject({ ownerId: primary, folderId: forAsia, updatedAt: EARLY });
+  });
+
+  it('nothing is lost past the limit of 30', async () => {
+    const { primary, secondary, ctx } = await pair();
+    for (let i = 0; i < 30; i += 1) await folder(primary, `Моя ${i}`, i);
+    await folder(secondary, 'Нова 1', 0);
+    await folder(secondary, 'Нова 2', 1);
+
+    await merge(ctx);
+
+    const mine = await foldersOf(primary);
+    expect(mine).toHaveLength(32);
+    expect(mine.map((f) => f.position)).toEqual(Array.from({ length: 32 }, (_, i) => i));
+    expect(mine.slice(30).map((f) => f.name)).toEqual(['Нова 1', 'Нова 2']);
   });
 });

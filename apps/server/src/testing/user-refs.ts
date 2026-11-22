@@ -3,7 +3,7 @@ import type { Db } from '../db/client';
 import {
   account, achievementBlock, activityDay, adminAction, announcement, botPlan, calendarEvent, calendarRequest, challenge, challengeAttempt,
   feedEvent, follow, game, gameEvent, groupInvite, groupItem, groupMember, inboxItem, leagueChampion, leaguePoint, libraryCopy, libraryEntry,
-  liveRoom, mergedEmail, participant, prize, prizeAward, problemReport, profile, pushBroadcast, pushSubscription, quiz, savedGame,
+  liveRoom, mergedEmail, participant, prize, prizeAward, problemReport, profile, pushBroadcast, pushSubscription, quiz, quizFolder, savedGame,
   serverError, session, showcasePin, user, userAchievement, userBan, userLike, userReport, userTitle, verification, xpEntry,
 } from '../db/schema';
 
@@ -18,6 +18,7 @@ export async function referencing(db: Db, userId: string): Promise<Record<string
   await add('account', db.select().from(account).where(eq(account.userId, userId)));
   await add('verification', db.select().from(verification).where(eq(verification.value, userId)));
   await add('quiz', db.select().from(quiz).where(eq(quiz.ownerId, userId)));
+  await add('quiz_folder', db.select().from(quizFolder).where(eq(quizFolder.ownerId, userId)));
   await add('game', db.select().from(game).where(eq(game.hostId, userId)));
   await add('participant', db.select().from(participant).where(eq(participant.userId, userId)));
   await add('game_event', db.select().from(gameEvent).where(eq(gameEvent.userId, userId)));
