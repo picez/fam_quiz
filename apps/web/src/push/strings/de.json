@@ -7,6 +7,8 @@
   "pushCancelledTitle": "Das Spiel „{title}“ ist abgesagt",
   "pushFallbackBody": "Es gibt Neuigkeiten zu einem geplanten Spiel.",
   "pushFallbackTitle": "Quiz",
+  "pushGroupAddedBody": "Tippe, um die Gruppe zu öffnen.",
+  "pushGroupAddedTitle": "Du wurdest zur Gruppe „{title}“ hinzugefügt",
   "pushOpenedBody": "Der Spielleiter hat das Spiel geöffnet. Tippe, um beizutreten.",
   "pushOpenedTitle": "Das Spiel „{title}“ hat begonnen",
   "pushProblemReplyTitle": "Antwort auf deine Nachricht",

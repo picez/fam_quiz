@@ -7,6 +7,8 @@
   "pushCancelledTitle": "أُلغيت اللعبة «{title}»",
   "pushFallbackBody": "هناك تحديث بشأن اللعبة المخطط لها.",
   "pushFallbackTitle": "اختبار",
+  "pushGroupAddedBody": "المس لفتح المجموعة.",
+  "pushGroupAddedTitle": "تمت إضافتك إلى المجموعة «{title}»",
   "pushOpenedBody": "فتح المقدّم اللعبة. المس للانضمام.",
   "pushOpenedTitle": "بدأت اللعبة «{title}»",
   "pushProblemReplyTitle": "رد على رسالتك",

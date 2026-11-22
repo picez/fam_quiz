@@ -19,6 +19,10 @@ export function pushNotice(payload: PushPayload, zone: string, now: Date = new D
   if (payload.kind === 'problem_reply') {
     return { title: t('pushProblemReplyTitle'), body: payload.text, url: '/inbox', tag: `problem-${payload.reportId}` };
   }
+  if (payload.kind === 'group_added') {
+    // 72: адмін додав людину до групи — торкнутися й відкрити саму групу
+    return { title: t('pushGroupAddedTitle', { title: payload.title }), body: t('pushGroupAddedBody'), url: `/profile/groups/${encodeURIComponent(payload.groupId)}`, tag: `group-${payload.groupId}` };
+  }
   const title = payload.title;
   if (payload.kind === 'bot') {
     const tag = `bot-${payload.planId}`;

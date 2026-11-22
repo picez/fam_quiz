@@ -19,6 +19,9 @@ export const pushStrings = {
   pushBotOpenTitle: 'Квіз-бот відкрив гру «{title}»',
   pushBotOpenBody: 'Код: {code}. Торкнися, щоб приєднатися.',
   pushProblemReplyTitle: 'Відповідь на твоє повідомлення',
+  // 72: адмін додав людину до групи
+  pushGroupAddedTitle: 'Тебе додали до групи «{title}»',
+  pushGroupAddedBody: 'Торкнися, щоб відкрити групу.',
   pushFallbackTitle: 'Квіз',
   pushFallbackBody: 'Є оновлення щодо запланованої гри.',
   // Сторінка «Немає зв’язку» воркера (32): ні мережі, ні кешу.

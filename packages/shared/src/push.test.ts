@@ -106,3 +106,14 @@ describe('problem reply push (64)', () => {
     expect(PUSH_KINDS).toContain('problem_reply');
   });
 });
+
+describe('added to a group push (72)', () => {
+  it('a group id and the group title', () => {
+    const g = { kind: 'group_added', groupId: 'g', title: 'Родина' };
+    expect(pushPayloadSchema.safeParse(g).success).toBe(true);
+    expect(pushPayloadSchema.safeParse({ ...g, locale: 'pl' }).success).toBe(true);
+    const { title: _title, ...noTitle } = g;
+    expect(pushPayloadSchema.safeParse(noTitle).success).toBe(false);
+    expect(PUSH_KINDS).toContain('group_added');
+  });
+});

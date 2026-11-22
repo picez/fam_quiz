@@ -28,7 +28,7 @@ export interface SwScope {
 }
 
 const ICON = '/icon-192.png';
-const KINDS = ['reminder', 'opened', 'cancelled', 'bot', 'broadcast', 'problem_reply'];
+const KINDS = ['reminder', 'opened', 'cancelled', 'bot', 'broadcast', 'problem_reply', 'group_added'];
 
 function isObject(v: unknown): v is Record<string, unknown> {
   return typeof v === 'object' && v !== null;
@@ -38,6 +38,7 @@ function isObject(v: unknown): v is Record<string, unknown> {
 export function isPushPayload(raw: unknown): raw is PushPayload {
   if (!isObject(raw) || typeof raw.kind !== 'string' || !KINDS.includes(raw.kind)) return false;
   if (raw.kind === 'problem_reply') return typeof raw.reportId === 'string' && typeof raw.text === 'string';
+  if (raw.kind === 'group_added') return typeof raw.groupId === 'string' && typeof raw.title === 'string';
   if (raw.kind === 'broadcast') {
     return typeof raw.broadcastId === 'string' && typeof raw.title === 'string' && typeof raw.text === 'string' && (raw.url === null || typeof raw.url === 'string');
   }
@@ -78,8 +79,8 @@ export async function onPush(scope: SwScope, data: { json(): unknown } | null, z
     badge: ICON,
     data: { url: notice.url },
   });
-  // 70: відкриті вікна перечитують бейдж «Вхідних» одразу; збій тут — не причина губити сповіщення.
-  if (isObject(raw) && (raw.kind === 'broadcast' || raw.kind === 'problem_reply')) await signalInbox(scope);
+  // 70: відкриті вікна перечитують бейдж «Вхідних» одразу; збій тут — не причина губити сповіщення. 72: «тебе додали до групи» теж у «Вхідних».
+  if (isObject(raw) && (raw.kind === 'broadcast' || raw.kind === 'problem_reply' || raw.kind === 'group_added')) await signalInbox(scope);
 }
 
 /** Повідомляє всім вікнам сайту, що у «Вхідних» щось з'явилося. */
