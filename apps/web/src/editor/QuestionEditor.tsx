@@ -29,6 +29,7 @@ import { WordleEditor } from './WordleEditor';
 import { GroupDraftNotes } from './group-drafts';
 import { changeType, maxTimeOf, moveItem, type QuestionType } from './draft';
 import { newId } from './new-id';
+import { NumberInput } from '../ui/NumberInput';
 
 interface Props {
   question: Question;
@@ -72,10 +73,10 @@ const shown = (value: number) => (Number.isFinite(value) ? String(value) : '');
 const sameNumber = (a: number, b: number) => a === b || (Number.isNaN(a) && Number.isNaN(b));
 
 /**
- * Поле для числа. Показує саме те, що набрано ("-", "2,", "30x"), і віддає назовні число
+ * Поле для числа. Показує саме те, що набрано ("-", "2."; букви й знаки NumberInput не впускає), і віддає назовні число
  * або NaN: якби поле перемальовувалося з числа, проміжні стани набору зникали б.
  */
-export function NumberField(props: { label: string; value: number; decimal?: boolean; placeholder?: string; invalidHint?: string; onChange: (value: number, raw: string) => void }) {
+export function NumberField(props: { label: string; value: number; decimal?: boolean; negative?: boolean; placeholder?: string; invalidHint?: string; onChange: (value: number, raw: string) => void }) {
   const [raw, setRaw] = useState(() => shown(props.value));
 
   // Значення змінили ззовні (наприклад, відновили чернетку): показати його.
@@ -86,8 +87,9 @@ export function NumberField(props: { label: string; value: number; decimal?: boo
   return (
     <label className="field compact">
       <span>{props.label}</span>
-      <input
-        inputMode={props.decimal ? 'text' : 'numeric'}
+      <NumberInput
+        decimal={props.decimal}
+        negative={props.negative}
         value={raw}
         placeholder={props.placeholder}
         maxLength={24}
@@ -491,6 +493,7 @@ function Body({ question, onChange, showPoints, cluesByHost, clouds, allowCloud,
               label={t('correctNumber')}
               value={question.correct}
               decimal
+              negative
               onChange={(correct) => onChange({ ...question, correct })}
             />
             {question.noOvershoot !== true && (
@@ -617,8 +620,8 @@ function Body({ question, onChange, showPoints, cluesByHost, clouds, allowCloud,
       return (
         <>
           <div className="pair">
-            <NumberField label={t('sliderMin')} value={min} decimal onChange={(value) => set({ min: value })} />
-            <NumberField label={t('sliderMax')} value={max} decimal onChange={(value) => set({ max: value })} />
+            <NumberField label={t('sliderMin')} value={min} decimal negative onChange={(value) => set({ min: value })} />
+            <NumberField label={t('sliderMax')} value={max} decimal negative onChange={(value) => set({ max: value })} />
           </div>
           <div className="pair">
             <NumberField label={t('sliderStep')} value={step} decimal onChange={(value) => set({ step: value })} />
@@ -636,7 +639,7 @@ function Body({ question, onChange, showPoints, cluesByHost, clouds, allowCloud,
             </label>
           </div>
           <div className="pair">
-            <NumberField label={t('sliderCorrect')} value={correct} decimal onChange={(value) => set({ correct: value })} />
+            <NumberField label={t('sliderCorrect')} value={correct} decimal negative onChange={(value) => set({ correct: value })} />
             <NumberField label={t('sliderTolerance')} value={question.tolerance} decimal onChange={(value) => set({ tolerance: value })} />
           </div>
           <NumberField

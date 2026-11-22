@@ -4,6 +4,7 @@ import { t } from '../i18n';
 import { piecePath } from '../live/jigsaw-shape';
 import { ImageField } from './ImageField';
 import type { JigsawQuestion } from './draft';
+import { NumberInput } from '../ui/NumberInput';
 
 /** Крок рамки за стрілкою (частка запасу фото). */
 const KEY_STEP = 0.05;
@@ -38,8 +39,7 @@ export function TimeField({ value, onChange, min = LIMITS.minJigsawTime }: { val
     <div className="jigsaw-editor-time">
       <label className="field compact">
         <span>{t('timeLimit')}</span>
-        <input
-          inputMode="numeric"
+        <NumberInput
           value={raw}
           maxLength={4}
           onChange={(event) => {

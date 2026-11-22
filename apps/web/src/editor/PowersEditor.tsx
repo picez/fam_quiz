@@ -5,6 +5,7 @@ import { DEBUFF_ICONS, debuffName } from '../debuff-meta';
 import { HelpButton } from '../help/HelpButton';
 import { t, type TextKey } from '../i18n';
 import type { SwapGaps } from './draft';
+import { NumberInput } from '../ui/NumberInput';
 
 type Prices = Partial<Record<DebuffKind, number>>;
 
@@ -140,9 +141,7 @@ export function PowersEditor({ settings, spares, gaps, onChange, family = false 
                 {on && (
                   <label className="powers-price">
                     {t('powersPrice')}
-                    <input
-                      type="number"
-                      inputMode="numeric"
+                    <NumberInput
                       min={LIMITS.minDebuffPrice}
                       max={LIMITS.maxDebuffPrice}
                       step={50}

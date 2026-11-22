@@ -2,6 +2,7 @@ import { LIMITS, questDefaultOrder, questKey, type BuffKind, type QuestRound } f
 import { buffName } from '../buff-meta';
 import { t } from '../i18n';
 import { withQuestCode } from './draft';
+import { NumberInput } from '../ui/NumberInput';
 
 interface Props {
   round: QuestRound;
@@ -79,9 +80,7 @@ export function QuestSettings({ round, buffs, lastRound, onChange }: Props) {
       {round.questions.length < need && <p className="meta quest-short">{t('questShortHint', { length: need })}</p>}
       <label className="field">
         <span>{t('questTriesLabel')}</span>
-        <input
-          type="number"
-          inputMode="numeric"
+        <NumberInput
           min={1}
           max={LIMITS.maxQuestTries}
           value={Number.isNaN(round.tries) ? '' : round.tries}
@@ -109,9 +108,7 @@ export function QuestSettings({ round, buffs, lastRound, onChange }: Props) {
       {bonus.kind === 'points' && (
         <label className="field">
           <span>{t('questBonusPointsLabel')}</span>
-          <input
-            type="number"
-            inputMode="numeric"
+          <NumberInput
             min={1}
             max={LIMITS.maxPoints}
             value={Number.isNaN(bonus.points) ? '' : bonus.points}
@@ -138,9 +135,7 @@ export function QuestSettings({ round, buffs, lastRound, onChange }: Props) {
               <span>{t('questBonusFirst')}</span>
             </label>
             {bonus.first !== null && (
-              <input
-                type="number"
-                inputMode="numeric"
+              <NumberInput
                 min={1}
                 max={LIMITS.maxPlayers}
                 aria-label={t('questBonusFirstCount')}

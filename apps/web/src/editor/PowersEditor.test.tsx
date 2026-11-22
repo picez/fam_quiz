@@ -125,7 +125,7 @@ describe('PowersEditor 12h', () => {
     rerender(<PowersEditor settings={{ leaderboard: 'each', debuffs: onChange.mock.lastCall![0].debuffs }} spares={undefined} onChange={onChange} />);
     const prices = screen.getAllByLabelText('Ціна, балів');
     expect(prices).toHaveLength(7);
-    expect(box('Липкі кнопки').closest('.powers-row')?.querySelector('input[type="number"]')?.getAttribute('placeholder')).toBe('200');
+    expect(box('Липкі кнопки').closest('.powers-row')?.querySelector('.powers-price input')?.getAttribute('placeholder')).toBe('200');
   });
 
   it('«Усі» turns on eleven debuffs and fourteen buffs', () => {
