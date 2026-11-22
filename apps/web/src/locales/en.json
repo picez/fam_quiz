@@ -5322,5 +5322,16 @@
   "botHostTakeOver": "Take control",
   "botHostGiveBack": "Give back to the bot",
   "botHostBack": "Back to the «Bot» tab",
-  "botHostDenied": "This room is not the bot’s or you are not an admin"
+  "botHostDenied": "This room is not the bot’s or you are not an admin",
+  "adminBotHostOpen": "Open as host",
+  "adminBotManualTag": "Run by an admin",
+  "adminBotHosts": "Admin host screens: {count}",
+  "adminLog_bot_room_host_open": "{admin} opened the host screen in the bot game (code {code})",
+  "adminLog_bot_room_manual_on": "{admin} took control of the bot game (code {code})",
+  "adminLog_bot_room_manual_off": "{admin} gave control back to the bot (code {code})",
+  "adminLog_bot_room_grade": "{admin} graded an answer in the bot game — {text} (code {code})",
+  "adminLog_bot_room_grade_plain": "{admin} graded an answer in the bot game (code {code})",
+  "adminLog_bot_room_undo": "{admin} undid points in the bot game (code {code})",
+  "adminLog_bot_room_debuff": "{admin} changed a debuff in the bot game — {text} (code {code})",
+  "adminLog_bot_room_hint": "{admin} gave a hint in the bot game — {text} (code {code})"
 }

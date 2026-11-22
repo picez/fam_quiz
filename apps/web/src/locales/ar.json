@@ -5630,5 +5630,16 @@
   "botHostTakeOver": "تولَّ الإدارة",
   "botHostGiveBack": "أعد الإدارة إلى البوت",
   "botHostBack": "العودة إلى تبويب «البوت»",
-  "botHostDenied": "هذه الغرفة ليست للبوت أو أنك لست مشرفًا"
+  "botHostDenied": "هذه الغرفة ليست للبوت أو أنك لست مشرفًا",
+  "adminBotHostOpen": "افتح كمقدّم",
+  "adminBotManualTag": "يديرها مشرف",
+  "adminBotHosts": "شاشات تحكم المشرفين المتصلة: {count}",
+  "adminLog_bot_room_host_open": "فتح {admin} شاشة المقدّم في لعبة البوت (الرمز {code})",
+  "adminLog_bot_room_manual_on": "تولّى {admin} إدارة لعبة البوت (الرمز {code})",
+  "adminLog_bot_room_manual_off": "أعاد {admin} الإدارة إلى البوت (الرمز {code})",
+  "adminLog_bot_room_grade": "قيّم {admin} إجابة في لعبة البوت — {text} (الرمز {code})",
+  "adminLog_bot_room_grade_plain": "قيّم {admin} إجابة في لعبة البوت (الرمز {code})",
+  "adminLog_bot_room_undo": "ألغى {admin} نقاطًا في لعبة البوت (الرمز {code})",
+  "adminLog_bot_room_debuff": "غيّر {admin} عقوبة في لعبة البوت — {text} (الرمز {code})",
+  "adminLog_bot_room_hint": "أعطى {admin} تلميحًا في لعبة البوت — {text} (الرمز {code})"
 }

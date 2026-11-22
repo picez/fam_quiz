@@ -5399,5 +5399,16 @@
   "botHostTakeOver": "Tomar el control",
   "botHostGiveBack": "Devolver al bot",
   "botHostBack": "Volver a la pestaña «Bot»",
-  "botHostDenied": "Esta sala no es del bot o no eres admin"
+  "botHostDenied": "Esta sala no es del bot o no eres admin",
+  "adminBotHostOpen": "Abrir como presentador",
+  "adminBotManualTag": "Dirige un admin",
+  "adminBotHosts": "Mandos de admins conectados: {count}",
+  "adminLog_bot_room_host_open": "{admin} abrió el mando del presentador en la partida del bot (código {code})",
+  "adminLog_bot_room_manual_on": "{admin} tomó el control de la partida del bot (código {code})",
+  "adminLog_bot_room_manual_off": "{admin} devolvió el control al bot (código {code})",
+  "adminLog_bot_room_grade": "{admin} calificó una respuesta en la partida del bot — {text} (código {code})",
+  "adminLog_bot_room_grade_plain": "{admin} calificó una respuesta en la partida del bot (código {code})",
+  "adminLog_bot_room_undo": "{admin} anuló puntos en la partida del bot (código {code})",
+  "adminLog_bot_room_debuff": "{admin} cambió un debuff en la partida del bot — {text} (código {code})",
+  "adminLog_bot_room_hint": "{admin} dio una pista en la partida del bot — {text} (código {code})"
 }

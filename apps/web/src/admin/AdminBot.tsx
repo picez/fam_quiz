@@ -5,7 +5,7 @@ import { listQuizzes, type ApiResult, type QuizSummary } from '../api';
 import { formatDay, quizSizeText } from '../format';
 import { countText, errorText, t, type TextKey } from '../i18n';
 import { Avatar } from '../profile/Avatar';
-import { adminBot, botRoomCommand, copyToBot, deleteBotQuiz, saveBotLobby, startBotGame } from './admin-api';
+import { adminBot, botManual, botRoomCommand, copyToBot, deleteBotQuiz, saveBotLobby, startBotGame } from './admin-api';
 import { AdminBotRoomCard } from './AdminBotRoomCard';
 import { AdminBotSchedule } from './AdminBotSchedule';
 import { QuizCheckButton } from './QuizCheck';
@@ -61,6 +61,7 @@ export function AdminBot(): JSX.Element {
 
   /** Команди картки кімнати (підтвердження питає сама картка); лобі після збереження — «Збережено». */
   const command = (room: AdminBotRoom, sent: BotCommand) => void run(() => botRoomCommand(room.code, sent), 'err_game_not_found', () => null);
+  const manual = (room: AdminBotRoom, on: boolean) => void run(() => botManual(room.code, on), 'err_game_not_found', () => null);
   const lobby = (room: AdminBotRoom, input: AdminBotLobby) => void run(() => saveBotLobby(room.code, input), 'err_game_not_found', () => t('lobbySaved'));
   const launch = (quiz: AdminBotQuiz) => {
     // Остання перевірка знайшла помилки: питаємо, чи справді запускати (без перевірки чи без помилок — без питань).
@@ -123,7 +124,7 @@ export function AdminBot(): JSX.Element {
             ) : (
               <ul className="admin-list">
                 {state.data.rooms.map((room) => (
-                  <AdminBotRoomCard key={room.code} room={room} busy={busy} onCommand={(sent) => command(room, sent)} onLobby={(input) => lobby(room, input)} />
+                  <AdminBotRoomCard key={room.code} room={room} busy={busy} onCommand={(sent) => command(room, sent)} onLobby={(input) => lobby(room, input)} onManual={(on) => manual(room, on)} />
                 ))}
               </ul>
             )}

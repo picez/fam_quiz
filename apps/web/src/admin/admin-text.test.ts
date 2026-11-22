@@ -85,6 +85,19 @@ describe('logLine for moderation', () => {
     expect(logLine(entry({ kind: 'bot_room_lobby', target: 'Квіз-бот', details: { ...room, listed: false, locked: true } }))).toBe('Адмін змінив(-ла) лобі гри бота (код 123456): лише за кодом, з паролем');
     expect(logLine(entry({ kind: 'bot_room_lobby', target: 'Квіз-бот', details: { ...room, listed: true, locked: false } }))).toBe('Адмін змінив(-ла) лобі гри бота (код 123456): у списку лобі, без пароля');
   });
+  it('68: writes the host screen lines of a bot game with and without a person', () => {
+    const room = { title: 'Річки України 62', code: '123456' };
+    const line = (kind: AdminLogEntry['kind'], extra: Partial<AdminLogEntry['details']> = {}) => logLine(entry({ kind, target: 'Квіз-бот', details: { ...room, ...extra } }));
+    expect(line('bot_room_host_open')).toBe('Адмін відкрив(-ла) пульт ведучого в грі бота (код 123456)');
+    expect(line('bot_room_manual_on')).toBe('Адмін взяв(-ла) керування грою бота (код 123456)');
+    expect(line('bot_room_manual_off')).toBe('Адмін віддав(-ла) керування боту (код 123456)');
+    expect(line('bot_room_grade', { text: 'Оля' })).toBe('Адмін оцінив(-ла) відповідь у грі бота — Оля (код 123456)');
+    expect(line('bot_room_grade')).toBe('Адмін оцінив(-ла) відповідь у грі бота (код 123456)');
+    expect(line('bot_room_undo')).toBe('Адмін скасував(-ла) бали в грі бота (код 123456)');
+    expect(line('bot_room_debuff', { text: 'Оля' })).toBe('Адмін змінив(-ла) дебаф у грі бота — Оля (код 123456)');
+    expect(line('bot_room_hint', { text: 'Оля' })).toBe('Адмін дав(-ла) підказку в грі бота — Оля (код 123456)');
+    for (const kind of ['bot_room_host_open', 'bot_room_manual_on', 'bot_room_manual_off', 'bot_room_grade', 'bot_room_undo', 'bot_room_debuff', 'bot_room_hint'] as const) expect(line(kind, { text: 'Оля' })).not.toMatch(/[{}]/);
+  });
   it('shows a player without a nickname as the default name', () => {
     expect(logLine(entry({ kind: 'avatar_reset', target: '' }))).toBe('Адмін скинув(-ла) аватар Гравець');
   });

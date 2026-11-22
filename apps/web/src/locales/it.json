@@ -5399,5 +5399,16 @@
   "botHostTakeOver": "Prendi il controllo",
   "botHostGiveBack": "Restituisci al bot",
   "botHostBack": "Torna alla scheda «Bot»",
-  "botHostDenied": "Questa stanza non è del bot o non sei admin"
+  "botHostDenied": "Questa stanza non è del bot o non sei admin",
+  "adminBotHostOpen": "Apri come conduttore",
+  "adminBotManualTag": "Condotta da un admin",
+  "adminBotHosts": "Telecomandi admin online: {count}",
+  "adminLog_bot_room_host_open": "{admin} ha aperto il telecomando del conduttore nella partita del bot (codice {code})",
+  "adminLog_bot_room_manual_on": "{admin} ha preso il controllo della partita del bot (codice {code})",
+  "adminLog_bot_room_manual_off": "{admin} ha restituito il controllo al bot (codice {code})",
+  "adminLog_bot_room_grade": "{admin} ha valutato una risposta nella partita del bot — {text} (codice {code})",
+  "adminLog_bot_room_grade_plain": "{admin} ha valutato una risposta nella partita del bot (codice {code})",
+  "adminLog_bot_room_undo": "{admin} ha annullato dei punti nella partita del bot (codice {code})",
+  "adminLog_bot_room_debuff": "{admin} ha cambiato un debuff nella partita del bot — {text} (codice {code})",
+  "adminLog_bot_room_hint": "{admin} ha dato un indizio nella partita del bot — {text} (codice {code})"
 }

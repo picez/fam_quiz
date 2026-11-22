@@ -5423,5 +5423,16 @@
   "botHostTakeOver": "Przejmij prowadzenie",
   "botHostGiveBack": "Oddaj botowi",
   "botHostBack": "Wróć do zakładki «Bot»",
-  "botHostDenied": "To nie jest pokój bota albo nie jesteś adminem"
+  "botHostDenied": "To nie jest pokój bota albo nie jesteś adminem",
+  "adminBotHostOpen": "Otwórz jako prowadzący",
+  "adminBotManualTag": "Prowadzi admin",
+  "adminBotHosts": "Pilotów adminów: {count}",
+  "adminLog_bot_room_host_open": "{admin} otworzył(a) pilota prowadzącego w grze bota (kod {code})",
+  "adminLog_bot_room_manual_on": "{admin} przejął(-ęła) prowadzenie gry bota (kod {code})",
+  "adminLog_bot_room_manual_off": "{admin} oddał(a) prowadzenie botowi (kod {code})",
+  "adminLog_bot_room_grade": "{admin} ocenił(a) odpowiedź w grze bota — {text} (kod {code})",
+  "adminLog_bot_room_grade_plain": "{admin} ocenił(a) odpowiedź w grze bota (kod {code})",
+  "adminLog_bot_room_undo": "{admin} cofnął(-ęła) punkty w grze bota (kod {code})",
+  "adminLog_bot_room_debuff": "{admin} zmienił(a) debuff w grze bota — {text} (kod {code})",
+  "adminLog_bot_room_hint": "{admin} dał(a) podpowiedź w grze bota — {text} (kod {code})"
 }
