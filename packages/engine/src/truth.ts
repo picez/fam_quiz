@@ -60,11 +60,12 @@ export function submitTruth(state: GameState, personId: string, raw: string, now
  * Вигадка ведучого в лобі (52): id null і текст — додати; id і текст — змінити (позначка preset знімається); id і '' — прибрати.
  * Порожнє додавання, той самий текст і прибирання неіснуючої — без змін. truth_closed / not_allowed (гра без ведучого:
  * події ведучого там шлють гравці) / truth_text / truth_fakes_full / not_found (зміна неіснуючої).
+ * byAdmin — пульт адміна в кімнаті бота (68): у ведучого-людини поруч відмови автопілота немає.
  */
-export function setTruthFake(state: GameState, id: string | null, raw: string): Result {
+export function setTruthFake(state: GameState, id: string | null, raw: string, byAdmin = false): Result {
   const truth = state.truth;
   if (truth === undefined || !truthOpen(state)) return fail('truth_closed');
-  if (state.autopilot !== undefined) return fail('not_allowed');
+  if (state.autopilot !== undefined && !byAdmin) return fail('not_allowed');
   const text = truthText(raw);
   if (text.length > LIMITS.truthText || !isStorable(text)) return fail('truth_text');
   const fakes = truth.fakes ?? [];
