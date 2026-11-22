@@ -1,7 +1,7 @@
 import { QUIZ_FOLDER_LIMITS, type QuizFolder } from '@quiz/shared';
 import { and, asc, eq, sql } from 'drizzle-orm';
 import type { Db } from './db/client';
-import { quiz, quizFolder } from './db/schema';
+import { quiz, quizFolder, user } from './db/schema';
 import { isForeignKeyViolation, isUniqueViolation } from './db/unique';
 
 /**
@@ -22,8 +22,13 @@ const folderOf = (row: FolderRow): QuizFolder => ({ id: row.id, name: row.name, 
 const ordered = (db: Db | Tx, ownerId: string) =>
   db.select().from(quizFolder).where(eq(quizFolder.ownerId, ownerId)).orderBy(asc(quizFolder.position), asc(quizFolder.createdAt), asc(quizFolder.id));
 
-/** Замок усього набору категорій автора, далі — свіже читання (новий знімок бачить те, що встигла записати інша транзакція). */
+/**
+ * Замок усього набору категорій автора, далі — свіже читання (новий знімок бачить те, що встигла записати інша транзакція).
+ * Спершу — рядок user автора: коли категорій ще немає, FOR UPDATE по них нічого не замикає, і дві перші категорії
+ * одночасно отримали б ту саму позицію. Той самий порядок замків — у правилі об'єднання акаунтів.
+ */
 async function lockedFolders(tx: Tx, ownerId: string): Promise<FolderRow[]> {
+  await tx.select({ id: user.id }).from(user).where(eq(user.id, ownerId)).for('update');
   await tx.select({ id: quizFolder.id }).from(quizFolder).where(eq(quizFolder.ownerId, ownerId)).orderBy(asc(quizFolder.id)).for('update');
   return ordered(tx, ownerId);
 }

@@ -26,6 +26,12 @@ describe('quizFolderNameSchema (73)', () => {
     expect(quizFolderNameSchema.safeParse('Кі\u0000но').success).toBe(false);
     expect(quizFolderNameSchema.safeParse(5).success).toBe(false);
   });
+  it('rejects format characters: zero-width, joiners, bidi marks, BOM, soft hyphen', () => {
+    for (const mark of ['​', '‍', '‎', '‮', '⁦', '﻿', '­']) {
+      expect(quizFolderNameSchema.safeParse(`Кі${mark}но`).success, JSON.stringify(mark)).toBe(false);
+    }
+    expect(quizFolderNameSchema.parse('Кіно 🎬')).toBe('Кіно 🎬');
+  });
 });
 
 describe('quiz folder payloads (73)', () => {
@@ -34,11 +40,13 @@ describe('quiz folder payloads (73)', () => {
     expect(quizFolderInputSchema.safeParse({ name: 'Кіно', extra: 1 }).success).toBe(false);
     expect(quizFolderInputSchema.safeParse({}).success).toBe(false);
   });
-  it('order takes unique uuids, up to the limit', () => {
+  it('order takes unique uuids; more than 30 is fine (merged accounts), the cap is only against huge payloads', () => {
     expect(quizFolderOrderSchema.parse({ ids: [uuid(1), uuid(2)] })).toEqual({ ids: [uuid(1), uuid(2)] });
     expect(quizFolderOrderSchema.parse({ ids: [] })).toEqual({ ids: [] });
     expect(quizFolderOrderSchema.safeParse({ ids: [uuid(1), uuid(1)] }).success).toBe(false);
-    expect(quizFolderOrderSchema.safeParse({ ids: Array.from({ length: 31 }, (_, i) => uuid(i)) }).success).toBe(false);
+    expect(quizFolderOrderSchema.safeParse({ ids: Array.from({ length: 35 }, (_, i) => uuid(i)) }).success).toBe(true);
+    expect(quizFolderOrderSchema.safeParse({ ids: Array.from({ length: 200 }, (_, i) => uuid(i)) }).success).toBe(true);
+    expect(quizFolderOrderSchema.safeParse({ ids: Array.from({ length: 201 }, (_, i) => uuid(i)) }).success).toBe(false);
     expect(quizFolderOrderSchema.safeParse({ ids: ['x'] }).success).toBe(false);
     expect(quizFolderOrderSchema.safeParse({ ids: [], extra: 1 }).success).toBe(false);
   });

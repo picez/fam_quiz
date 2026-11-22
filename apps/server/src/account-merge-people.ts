@@ -239,6 +239,8 @@ const challengeRule: MergeRule = {
 const quizFolderRule: MergeRule = {
   keys: ['quiz_folder.owner_id'],
   async run(tx, { primaryId: P, secondaryId: S }) {
+    // Як у сховищі категорій: спершу рядок user P (lockAndCheck його вже замкнув — повтор нічого не коштує й тримає порядок замків явним).
+    await tx.execute(sql`select 1 from "user" where id = ${P} for update`);
     await tx.execute(sql`update "quiz" set folder_id = p.id from "quiz_folder" s join "quiz_folder" p on p.owner_id = ${P} and lower(p.name) = lower(s.name)
       where s.owner_id = ${S} and "quiz".folder_id = s.id`);
     await tx.execute(sql`delete from "quiz_folder" s where s.owner_id = ${S}

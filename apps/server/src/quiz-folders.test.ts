@@ -72,6 +72,15 @@ describe('createFolder (73)', () => {
   });
 });
 
+describe('createFolder: the first folders at once (73)', () => {
+  it('two first folders created together get different positions (the author row is the lock)', async () => {
+    const { olena } = await people();
+    const results = await Promise.all([createFolder(db, olena, 'Кіно', T0), createFolder(db, olena, 'Для Асі', T0)]);
+    expect(results.every((r) => r.ok)).toBe(true);
+    expect((await listFolders(db, olena)).map((f) => f.position).sort()).toEqual([0, 1]);
+  });
+});
+
 describe('renameFolder (73)', () => {
   it('renames its own; a name of another own folder is taken; a case change is fine; a foreign one is not found', async () => {
     const { olena, petro } = await people();

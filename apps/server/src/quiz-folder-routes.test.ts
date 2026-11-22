@@ -119,6 +119,23 @@ describe('quiz folder routes (73)', () => {
     }
   });
 
+  it('after a merge an author may own 35 folders: the order still works, a new folder is refused', async () => {
+    const { cookie } = await signUp(ctx.app, 'Олена');
+    const me = (await call('GET', '/api/me', cookie)).json() as { id: string };
+    // Як після об'єднання акаунтів (66): межу 30 там можна перевищити.
+    await db.insert(quizFolder).values(Array.from({ length: 35 }, (_, i) => ({ ownerId: me.id, name: `Папка ${i}`, position: i })));
+    const ids = (await folders(cookie)).map((f) => f.id);
+    expect(ids).toHaveLength(35);
+
+    const reordered = await call('PUT', '/api/quiz-folders/order', cookie, { ids: [...ids].reverse() });
+    expect(reordered.statusCode).toBe(200);
+    expect((reordered.json() as QuizFolder[]).map((f) => f.id)).toEqual([...ids].reverse());
+
+    const more = await call('POST', '/api/quiz-folders', cookie, { name: 'Ще одна' });
+    expect(more.statusCode).toBe(409);
+    expect(more.json()).toEqual({ error: 'folders_full' });
+  });
+
   it('reorders the full set; an incomplete set → 409; repeats → 400 (the static order path is not an id)', async () => {
     const { cookie } = await signUp(ctx.app, 'Олена');
     const a = await newFolder(cookie, 'А');

@@ -9,19 +9,25 @@ export const parseQuizSort = (raw: string | null | undefined): QuizSort => QUIZ_
 
 export interface QuizFolder { id: string; name: string; position: number; createdAt: string }
 
-/** Назва категорії: обрізані краї, схлопнуті пробіли, 1–40 символів, без керівних символів. */
+/** Назва категорії: обрізані краї, схлопнуті пробіли, 1–40 символів, без керівних і форматних символів (нульової ширини, напрямку тексту). */
 export const quizFolderNameSchema = z
   .string()
   .transform((raw) => raw.trim().replace(/ {2,}/g, ' '))
-  .pipe(z.string().min(1).max(QUIZ_FOLDER_LIMITS.nameMax).regex(/^[^\p{Cc}]+$/u));
+  .pipe(z.string().min(1).max(QUIZ_FOLDER_LIMITS.nameMax).regex(/^[^\p{Cc}\p{Cf}]+$/u));
 
 export const quizFolderInputSchema = z.object({ name: quizFolderNameSchema }).strict();
+
+/**
+ * Стеля списку порядку — лише від завеликих запитів, не межа категорій: після об'єднання акаунтів (66) їх буває понад 30,
+ * і порядок мусить працювати. Точний набір перевіряє reorderFolders.
+ */
+const ORDER_IDS_MAX = 200;
 
 export const quizFolderOrderSchema = z
   .object({
     ids: z
       .array(z.string().uuid())
-      .max(QUIZ_FOLDER_LIMITS.perOwner)
+      .max(ORDER_IDS_MAX)
       .refine((ids) => new Set(ids).size === ids.length, 'duplicate'),
   })
   .strict();
