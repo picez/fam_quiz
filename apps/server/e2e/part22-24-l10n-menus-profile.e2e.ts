@@ -434,7 +434,8 @@ async function bloodMoon23a() {
   await squares.first().waitFor();
   expect(await squares.evaluateAll((list) => list.map((square) => square.getAttribute('aria-label')))).toEqual(PINNED.map((id) => NAMES[id]));
   await squares.first().click();
-  await olya.locator('.achievement-caption').getByText(NAMES.sniper, exact).waitFor();
+  // З 49 підпис — «Назва · є в N % гравців» (і рідкість): назва стоїть першою.
+  await expect.poll(async () => (await olya.locator('.achievement-caption').textContent()) ?? '').toMatch(new RegExp('^' + NAMES.sniper + '( · |$)'));
 
   // ── 7. Видалена нагорода сходить з полиці; місце звільнилось — S закріплюється без повідомлення. ──
   expect(await deleteAward(db, awards.M.id)).not.toBeNull();

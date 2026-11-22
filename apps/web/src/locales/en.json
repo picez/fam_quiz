@@ -4789,7 +4789,7 @@
   "adminBotPlayers": "Players: {online} online of {total}",
   "adminBotStage": "Open the stage",
   "adminBotJoin": "Join as a player",
-  "adminBotStart": "Start the game",
+  "adminBotStart": "Start game",
   "adminBotPause": "Pause",
   "adminBotResume": "Resume",
   "adminBotEnd": "End the game",

@@ -4863,7 +4863,7 @@
   "adminBotPlayers": "Jugadores: {online} conectados de {total}",
   "adminBotStage": "Abrir el escenario",
   "adminBotJoin": "Unirse como jugador",
-  "adminBotStart": "Empezar la partida",
+  "adminBotStart": "Empezar partida",
   "adminBotPause": "Pausa",
   "adminBotResume": "Continuar",
   "adminBotEnd": "Terminar la partida",
