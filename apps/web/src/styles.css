@@ -17915,6 +17915,72 @@ details.admin-round > summary > .admin-round-title {
   overflow-wrap: anywhere;
 }
 
+/* 71: «Стан» групами; сітка розширюється разом з адмінкою (план 67). */
+.admin-health-groups {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 22rem), 1fr));
+  gap: 0.75rem 1rem;
+  align-items: start;
+}
+
+.admin-health-group {
+  min-width: 0;
+}
+
+.admin-health-group h3 {
+  margin: 0 0 0.5rem;
+  font-size: 1rem;
+}
+
+.admin-health-group .admin-stats {
+  margin-bottom: 0;
+}
+
+.admin-health-group > p {
+  margin: 0 0 0.5rem;
+}
+
+/* Перелік рядків таблиць — на всю ширину групи. */
+.admin-health-group .admin-stat:has(.admin-health-rows) {
+  grid-column: 1 / -1;
+}
+
+.admin-health-rows {
+  display: grid;
+  gap: 0.125rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.admin-health-rows li {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.admin-health-rows li span:last-child {
+  font-variant-numeric: tabular-nums;
+}
+
+.admin-health-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 1rem;
+  margin-top: 0.75rem;
+}
+
+.admin-health-foot .meta {
+  margin: 0;
+}
+
+.admin-health-foot .btn {
+  min-height: 2.75rem;
+}
+
 /* ---------- 71: графіки статистики (власні SVG у реальних px), діалог «Розгорнути», метрики за період ---------- */
 .chart-card {
   display: flex;
