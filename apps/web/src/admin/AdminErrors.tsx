@@ -1,8 +1,8 @@
 import { useState, type FormEvent, type JSX } from 'react';
-import { Link, Navigate, useLocation, useSearchParams } from 'react-router-dom';
+import { Link, Navigate, useLocation } from 'react-router-dom';
 import { PROBLEM_REPLY_MAX, type AdminProblemReport, type AdminServerError } from '@quiz/shared';
 import { formatDate } from '../format';
-import { errorText, t } from '../i18n';
+import { errorText, hasText, t } from '../i18n';
 import { LOCALE_NAMES } from '../locales/locales';
 import { nickText } from '../nick';
 import { AdminPager, refreshAdminBadge } from './Admin';
@@ -96,7 +96,8 @@ function ServerErrorCard({ row, busy, onResolve }: { row: AdminServerError; busy
   );
 }
 
-function ServerErrors(): JSX.Element {
+/** Підвкладка «Збої сервера» (64, 70): згруповані збої з повторами й стеком. */
+export function ServerErrors(): JSX.Element {
   const [status, setStatus] = useState<AdminServerError['status']>('new');
   const [page, setPage] = useState(1);
   const [live, setLive] = useState<Live>({ error: null, notice: null });
@@ -182,6 +183,33 @@ function PageInfo({ page }: { page: AdminProblemReport['page'] }): JSX.Element {
   );
 }
 
+/** 70: момент гри, який бачила людина в мить скарги; текст запитання — лише текст. */
+function GameMoment({ game }: { game: NonNullable<AdminProblemReport['game']> }): JSX.Element {
+  return (
+    <section className="admin-problem-game meta">
+      <p>
+        <strong>{t('adminProblemGame', { code: game.code })}</strong>
+      </p>
+      <p>{t(game.role === 'host' ? 'adminProblemGameRole_host' : 'adminProblemGameRole_player')}</p>
+      {game.quizTitle !== null ? <p dir="auto">{t('adminProblemGameQuiz', { title: game.quizTitle })}</p> : <p>{t('adminProblemGameNoQuiz')}</p>}
+      {game.quizId !== null && (
+        <p>
+          <Link to={`/admin/quizzes/${encodeURIComponent(game.quizId)}`}>{t('adminProblemGameOpenQuiz')}</Link>
+        </p>
+      )}
+      {game.round !== null && <p dir="auto">{game.roundTitle === null || game.roundTitle === '' ? t('adminProblemGameRoundNoTitle', { number: game.round + 1 }) : t('adminProblemGameRound', { number: game.round + 1, title: game.roundTitle })}</p>}
+      {game.question !== null && game.type !== null && <p>{t('adminProblemGameQuestion', { number: game.question + 1, type: labelOr(`type_${game.type}`, game.type) })}</p>}
+      {game.phase !== null && <p>{t('adminProblemGamePhase', { phase: labelOr(`phase_${game.phase}`, game.phase) })}</p>}
+      {game.text !== null && <p dir="auto">{t('adminProblemGameText', { text: game.text })}</p>}
+    </section>
+  );
+}
+
+/** Текст за ключем, якщо словник його знає; інакше сирий код. */
+function labelOr(key: string, raw: string): string {
+  return hasText(key) ? t(key) : raw;
+}
+
 type ReportCardProps = { row: AdminProblemReport; busy: boolean; onResolve: () => void; onReply: (text: string) => void };
 
 function ReportCard({ row, busy, onResolve, onReply }: ReportCardProps): JSX.Element {
@@ -204,6 +232,7 @@ function ReportCard({ row, busy, onResolve, onReply }: ReportCardProps): JSX.Ele
         {row.text}
       </blockquote>
       <PageInfo page={row.page} />
+      {row.game !== null && <GameMoment game={row.game} />}
       {row.reply !== null && (
         <p className="admin-problem-text" dir="auto">
           {t('adminProblemReplied', { text: row.reply })}
@@ -233,7 +262,7 @@ function ReportCard({ row, busy, onResolve, onReply }: ReportCardProps): JSX.Ele
           <p className="meta admin-problem-count" id={`${fieldId}-count`}>
             {t('problemChars', { used: text.length, max: PROBLEM_REPLY_MAX })}
           </p>
-          {!row.who.push && <p className="meta">{t('adminProblemReplyNoPush')}</p>}
+          <p className="meta">{t('adminProblemReplyInboxHint')}</p>
           <div className="admin-actions">
             <button type="submit" className="btn btn-primary" disabled={busy || text.trim() === ''}>
               {t('adminProblemReplySend')}
@@ -245,7 +274,8 @@ function ReportCard({ row, busy, onResolve, onReply }: ReportCardProps): JSX.Ele
   );
 }
 
-function PlayerReports(): JSX.Element {
+/** Підвкладка «Щось не працює» (64, 70): скарги гравців, відповідь автору, момент гри. */
+export function PlayerReports(): JSX.Element {
   const [status, setStatus] = useState<AdminProblemReport['status']>('open');
   const [page, setPage] = useState(1);
   const [live, setLive] = useState<Live>({ error: null, notice: null });
@@ -297,7 +327,7 @@ function PlayerReports(): JSX.Element {
                   row={row}
                   busy={busy}
                   onResolve={() => void act(() => resolveProblem(row.id), () => t('adminErrorResolvedNotice'))}
-                  onReply={(text) => void act(() => replyProblem(row.id, text), (sent) => t(sent.pushed ? 'adminProblemReplySent' : 'adminProblemReplySentNoPush'))}
+                  onReply={(text) => void act(() => replyProblem(row.id, text), (sent) => t(sent.pushed ? 'adminProblemReplyInboxPushed' : 'adminProblemReplyInboxOnly'))}
                 />
               ))}
             </ul>
@@ -306,24 +336,5 @@ function PlayerReports(): JSX.Element {
         </>
       )}
     </>
-  );
-}
-
-/** Вкладка «Збої» (64): збої сервера (згруповані, з повторами й стеком) і скарги гравців (`?view=reports`). */
-export function AdminErrors(): JSX.Element {
-  const [params] = useSearchParams();
-  const reports = params.get('view') === 'reports';
-  return (
-    <div className="admin-errors">
-      <nav className="admin-errors-views" aria-label={t('adminTabErrors')}>
-        <Link className="btn" to="/admin/errors" aria-current={reports ? undefined : 'page'}>
-          {t('adminErrorsServer')}
-        </Link>
-        <Link className="btn" to="/admin/errors?view=reports" aria-current={reports ? 'page' : undefined}>
-          {t('adminErrorsReports')}
-        </Link>
-      </nav>
-      {reports ? <PlayerReports key="reports" /> : <ServerErrors key="server" />}
-    </div>
   );
 }

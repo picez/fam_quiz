@@ -3,14 +3,16 @@
 // @ts-expect-error node:fs без @types/node
 import { existsSync, readFileSync } from 'node:fs';
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { act } from 'react';
 import { MemoryRouter, Route, Routes, useNavigate } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { forgetAccount } from '../useAccount';
-import { getFeedBadge, getGroupInvites, getMyInvites, me } from '../api';
+import { getFeedBadge, getGroupInvites, getInboxBadge, getMyInvites, me } from '../api';
+import { setInboxUnread } from '../inbox/useInboxBadge';
 import { announceInvitesChanged } from '../useInvites';
 import { WithMenu } from './WithMenu';
 
-vi.mock('../api', () => ({ me: vi.fn(), getMyInvites: vi.fn(), getGroupInvites: vi.fn(), getFeedBadge: vi.fn(), getAnnouncement: async () => ({ ok: false, error: 'offline' }) }));
+vi.mock('../api', () => ({ me: vi.fn(), getMyInvites: vi.fn(), getGroupInvites: vi.fn(), getFeedBadge: vi.fn(), getInboxBadge: vi.fn(), getAnnouncement: async () => ({ ok: false, error: 'offline' }) }));
 
 const OK = { ok: true, id: 'u1', name: 'Олена', email: 'o@example.com', admin: false } as const;
 const OUT = { ok: false, error: 'unauthorized' } as const;
@@ -25,13 +27,15 @@ beforeEach(() => {
   vi.mocked(getGroupInvites).mockResolvedValue({ ok: true, data: [] });
   vi.mocked(getFeedBadge).mockReset();
   vi.mocked(getFeedBadge).mockResolvedValue({ ok: true, events: 0, requests: 0, decisions: 0 });
+  vi.mocked(getInboxBadge).mockReset();
+  vi.mocked(getInboxBadge).mockResolvedValue({ ok: true, unread: 0 });
+  act(() => setInboxUnread(0));
 });
 afterEach(cleanup);
 
-const items = () =>
-  within(screen.getByRole('navigation', { name: 'Меню' }))
-    .getAllByRole('link')
-    .map((l) => l.textContent);
+// Дзвіночок «Вхідних» (70) — не пункт меню: склад пунктів рахується без нього.
+const menuLinks = () => Array.from(screen.getByRole('navigation', { name: 'Меню' }).querySelectorAll('a:not(.menu-inbox)'));
+const items = () => menuLinks().map((l) => l.textContent);
 
 function Go() {
   const navigate = useNavigate();
@@ -72,7 +76,7 @@ describe('Menu', () => {
     expect([href('Меню'), href('Стрічка'), href('Мої вікторини'), href('Історія'), href('Профіль')]).toEqual(['/', '/feed', '/quizzes', '/history', '/profile']);
     expect(screen.getByRole('link', { name: 'Історія' }).getAttribute('aria-current')).toBe('page');
     expect(screen.getByRole('link', { name: 'Профіль' }).getAttribute('aria-current')).toBeNull();
-    const hrefs = within(screen.getByRole('navigation', { name: 'Меню' })).getAllByRole('link').map((l) => l.getAttribute('href'));
+    const hrefs = menuLinks().map((l) => l.getAttribute('href'));
     expect(hrefs.filter((h) => ['/prizes', '/achievements', '/friends'].includes(h!))).toEqual([]);
   });
 
@@ -80,7 +84,7 @@ describe('Menu', () => {
     vi.mocked(me).mockResolvedValue(OK);
     show('/');
     await screen.findByRole('link', { name: 'Профіль' });
-    const links = within(screen.getByRole('navigation', { name: 'Меню' })).getAllByRole('link');
+    const links = menuLinks();
     expect(links.map((l) => l.getAttribute('aria-label'))).toEqual(['Меню', 'Стрічка', 'Мої вікторини', 'Історія', 'Профіль']);
     expect(links.map((l) => l.getAttribute('data-short'))).toEqual(['Меню', 'Стрічка', 'Квізи', 'Історія', 'Профіль']);
   });
@@ -267,6 +271,52 @@ describe('Menu', () => {
 // Тести запускаються з кореня репозиторію або з apps/web.
 const cssPath = ['apps/web/src/styles.css', 'src/styles.css'].find((path) => existsSync(path) as boolean)!;
 const css = (readFileSync(cssPath, 'utf8') as string).replace(/\r\n/g, '\n');
+
+describe('the inbox bell (70)', () => {
+  it('a signed-in person has a bell to /inbox next to the theme switch; no badge at zero', async () => {
+    vi.mocked(me).mockResolvedValue(OK);
+    show('/quizzes');
+    const bell = await screen.findByRole('link', { name: 'Вхідні' });
+    expect(bell.getAttribute('href')).toBe('/inbox');
+    expect(bell.classList.contains('menu-inbox')).toBe(true);
+    expect(bell.closest('nav')?.getAttribute('aria-label')).toBe('Меню');
+    expect(bell.querySelector('.menu-badge')).toBeNull();
+    expect(bell.getAttribute('aria-current')).toBeNull();
+  });
+
+  it('the unread count shows in the badge and in the name', async () => {
+    vi.mocked(me).mockResolvedValue(OK);
+    vi.mocked(getInboxBadge).mockResolvedValue({ ok: true, unread: 3 });
+    show('/quizzes');
+    const bell = await screen.findByRole('link', { name: 'Вхідні, непрочитаних: 3' });
+    expect(bell.querySelector('.menu-badge')?.textContent).toBe('3');
+    act(() => setInboxUnread(0));
+    await vi.waitFor(() => expect(screen.getByRole('link', { name: 'Вхідні' }).querySelector('.menu-badge')).toBeNull());
+  });
+
+  it('a big unread count is capped at 99+ in the badge, the name keeps the full number', async () => {
+    vi.mocked(me).mockResolvedValue(OK);
+    vi.mocked(getInboxBadge).mockResolvedValue({ ok: true, unread: 120 });
+    show('/quizzes');
+    const bell = await screen.findByRole('link', { name: 'Вхідні, непрочитаних: 120' });
+    expect(bell.querySelector('.menu-badge')?.textContent).toBe('99+');
+  });
+
+  it('the bell is current on /inbox', async () => {
+    vi.mocked(me).mockResolvedValue(OK);
+    show('/inbox');
+    const bell = await screen.findByRole('link', { name: 'Вхідні' });
+    expect(bell.getAttribute('aria-current')).toBe('page');
+  });
+
+  it('a visitor has no bell and no inbox request', async () => {
+    vi.mocked(me).mockResolvedValue(OUT);
+    show('/library');
+    await vi.waitFor(() => expect(items()).toEqual(['🎮Меню', '📚Бібліотека', '🔑Увійти']));
+    expect(screen.queryByRole('link', { name: 'Вхідні' })).toBeNull();
+    expect(getInboxBadge).not.toHaveBeenCalled();
+  });
+});
 
 describe('menu styles', () => {
   it('on 701–900 px the top bar keeps five full labels on one line each (tighter padding, no wrap)', () => {

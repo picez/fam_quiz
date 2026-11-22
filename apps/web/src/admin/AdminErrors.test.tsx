@@ -3,7 +3,7 @@ import type { AdminList, AdminProblemReport, AdminServerError } from '@quiz/shar
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { AdminErrors } from './AdminErrors';
+import { PlayerReports, ServerErrors } from './AdminErrors';
 
 const ERROR_ID = '0b7c2f8e-5d41-4a7b-9c33-6f1e2d3c4b5a';
 const OLIA = 'u-olia';
@@ -42,6 +42,7 @@ const report = (over: Partial<AdminProblemReport> = {}): AdminProblemReport => (
   who: { kind: 'guest' },
   text: 'Кнопка не натискається',
   page: null,
+  game: null,
   status: 'open',
   reply: null,
   repliedAt: null,
@@ -73,17 +74,17 @@ function server() {
   );
 }
 
-const open = (path = '/admin/errors') =>
+const open = (path = '/admin/appeals/errors') =>
   render(
     <MemoryRouter initialEntries={[path]}>
-      <AdminErrors />
+      {path.includes('/problems') ? <PlayerReports /> : <ServerErrors />}
     </MemoryRouter>,
   );
 
 beforeEach(() => {
   errors = [serverError()];
   reports = [];
-  replied = { status: 200, body: { pushed: false } };
+  replied = { status: 200, body: { pushed: false, inbox: true } };
   badgeEvents = 0;
   window.addEventListener('admin-badge', countBadge);
   server();
@@ -95,7 +96,7 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-describe('AdminErrors', () => {
+describe('AdminErrors (ServerErrors, PlayerReports)', () => {
   it('67: the error list is one row per line, not a card grid', async () => {
     open();
     const card = (await screen.findByText('Де: http')).closest('li') as HTMLElement;
@@ -140,7 +141,7 @@ describe('AdminErrors', () => {
       report({ id: 'r2', who: { kind: 'account', id: OLIA, nickname: 'Оля', push: true }, text: 'Оля пише', page: { path: '/play/123456', browser: 'Firefox', screen: '360x740', lang: 'uk', theme: 'light' } }),
       report({ id: 'r3', who: { kind: 'deleted' }, text: 'Хтось пише' }),
     ];
-    open('/admin/errors?view=reports');
+    open('/admin/appeals/problems');
     const guest = (await screen.findByText('Гість пише')).closest('li') as HTMLElement;
     expect(calls[0]).toMatchObject({ url: '/api/admin/problems?status=open&page=1', method: 'GET' });
     expect(within(guest).getByText('Гість')).toBeTruthy();
@@ -167,11 +168,10 @@ describe('AdminErrors', () => {
 
   it('reply to an account', async () => {
     reports = [report({ id: 'r2', who: { kind: 'account', id: OLIA, nickname: 'Оля', push: false }, text: 'Оля пише' })];
-    open('/admin/errors?view=reports');
+    open('/admin/appeals/problems');
     const card = (await screen.findByText('Оля пише')).closest('li') as HTMLElement;
-    expect(within(card).queryByText(/Сповіщення в автора не ввімкнено/)).toBeNull();
     fireEvent.click(within(card).getByRole('button', { name: 'Відповісти' }));
-    expect(within(card).getByText('Сповіщення в автора не ввімкнено — відповідь буде на сторінці «Мої повідомлення».')).toBeTruthy();
+    expect(within(card).getByText('Відповідь прийде гравцю у «Вхідні» на сайті.')).toBeTruthy();
     const field = within(card).getByLabelText('Відповідь автору') as HTMLTextAreaElement;
     expect(field.maxLength).toBe(500);
     const send = within(card).getByRole('button', { name: 'Надіслати відповідь' }) as HTMLButtonElement;
@@ -189,40 +189,75 @@ describe('AdminErrors', () => {
 
   it('a successful reply closes the report', async () => {
     reports = [report({ id: 'r2', who: { kind: 'account', id: OLIA, nickname: 'Оля', push: true }, text: 'Оля пише' })];
-    open('/admin/errors?view=reports');
+    open('/admin/appeals/problems');
     const card = (await screen.findByText('Оля пише')).closest('li') as HTMLElement;
     fireEvent.click(within(card).getByRole('button', { name: 'Відповісти' }));
-    expect(within(card).queryByText(/Сповіщення в автора не ввімкнено/)).toBeNull();
+    expect(within(card).getByText('Відповідь прийде гравцю у «Вхідні» на сайті.')).toBeTruthy();
     fireEvent.change(within(card).getByLabelText('Відповідь автору'), { target: { value: 'Виправили, дякуємо!' } });
     reports = [];
-    replied = { status: 200, body: { pushed: true } };
+    replied = { status: 200, body: { pushed: true, inbox: true } };
     fireEvent.click(within(card).getByRole('button', { name: 'Надіслати відповідь' }));
     expect(await screen.findByText('Скарг немає.')).toBeTruthy();
-    expect(screen.getByRole('status').textContent).toBe('Відповідь надіслано.');
+    expect(screen.getByRole('status').textContent).toBe('Відповідь додано у «Вхідні» гравця й надіслано сповіщенням.');
     expect(badgeEvents).toBe(1);
   });
 
   it('a reply to an author without a subscription says so', async () => {
     reports = [report({ id: 'r2', who: { kind: 'account', id: OLIA, nickname: 'Оля', push: false }, text: 'Оля пише' })];
-    open('/admin/errors?view=reports');
+    open('/admin/appeals/problems');
     const card = (await screen.findByText('Оля пише')).closest('li') as HTMLElement;
     fireEvent.click(within(card).getByRole('button', { name: 'Відповісти' }));
     fireEvent.change(within(card).getByLabelText('Відповідь автору'), { target: { value: 'Дякуємо!' } });
     reports = [];
     fireEvent.click(within(card).getByRole('button', { name: 'Надіслати відповідь' }));
     expect(await screen.findByText('Скарг немає.')).toBeTruthy();
-    expect(screen.getByRole('status').textContent).toBe('Відповідь надіслано без сповіщення: в автора немає підписки.');
+    expect(screen.getByRole('status').textContent).toBe('Відповідь у вхідних гравця (сповіщень у нього немає).');
   });
 
-  it('switches between server errors and player reports', async () => {
-    open();
-    await screen.findByText('Де: http');
-    const nav = screen.getByRole('link', { name: 'Збої сервера' });
-    expect(nav.getAttribute('aria-current')).toBe('page');
-    fireEvent.click(screen.getByRole('link', { name: 'Скарги гравців' }));
-    expect(await screen.findByText('Скарг немає.')).toBeTruthy();
-    expect(screen.getByRole('link', { name: 'Скарги гравців' }).getAttribute('aria-current')).toBe('page');
-    fireEvent.click(screen.getByRole('button', { name: 'Вирішені' }));
-    await waitFor(() => expect(calls.at(-1)?.url).toBe('/api/admin/problems?status=resolved&page=1'));
+  it('the card shows the game moment and a link to the quiz', async () => {
+    reports = [
+      report({
+        id: 'r7',
+        text: 'Не рахує бали',
+        game: { code: '123456', role: 'player', phase: 'question', round: 1, roundTitle: 'Кіно', question: 2, type: 'single', text: 'Хто зняв <b>фільм</b>?', quizId: 'q1', quizTitle: 'Вечір кіно' },
+      }),
+    ];
+    open('/admin/appeals/problems');
+    const card = (await screen.findByText('Не рахує бали')).closest('li') as HTMLElement;
+    const game = card.querySelector('.admin-problem-game') as HTMLElement;
+    expect(within(game).getByText('Гра 123456')).toBeTruthy();
+    expect(within(game).getByText('Скаржився гравець')).toBeTruthy();
+    expect(within(game).getByText('Вікторина: Вечір кіно')).toBeTruthy();
+    expect(within(game).getByText('Раунд 2: Кіно')).toBeTruthy();
+    expect(within(game).getByText('Запитання 3 — Один правильний варіант')).toBeTruthy();
+    expect(within(game).getByText('Етап: Запитання відкрите')).toBeTruthy();
+    const text = within(game).getByText('Текст запитання: Хто зняв <b>фільм</b>?');
+    expect(text.getAttribute('dir')).toBe('auto');
+    expect(game.querySelector('b')).toBeNull();
+    expect(within(game).getByRole('link', { name: 'Відкрити вікторину' }).getAttribute('href')).toBe('/admin/quizzes/q1');
+  });
+
+  it('a game moment without a room has no quiz link', async () => {
+    reports = [report({ id: 'r8', text: 'Зависло', game: { code: '654321', role: 'host', phase: 'lobby', round: null, roundTitle: null, question: null, type: null, text: null, quizId: null, quizTitle: null } })];
+    open('/admin/appeals/problems');
+    const card = (await screen.findByText('Зависло')).closest('li') as HTMLElement;
+    const game = card.querySelector('.admin-problem-game') as HTMLElement;
+    expect(within(game).getByText('Скаржився ведучий')).toBeTruthy();
+    expect(within(game).getByText('Кімнати вже немає — назва вікторини невідома')).toBeTruthy();
+    expect(within(game).queryByRole('link')).toBeNull();
+  });
+
+  it('a round without a title has no dangling colon', async () => {
+    reports = [report({ id: 'r10', text: 'Дивно', game: { code: '123456', role: 'player', phase: 'question', round: 1, roundTitle: null, question: 0, type: 'single', text: null, quizId: null, quizTitle: null } })];
+    open('/admin/appeals/problems');
+    const card = (await screen.findByText('Дивно')).closest('li') as HTMLElement;
+    expect(within(card).getByText('Раунд 2')).toBeTruthy();
+  });
+
+  it('a report without a game moment has no game block', async () => {
+    reports = [report({ id: 'r9', text: 'Просто так' })];
+    open('/admin/appeals/problems');
+    const card = (await screen.findByText('Просто так')).closest('li') as HTMLElement;
+    expect(card.querySelector('.admin-problem-game')).toBeNull();
   });
 });

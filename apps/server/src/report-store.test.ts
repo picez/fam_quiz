@@ -6,7 +6,7 @@ import { adminAction, libraryEntry, profile, user, userBan, userReport } from '.
 import { appealEntry, catalog, closeEntry, openEntry } from './library-store';
 import { ensureProfile, saveProfile } from './profiles';
 import { createQuiz } from './quizzes';
-import { actOnProfile, actOnQuiz, fileReport, reportQueue } from './report-store';
+import { actOnProfile, actOnQuiz, fileReport, openComplaints, reportQueue } from './report-store';
 import { createTestDb } from './testing/test-db';
 
 const T0 = new Date('2026-11-18T10:00:00Z');
@@ -157,6 +157,28 @@ describe('the admin report queue (39-A2)', () => {
     const [item] = (await reportQueue(db, 1)).rows;
     expect(item).toMatchObject({ kind: 'profile', reports: 7 });
     expect(item!.texts).toEqual(['t6', 't5', 't4', 't3', 't2']);
+  });
+
+  it('openComplaints counts the same items as the queue (70)', async () => {
+    const { db, entryId } = await setup();
+    expect(await openComplaints(db)).toBe(0);
+    const quiz = { kind: 'quiz' as const, entryId };
+    await file(db, 'u-taras', quiz, 'spam', undefined, T0);
+    await file(db, 'u-iryna', quiz, 'spam', undefined, T1);
+    expect(await openComplaints(db)).toBe(1);
+    await file(db, 'u-taras', { kind: 'profile', userId: 'u-maria' }, 'offensive', undefined, T1);
+    await file(db, 'u-iryna', { kind: 'profile', userId: 'u-maria' }, 'offensive', undefined, T1);
+    expect(await openComplaints(db)).toBe(2);
+    const otherQuiz = await createQuiz(db, 'u-petro', { ...riversQuiz(), title: 'Друга' });
+    const opened = await openEntry(db, 'u-petro', otherQuiz, 'uk', T0);
+    if (!opened.ok) throw new Error(opened.error);
+    await actOnQuiz(db, { adminId: 'u-olena', entryId: opened.entryId, action: 'hide', now: tick() });
+    expect(await appealEntry(db, 'u-petro', otherQuiz, T2)).toBe('ok');
+    expect(await openComplaints(db)).toBe(3);
+    expect(await openComplaints(db)).toBe((await reportQueue(db, 1)).total);
+    await db.update(userReport).set({ status: 'dismissed' }).where(eq(userReport.targetKind, 'profile'));
+    expect(await openComplaints(db)).toBe(2);
+    expect(await openComplaints(db)).toBe((await reportQueue(db, 1)).total);
   });
 
   it('an open appeal without reports is an item with appeal true', async () => {

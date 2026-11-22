@@ -1,13 +1,14 @@
 // @vitest-environment jsdom
+import type { JSX } from 'react';
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
-import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { me } from '../api';
 import { Admin } from './Admin';
-import { adminCharts, adminErrors, adminFeed, adminGroup, adminHealth, adminProblemsBadge, adminStats, resolveServerError } from './admin-api';
+import { adminCharts, adminErrors, adminFeed, adminGroup, adminHealth, adminProblems, adminProblemsBadge, adminReportedQuiz, adminReports, adminStats, resolveServerError } from './admin-api';
 
 vi.mock('../api', () => ({ me: vi.fn() }));
-vi.mock('./admin-api', () => ({ adminStats: vi.fn(), adminCharts: vi.fn(), adminHealth: vi.fn(), adminProblemsBadge: vi.fn(), adminErrors: vi.fn(), resolveServerError: vi.fn(), adminFeed: vi.fn(), adminGroup: vi.fn(), searchBotPeople: vi.fn() }));
+vi.mock('./admin-api', () => ({ adminStats: vi.fn(), adminCharts: vi.fn(), adminHealth: vi.fn(), adminProblemsBadge: vi.fn(), adminProblems: vi.fn(), adminReports: vi.fn(), adminReportedQuiz: vi.fn(), adminErrors: vi.fn(), resolveServerError: vi.fn(), adminFeed: vi.fn(), adminGroup: vi.fn(), searchBotPeople: vi.fn() }));
 
 const stats = {
   users: { total: 12, new7: 3, new30: 5, online: 2 },
@@ -16,6 +17,12 @@ const stats = {
   topQuizzes: [{ id: 'q', title: 'Карпати', author: 'Оля', games: 6 }],
 };
 
+function Where(): JSX.Element {
+  const location = useLocation();
+  return <output data-testid="where">{location.pathname + location.search}</output>;
+}
+const where = () => screen.getByTestId('where').textContent;
+
 const open = (path = '/admin') =>
   render(
     <MemoryRouter initialEntries={[path]}>
@@ -23,6 +30,7 @@ const open = (path = '/admin') =>
         <Route path="/admin/*" element={<Admin />} />
         <Route path="/" element={<p>головна</p>} />
       </Routes>
+      <Where />
     </MemoryRouter>,
   );
 
@@ -32,7 +40,11 @@ beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(adminCharts).mockResolvedValue({ ok: false, error: 'offline' });
   vi.mocked(adminHealth).mockResolvedValue({ ok: false, error: 'offline' });
-  vi.mocked(adminProblemsBadge).mockResolvedValue({ ok: true, data: { errors: 0, reports: 0 } });
+  vi.mocked(adminProblemsBadge).mockResolvedValue({ ok: true, data: { errors: 0, reports: 0, complaints: 0 } });
+  vi.mocked(adminReports).mockResolvedValue({ ok: false, error: 'offline' });
+  vi.mocked(adminProblems).mockResolvedValue({ ok: false, error: 'offline' });
+  vi.mocked(adminErrors).mockResolvedValue({ ok: false, error: 'offline' });
+  vi.mocked(adminReportedQuiz).mockResolvedValue({ ok: false, error: 'offline' });
 });
 afterEach(cleanup);
 
@@ -69,7 +81,7 @@ describe('Admin', () => {
     expect(main.querySelector(':scope > .admin-body')?.textContent).toContain('Користувачів усього');
   });
 
-  it('shows the stats and the eleven section links', async () => {
+  it('shows the stats and the twelve section links', async () => {
     vi.mocked(me).mockResolvedValue(account(true));
     vi.mocked(adminStats).mockResolvedValue({ ok: true, data: stats });
     open();
@@ -80,22 +92,23 @@ describe('Admin', () => {
     expect(screen.getByText('«Карпати» — Оля, ігор: 6')).toBeTruthy();
     const nav = screen.getByRole('navigation', { name: 'Розділи адмінки' });
     const links = within(nav).getAllByRole('link');
-    expect(links.map((link) => link.textContent)).toEqual(['Статистика', 'Живі ігри', 'Користувачі', 'Вікторини', 'Скарги', 'Оголошення', 'Розсилка', 'Стрічка', 'Групи', 'Журнал', 'Збої', 'Копії', 'Бот']);
-    expect(within(nav).getByRole('link', { name: 'Збої' }).getAttribute('href')).toBe('/admin/errors');
+    expect(links.map((link) => link.textContent)).toEqual(['Статистика', 'Живі ігри', 'Користувачі', 'Вікторини', 'Звернення', 'Оголошення', 'Розсилка', 'Стрічка', 'Групи', 'Журнал', 'Копії', 'Бот']);
+    expect(within(nav).getByRole('link', { name: 'Звернення' }).getAttribute('href')).toBe('/admin/appeals');
+    expect(within(nav).queryByRole('link', { name: 'Збої' })).toBeNull();
+    expect(within(nav).queryByRole('link', { name: 'Скарги' })).toBeNull();
     expect(within(nav).getByRole('link', { name: 'Копії' }).getAttribute('href')).toBe('/admin/backups');
     expect(nav.querySelector('.menu-badge')).toBeNull();
     expect(within(nav).getByRole('link', { name: 'Бот' }).getAttribute('href')).toBe('/admin/bot');
     expect(within(nav).getByRole('link', { name: 'Розсилка' }).getAttribute('href')).toBe('/admin/broadcast');
     expect(within(nav).getByRole('link', { name: 'Живі ігри' }).getAttribute('href')).toBe('/admin/live');
-    expect(within(nav).getByRole('link', { name: 'Скарги' }).getAttribute('href')).toBe('/admin/reports');
     await waitFor(() => expect(within(nav).getByRole('link', { name: 'Статистика' }).getAttribute('aria-current')).toBe('page'));
     expect(within(nav).getByRole('link', { name: 'Користувачі' }).getAttribute('aria-current')).toBeNull();
   });
 
-  it('shows new errors and open reports as a badge on the errors tab', async () => {
+  it('shows complaints, open problems and new errors as one badge on the appeals tab', async () => {
     vi.mocked(me).mockResolvedValue(account(true));
     vi.mocked(adminStats).mockResolvedValue({ ok: true, data: stats });
-    vi.mocked(adminProblemsBadge).mockResolvedValue({ ok: true, data: { errors: 2, reports: 1 } });
+    vi.mocked(adminProblemsBadge).mockResolvedValue({ ok: true, data: { errors: 1, reports: 2, complaints: 3 } });
     open();
     const nav = await screen.findByRole('navigation', { name: 'Розділи адмінки' });
     const badge = await waitFor(() => {
@@ -103,15 +116,16 @@ describe('Admin', () => {
       expect(found).not.toBeNull();
       return found as HTMLElement;
     });
-    expect(badge.textContent).toBe('3');
-    expect(badge.getAttribute('aria-label')).toBe('Збої, нових: 3');
-    expect(badge.closest('a')?.getAttribute('href')).toBe('/admin/errors');
+    expect(badge.textContent).toBe('6');
+    expect(badge.getAttribute('aria-label')).toBe('Звернення, нових: 6');
+    expect(badge.closest('a')?.getAttribute('href')).toBe('/admin/appeals');
+    expect(nav.querySelectorAll('.menu-badge')).toHaveLength(1);
     expect(adminProblemsBadge).toHaveBeenCalled();
   });
 
   it('drops the badge right after an error is resolved, without navigating', async () => {
     vi.mocked(me).mockResolvedValue(account(true));
-    vi.mocked(adminProblemsBadge).mockResolvedValue({ ok: true, data: { errors: 3, reports: 0 } });
+    vi.mocked(adminProblemsBadge).mockResolvedValue({ ok: true, data: { errors: 3, reports: 0, complaints: 0 } });
     vi.mocked(adminErrors).mockResolvedValue({
       ok: true,
       data: {
@@ -122,12 +136,29 @@ describe('Admin', () => {
       },
     });
     vi.mocked(resolveServerError).mockResolvedValue({ ok: true });
-    open('/admin/errors');
+    open('/admin/appeals/errors');
     const nav = await screen.findByRole('navigation', { name: 'Розділи адмінки' });
     await waitFor(() => expect(nav.querySelector('.menu-badge')?.textContent).toBe('3'));
-    vi.mocked(adminProblemsBadge).mockResolvedValue({ ok: true, data: { errors: 2, reports: 0 } });
+    vi.mocked(adminProblemsBadge).mockResolvedValue({ ok: true, data: { errors: 2, reports: 0, complaints: 0 } });
     fireEvent.click(await screen.findByRole('button', { name: 'Позначити як вирішене' }));
     await waitFor(() => expect(nav.querySelector('.menu-badge')?.textContent).toBe('2'));
+  });
+
+  it('old addresses lead to the new ones without an extra history step (70)', async () => {
+    vi.mocked(me).mockResolvedValue(account(true));
+    const cases: [string, string][] = [
+      ['/admin/reports', '/admin/appeals/complaints'],
+      ['/admin/reports/quiz/e1', '/admin/appeals/complaints/quiz/e1'],
+      ['/admin/errors', '/admin/appeals/errors'],
+      ['/admin/errors?view=reports', '/admin/appeals/problems'],
+      ['/admin/errors?view=reports&page=3', '/admin/appeals/problems'],
+      ['/admin/appeals', '/admin/appeals/complaints'],
+    ];
+    for (const [from, to] of cases) {
+      open(from);
+      await waitFor(() => expect(where(), from).toBe(to));
+      cleanup();
+    }
   });
 
   it('puts «Стрічка» and «Групи» before «Журнал» and opens their pages (63)', async () => {

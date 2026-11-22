@@ -23,6 +23,7 @@ import {
   groupInvite,
   groupItem,
   groupMember,
+  inboxItem,
   libraryCopy,
   libraryEntry,
   mergedEmail,
@@ -525,6 +526,35 @@ describe('people rules', () => {
     expect(Object.values(await left(secondary)).every((value) => value === 0)).toBe(true);
     expect(ctx.summary.quizzes).toBe(1);
     expect(ctx.summary.hosted).toBe(1);
+  });
+
+  it('inbox rows move to the primary; a broadcast both already have keeps the primary row and the read mark (70)', async () => {
+    const { primary, secondary, ctx } = await pair();
+    const broadcast = async (title: string) =>
+      (await db.insert(pushBroadcast).values({ title, text: 'Текст', recipients: 'all', peopleCount: 2, createdAt: NOW }).returning())[0]!.id;
+    const b1 = await broadcast('Перша');
+    const b2 = await broadcast('Друга');
+    const [problem] = await db
+      .insert(problemReport)
+      .values({ userId: secondary, fromAccount: true, text: 'Зависла гра', reply: 'Виправили', repliedAt: NOW, status: 'resolved', createdAt: PAST })
+      .returning();
+    const [kept] = await db.insert(inboxItem).values({ userId: primary, kind: 'broadcast', broadcastId: b1, createdAt: NOW }).returning();
+    await db.insert(inboxItem).values([
+      { userId: secondary, kind: 'broadcast', broadcastId: b1, createdAt: NOW, readAt: NOW },
+      { userId: secondary, kind: 'broadcast', broadcastId: b2, createdAt: NOW },
+      { userId: secondary, kind: 'problem_reply', problemId: problem.id, createdAt: NOW },
+    ]);
+    const summaryBefore = structuredClone(ctx.summary);
+
+    await merge(ctx);
+
+    const mine = await db.select().from(inboxItem).where(eq(inboxItem.userId, primary));
+    expect(mine.map((row) => row.broadcastId ?? row.problemId).sort()).toEqual([b1, b2, problem.id].sort());
+    // Прочитане в S лишається прочитаним у P.
+    expect(mine.find((row) => row.broadcastId === b1)).toMatchObject({ id: kept.id, readAt: NOW });
+    expect(mine.find((row) => row.broadcastId === b2)?.readAt).toBeNull();
+    expect(await db.select().from(inboxItem).where(eq(inboxItem.userId, secondary))).toEqual([]);
+    expect(ctx.summary).toEqual(summaryBefore);
   });
 
   it('a banned secondary throws and nothing moves', async () => {

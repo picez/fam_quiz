@@ -51,7 +51,7 @@ export interface AdminDeps {
   checkFetch: CheckFetch;
   /** DNS перевірки (57): захист від запитів у внутрішню мережу; без нього зовнішні адреси неперевірені. */
   checkResolve?: CheckResolve;
-  /** Push-служба (59): без неї розсилка відповідає 503 push_off. */
+  /** Push-служба (59): без неї розсилка йде лише у «Вхідні» (70). */
   push: PushService | null;
   now?: () => Date;
 }

@@ -130,7 +130,7 @@ describe('AdminQuiz', () => {
     expect(screen.queryByRole('button', { name: 'Видалити запитання' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Видалити вікторину' })).toBeNull();
     expect(screen.getByText(/^Знімок у бібліотеці від .+ — саме його бачать гравці.$/)).toBeTruthy();
-    expect(screen.getByRole('link', { name: 'До списку' }).getAttribute('href')).toBe('/admin/reports');
+    expect(screen.getByRole('link', { name: 'До списку' }).getAttribute('href')).toBe('/admin/appeals/complaints');
     // Знімок — не жива вікторина: перевірка жила б іншими запитаннями.
     expect(screen.queryByRole('button', { name: 'Перевірити вікторину' })).toBeNull();
   });

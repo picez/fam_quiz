@@ -51,9 +51,9 @@ function statusText(row: Row): string {
 }
 
 /** «Отримають N людей» для вибраних адресатів: перечитується із затримкою на кожну зміну вибору. */
-function useAudience(recipients: BroadcastRecipients | null, enabled: boolean): { key: string; result: ApiData<{ people: number }> } | null {
+function useAudience(recipients: BroadcastRecipients | null, enabled: boolean): { key: string; result: ApiData<{ people: number; push: number }> } | null {
   const key = recipients === null ? '' : JSON.stringify(recipients);
-  const [state, setState] = useState<{ key: string; result: ApiData<{ people: number }> } | null>(null);
+  const [state, setState] = useState<{ key: string; result: ApiData<{ people: number; push: number }> } | null>(null);
   useEffect(() => {
     if (!enabled || recipients === null) return;
     let current = true;
@@ -71,7 +71,7 @@ function useAudience(recipients: BroadcastRecipients | null, enabled: boolean): 
   return state !== null && state.key === key && recipients !== null ? state : null;
 }
 
-/** Вкладка «Розсилка» (59): push-сповіщення адміна людям, що ввімкнули сповіщення; ліміти й історія. */
+/** Вкладка «Розсилка» (59, 70): повідомлення адміна у «Вхідні» людей і, додатково, сповіщенням; ліміти й історія. */
 export function AdminBroadcast(): JSX.Element {
   const state = useAdminData(adminBroadcasts, 'broadcast', { keep: true });
   const [title, setTitle] = useState('');
@@ -90,7 +90,7 @@ export function AdminBroadcast(): JSX.Element {
   const groups = ready?.groups ?? [];
   const groupId = knownGroup(groups, wantedGroup);
   const recipients = recipientsOf(to, groupId, people);
-  const audience = useAudience(recipients, ready?.pushOn === true);
+  const audience = useAudience(recipients, ready !== null);
   const nextAt = ready?.limits.nextAt ?? null;
   const { reload } = state;
 
@@ -161,16 +161,21 @@ export function AdminBroadcast(): JSX.Element {
     reload();
   };
 
-  const audienceText = recipients === null || audience === null ? '' : !audience.result.ok ? errorText(audience.result.error) : count === 0 ? t('adminBroadcastNobody') : peopleText(count ?? 0);
+  const audienceText =
+    recipients === null || audience === null
+      ? ''
+      : !audience.result.ok
+        ? errorText(audience.result.error)
+        : count === 0
+          ? t('adminBroadcastInboxNobody')
+          : t('adminBroadcastInboxAudience', { people: audience.result.data.people, push: audience.result.data.push });
 
   return (
     <div className="admin-broadcast">
       <section className="panel" aria-labelledby="broadcast-new">
         <h2 id="broadcast-new">{t('adminTabBroadcast')}</h2>
-        {!pushOn ? (
-          <p className="meta">{t('adminBroadcastPushOff')}</p>
-        ) : (
           <>
+            {!pushOn && <p className="meta">{t('adminBroadcastInboxNoPush')}</p>}
             <p className="meta">{t('adminBroadcastLead')}</p>
             <p className="meta">{t('adminBroadcastLastDay', { count: limits.lastDay, max: limits.dayMax })}</p>
             {waiting && nextAt !== null && <p className="meta">{t('adminBroadcastNextAt', { time: timeText(nextAt, zone) })}</p>}
@@ -255,7 +260,6 @@ export function AdminBroadcast(): JSX.Element {
               </div>
             </form>
           </>
-        )}
       </section>
       <section className="panel" aria-labelledby="broadcast-history">
         <h2 id="broadcast-history">{t('adminBroadcastHistory')}</h2>
@@ -278,7 +282,7 @@ export function AdminBroadcast(): JSX.Element {
                 <p className="meta" dir="auto">
                   {toText(row.to)}
                 </p>
-                <p className="meta">{t('adminBroadcastRecipients', { count: row.people })}</p>
+                <p className="meta">{t('adminBroadcastInboxStats', { people: row.people, read: row.read, push: row.pushPeople })}</p>
                 <p className={`admin-mark tag ${row.status === 'sent' ? 'is-correct' : row.status === 'sending' ? 'is-pending' : 'is-muted'}`}>{statusText(row)}</p>
               </li>
             ))}

@@ -5,6 +5,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { MyProblemReport } from '@quiz/shared';
 import { resetThemeForTests, setThemeChoice } from '../theme-mode';
 import { forgetAccount } from '../useAccount';
+import { ProblemLink } from './ProblemLink';
+import { MOMENT_KEY, momentOf, saveMoment } from './problem-moment';
 import { ProblemReport } from './ProblemReport';
 
 const ACCOUNT = { id: 'u1', name: 'Оля', email: 'o@example.com', admin: false };
@@ -83,7 +85,61 @@ describe('ProblemReport', () => {
     fireEvent.change(screen.getByLabelText('Що сталося'), { target: { value: 'Кнопка не тисне' } });
     fireEvent.click(screen.getByRole('button', { name: 'Надіслати' }));
     await waitFor(() => expect(calls.posts).toHaveLength(1));
-    expect(calls.posts[0]).toEqual({ text: 'Кнопка не тисне', page: null });
+    expect(calls.posts[0]).toEqual({ text: 'Кнопка не тисне', page: null, game: null });
+  });
+
+  describe('the game moment (70)', () => {
+    const moment = () => saveMoment(momentOf('123456', 'player', { phase: 'question', round: { index: 1, title: 'Кіно' }, questionIndex: 2, question: { type: 'single', text: 'Хто зняв фільм?' } }));
+
+    it('shows the moment among the page details and sends it; success clears it', async () => {
+      const calls = server();
+      moment();
+      open('/report?from=/play/123456');
+      expect(await screen.findByText('Гра 123456: раунд 2, запитання 3')).toBeTruthy();
+      fireEvent.change(screen.getByLabelText('Що сталося'), { target: { value: 'Не рахує бали' } });
+      fireEvent.click(screen.getByRole('button', { name: 'Надіслати' }));
+      await waitFor(() => expect(calls.posts).toHaveLength(1));
+      expect(calls.posts[0]).toMatchObject({ game: { code: '123456', role: 'player', phase: 'question', round: 1, roundTitle: 'Кіно', question: 2, type: 'single', text: 'Хто зняв фільм?' } });
+      await waitFor(() => expect(localStorage.getItem(MOMENT_KEY)).toBeNull());
+    });
+
+    it('the lobby moment has its own line', async () => {
+      server();
+      saveMoment(momentOf('123456', 'host', { phase: 'lobby', round: null, questionIndex: -1, question: null }));
+      open('/report?from=/host/123456');
+      expect(await screen.findByText('Гра 123456: ще в лобі')).toBeTruthy();
+    });
+
+    it('without the checkbox the game is null', async () => {
+      const calls = server();
+      moment();
+      open('/report?from=/play/123456');
+      fireEvent.click(await screen.findByRole('checkbox', { name: 'Додати відомості про сторінку' }));
+      expect(screen.queryByText(/^Гра 123456/)).toBeNull();
+      fireEvent.change(screen.getByLabelText('Що сталося'), { target: { value: 'Зависло' } });
+      fireEvent.click(screen.getByRole('button', { name: 'Надіслати' }));
+      await waitFor(() => expect(calls.posts).toHaveLength(1));
+      expect(calls.posts[0]).toMatchObject({ page: null, game: null });
+    });
+
+    it('a moment from another room is ignored', async () => {
+      const calls = server();
+      moment();
+      open('/report?from=/play/654321');
+      expect(await screen.findByText('Сторінка: /play/654321')).toBeTruthy();
+      expect(screen.queryByText(/^Гра /)).toBeNull();
+      fireEvent.change(screen.getByLabelText('Що сталося'), { target: { value: 'Зависло' } });
+      fireEvent.click(screen.getByRole('button', { name: 'Надіслати' }));
+      await waitFor(() => expect(calls.posts).toHaveLength(1));
+      expect(calls.posts[0]).toMatchObject({ game: null });
+    });
+
+    it('clicking the in-game link in a new tab stores the moment, without blocking the click', () => {
+      render(<ProblemLink newTab moment={() => momentOf('123456', 'host', { phase: 'lobby', round: null, questionIndex: -1, question: null })} />);
+      const link = screen.getByRole('link', { name: 'Повідомити про проблему' });
+      expect(fireEvent.click(link)).toBe(true);
+      expect(JSON.parse(localStorage.getItem(MOMENT_KEY) ?? '{}')).toMatchObject({ code: '123456', role: 'host' });
+    });
   });
 
   it('an account sees its messages and the admin reply', async () => {

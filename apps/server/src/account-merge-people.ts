@@ -12,6 +12,7 @@ import {
   groupInvite,
   groupItem,
   groupMember,
+  inboxItem,
   prize,
   prizeAward,
   session,
@@ -266,6 +267,24 @@ const plainRule: MergeRule = {
   },
 };
 
+/** 70. «Вхідні»: розсилка, що вже є в P, — рядок P лишається (прочитана в будь-кому — прочитана), рядок S геть; решта — до P. */
+const inboxRule: MergeRule = {
+  keys: ['inbox_item.user_id'],
+  async run(tx, { primaryId: P, secondaryId: S }) {
+    await tx.execute(sql`update "inbox_item" p set read_at = coalesce(p.read_at, s.read_at) from "inbox_item" s
+      where p.user_id = ${P} and s.user_id = ${S} and p.broadcast_id = s.broadcast_id and p.broadcast_id is not null`);
+    await tx
+      .delete(inboxItem)
+      .where(
+        and(
+          eq(inboxItem.userId, S),
+          sql`${inboxItem.broadcastId} in (select i.broadcast_id from "inbox_item" i where i.user_id = ${P} and i.broadcast_id is not null)`,
+        ),
+      );
+    await tx.update(inboxItem).set({ userId: P }).where(eq(inboxItem.userId, S));
+  },
+};
+
 /** 20. Скарги: P на самого себе — геть; відкрита скарга, що повторила б відкриту скаргу P (чи на P), — рядок S геть. */
 const reportRule: MergeRule = {
   keys: ['user_report.reporter_id', 'user_report.target_user_id'],
@@ -361,6 +380,7 @@ export const PEOPLE_RULES: readonly MergeRule[] = [
   calendarRule,
   challengeRule,
   plainRule,
+  inboxRule,
   reportRule,
   banRule,
   sessionRule,

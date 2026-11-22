@@ -4,7 +4,7 @@ import { REPORT_REASONS, type AdminReportItem } from '@quiz/shared';
 import { formatDate } from '../format';
 import { countText, errorText, t } from '../i18n';
 import { nickText } from '../nick';
-import { AdminPager } from './Admin';
+import { AdminPager, refreshAdminBadge } from './Admin';
 import { actOnProfileReport, actOnQuizReport, adminReports } from './admin-api';
 import { useAdminData } from './useAdminData';
 
@@ -36,7 +36,10 @@ export function AdminReports(): JSX.Element {
     setError(null);
     const result = await run();
     setBusy(false);
-    if (result.ok) state.reload();
+    if (result.ok) {
+      refreshAdminBadge();
+      state.reload();
+    }
     else setError(errorText(result.error));
   };
 
@@ -75,7 +78,7 @@ export function AdminReports(): JSX.Element {
                     {item.moderation === 'hidden' && <p className="admin-mark">{t('libraryStatusHidden')}</p>}
                     {item.appeal && <p className="admin-mark">{t('adminReportAppeal')}</p>}
                     <div className="admin-actions">
-                      <Link className="btn" to={`/admin/reports/quiz/${encodeURIComponent(item.entryId)}`}>
+                      <Link className="btn" to={`/admin/appeals/complaints/quiz/${encodeURIComponent(item.entryId)}`}>
                         {t('adminReportOpenQuiz')}
                       </Link>
                       {item.moderation !== 'hidden' && (

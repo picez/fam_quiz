@@ -4,20 +4,19 @@ import { t } from '../i18n';
 import { reducedMotion } from '../motion';
 import { useAccount } from '../useAccount';
 import { AdminAnnouncement } from './AdminAnnouncement';
+import { AdminAppeals, ReportedQuizRedirect } from './AdminAppeals';
 import { AdminBackups } from './AdminBackups';
 import { AdminBot } from './AdminBot';
 import { AdminBroadcast } from './AdminBroadcast';
-import { AdminErrors } from './AdminErrors';
 import { AdminFeed } from './AdminFeed';
 import { AdminGame } from './AdminGame';
 import { AdminGroup } from './AdminGroup';
 import { AdminGroups } from './AdminGroups';
 import { AdminLive } from './AdminLive';
 import { AdminLog } from './AdminLog';
-import { AdminBotQuizView, AdminQuiz, AdminReportedQuiz } from './AdminQuiz';
+import { AdminBotQuizView, AdminQuiz } from './AdminQuiz';
 import { AdminQuizzes } from './AdminQuizzes';
 import { AdminReplay } from './AdminReplay';
-import { AdminReports } from './AdminReports';
 import { AdminStats } from './AdminStats';
 import { AdminUser } from './AdminUser';
 import { AdminUsers } from './AdminUsers';
@@ -28,25 +27,24 @@ const TABS = [
   { to: '/admin/live', key: 'adminTabLive', end: false },
   { to: '/admin/users', key: 'adminTabUsers', end: false },
   { to: '/admin/quizzes', key: 'adminTabQuizzes', end: false },
-  { to: '/admin/reports', key: 'adminTabReports', end: false },
+  { to: '/admin/appeals', key: 'adminTabAppeals', end: false },
   { to: '/admin/announcement', key: 'adminTabAnnouncement', end: false },
   { to: '/admin/broadcast', key: 'adminTabBroadcast', end: false },
   { to: '/admin/feed', key: 'adminTabFeed', end: false },
   { to: '/admin/groups', key: 'adminTabGroups', end: false },
   { to: '/admin/log', key: 'adminTabLog', end: false },
-  { to: '/admin/errors', key: 'adminTabErrors', end: false },
   { to: '/admin/backups', key: 'adminTabBackups', end: false },
   { to: '/admin/bot', key: 'adminTabBot', end: false },
 ] as const;
 
-const ADMIN_BADGE_EVENT = 'admin-badge';
+export const ADMIN_BADGE_EVENT = 'admin-badge';
 
-/** Просить вкладки перечитати бейдж «Збоїв» (64): після «Вирішено» чи відповіді, без переходу. */
+/** Просить вкладки перечитати бейдж «Звернень» (64, 70): після «Вирішено» чи відповіді, без переходу. */
 export function refreshAdminBadge(): void {
   window.dispatchEvent(new Event(ADMIN_BADGE_EVENT));
 }
 
-/** Вкладки адмінки; на «Збоях» — бейдж нових збоїв і відкритих скарг (64), перечитується на кожен перехід і на refreshAdminBadge. */
+/** Вкладки адмінки; на «Зверненнях» — один бейдж: збої, «Щось не працює» і скарги модерації (64, 70), перечитується на кожен перехід і на refreshAdminBadge. */
 function AdminTabs({ navRef }: { navRef: Ref<HTMLElement> }): JSX.Element {
   const location = useLocation();
   const [fresh, setFresh] = useState(0);
@@ -59,7 +57,7 @@ function AdminTabs({ navRef }: { navRef: Ref<HTMLElement> }): JSX.Element {
   useEffect(() => {
     let current = true;
     void adminProblemsBadge().then((result) => {
-      if (current && result.ok) setFresh(result.data.errors + result.data.reports);
+      if (current && result.ok) setFresh(result.data.errors + result.data.reports + result.data.complaints);
     });
     return () => {
       current = false;
@@ -70,8 +68,8 @@ function AdminTabs({ navRef }: { navRef: Ref<HTMLElement> }): JSX.Element {
       {TABS.map((tab) => (
         <NavLink key={tab.to} to={tab.to} end={tab.end} className="btn">
           {t(tab.key)}
-          {tab.key === 'adminTabErrors' && fresh > 0 && (
-            <span className="menu-badge" aria-label={t('adminTabErrorsBadge', { count: fresh })}>
+          {tab.key === 'adminTabAppeals' && fresh > 0 && (
+            <span className="menu-badge" aria-label={t('adminTabAppealsBadge', { count: fresh })}>
               {fresh}
             </span>
           )}
@@ -79,6 +77,13 @@ function AdminTabs({ navRef }: { navRef: Ref<HTMLElement> }): JSX.Element {
       ))}
     </nav>
   );
+}
+
+/** Старий /admin/errors: «?view=reports» → «Щось не працює», інакше → «Збої сервера»; решта параметрів відкидається (70). */
+function ErrorsRedirect(): JSX.Element {
+  const { search } = useLocation();
+  const reports = new URLSearchParams(search).get('view') === 'reports';
+  return <Navigate to={reports ? '/admin/appeals/problems' : '/admin/appeals/errors'} replace />;
 }
 
 /** Гейт: лише адмін; усім іншим — головна. */
@@ -113,15 +118,16 @@ export function Admin(): JSX.Element | null {
         <Route path="games/:id/replay" element={<AdminReplay />} />
         <Route path="quizzes" element={<AdminQuizzes />} />
         <Route path="quizzes/:id" element={<AdminQuiz />} />
-        <Route path="reports" element={<AdminReports />} />
-        <Route path="reports/quiz/:entryId" element={<AdminReportedQuiz />} />
+        <Route path="appeals/*" element={<AdminAppeals />} />
+        <Route path="reports" element={<Navigate to="/admin/appeals/complaints" replace />} />
+        <Route path="reports/quiz/:entryId" element={<ReportedQuizRedirect />} />
+        <Route path="errors" element={<ErrorsRedirect />} />
         <Route path="announcement" element={<AdminAnnouncement />} />
         <Route path="broadcast" element={<AdminBroadcast />} />
         <Route path="feed" element={<AdminFeed />} />
         <Route path="groups" element={<AdminGroups />} />
         <Route path="groups/:id" element={<AdminGroup />} />
         <Route path="log" element={<AdminLog />} />
-        <Route path="errors" element={<AdminErrors />} />
         <Route path="backups" element={<AdminBackups />} />
         <Route path="bot" element={<AdminBot />} />
         <Route path="bot/quizzes/:id" element={<AdminBotQuizView />} />

@@ -11,6 +11,7 @@ import type { QuestionBankPage, QuestionType } from '@quiz/shared';
 import type { ChallengeAttemptStart, ChallengeCheck, ChallengeMine, ChallengePreview, ChallengeResultRow } from '@quiz/shared';
 import type { GroupDetail, GroupInput, GroupInviteCard, GroupItem, GroupItemInput, GroupJoinPreview, GroupsPage, GroupUsesInput } from '@quiz/shared';
 import type { MyProblemReport, ProblemReportInput } from '@quiz/shared';
+import type { InboxBadge, InboxPage } from '@quiz/shared';
 
 export type ApiResult<T> = ({ ok: true } & T) | { ok: false; error: string };
 export type ApiData<T> = { ok: true; data: T } | { ok: false; error: string };
@@ -265,6 +266,10 @@ export const getMyInvites = () => fetchData<GameInvite[]>('/api/me/invites');
 export const getFeed = (cursor?: string) => request<FeedPage>(`/api/me/feed${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ''}`);
 export const getFeedBadge = () => request<FeedBadge>('/api/me/feed/badge');
 export const markFeedSeen = (upTo: string) => request<object>('/api/me/feed/seen', { method: 'POST', body: { upTo } });
+/** 70: «Вхідні» — 50 найновіших, бейдж, позначити прочитаним до часу найновішого показаного. */
+export const getInbox = () => request<InboxPage>('/api/me/inbox');
+export const getInboxBadge = () => request<InboxBadge>('/api/me/inbox/badge');
+export const markInboxRead = (upTo: string) => request<InboxBadge>('/api/me/inbox/read', { method: 'POST', body: { upTo } });
 export const getCalendar = () => request<CalendarPage>('/api/me/calendar');
 /** Публічне оголошення адміна (53): для гостей і акаунтів; без нього — {announcement: null}. */
 export const getAnnouncement = () => fetchData<{ announcement: Announcement | null }>('/api/announcement');

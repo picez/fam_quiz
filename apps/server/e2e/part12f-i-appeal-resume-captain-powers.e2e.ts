@@ -1840,7 +1840,7 @@ async function achievements12i() {
   // ── 3. Меню з п'ятьма пунктами (23a); «Досягнення» — плитка профілю. ──
   await olya.goto(base);
   await olya.locator(MENU).getByRole('link', { name: 'Профіль' }).waitFor();
-  expect((await olya.locator(MENU).getByRole('link').allTextContents()).map((text) => text.replace(/[^\p{L}\s’]/gu, '').trim())).toEqual(MENU_ITEMS_23A);
+  expect((await olya.locator(MENU).locator('a:not(.menu-inbox)').allTextContents()).map((text) => text.replace(/[^\p{L}\s’]/gu, '').trim())).toEqual(MENU_ITEMS_23A);
   await expectNoSideScroll(olya, 'p12i-menu');
   // Підпис у два рядки («Мої вікторини») не робить нижню панель вищою: --menu-h = 60 px.
   expect((await olya.locator(MENU).boundingBox())!.height, 'the 375 menu grows taller').toBeLessThanOrEqual(60.5);

@@ -41,9 +41,9 @@ async function l10n22a() {
   await register(olya, 'menu', 'Оля 22a', 'olya22a@example.com');
   const named = await olya.request.put(`${base}/api/me/profile`, { data: { nickname: 'Оля 22a', avatar: null } });
   expect(named.ok(), await named.text()).toBe(true);
-  // ~80 переходів за хвилину: значки меню (запрошення, стрічка — по 60 на хвилину на людину) відповідають один раз, далі
+  // ~80 переходів за хвилину: значки меню (запрошення, стрічка, «Вхідні» — по 60 на хвилину на людину) відповідають один раз, далі
   // сторінки отримують ту саму відповідь, інакше сервер чесно дасть 429. Для макета меню вони однакові.
-  const BADGES = /\/api\/me\/(invites|feed\/badge)(\?|$)/;
+  const BADGES = /\/api\/me\/(invites|feed\/badge|inbox\/badge)(\?|$)/;
   const badges = new Map<string, string>();
   await olya.context().route(BADGES, async (route) => {
     const path = new URL(route.request().url()).pathname;
@@ -58,13 +58,13 @@ async function l10n22a() {
     await olya.goto(`${base}/profile`);
     await expect.poll(() => htmlLang(olya), POLL).toBe(lang);
     expect(await htmlDir(olya)).toBe(lang === 'ar' ? 'rtl' : 'ltr');
-    await expect.poll(() => olya.locator(`${MENU} a`).count(), POLL).toBe(5);
+    await expect.poll(() => olya.locator(`${MENU} a:not(.menu-inbox)`).count(), POLL).toBe(5);
     await expectFiveItems(olya, 360);
     await shot(olya, `p22a-${lang}-menu-360`);
     await expectFiveItems(olya, 375);
     for (const path of PAGES) {
       await olya.goto(`${base}${path}`);
-      await expect.poll(() => olya.locator(`${MENU} a`).count(), POLL).toBe(5);
+      await expect.poll(() => olya.locator(`${MENU} a:not(.menu-inbox)`).count(), POLL).toBe(5);
       expect(await htmlLang(olya)).toBe(lang);
       const name = path === '/' ? 'start' : path.slice(1).replaceAll('/', '-');
       await expectNoSideScroll(olya, `p22a-${lang}-${name}`);
@@ -73,7 +73,7 @@ async function l10n22a() {
       // 401–700 px: і тут короткі підписи (uk теж), усі п'ять в одному рядку, жоден не вилазить за свій пункт.
       await olya.setViewportSize({ width: 412, height: 812 });
       await olya.goto(`${base}/profile`);
-      await expect.poll(() => olya.locator(`${MENU} a`).count(), POLL).toBe(5);
+      await expect.poll(() => olya.locator(`${MENU} a:not(.menu-inbox)`).count(), POLL).toBe(5);
       await expectFiveItems(olya, 412);
       const shown = (await olya.evaluate(MENU_FITS_14A)) as { shown: string[] };
       expect(shown.shown.every((content) => content.includes('"')), `p22a-${lang}-menu-412: short labels are not shown`).toBe(true);
@@ -84,10 +84,10 @@ async function l10n22a() {
     if (lang === 'de' || lang === 'uk' || lang === 'it') {
       // 701–800 px: меню вже вгорі з повними підписами — один рядок, жоден підпис не переноситься й не вилазить за пункт.
       await olya.goto(`${base}/profile`);
-      await expect.poll(() => olya.locator(`${MENU} a`).count(), POLL).toBe(5);
+      await expect.poll(() => olya.locator(`${MENU} a:not(.menu-inbox)`).count(), POLL).toBe(5);
       for (const width of [701, 750, 800]) {
         await expectFiveItems(olya, width);
-        const top = (await olya.locator(`${MENU} a`).evaluateAll((links) =>
+        const top = (await olya.locator(`${MENU} a:not(.menu-inbox)`).evaluateAll((links) =>
           links.map((a) => {
             // Повний підпис — flex-елемент (одна рамка навіть із переносом), тож рядки рахуємо через Range по тексту.
             const full = a.querySelector('.menu-full');

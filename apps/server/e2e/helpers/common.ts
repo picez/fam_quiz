@@ -127,8 +127,9 @@ export const MENU = 'nav.menu';
 export const MENU_ITEMS_23A = ['Меню', 'Стрічка', 'Мої вікторини', 'Історія', 'Профіль'];
 /** Меню адміна: шостий пункт «Адмінка». */
 export const MENU_ITEMS_ADMIN = [...MENU_ITEMS_23A, 'Адмінка'];
+/** Пункти меню без дзвіночка «Вхідних» (70). */
 export const menuLinks = async (page: Page) =>
-  (await page.locator(MENU).getByRole('link').allTextContents()).map((text) => text.replace(/^[^\p{L}]+/u, ''));
+  (await page.locator(MENU).locator('a:not(.menu-inbox)').allTextContents()).map((text) => text.replace(/^[^\p{L}]+/u, ''));
 
 /** Телефон: сторінка не гортається вбік, а нижня панель не закриває останній елемент. */
 export async function expectPhoneFit(page: Page, name: string) {
@@ -759,7 +760,7 @@ export async function expectFitsWidth13a(page: Page, name: string) {
 /** Меню телефона (14a; з 23a — п'ять пунктів): висота, прокрутка вбік і чи влазить кожен короткий підпис (::after з data-short) у свій пункт. */
 export const MENU_FITS_14A = `(() => {
   const nav = document.querySelector('nav.menu');
-  const links = [...nav.querySelectorAll('a')];
+  const links = [...nav.querySelectorAll('a:not(.menu-inbox)')];
   const probe = document.createElement('span');
   probe.style.cssText = 'position:absolute;visibility:hidden;white-space:nowrap;left:0;top:0';
   document.body.append(probe);
@@ -782,6 +783,8 @@ export const MENU_FITS_14A = `(() => {
     count: links.length,
     height: nav.getBoundingClientRect().height,
     wide: document.documentElement.scrollWidth <= innerWidth && nav.scrollWidth <= nav.clientWidth,
+    sizes: [document.documentElement.scrollWidth, innerWidth, nav.scrollWidth, nav.clientWidth].join(' / '),
+    wideBy: [...document.body.querySelectorAll('*')].filter((e) => e.getBoundingClientRect().right > innerWidth + 1 && !e.closest('.admin-tabs')).slice(0, 4).map((e) => e.tagName + '.' + e.className + ' ' + Math.round(e.getBoundingClientRect().right)).join(' | '),
     shown,
     clipped,
   };
@@ -802,11 +805,11 @@ export const isTrophyRequest = (url: string) => /\.glb(\?|$)/.test(url) || /\/as
 /** П'ять пунктів на ширині width: count 5; ≤ 700 px — висота ≤ 60 і один рядок; без прокрутки вбік; жоден підпис не ширший за пункт. Замінює expectEightItems18a. */
 export async function expectFiveItems(page: Page, width: number, count = 5): Promise<void> {
   await page.setViewportSize({ width, height: 812 });
-  const fit = (await page.evaluate(MENU_FITS_14A)) as { count: number; height: number; wide: boolean; shown: string[]; clipped: string[] };
+  const fit = (await page.evaluate(MENU_FITS_14A)) as { count: number; height: number; wide: boolean; sizes: string; wideBy: string; shown: string[]; clipped: string[] };
   expect(fit.count, `menu-${width}: items`).toBe(count);
-  expect(fit.wide, `menu-${width}: horizontal scroll`).toBe(true);
+  expect(fit.wide, `menu-${width}: horizontal scroll (doc / window / nav scroll / nav client: ${fit.sizes}; wide: ${fit.wideBy})`).toBe(true);
   expect(fit.clipped, `menu-${width}: clipped labels`).toEqual([]);
-  const rows = await page.locator(`${MENU} a`).evaluateAll((links) =>
+  const rows = await page.locator(`${MENU} a:not(.menu-inbox)`).evaluateAll((links) =>
     links.map((a) => ({ y: Math.round(a.getBoundingClientRect().top), over: a.scrollWidth > a.clientWidth })),
   );
   expect(rows.filter((r) => r.over), `menu-${width}: a label is wider than its item`).toEqual([]);

@@ -1,4 +1,5 @@
-import type { MyProblemReport, ProblemPage } from '@quiz/shared';
+import type { MyProblemReport, ProblemGameInput, ProblemPage } from '@quiz/shared';
+import { makeQuiz, single } from '@quiz/engine/testing';
 import { and, count, eq, isNull } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { buildApp } from './app';
@@ -45,6 +46,26 @@ describe('player problem reports (64)', () => {
     expect(rows).toHaveLength(1);
     expect(rows[0]).toMatchObject({ text: 'Не вантажиться', status: 'open', reply: null });
     expect((await ctx.app.inject({ method: 'GET', url: '/api/me/problem-reports' })).statusCode).toBe(401);
+  });
+
+  it('the game moment is kept with the quiz id and title of the live room (70)', async () => {
+    const room = ctx.manager.create({ ...makeQuiz([single]), title: 'Столиці Європи' }, null, 'quiz-70');
+    const game: ProblemGameInput = { code: room.code, role: 'player', phase: 'question', round: 0, roundTitle: 'Розминка', question: 2, type: 'single', text: 'Столиця Польщі?' };
+    const sent = await send({ text: 'Таймер завис', game }, fresh(), olya.cookie);
+    expect(sent.statusCode).toBe(201);
+    const [row] = await db.select().from(problemReport).where(eq(problemReport.id, (sent.json() as { id: string }).id));
+    expect(row.game).toEqual({ ...game, quizId: 'quiz-70', quizTitle: 'Столиці Європи' });
+
+    const gone = room.code === '999999' ? '999998' : '999999';
+    const guest = await send({ text: 'Гра зникла', game: { ...game, code: gone, role: 'host' } }, fresh());
+    expect(guest.statusCode).toBe(201);
+    const [guestRow] = await db.select().from(problemReport).where(eq(problemReport.id, (guest.json() as { id: string }).id));
+    expect(guestRow.game).toEqual({ ...game, code: gone, role: 'host', quizId: null, quizTitle: null });
+
+    const plain = await send({ text: 'Без гри' }, fresh());
+    const [plainRow] = await db.select().from(problemReport).where(eq(problemReport.id, (plain.json() as { id: string }).id));
+    expect(plainRow.game).toBeNull();
+    expect((await send({ text: 'x', game: { ...game, quizId: 'q' } }, fresh())).statusCode).toBe(400);
   });
 
   it('a guest gets 3 per hour, an account 5', async () => {

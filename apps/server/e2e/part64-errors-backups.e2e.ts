@@ -15,7 +15,7 @@ import { bodyText, expectNoSideScroll, open, POLL, register } from './helpers/co
 import { ARTIFACTS, base, browser, contexts, ctx, db, exact, flags, problems, relisten, snapshot, useE2eServer } from './helpers/setup';
 
 /**
- * Наскрізні тести: частина 64 — збої сервера й скарги гравців, копії бази. Збій записується замаскованим і згрупованим, вирішується, бейдж на вкладці «Збої»;
+ * Наскрізні тести: частина 64 — збої сервера й скарги гравців, копії бази. Збій записується замаскованим і згрупованим, вирішується, бейдж на вкладці «Звернення» (70);
  * гість і акаунт скаржаться, адмін відповідає пушем, автор бачить відповідь; «зробити копію зараз» у підробний R2, далі ліміт години; лише інструкція відновлення;
  * не-адміну 404; 360 px, світла тема (і кадри в темній).
  */
@@ -127,14 +127,18 @@ async function errorsBackups64() {
   await mine.locator('li', { hasText: OLYA_TEXT }).getByText('Відкрите', exact).waitFor();
   await view(olya, 'problem64-olya-360');
 
-  // ── 4. Адмін: бейдж «3» на «Збоях»; список збоїв замаскований; вирішення. ──
+  // ── 4. Адмін: бейдж «3» на «Зверненнях» (70: один спільний); список збоїв замаскований; вирішення. ──
   await admin.goto(`${base}/admin`);
   expect(await isLight(admin)).toBe(true);
-  const tab = admin.locator('nav.admin-tabs a[href="/admin/errors"]');
+  const tab = admin.locator('nav.admin-tabs a[href="/admin/appeals"]');
+  const sub = (name: 'complaints' | 'problems' | 'errors') => admin.locator(`nav.admin-appeals-views a[href="/admin/appeals/${name}"]`);
   await expect.poll(() => tab.locator('.menu-badge').innerText(), POLL).toBe('3');
-  expect(await tab.locator('.menu-badge').getAttribute('aria-label')).toBe('Збої, нових: 3');
+  expect(await tab.locator('.menu-badge').getAttribute('aria-label')).toBe('Звернення, нових: 3');
+  // Голий адрес відкриває першу підвкладку, де є нове: скарги на вікторини порожні, «Щось не працює» — 2.
   await tab.click();
-  await admin.waitForURL(`${base}/admin/errors`);
+  await admin.waitForURL(`${base}/admin/appeals/problems`);
+  await sub('errors').click();
+  await admin.waitForURL(`${base}/admin/appeals/errors`);
   const card = admin.locator('li.admin-card', { hasText: 'e2e64' });
   await card.getByText('Де: e2e64', exact).waitFor();
   const cardText = await card.innerText();
@@ -150,8 +154,8 @@ async function errorsBackups64() {
   await admin.getByRole('button', { name: 'Вирішені', ...exact }).click();
   await admin.locator('li.admin-card', { hasText: 'e2e64' }).waitFor();
   // Бейдж після переходу: лишилось 2 скарги.
-  await admin.getByRole('link', { name: 'Скарги гравців', ...exact }).click();
-  await admin.waitForURL(`${base}/admin/errors?view=reports`);
+  await sub('problems').click();
+  await admin.waitForURL(`${base}/admin/appeals/problems`);
   await expect.poll(() => tab.locator('.menu-badge').innerText(), POLL).toBe('2');
 
   // ── 5. Скарги: гість без «Відповісти»; Оля — відомості про сторінку; відповідь пушем; гостьову закрито. ──
@@ -180,7 +184,7 @@ async function errorsBackups64() {
   // Бейдж перечитується на кожен перехід (не на дію в тій самій адресі): клік по вкладці — новий location.key.
   await tab.click();
   await expect.poll(() => tab.locator('.menu-badge').count(), POLL).toBe(0);
-  await admin.getByRole('link', { name: 'Скарги гравців', ...exact }).click();
+  await sub('problems').click();
   await admin.getByRole('button', { name: 'Вирішені', ...exact }).click();
   await admin.locator('li.admin-card', { hasText: OLYA_TEXT }).waitFor();
   await admin.locator('li.admin-card', { hasText: GUEST_TEXT }).waitFor();
@@ -233,7 +237,7 @@ async function errorsBackups64() {
     expect((await who.request.post(`${base}/api/admin/backups`)).status()).toBe(404);
     expect((await who.request.post(`${base}/api/admin/backups/restore`)).status()).toBe(404);
   }
-  await olya.goto(`${base}/admin/errors`);
+  await olya.goto(`${base}/admin/appeals/errors`);
   await olya.waitForURL(`${base}/`);
   for (const path of ['/api/admin/errors?status=resolved', '/api/admin/problems?status=resolved', '/api/admin/problems/badge', '/api/admin/backups']) {
     const response = await admin.request.get(`${base}${path}`);
@@ -245,14 +249,14 @@ async function errorsBackups64() {
   const darkContext = await browser.newContext({ viewport: { width: 360, height: 740 }, locale: 'uk-UA', colorScheme: 'dark', storageState: { cookies: (await admin.context().storageState()).cookies, origins: [] } });
   contexts.push(darkContext);
   const dark = await darkContext.newPage();
-  await dark.goto(`${base}/admin/errors`);
+  await dark.goto(`${base}/admin/appeals/errors`);
   await dark.getByRole('button', { name: 'Вирішені', ...exact }).click();
   const darkCard = dark.locator('li.admin-card', { hasText: 'e2e64' });
   await darkCard.waitFor();
   expect(await isLight(dark), 'the dark page is dark').toBe(false);
   await darkCard.locator('details summary').click();
   await view(dark, 'errors64-list-dark-360');
-  await dark.goto(`${base}/admin/errors?view=reports`);
+  await dark.goto(`${base}/admin/appeals/problems`);
   await dark.getByRole('button', { name: 'Вирішені', ...exact }).click();
   await dark.locator('li.admin-card', { hasText: OLYA_TEXT }).waitFor();
   await view(dark, 'problems64-list-dark-360');

@@ -137,7 +137,7 @@ describe('stored server errors (64)', () => {
     const store = createErrorStore({ db, now });
     store.record(new Error('room 123456 not found'), { where: 'store' });
     await store.flush();
-    expect(await problemsBadge(db)).toEqual({ errors: 1, reports: 0 });
+    expect(await problemsBadge(db)).toEqual({ errors: 1, reports: 0, complaints: 0 });
     const [first] = await rows(db);
 
     expect(await resolveServerError(db, { adminId: 'adm', id: first.id, now: now() })).toBe('ok');
@@ -148,7 +148,7 @@ describe('stored server errors (64)', () => {
     expect(await db.select().from(adminAction)).toHaveLength(1);
     expect(await resolveServerError(db, { adminId: 'adm', id: '3f2b8c1e-5d4a-4e6f-9a7b-1c2d3e4f5a6b', now: now() })).toBe('not_found');
     expect(await resolveServerError(db, { adminId: 'adm', id: 'nope', now: now() })).toBe('not_found');
-    expect(await problemsBadge(db)).toEqual({ errors: 0, reports: 0 });
+    expect(await problemsBadge(db)).toEqual({ errors: 0, reports: 0, complaints: 0 });
 
     clock += HOUR;
     store.record(new Error('room 654321 not found'), { where: 'store' });
@@ -157,7 +157,7 @@ describe('stored server errors (64)', () => {
     expect(all).toHaveLength(2);
     expect(all[0]).toMatchObject({ id: first.id, status: 'resolved', count: 1, resolvedBy: 'adm' });
     expect(all[1]).toMatchObject({ status: 'new', count: 1 });
-    expect(await problemsBadge(db)).toEqual({ errors: 1, reports: 0 });
+    expect(await problemsBadge(db)).toEqual({ errors: 1, reports: 0, complaints: 0 });
 
     const resolved = await listServerErrors(db, { status: 'resolved', page: 1 }, now());
     expect(resolved.rows).toHaveLength(1);
@@ -165,9 +165,9 @@ describe('stored server errors (64)', () => {
     expect(resolved.rows[0].resolvedAt).toBe(T0.toISOString());
 
     await db.insert(problemReport).values({ userId: null, fromAccount: false, text: 'Не відкривається таблиця', createdAt: now() });
-    expect(await problemsBadge(db)).toEqual({ errors: 1, reports: 1 });
+    expect(await problemsBadge(db)).toEqual({ errors: 1, reports: 1, complaints: 0 });
     await db.update(problemReport).set({ status: 'resolved' }).where(eq(problemReport.fromAccount, false));
-    expect(await problemsBadge(db)).toEqual({ errors: 1, reports: 0 });
+    expect(await problemsBadge(db)).toEqual({ errors: 1, reports: 0, complaints: 0 });
     await store.stop();
   });
 

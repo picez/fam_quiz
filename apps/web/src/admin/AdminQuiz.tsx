@@ -17,7 +17,7 @@ type Mode = 'moderate' | 'report' | 'bot';
 /** Більше запитань — раунди стартують згорнутими. */
 const FOLD_OVER = 20;
 
-const BACK: Record<Mode, string> = { moderate: '/admin/quizzes', report: '/admin/reports', bot: '/admin/bot' };
+const BACK: Record<Mode, string> = { moderate: '/admin/quizzes', report: '/admin/appeals/complaints', bot: '/admin/bot' };
 
 export function AdminQuiz(): JSX.Element {
   const { id = '' } = useParams();

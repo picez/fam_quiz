@@ -33,6 +33,7 @@ import type {
   PhotoFrame,
   PrizeContent,
   PrizePlace,
+  ProblemGame,
   ProblemPage,
   ShowcasePinKind,
   ProfileBadge,
@@ -1122,6 +1123,8 @@ export const pushBroadcast = pgTable(
     groupName: text('group_name'),
     people: jsonb('people').$type<string[]>().notNull().default([]),
     peopleCount: integer('people_count').notNull(),
+    /** 70: скільки з них мали отримати сповіщенням (є підписка й не вимкнено оголошення). */
+    pushPeople: integer('push_people').notNull().default(0),
     delivered: integer('delivered').notNull().default(0),
     failed: integer('failed').notNull().default(0),
     status: text('status').$type<'sending' | 'sent'>().notNull().default('sending'),
@@ -1175,6 +1178,8 @@ export const problemReport = pgTable(
     fromAccount: boolean('from_account').notNull(),
     text: text('text').notNull(),
     page: jsonb('page').$type<ProblemPage | null>(),
+    /** 70: момент гри, з якої поскаржилися (з клієнта + quizId і назва з кімнати). */
+    game: jsonb('game').$type<ProblemGame | null>(),
     status: text('status').$type<'open' | 'resolved'>().notNull().default('open'),
     reply: text('reply'),
     repliedAt: at('replied_at'),
@@ -1199,4 +1204,31 @@ export const mergedEmail = pgTable(
     mergedAt: at('merged_at').notNull(),
   },
   (table) => [index('merged_email_user_idx').on(table.userId)],
+);
+
+/**
+ * «Вхідні» людини (70): розсилка адміна чи відповідь на «Щось не працює». Рядок лише посилається на
+ * push_broadcast / problem_report — текст читається з'єднанням, без копії. Розсилка розкладається по рядку
+ * на людину в мить створення; одна розсилка — раз на людину, одна відповідь — раз на скаргу.
+ */
+export const inboxItem = pgTable(
+  'inbox_item',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    kind: text('kind').$type<'broadcast' | 'problem_reply'>().notNull(),
+    broadcastId: uuid('broadcast_id').references(() => pushBroadcast.id, { onDelete: 'cascade' }),
+    problemId: uuid('problem_id').references(() => problemReport.id, { onDelete: 'cascade' }),
+    createdAt: at('created_at').notNull(),
+    readAt: at('read_at'),
+  },
+  (table) => [
+    uniqueIndex('inbox_item_broadcast_once').on(table.userId, table.broadcastId).where(sql`broadcast_id is not null`),
+    uniqueIndex('inbox_item_problem_once').on(table.problemId).where(sql`problem_id is not null`),
+    index('inbox_item_user_created_idx').on(table.userId, table.createdAt),
+    index('inbox_item_unread_idx').on(table.userId).where(sql`read_at is null`),
+    index('inbox_item_broadcast_idx').on(table.broadcastId),
+  ],
 );

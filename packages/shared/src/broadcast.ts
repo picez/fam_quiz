@@ -58,8 +58,12 @@ export interface AdminBroadcast {
   text: string;
   url: string | null;
   to: AdminBroadcastTo;
-  /** Скільки людей мали отримати. */
+  /** Скільки людей отримали у «Вхідні». */
   people: number;
+  /** Скільки з них мали отримати сповіщенням (70). */
+  pushPeople: number;
+  /** Скільки прочитали у «Вхідних» (70). */
+  read: number;
   /** Лічильники — у пристроях (підписках), не в людях. */
   delivered: number;
   failed: number;
@@ -72,4 +76,5 @@ export interface AdminBroadcastLimits {
   dayMax: number;
 }
 export interface AdminBroadcasts { rows: AdminBroadcast[]; groups: AdminBotGroup[]; limits: AdminBroadcastLimits; pushOn: boolean }
-export interface BroadcastPreview { people: number }
+/** people — отримають у «Вхідні», push — з них сповіщенням. */
+export interface BroadcastPreview { people: number; push: number }

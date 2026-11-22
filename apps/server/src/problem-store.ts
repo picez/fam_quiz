@@ -8,6 +8,7 @@ import {
   type AdminProblemReport,
   type MyProblemReport,
   type ProblemAuthor,
+  type ProblemGame,
   type ProblemReportInput,
 } from '@quiz/shared';
 import { and, count, desc, eq, gt, inArray, isNull } from 'drizzle-orm';
@@ -15,6 +16,7 @@ import { logAction } from './bans';
 import type { Db } from './db/client';
 import { problemReport, profile, pushSubscription } from './db/schema';
 import { truncateChars } from './error-mask';
+import { addProblemReply } from './inbox-store';
 import { ensureProfile } from './profiles';
 
 /**
@@ -28,7 +30,7 @@ const LOG_TEXT = 80;
 /** Гість: спершу спільна стеля на годину (усі гості разом), потім рядок. */
 export async function createProblemReport(
   db: Db,
-  input: { userId: string | null; input: ProblemReportInput; now: Date },
+  input: { userId: string | null; input: ProblemReportInput; game?: ProblemGame | null; now: Date },
 ): Promise<{ id: string } | { error: 'problem_busy' }> {
   if (input.userId === null) {
     const since = new Date(input.now.getTime() - HOUR_MS);
@@ -40,7 +42,7 @@ export async function createProblemReport(
   }
   const [row] = await db
     .insert(problemReport)
-    .values({ userId: input.userId, fromAccount: input.userId !== null, text: input.input.text, page: input.input.page, createdAt: input.now })
+    .values({ userId: input.userId, fromAccount: input.userId !== null, text: input.input.text, page: input.input.page, game: input.game ?? null, createdAt: input.now })
     .returning({ id: problemReport.id });
   return { id: row.id };
 }
@@ -97,6 +99,7 @@ export async function listProblemReports(db: Db, query: { status: 'open' | 'reso
         who,
         text: row.text,
         page: row.page,
+        game: row.game ?? null,
         status: row.status,
         reply: row.reply,
         repliedAt: row.repliedAt === null ? null : row.repliedAt.toISOString(),
@@ -128,6 +131,8 @@ export async function resolveProblem(db: Db, input: { adminId: string; id: strin
         .update(problemReport)
         .set({ status: 'resolved', reply: input.reply, repliedAt: input.now, resolvedBy: input.adminId, resolvedAt: input.now })
         .where(eq(problemReport.id, row.id));
+      // 70: відповідь — у «Вхідні» автора в тій самій транзакції.
+      await addProblemReply(tx, { userId: row.userId, problemId: row.id, now: input.now });
       await logAction(tx, { adminId: input.adminId, kind: 'problem_reply', targetUserId: row.userId, details: { text: input.reply }, now: input.now });
       return { ok: true, userId: row.userId, replied: true };
     }

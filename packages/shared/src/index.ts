@@ -74,5 +74,6 @@ export * from './league';
 export * from './library';
 export * from './quiz-check';
 export * from './problems';
+export * from './inbox';
 export * from './replay';
 export * from './account-merge';

@@ -351,6 +351,13 @@
       "when": 1795209905427,
       "tag": "0049_merged_email",
       "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "7",
+      "when": 1795316716374,
+      "tag": "0050_inbox",
+      "breakpoints": true
     }
   ]
 }

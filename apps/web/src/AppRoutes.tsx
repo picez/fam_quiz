@@ -39,6 +39,7 @@ const PrizeStudioPage = lazy(() => import('./pages/PrizeStudioPage').then((m) =>
 const ProfileLevels = lazy(() => import('./pages/profile/ProfileLevels').then((m) => ({ default: m.ProfileLevels })));
 const ProfileLooks = lazy(() => import('./pages/profile/ProfileLooks').then((m) => ({ default: m.ProfileLooks })));
 const ProfileStats = lazy(() => import('./pages/profile/ProfileStats').then((m) => ({ default: m.ProfileStats })));
+const InboxPage = lazy(() => import('./inbox/InboxPage').then((m) => ({ default: m.InboxPage })));
 const ProblemReport = lazy(() => import('./problems/ProblemReport').then((m) => ({ default: m.ProblemReport })));
 
 export function AppRoutes() {
@@ -90,6 +91,7 @@ export function AppRoutes() {
         <Route path="/help" element={<HostHelp />} />
         {/* «Повідомити про проблему» (64): і гостям; ?from= — сторінка, з якої прийшли. */}
         <Route path="/report" element={<ProblemReport />} />
+        <Route path="/inbox" element={<InboxPage />} />
         <Route path="/new" element={<Navigate to="/quizzes" replace />} />
       </Route>
       <Route path="/play/:code" element={<Play />} />

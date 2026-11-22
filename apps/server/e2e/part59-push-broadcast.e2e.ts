@@ -120,7 +120,7 @@ async function broadcast59() {
   await adminPush.scrollIntoViewIfNeeded();
   await view(hanna, 'broadcast59-profile-360');
 
-  // ── 2. Адмін на «Розсилці»: група «Поліські вечори» → «Отримають 2 людини» (Оля, Петро). ──
+  // ── 2. Адмін на «Розсилці»: група «Поліські вечори» → «Отримають на сайті: 3, з них сповіщенням: 2» (70: у «Вхідні» — Оля, Петро, Ганна; сповіщенням — Оля й Петро). ──
   await admin.goto(`${base}/admin/broadcast`);
   expect(await isLight(admin)).toBe(true);
   const form = admin.locator('section[aria-labelledby="broadcast-new"]');
@@ -131,7 +131,7 @@ async function broadcast59() {
   await form.locator('#broadcast-url').fill('/library');
   await form.getByRole('radio', { name: 'Родинній групі', ...exact }).check();
   await form.locator('#broadcast-group').selectOption({ label: `🏕️ ${GROUP}` });
-  await expect.poll(() => audience.innerText(), POLL).toBe('Отримають 2 людини');
+  await expect.poll(() => audience.innerText(), POLL).toBe('Отримають на сайті: 3, з них сповіщенням: 2');
   const preview = form.locator('.broadcast-preview');
   expect(await preview.innerText()).toContain(TITLE);
   expect(await preview.innerText()).toContain(TEXT);
@@ -147,7 +147,7 @@ async function broadcast59() {
   });
   await sendButton.click();
   await form.getByText('Розсилку надіслано.', exact).waitFor();
-  expect(confirmText).toBe(`Надіслати «${TITLE}»? Отримають 2 людини.`);
+  expect(confirmText).toBe(`Надіслати «${TITLE}»? Отримають 3 людини.`);
   await ctx.push!.idle();
   await expect.poll(() => sentTo('broadcast').length, POLL).toBe(2);
   const broadcasts = sentTo('broadcast');
@@ -168,7 +168,7 @@ async function broadcast59() {
   const card = await history.innerText();
   expect(card).toContain(`Група «${GROUP}»`);
   expect(card).toContain('Адмін 59');
-  expect(card).toContain('Адресатів: 2');
+  expect(card).toContain('У вхідних: 3, прочитали: 0; сповіщенням: 2');
   await history.scrollIntoViewIfNeeded();
   await view(admin, 'broadcast59-history-360');
 
@@ -176,7 +176,8 @@ async function broadcast59() {
   await form.locator('#broadcast-title').fill('Ще одна новина');
   await form.locator('#broadcast-text').fill('Сьогодні ввечері — гра для всіх.');
   await form.getByRole('radio', { name: 'Усім, хто ввімкнув сповіщення', ...exact }).check();
-  await expect.poll(() => audience.innerText(), POLL).toBe('Отримають 2 людини');
+  // «Усім» (70) — усі акаунти, не лише підписані; сповіщенням — Оля й Тарас.
+  await expect.poll(() => audience.innerText(), POLL).toMatch(/^Отримають на сайті: \d+, з них сповіщенням: 2$/);
   await form.getByText(/^Наступну розсилку можна о \d{2}:\d{2}\.$/).waitFor();
   expect(await sendButton.isDisabled(), 'the send button during the 10-minute gap').toBe(true);
   await sendButton.scrollIntoViewIfNeeded();
@@ -232,7 +233,7 @@ async function broadcast59() {
 
   // ── 7. Журнал. ──
   await admin.goto(`${base}/admin/log`);
-  await admin.getByText(`Адмін 59 надіслав(-ла) розсилку «${TITLE}», адресатів: 2`, { exact: false }).first().waitFor();
+  await admin.getByText(`Адмін 59 надіслав(-ла) розсилку «${TITLE}», адресатів: 3`, { exact: false }).first().waitFor();
   expect(await admin.locator('main').innerText(), 'the log has an email').not.toContain('@');
 
   // ── 8. Не-адмін і гість: 404; вкладка не-адміну веде на головну; без email. ──

@@ -136,8 +136,8 @@ export const adminErrors = (status: AdminServerError['status'], page: number): P
 export const resolveServerError = (errorId: string): Promise<ApiResult<object>> => request<object>(`/api/admin/errors/${id(errorId)}/resolve`, { method: 'POST', body: {} });
 export const adminProblems = (status: AdminProblemReport['status'], page: number): Promise<ApiData<AdminList<AdminProblemReport>>> => fetchData(`/api/admin/problems?status=${status}&page=${page}`);
 export const resolveProblem = (reportId: string): Promise<ApiResult<object>> => request<object>(`/api/admin/problems/${id(reportId)}/resolve`, { method: 'POST', body: {} });
-export const replyProblem = (reportId: string, text: string): Promise<ApiResult<{ pushed: boolean }>> =>
-  request<{ pushed: boolean }>(`/api/admin/problems/${id(reportId)}/reply`, { method: 'POST', body: { text } });
+export const replyProblem = (reportId: string, text: string): Promise<ApiResult<{ pushed: boolean; inbox: boolean }>> =>
+  request<{ pushed: boolean; inbox: boolean }>(`/api/admin/problems/${id(reportId)}/reply`, { method: 'POST', body: { text } });
 
 /** 64: «Копії» — список і стан; `error` — сервер не зміг прочитати список зі сховища (рядків тоді немає). */
 export type AdminBackupsView = AdminBackups & { error?: true };

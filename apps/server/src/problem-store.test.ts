@@ -1,6 +1,6 @@
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { beforeAll, describe, expect, it } from 'vitest';
-import { adminAction, problemReport, profile, user } from './db/schema';
+import { adminAction, inboxItem, problemReport, profile, user } from './db/schema';
 import { createProblemReport, listProblemReports, myProblemReports, resolveProblem } from './problem-store';
 import { ensureProfile } from './profiles';
 import { createTestDb } from './testing/test-db';
@@ -18,7 +18,7 @@ describe('problem store (64)', () => {
     }
   });
 
-  const input = (text: string) => ({ text, page: null });
+  const input = (text: string) => ({ text, page: null, game: null });
 
   it('stores a report and lists it for its author, newest first', async () => {
     const a = await createProblemReport(db, { userId: ids.olya, input: input('перша'), now: NOW });
@@ -37,6 +37,28 @@ describe('problem store (64)', () => {
     expect(logs).toHaveLength(1);
     expect(await resolveProblem(db, { adminId: ids.admin, id: made.id, reply: 'hi', now: NOW })).toEqual({ ok: false, error: 'problem_no_account' });
     expect(await resolveProblem(db, { adminId: ids.admin, id: 'nope', reply: null, now: NOW })).toEqual({ ok: false, error: 'not_found' });
+  });
+
+  it('a reply lands in the inbox in the same transaction; a failed log leaves neither (70)', async () => {
+    const made = (await createProblemReport(db, { userId: ids.olya, input: input('з відповіддю'), now: NOW })) as { id: string };
+    const plain = (await createProblemReport(db, { userId: ids.olya, input: input('без відповіді'), now: NOW })) as { id: string };
+    expect(await resolveProblem(db, { adminId: ids.admin, id: plain.id, reply: null, now: NOW })).toMatchObject({ ok: true, replied: false });
+    expect(await db.select().from(inboxItem).where(eq(inboxItem.problemId, plain.id))).toEqual([]);
+
+    await db.execute(sql`create function fail_log() returns trigger language plpgsql as $$ begin raise exception 'log down'; end $$`);
+    await db.execute(sql`create trigger fail_log before insert on admin_action for each row execute function fail_log()`);
+    try {
+      await expect(resolveProblem(db, { adminId: ids.admin, id: made.id, reply: 'Виправили', now: NOW })).rejects.toThrow();
+    } finally {
+      await db.execute(sql`drop trigger fail_log on admin_action`);
+      await db.execute(sql`drop function fail_log()`);
+    }
+    expect((await db.select().from(problemReport).where(eq(problemReport.id, made.id)))[0]).toMatchObject({ reply: null, status: 'open' });
+    expect(await db.select().from(inboxItem).where(eq(inboxItem.problemId, made.id))).toEqual([]);
+
+    expect(await resolveProblem(db, { adminId: ids.admin, id: made.id, reply: 'Виправили', now: NOW })).toEqual({ ok: true, userId: ids.olya, replied: true });
+    const rows = await db.select().from(inboxItem).where(eq(inboxItem.problemId, made.id));
+    expect(rows.map((r) => [r.userId, r.kind, r.createdAt.getTime()])).toEqual([[ids.olya, 'problem_reply', NOW.getTime()]]);
   });
 
   it('keeps the author as deleted after the account is gone', async () => {
