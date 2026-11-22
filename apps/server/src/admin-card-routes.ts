@@ -1,4 +1,4 @@
-import { ACHIEVEMENTS, BOT_USER_ID, adminDeleteSchema, adminGiftSchema, adminGrantSchema, adminMergeSchema, adminXpSchema, isBotUser, type AccountMergePreview, type AchievementId, type GameDetail } from '@quiz/shared';
+import { ACHIEVEMENTS, BOT_USER_ID, adminDeleteSchema, adminGiftSchema, adminGrantSchema, adminMergeSchema, adminRevokeManySchema, adminXpSchema, isBotUser, type AccountMergePreview, type AchievementId, type AdminRevokeManyResult, type GameDetail } from '@quiz/shared';
 import { eq } from 'drizzle-orm';
 import type { FastifyInstance, FastifyRequest, RouteShorthandOptions } from 'fastify';
 import type { CurrentUser } from './account-routes';
@@ -55,6 +55,26 @@ export async function registerPlayerCardRoutes(app: FastifyInstance, deps: Admin
     // Уже забране (друга вкладка, другий адмін) — своя 404: картка перечитується, а not_found веде на головну.
     if (result === 'not_owned') return reply.code(404).send({ error: 'achievement_not_owned' });
     return result === 'revoked' ? reply.code(204).send() : reply.code(404).send(NOT_FOUND);
+  });
+
+  // 69: «Відібрати вибрані» — по одному тією самою revokeAchievement: кожне — своя транзакція, свій запис у журналі й announce.
+  app.post<UserParams>('/api/admin/users/:id/achievements/revoke', write, async (request, reply) => {
+    const me = await adminOf(request);
+    if (me === null) return reply.code(404).send(NOT_FOUND);
+    const { id } = request.params;
+    if (unknownUser(id)) return reply.code(404).send(NOT_FOUND);
+    const body = adminRevokeManySchema.safeParse(request.body ?? {});
+    if (!body.success) return reply.code(400).send(INVALID);
+    const revoked: AchievementId[] = [];
+    const notOwned: AchievementId[] = [];
+    for (const achievementId of body.data.achievementIds) {
+      const result = await revokeAchievement(db, { adminId: me.id, userId: id, achievementId, now: now() });
+      if (result === 'not_found') return reply.code(404).send(NOT_FOUND); // людини немає — далі не йдемо
+      (result === 'revoked' ? revoked : notOwned).push(achievementId);
+    }
+    // Усе вже забрали (друга вкладка) — та сама помилка, що в одиничного: картка перечитується.
+    if (revoked.length === 0) return reply.code(404).send({ error: 'achievement_not_owned' });
+    return reply.code(200).send({ revoked, notOwned } satisfies AdminRevokeManyResult);
   });
 
   app.post<UserParams>('/api/admin/users/:id/xp', write, async (request, reply) => {

@@ -3,6 +3,7 @@ import { Navigate } from 'react-router-dom';
 import { t } from '../../i18n';
 import { deleteUserAsAdmin } from '../admin-api';
 import type { CardProps } from '../AdminUser';
+import { CardFold } from './CardFold';
 
 /**
  * Видалення акаунта (58): кнопка активна лише, коли набрано точно нік (без ніку — email), як порівнює сервер;
@@ -22,8 +23,7 @@ export function CardDelete({ detail, act, busy }: CardProps): JSX.Element {
 
   if (deleted) return <Navigate to="/admin/users" replace />;
   return (
-    <section className="panel admin-card-section admin-card-delete">
-      <h2>{t('adminCardDelete')}</h2>
+    <CardFold title={t('adminCardDelete')} className="admin-card-delete">
       <p>{t('adminCardDeleteLead')}</p>
       <label className="field">
         <span>{t('adminCardDeleteType', { nickname: label })}</span>
@@ -35,6 +35,6 @@ export function CardDelete({ detail, act, busy }: CardProps): JSX.Element {
       <p className="error admin-card-line" role="alert">
         {error ?? ''}
       </p>
-    </section>
+    </CardFold>
   );
 }

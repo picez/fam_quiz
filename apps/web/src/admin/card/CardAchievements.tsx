@@ -3,41 +3,58 @@ import { ACHIEVEMENTS, type AchievementId } from '@quiz/shared';
 import { formatDate } from '../../format';
 import { t, type TextKey } from '../../i18n';
 import { nickText } from '../../nick';
-import { grantAchievement, revokeAchievement } from '../admin-api';
+import { grantAchievement, revokeAchievements } from '../admin-api';
 import type { CardProps } from '../AdminUser';
+import { CardFold } from './CardFold';
+import { PickList } from './PickList';
 
 const nameOf = (id: AchievementId): string => t(`achievement_${id}` as TextKey);
 
-/** Досягнення (58): отримані з кнопкою «Відібрати», забрані адміном — позначкою; видати можна лише відсутнє. */
+/** Досягнення (58, 69): отримані — з вибором і одним «Відібрати вибрані», забрані адміном — позначкою; видати можна лише відсутнє. */
 export function CardAchievements({ detail, act, busy }: CardProps): JSX.Element {
   const { user, card } = detail;
   const [pick, setPick] = useState<AchievementId | ''>('');
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState('');
   const owned = new Set(card.achievements.map((item) => item.id));
   const missing = ACHIEVEMENTS.filter((id) => !owned.has(id));
   const nickname = nickText(user.nickname);
 
+  // act на початку кожної дії викликає report(null): тоді ж гасимо застарілий рядок стану.
+  const report = (message: string | null) => {
+    setError(message);
+    if (message === null) setNotice('');
+  };
+
   const grant = async (id: AchievementId) => {
-    if (await act(t('adminCardGrantConfirm', { name: nameOf(id), nickname }), () => grantAchievement(user.id, id), setError)) setPick('');
+    if (await act(t('adminCardGrantConfirm', { name: nameOf(id), nickname }), () => grantAchievement(user.id, id), report)) setPick('');
+  };
+
+  const revokePicked = (ids: AchievementId[], names: string[]) => {
+    return act(
+      t('adminCardRevokePickedConfirm', { nickname, count: ids.length, names: names.join(', ') }),
+      async () => {
+        const result = await revokeAchievements(user.id, ids);
+        if (result.ok && result.notOwned.length > 0) setNotice(t('adminCardRevokePartial', { done: result.revoked.length, count: ids.length }));
+        return result;
+      },
+      report,
+    );
   };
 
   return (
-    <section className="panel admin-card-section">
-      <h2>{t('adminCardAchievements')}</h2>
+    <CardFold title={t('adminCardAchievements')} count={card.achievements.length} hint={card.blocked.length > 0 ? t('adminCardBlockedCount', { count: card.blocked.length }) : null}>
       {card.achievements.length === 0 ? (
         <p className="meta">{t('adminCardNoAchievements')}</p>
       ) : (
-        <ul className="admin-list">
-          {card.achievements.map((item) => (
-            <li key={item.id} className="admin-card">
-              <p>{nameOf(item.id)}</p>
-              {item.earnedAt !== null && <p className="meta">{formatDate(item.earnedAt)}</p>}
-              <button type="button" className="btn btn-danger" disabled={busy} onClick={() => void act(t('adminCardRevokeConfirm', { name: nameOf(item.id), nickname }), () => revokeAchievement(user.id, item.id), setError)}>
-                {t('adminCardRevoke')}
-              </button>
-            </li>
-          ))}
-        </ul>
+        <PickList
+          title={t('adminCardAchievements')}
+          items={card.achievements.map((item) => ({ id: item.id, name: nameOf(item.id), meta: item.earnedAt !== null ? formatDate(item.earnedAt) : undefined }))}
+          action={t('adminCardRevokePicked')}
+          danger
+          busy={busy}
+          onRun={(picked) => revokePicked(picked.map((item) => item.id as AchievementId), picked.map((item) => item.name))}
+        />
       )}
       {card.blocked.length > 0 && (
         <ul className="admin-card-blocked">
@@ -69,6 +86,9 @@ export function CardAchievements({ detail, act, busy }: CardProps): JSX.Element 
       <p className="error admin-card-line" role="alert">
         {error ?? ''}
       </p>
-    </section>
+      <p className="meta admin-card-line" role="status">
+        {notice}
+      </p>
+    </CardFold>
   );
 }

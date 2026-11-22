@@ -9,7 +9,7 @@ import type { PushOptions } from '../src/push';
 import { calendarEvent, feedEvent, game as gameRow, pushSubscription, quiz as quizRow, user, userLike } from '../src/db/schema';
 import { adminEmails } from '../src/config';
 import { kyivDay } from '../src/xp-rules';
-import { open, click, field, join, expectNoSideScroll, MENU, MENU_ITEMS_23A, MENU_ITEMS_ADMIN, menuLinks, expectPhoneFit, register, myId, noSideScroll, POLL, decide, expectFiveItems, label } from './helpers/common';
+import { open, openSection, click, field, join, expectNoSideScroll, MENU, MENU_ITEMS_23A, MENU_ITEMS_ADMIN, menuLinks, expectPhoneFit, register, myId, noSideScroll, POLL, decide, expectFiveItems, label } from './helpers/common';
 import { exact, ctx, base, db, problems, snapshot, afterSplash, shot, relisten, flags, useE2eServer } from './helpers/setup';
 
 /**
@@ -1357,8 +1357,9 @@ async function admin21a() {
     await tab('Користувачі').click();
     await field(admin, 'Пошук за ніком чи email').fill('Богдан 21a');
     await click(admin, 'Шукати');
-    await admin.locator('.admin-card', { hasText: 'bohdan21a@example.com' }).getByRole('link', { name: 'Богдан 21a', ...exact }).click();
+    await admin.locator('li.admin-user-row', { hasText: 'bohdan21a@example.com' }).getByRole('link', { name: 'Богдан 21a', ...exact }).click();
     await admin.waitForURL(`${base}/admin/users/${bohdanId}`);
+    await openSection(admin, 'Модерація');
     await field(admin, 'Причина (бачать лише адміни)').fill('спам');
     await click(admin, 'Заблокувати');
     await admin.locator('.admin-mark.is-banned').waitFor();
@@ -1400,8 +1401,9 @@ async function admin21a() {
 
     // ── 7. Приз зі складу. ──
     await admin.goto(`${base}/admin/users/${bohdanId}`);
-    await admin.getByText(PRIZE, exact).waitFor();
-    await click(admin, 'Видалити приз');
+    const prizes = await openSection(admin, 'Призи');
+    await prizes.getByRole('checkbox', { name: PRIZE, ...exact }).check();
+    await click(admin, 'Видалити вибрані');
     await expect.poll(() => admin.getByText('Порожньо.', exact).count(), POLL).toBe(2);
     expect(await admin.getByText(PRIZE, exact).count()).toBe(0);
 
@@ -1423,6 +1425,7 @@ async function admin21a() {
 
     // ── 9. Розбан. ──
     await admin.goto(`${base}/admin/users/${bohdanId}`);
+    await openSection(admin, 'Модерація');
     await click(admin, 'Розблокувати');
     await admin.getByRole('button', { name: 'Заблокувати', ...exact }).waitFor();
     await bohdan.goto(`${base}/login`);

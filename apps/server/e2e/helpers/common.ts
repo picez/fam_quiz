@@ -103,6 +103,16 @@ export async function openRoundSettings(page: Page) {
   if ((await panel.getAttribute('open')) === null) await panel.locator('summary').click();
 }
 
+/** 69: розділ картки гравця в адмінці за заголовком; закритий розгортає й чекає відкриття. */
+export async function openSection(page: Page, heading: string): Promise<Locator> {
+  const box = page.locator('section.admin-card-section', { has: page.getByRole('heading', { name: heading, ...exact }) });
+  await box.waitFor();
+  const details = box.locator('details.admin-fold');
+  if ((await details.getAttribute('open')) === null) await box.locator('summary').click();
+  await box.locator('details[open]').waitFor();
+  return box;
+}
+
 /** Увесь видимий текст сторінки. */
 export const bodyText = (page: Page) => page.locator('body').innerText();
 

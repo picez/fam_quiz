@@ -28097,6 +28097,198 @@ a.library-card:focus-visible {
   border-color: var(--signal);
 }
 
+/* 69: список користувачів — один рядок на людину (нік, дата, email), увесь рядок клікабельний; шапка картки; лише змінні теми. */
+.admin-user-rows {
+  display: grid;
+  gap: 0;
+  margin: 0 0 1rem;
+  padding: 0;
+  list-style: none;
+}
+
+.admin-user-row {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) auto minmax(0, 1.6fr);
+  gap: 0.25rem 0.75rem;
+  align-items: center;
+  min-height: 2.75rem;
+  padding: 0.4rem 0.6rem;
+  border-block-end: 1px solid var(--line);
+  overflow-wrap: anywhere;
+}
+
+.admin-user-row:hover {
+  background: var(--surface);
+}
+
+.admin-user-row a::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+}
+
+/* Єдине кільце фокусу — на рядку, а не на посиланні всередині. */
+.admin-user-row a:focus-visible {
+  outline: none;
+}
+
+.admin-user-row:has(a:focus-visible) {
+  outline: 2px solid var(--link);
+  outline-offset: -2px;
+}
+
+.admin-user-nick {
+  min-width: 0;
+}
+
+.admin-user-nick .admin-mark {
+  margin-inline-start: 0.4rem;
+  font-size: 0.8rem;
+}
+
+.admin-user-row .meta {
+  margin: 0;
+}
+
+@media (max-width: 30rem) {
+  .admin-user-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .admin-user-email {
+    grid-column: 1 / -1;
+  }
+}
+
+.admin-user-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.25rem 0.75rem;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.admin-user-head h2,
+.admin-user-head p {
+  margin: 0;
+}
+
+/* 69: розділи картки, що згортаються — нативні details/summary; закритий розділ займає один рядок; лише змінні теми. */
+details.admin-fold > summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.25rem 0.6rem;
+  min-height: 2.75rem;
+  align-content: center;
+  cursor: pointer;
+  list-style: none;
+}
+
+details.admin-fold > summary::-webkit-details-marker {
+  display: none;
+}
+
+details.admin-fold > summary::before {
+  content: '';
+  align-self: center;
+  width: 0.5rem;
+  height: 0.5rem;
+  border-inline-end: 2px solid currentColor;
+  border-block-end: 2px solid currentColor;
+  transform: rotate(-45deg);
+  transition: transform 0.15s;
+}
+
+details.admin-fold[open] > summary::before {
+  transform: rotate(45deg);
+}
+
+/* RTL: border-inline-end — ліва межа, тож закритий розділ дивиться вліво, відкритий — вниз. */
+[dir='rtl'] details.admin-fold:not([open]) > summary::before {
+  transform: rotate(45deg);
+}
+
+[dir='rtl'] details.admin-fold[open] > summary::before {
+  transform: rotate(-45deg);
+}
+
+.admin-fold-title {
+  display: inline;
+  margin: 0;
+  font-size: 1.15rem;
+}
+
+.admin-fold-count {
+  box-sizing: border-box;
+  min-width: 1.6rem;
+  padding: 0 0.4rem;
+  border-radius: 999px;
+  background: var(--track);
+  font-weight: 700;
+  text-align: center;
+}
+
+.admin-fold-body {
+  display: grid;
+  gap: 0.75rem;
+  min-width: 0;
+  margin-block-start: 0.5rem;
+}
+
+/* gap панелі не діє всередині <details>; порожній рядок тривоги/стану не лишає зайвої порожнечі (як у .resume-panel). */
+.admin-fold-body > .admin-card-line:empty {
+  margin-block-start: -0.75rem;
+}
+
+.admin-card-section:has(> details:not([open])) {
+  padding-block: 0.25rem;
+}
+
+/* 69: список з прапорцями (PickList) — «Вибрати всі», рядки, одна дія під списком; лише змінні теми. */
+.admin-pick {
+  display: grid;
+  gap: 0.5rem;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.admin-pick-rows {
+  display: grid;
+  gap: 0.25rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.admin-pick-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.25rem 0.6rem;
+  min-height: 2.75rem;
+  min-width: 0;
+}
+
+.admin-pick-row .field,
+.admin-pick-all {
+  min-height: 2.75rem;
+}
+
+.admin-pick-all {
+  padding-block-end: 0.25rem;
+  border-block-end: 1px solid var(--line);
+}
+
+.admin-pick > .btn {
+  justify-self: start;
+  min-height: 2.75rem;
+}
+
 /* 66: об'єднання акаунтів — знайдені акаунти кнопками на всю ширину з переносом довгих email; лише змінні теми. */
 .admin-merge-pick {
   display: flex;

@@ -1,72 +1,86 @@
 import { useEffect, useState, type JSX } from 'react';
 import { Link } from 'react-router-dom';
 import { GIFT_NOTE_MAX, type AdminAward, type AdminPrize, type PrizeItem } from '@quiz/shared';
-import { myPrizes } from '../../api';
+import { myPrizes, type ApiResult } from '../../api';
 import { formatDate } from '../../format';
 import { errorText, t } from '../../i18n';
 import { nickText } from '../../nick';
 import { deleteAwardAsAdmin, deletePrizeAsAdmin, giftPrize, revokeGift } from '../admin-api';
 import type { CardProps } from '../AdminUser';
+import { runEach } from './bulk';
+import { CardFold } from './CardFold';
+import { PickList, type PickItem } from './PickList';
 
 /** Призи гравця: склад, вітрина (подарунок адміна — «Забрати подарунок») і подарунок зі свого складу адміна (58). */
 export function CardPrizes({ detail, act, busy }: CardProps): JSX.Element {
   const { user, stock, awards } = detail;
   const [error, setError] = useState<string | null>(null);
   const nickname = nickText(user.nickname);
-  const report = setError;
+  const [notice, setNotice] = useState('');
+  // act на початку кожної дії викликає report(null): тоді ж гасимо застарілий рядок стану (і форми подарунка).
+  const report = (message: string | null) => {
+    setError(message);
+    if (message === null) setNotice('');
+  };
+  const giftIds = new Set(awards.filter((award) => award.gift !== null).map((award) => award.id));
+  const names = (picked: PickItem[]) => picked.map((item) => item.name).join(', ');
+  // Масова дія: одне підтвердження, запити по черзі; те, чого вже немає, — пропуск з рядком стану.
+  const bulk = (confirmText: string, picked: PickItem[], run: (item: PickItem) => Promise<ApiResult<object>>) => {
+    return act(
+      confirmText,
+      async () => {
+        const result = await runEach(picked, run);
+        if (result.ok && result.skipped > 0) setNotice(t('adminCardPickedPartial', { done: result.done, count: picked.length }));
+        return result;
+      },
+      report,
+    );
+  };
   return (
-    <section className="panel admin-card-section">
-      <h2>{t('adminPrizes')}</h2>
+    <CardFold title={t('adminPrizes')} count={stock.length + awards.length}>
       <h3>{t('adminStock')}</h3>
       {stock.length === 0 ? (
         <p className="meta">{t('adminNoPrizes')}</p>
       ) : (
-        <ul className="admin-list">
-          {stock.map((prize: AdminPrize) => (
-            <li key={prize.id} className="admin-card">
-              <p dir="auto">{prize.content.name}</p>
-              <button type="button" className="btn" disabled={busy} onClick={() => void act(t('adminDeletePrizeConfirm', { name: prize.content.name }), () => deletePrizeAsAdmin(prize.id), report)}>
-                {t('adminDeletePrize')}
-              </button>
-            </li>
-          ))}
-        </ul>
+        <PickList
+          title={t('adminStock')}
+          items={stock.map((prize: AdminPrize) => ({ id: prize.id, name: prize.content.name }))}
+          action={t('adminCardDeletePicked')}
+          danger
+          busy={busy}
+          onRun={(picked) => bulk(t('adminCardDeletePickedConfirm', { nickname, count: picked.length, names: names(picked) }), picked, (item) => deletePrizeAsAdmin(item.id))}
+        />
       )}
       <h3>{t('adminShowcase')}</h3>
       {awards.length === 0 ? (
         <p className="meta">{t('adminNoPrizes')}</p>
       ) : (
-        <ul className="admin-list">
-          {awards.map((award: AdminAward) =>
-            award.gift !== null ? (
-              <li key={award.id} className="admin-card">
-                <p dir="auto">{award.content.name}</p>
-                <p className="meta">{t('awardGiftLine', { date: formatDate(award.awardedAt) })}</p>
-                {award.gift.note !== null && <p dir="auto">{award.gift.note}</p>}
-                <button type="button" className="btn btn-danger" disabled={busy} onClick={() => void act(t('adminCardGiftRevokeConfirm', { title: award.content.name, nickname }), () => revokeGift(award.id), report)}>
-                  {t('adminCardGiftRevoke')}
-                </button>
-              </li>
-            ) : (
-              <li key={award.id} className="admin-card">
-                <p>«{award.quizTitle}»</p>
-                <p className="meta">{t('adminPlace', { place: award.place })}</p>
-                {award.content.engraving !== null && <p>{award.content.engraving}</p>}
-                {award.content.title !== null && <p>{award.content.title}</p>}
-                <button type="button" className="btn" disabled={busy} onClick={() => void act(t('adminDeleteAwardConfirm', { quiz: award.quizTitle }), () => deleteAwardAsAdmin(award.id), report)}>
-                  {t('adminDeleteAward')}
-                </button>
-              </li>
-            ),
-          )}
-        </ul>
+        <PickList
+          title={t('adminShowcase')}
+          items={awards.map((award: AdminAward) => ({ id: award.id, name: award.gift !== null ? award.content.name : `«${award.quizTitle}» · ${award.place}`, meta: awardMeta(award) }))}
+          action={t('adminCardRemovePicked')}
+          danger
+          busy={busy}
+          onRun={(picked) =>
+            bulk(t('adminCardRemovePickedConfirm', { nickname, count: picked.length, names: names(picked) }), picked, (item) => (giftIds.has(item.id) ? revokeGift(item.id) : deleteAwardAsAdmin(item.id)))
+          }
+        />
       )}
       <GiftForm detail={detail} act={act} busy={busy} report={report} />
       <p className="error admin-card-line" role="alert">
         {error ?? ''}
       </p>
-    </section>
+      <p className="meta admin-card-line" role="status">
+        {notice}
+      </p>
+    </CardFold>
   );
+}
+
+/** Підпис рядка вітрини: подарунок — дата й примітка, нагорода з гри — місце, гравіювання, титул (в один рядок). */
+function awardMeta(award: AdminAward): string {
+  if (award.gift !== null) return [t('awardGiftLine', { date: formatDate(award.awardedAt) }), award.gift.note].filter((part) => part !== null && part !== '').join(' · ');
+  return [t('adminPlace', { place: award.place }), award.content.engraving, award.content.title].filter((part) => part !== null && part !== '').join(' · ');
 }
 
 /** «Подарувати приз»: зі свого складу адміна (приз копіюється й лишається в адміна) або «Створити новий приз» з поверненням сюди. */

@@ -8,17 +8,21 @@ import { adminUsers } from './admin-api';
 import { useAdminData } from './useAdminData';
 import { nickText } from '../nick';
 
-/** Картка людини: у списку з посиланням на людину, на сторінці людини без нього. */
-export function UserCard({ row, link }: { row: AdminUserRow; link: boolean }): JSX.Element {
+/** 69: рядок списку — нік (посилання, весь рядок клікабельний), дата реєстрації, email; бейджі «Адмін» / «Заблоковано» не додають рядка. */
+function UserRow({ row }: { row: AdminUserRow }): JSX.Element {
   return (
-    <li className="admin-card">
-      <h2>{link ? <Link to={`/admin/users/${encodeURIComponent(row.id)}`}>{nickText(row.nickname)}</Link> : nickText(row.nickname)}</h2>
-      <p className="meta">{row.email}</p>
-      <p className="meta">{t('adminJoined', { date: formatDate(row.createdAt) })}</p>
-      <p className="meta">{t('adminGamesCount', { count: row.games })}</p>
-      <p className="meta">{t('adminQuizzesCount', { count: row.quizzes })}</p>
-      {row.admin && <p className="admin-mark">{t('adminIsAdmin')}</p>}
-      {row.banned !== null && <p className="admin-mark is-banned">{t('adminBanned', { date: formatDate(row.banned.at) })}</p>}
+    <li className="admin-user-row">
+      <span className="admin-user-nick">
+        <Link to={`/admin/users/${encodeURIComponent(row.id)}`}>{nickText(row.nickname)}</Link>
+        {row.admin && <span className="admin-mark">{t('adminIsAdmin')}</span>}
+        {row.banned !== null && <span className="admin-mark is-banned">{t('adminBannedShort')}</span>}
+      </span>
+      <time className="admin-user-date meta" dateTime={row.createdAt}>
+        {formatDate(row.createdAt)}
+      </time>
+      <span className="admin-user-email meta" dir="ltr">
+        {row.email}
+      </span>
     </li>
   );
 }
@@ -63,9 +67,9 @@ export function AdminUsers(): JSX.Element {
           {state.data.rows.length === 0 ? (
             <p className="meta">{t('adminNothing')}</p>
           ) : (
-            <ul className="admin-list">
+            <ul className="admin-user-rows">
               {state.data.rows.map((row) => (
-                <UserCard key={row.id} row={row} link />
+                <UserRow key={row.id} row={row} />
               ))}
             </ul>
           )}

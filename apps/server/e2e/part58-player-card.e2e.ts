@@ -7,7 +7,7 @@ import { type Socket } from 'socket.io-client';
 import { expect, it } from 'vitest';
 import { adminEmails } from '../src/config';
 import { user } from '../src/db/schema';
-import { bodyText, click, expectNoSideScroll, field, join, myId, open, POLL, register } from './helpers/common';
+import { bodyText, click, expectNoSideScroll, field, join, myId, open, openSection, POLL, register } from './helpers/common';
 import { ARTIFACTS, avatarPng, base, browser, contexts, ctx, db, exact, flags, problems, relisten, snapshot, useE2eServer } from './helpers/setup';
 
 /**
@@ -134,7 +134,9 @@ async function card58() {
   expect(await isLight(admin)).toBe(true);
   await admin.getByLabel('Пошук за ніком чи email', exact).fill('olya58');
   await click(admin, 'Шукати');
-  await admin.locator('li.admin-card', { hasText: 'olya58@example.com' }).getByRole('link', { name: 'Оля', ...exact }).click();
+  await admin.locator('li.admin-user-row', { hasText: 'olya58@example.com' }).waitFor();
+  await view(admin, 'users69-list-360');
+  await admin.locator('li.admin-user-row', { hasText: 'olya58@example.com' }).getByRole('link', { name: 'Оля', ...exact }).click();
   await admin.waitForURL(`${base}/admin/users/${olyaId}`);
   const overview = section(admin, 'Огляд');
   await overview.waitFor();
@@ -142,31 +144,39 @@ async function card58() {
   expect(await overview.innerText()).toMatch(/Ігор: 2 /);
   await admin.evaluate(() => scrollTo(0, 0));
   await view(admin, 'card58-overview-360');
+  // 69: на картці спершу відкритий лише «Огляд», решта згорнута — картка вміщається майже на один екран.
+  expect(await admin.locator('details.admin-fold[open]').count(), 'only the overview is open').toBe(1);
+  expect(await admin.locator('details.admin-fold').count(), 'every section folds').toBeGreaterThan(5);
+  await view(admin, 'card69-folded-360');
   // Усі розділи — без бокового скролу, кожен кадром.
   for (const heading of ['Досягнення', 'Досвід', 'Останні ігри', 'Вікторини', 'Бани']) {
-    await sectionShot(admin, section(admin, heading), `card58-${heading === 'Досвід' ? 'xp-section' : heading === 'Останні ігри' ? 'games' : heading === 'Бани' ? 'bans' : heading === 'Вікторини' ? 'quizzes' : 'achievements'}-360`);
+    await sectionShot(admin, await openSection(admin, heading), `card58-${heading === 'Досвід' ? 'xp-section' : heading === 'Останні ігри' ? 'games' : heading === 'Бани' ? 'bans' : heading === 'Вікторини' ? 'quizzes' : 'achievements'}-360`);
   }
 
   // Те саме в темній темі: окремий контекст з тим самим входом.
   const darkContext = await browser.newContext({ viewport: { width: 360, height: 740 }, locale: 'uk-UA', colorScheme: 'dark', storageState: { cookies: (await admin.context().storageState()).cookies, origins: [] } });
   contexts.push(darkContext);
   const dark = await darkContext.newPage();
+  await dark.goto(`${base}/admin/users`);
+  await dark.locator('li.admin-user-row').first().waitFor();
+  await view(dark, 'users69-list-dark-360');
   await dark.goto(`${base}/admin/users/${olyaId}`);
   await section(dark, 'Огляд').waitFor();
   expect(await isLight(dark), 'the dark page is dark').toBe(false);
   await view(dark, 'card58-overview-dark-360');
-  for (const [heading, name] of [['Досягнення', 'achievements'], ['Досвід', 'xp-section'], ['Останні ігри', 'games']] as const) await sectionShot(dark, section(dark, heading), `card58-${name}-dark-360`);
+  for (const [heading, name] of [['Досягнення', 'achievements'], ['Досвід', 'xp-section'], ['Останні ігри', 'games']] as const) await sectionShot(dark, await openSection(dark, heading), `card58-${name}-dark-360`);
+  await openSection(dark, 'Призи');
   await dark.getByRole('heading', { name: 'Призи', level: 2 }).evaluate((node) => node.scrollIntoView({ block: 'start' }));
   await view(dark, 'card58-prizes-dark-360');
   await dark.close();
 
   // ── 2. Видати «Перша перемога» → у списку з датою; у Олі є. «Забрати» → немає, і після перезавантаження теж. ──
   const earned = (page: Page) => page.locator('.achievement-card:not(.is-locked)', { has: page.getByRole('heading', { name: /^Перша перемога/ }) }).count();
-  const achievements = section(admin, 'Досягнення');
-  expect(await achievements.locator('li.admin-card', { hasText: ACHIEVEMENT }).count()).toBe(0);
+  const achievements = await openSection(admin, 'Досягнення');
+  expect(await achievements.locator('li.admin-pick-row', { hasText: ACHIEVEMENT }).count()).toBe(0);
   await achievements.getByLabel('Оберіть досягнення').selectOption({ label: ACHIEVEMENT });
   await achievements.getByRole('button', { name: 'Видати досягнення', ...exact }).click();
-  const granted = achievements.locator('li.admin-card', { hasText: ACHIEVEMENT });
+  const granted = achievements.locator('li.admin-pick-row', { hasText: ACHIEVEMENT });
   await granted.waitFor();
   expect(await granted.locator('.meta').count(), 'the grant date').toBeGreaterThan(0);
   await granted.scrollIntoViewIfNeeded();
@@ -174,8 +184,9 @@ async function card58() {
   await olya.goto(`${base}/profile/achievements`);
   await olya.getByRole('heading', { name: ACHIEVEMENT, ...exact }).waitFor();
   expect(await earned(olya), 'granted achievement in her list').toBe(1);
-  await granted.getByRole('button', { name: 'Відібрати', ...exact }).click();
-  await achievements.locator('li.admin-card', { hasText: ACHIEVEMENT }).waitFor({ state: 'detached' });
+  await achievements.getByRole('checkbox', { name: ACHIEVEMENT, ...exact }).check();
+  await achievements.getByRole('button', { name: 'Відібрати вибрані', ...exact }).click();
+  await achievements.locator('li.admin-pick-row', { hasText: ACHIEVEMENT }).waitFor({ state: 'detached' });
   await achievements.getByText(`${ACHIEVEMENT} — Забрано адміністратором`, exact).waitFor();
   await olya.goto(`${base}/profile/achievements`);
   await olya.locator('.achievement-card.is-locked', { has: olya.getByRole('heading', { name: /^Перша перемога/ }) }).waitFor();
@@ -185,7 +196,7 @@ async function card58() {
   expect(await earned(olya), 'revoked achievement stays gone after a reload').toBe(0);
 
   // ── 3. Досвід: +300 з причиною → рівень 2; Оля бачить рівень 2 і розділ «Від адміністратора» з причиною. ──
-  const xp = section(admin, 'Досвід');
+  const xp = await openSection(admin, 'Досвід');
   await xp.getByLabel('Зміна (від’ємне число — відняти)', exact).fill('300');
   expect(await xp.getByRole('button', { name: 'Додати / відняти досвід', ...exact }).isDisabled(), 'no reason, no button').toBe(true);
   await xp.getByLabel('Причина (обов’язково)', exact).fill(REASON);
@@ -205,7 +216,7 @@ async function card58() {
   await view(olya, 'card58-levels-360');
 
   // ── 4. Подарунок: створити приз у студії (повернення на картку), вибрати, підпис → «Подарувати приз». ──
-  const prizes = section(admin, 'Призи');
+  const prizes = await openSection(admin, 'Призи');
   await prizes.scrollIntoViewIfNeeded();
   await prizes.getByRole('link', { name: 'Створити новий приз', ...exact }).click();
   await admin.waitForURL(`${base}/profile/prizes/new?back=/admin/users/${olyaId}`);
@@ -214,13 +225,13 @@ async function card58() {
   await field(admin, 'Підпис під кубком і на дипломі').fill(PRIZE);
   await admin.getByRole('button', { name: 'Зберегти', ...exact }).click();
   await admin.waitForURL(`${base}/admin/users/${olyaId}`);
-  await prizes.waitFor();
+  await openSection(admin, 'Призи');
   await prizes.getByLabel('Оберіть приз зі свого складу').selectOption({ label: PRIZE });
   await prizes.getByLabel('Підпис (необов’язково)', exact).fill(NOTE);
   await prizes.getByRole('button', { name: 'Подарувати приз', ...exact }).scrollIntoViewIfNeeded();
   await viewportShot(admin, 'card58-gift-form-360');
   await prizes.getByRole('button', { name: 'Подарувати приз', ...exact }).click();
-  const giftRow = prizes.locator('li.admin-card', { hasText: 'Подарунок від адміністратора' });
+  const giftRow = prizes.locator('li.admin-pick-row', { hasText: 'Подарунок від адміністратора' });
   await giftRow.waitFor();
   expect(await giftRow.innerText()).toContain(NOTE);
   // Вітрина Олі (бачить Петро): «Подарунок від адміністратора» і підпис (назву призу бачить лише власник).
@@ -237,7 +248,8 @@ async function card58() {
   await feedLine.first().scrollIntoViewIfNeeded();
   await viewportShot(petro, 'card58-feed-360');
   // «Забрати подарунок»: вітрина й подія зникли; приз адміна лишається в його складі.
-  await giftRow.getByRole('button', { name: 'Забрати подарунок', ...exact }).click();
+  await giftRow.getByRole('checkbox').check();
+  await prizes.getByRole('button', { name: 'Прибрати вибрані', ...exact }).click();
   await giftRow.waitFor({ state: 'detached' });
   await petro.goto(`${base}/profile/${olyaId}`);
   await petro.locator('.showcase, main').first().waitFor();
@@ -250,7 +262,7 @@ async function card58() {
 
   // ── 5. «Останні ігри» → гра → адмінський перегляд із таблицею; «Скинути аватар» → аватар Олі типовий. ──
   await admin.goto(`${base}/admin/users/${olyaId}`);
-  const games = section(admin, 'Останні ігри');
+  const games = await openSection(admin, 'Останні ігри');
   await games.getByRole('link', { name: FIRST, ...exact }).click();
   await admin.waitForURL(/\/admin\/games\/[\w-]+$/);
   await admin.getByText('Тарас', exact).first().waitFor();
@@ -259,7 +271,7 @@ async function card58() {
   await admin.goBack();
   await section(admin, 'Останні ігри').waitFor();
   expect(((await (await olya.request.get(`${base}/api/me/profile`)).json()) as { avatar: string | null }).avatar).not.toBeNull();
-  const moderation = admin.locator('section.admin-card-section').filter({ has: admin.getByRole('button', { name: 'Скинути аватар', ...exact }) });
+  const moderation = await openSection(admin, 'Модерація');
   await moderation.scrollIntoViewIfNeeded();
   await view(admin, 'card58-moderation-360');
   await moderation.getByRole('button', { name: 'Скинути аватар', ...exact }).click();
@@ -268,8 +280,7 @@ async function card58() {
 
   // ── 6. Картка Тараса: «Видалити акаунт» неактивна; «Петро» — неактивна; «Тарас» → підтвердження → список без Тараса. ──
   await admin.goto(`${base}/admin/users/${tarasId}`);
-  const removal = admin.locator('section.admin-card-delete');
-  await removal.waitFor();
+  const removal = await openSection(admin, 'Видалити акаунт');
   const removeButton = removal.getByRole('button', { name: 'Видалити акаунт', ...exact });
   expect(await removeButton.isDisabled(), 'no nickname typed').toBe(true);
   const typed = removal.getByLabel('Введіть нік «Тарас», щоб підтвердити', exact);
@@ -283,8 +294,8 @@ async function card58() {
   await view(admin, 'card58-delete-confirm-360');
   await removeButton.click();
   await admin.waitForURL(`${base}/admin/users`);
-  await admin.locator('li.admin-card').first().waitFor();
-  expect(await admin.locator('li.admin-card', { hasText: TARAS_EMAIL }).count(), 'Taras left the list').toBe(0);
+  await admin.locator('li.admin-user-row').first().waitFor();
+  expect(await admin.locator('li.admin-user-row', { hasText: TARAS_EMAIL }).count(), 'Taras left the list').toBe(0);
   expect((await admin.request.get(`${base}/api/admin/users/${tarasId}`)).status()).toBe(404);
   // Його вхід — відмова.
   const signIn = await fetch(`${base}/api/auth/sign-in/email`, { method: 'POST', headers: { 'content-type': 'application/json', origin: base }, body: JSON.stringify({ email: TARAS_EMAIL, password: 'correct horse battery' }) });
@@ -297,7 +308,7 @@ async function card58() {
   expect(await bodyText(olya), 'Taras is not named in the history of Olia').not.toMatch(TARAS_WORD);
   await view(olya, 'card58-deleted-history-360');
   await admin.goto(`${base}/admin/users/${olyaId}`);
-  const olyaGames = section(admin, 'Останні ігри');
+  const olyaGames = await openSection(admin, 'Останні ігри');
   for (const title of [FIRST, SECOND]) await olyaGames.getByRole('link', { name: title, ...exact }).waitFor();
   await olyaGames.getByRole('link', { name: FIRST, ...exact }).click();
   await admin.getByText('Видалений гравець', { exact: false }).first().waitFor();
