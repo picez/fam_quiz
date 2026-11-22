@@ -3,7 +3,7 @@ import { resolve } from 'node:path';
 import { type Page } from 'playwright-core';
 import { type Socket } from 'socket.io-client';
 import { expect, it } from 'vitest';
-import { classicRound, makeRoundsQuiz, numeric, single, text } from '@quiz/engine/testing';
+import { classicRound, makeRoundsQuiz, multi, numeric, single, text } from '@quiz/engine/testing';
 import { open, register, join, click, field, png29d, step27a, reveal28a, next27a, pilotPlayer, emitOk } from './helpers/common';
 import { exact, base, ARTIFACTS, shot, snapshot, afterSplash, useE2eServer } from './helpers/setup';
 
@@ -366,6 +366,52 @@ async function stage67() {
 it('part 67 stage: the stage on a big screen — the question and the standings of six players fit 1920 × 1080 and 1366 × 768 without scrolling, boards grow past 960 px from 1600 px, nothing scrolls sideways on a 375 screen', async () => {
   try {
     await stage67();
+  } catch (error) {
+    await snapshot();
+    throw error;
+  }
+}, 300_000);
+
+async function editor67() {
+  const author = await open('author67e', 1920, 1080);
+  await register(author, 'author', 'Марина Авторка', 'editor67@example.com');
+  const data = {
+    ...makeRoundsQuiz(
+      [
+        classicRound('r67e1', [{ ...single, id: 'q67e1', text: 'Яке місто називають перлиною біля моря?' }, { ...multi, id: 'q67e2', text: 'Які з цих міст стоять на Дніпрі?' }] as never),
+        classicRound('r67e2', [{ ...numeric, id: 'q67e3', text: 'Скільки хвилин у годині?' }, { ...text, id: 'q67e4', text: 'Столиця Франції?', accepted: ['Париж'] }] as never),
+      ],
+      { leaderboard: 'end' },
+    ),
+    title: 'Редактор на ПК 67',
+  };
+  const saved = await author.request.post(`${base}/api/quizzes`, { data });
+  expect(saved.ok(), await saved.text()).toBe(true);
+  const id = ((await saved.json()) as { id: string }).id;
+  await author.goto(`${base}/quizzes/${id}`);
+  await author.locator('.editor-grid').waitFor();
+  await wide67(author, 'editor67', async ({ tag }) => {
+    const geometry = (await author.evaluate(`(() => {
+      const box = (selector) => { const el = document.querySelector(selector); if (!el) return null; const r = el.getBoundingClientRect(); return { x: r.x, y: r.y, w: r.width, right: r.right }; };
+      const rules = [...document.querySelectorAll('.editor-quiz > details.rules')].slice(0, 2).map((el) => el.getBoundingClientRect());
+      return { main: box('main'), side: box('.editor-side'), stage: box('.editor-stage'), nav: box('.question-nav'), rowY: rules.map((r) => r.y), rowX: rules.map((r) => r.x) };
+    })()`)) as { main: { w: number }; side: { x: number; w: number }; stage: { x: number; w: number }; nav: { w: number } | null; rowY: number[]; rowX: number[] };
+    if (tag === '375') {
+      expect(geometry.main.w, 'editor 375').toBe(375);
+      expect(geometry.nav!.w, 'editor 375: the question switcher is shown').toBeGreaterThan(0);
+      return;
+    }
+    expect(geometry.main.w, `editor ${tag}`).toBeGreaterThan(1088);
+    expect(geometry.stage.x, `editor ${tag}: the list is on the left`).toBeGreaterThan(geometry.side.x + geometry.side.w - 1);
+    expect(Math.abs(geometry.rowY[1]! - geometry.rowY[0]!), `editor ${tag}: settings in two columns`).toBeLessThanOrEqual(1);
+    expect(geometry.rowX[1]!, `editor ${tag}: the second settings block is to the right`).toBeGreaterThan(geometry.rowX[0]! + 100);
+    if (tag === '1920') expect(geometry.side.w, 'editor 1920: the list column is 26 rem at most').toBeLessThanOrEqual(416 + 1);
+  });
+}
+
+it('part 67 editor: the quiz editor on a computer — the page is wider than 68 rem, the question list column stands on the left, the quiz settings blocks stand in two columns, the 375 phone is as before and nothing scrolls sideways', async () => {
+  try {
+    await editor67();
   } catch (error) {
     await snapshot();
     throw error;

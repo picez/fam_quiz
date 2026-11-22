@@ -28826,3 +28826,31 @@ a.library-card:focus-visible {
     max-width: min(100%, 72rem);
   }
 }
+
+/* ---------- 67: редактор вікторин ---------- */
+@media (min-width: 1280px) {
+  /* Колонка списку запитань росте разом з екраном; налаштування вікторини — у дві колонки, назва на весь рядок. */
+  .editor-grid {
+    grid-template-columns: minmax(0, clamp(19rem, 22vw, 26rem)) minmax(0, 1fr);
+  }
+
+  .editor-quiz {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
+  }
+
+  .editor-quiz > .field {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (min-width: 1600px) {
+  /* Варіанти відповіді (одна чи кілька правильних) — у дві колонки; кнопка «додати» на весь рядок. */
+  .answer-rows.option-rows {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .answer-rows.option-rows > .btn {
+    grid-column: 1 / -1;
+  }
+}

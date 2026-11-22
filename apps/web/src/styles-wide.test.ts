@@ -165,6 +165,19 @@ describe('67 stage boards', () => {
   });
 });
 
+describe('67 quiz editor', () => {
+  it('the editor grows with --w-editor, the question list column grows with the screen', () => {
+    const media = minWidthMedia(clean);
+    const at = (width: string, selector: string) => media.filter((item) => item.width === width).flatMap(({ body }) => rules(body)).find((rule) => rule.selector === selector)?.body ?? '';
+    expect(at('1280', '.editor-grid')).toContain('grid-template-columns: minmax(0, clamp(19rem, 22vw, 26rem)) minmax(0, 1fr);');
+    expect(at('1280', '.editor-quiz')).toContain('grid-template-columns: repeat(2, minmax(0, 1fr));');
+    expect(at('1280', '.editor-quiz')).toContain('align-items: start;');
+    expect(at('1280', '.editor-quiz > .field')).toContain('grid-column: 1 / -1;');
+    expect(at('1600', '.answer-rows.option-rows')).toContain('repeat(2, minmax(0, 1fr))');
+    expect(topLevel('.app.editor')).toContain('--app-w: var(--w-editor);');
+  });
+});
+
 /** Тіло верхньорівневого правила з цим селектором (для .app, .app.host тощо). */
 function topLevel(selector: string): string {
   return rules(clean).find((rule) => rule.selector === selector)?.body ?? '';
