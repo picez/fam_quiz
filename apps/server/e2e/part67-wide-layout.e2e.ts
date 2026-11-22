@@ -217,9 +217,9 @@ it('part 67 player: the player phone screen on a computer — the column grows t
 }, 300_000);
 
 /** Ведучий, сцена 1920 × 1080 і четверо гравців-телефонів (один із 20-літерним ніком); гра на одне текстове запитання. */
-async function hostGame67() {
+async function hostGame67(email = 'host67h@example.com') {
   const host = await open('host67h', 1280, 900);
-  await register(host, 'host', 'Ірина Ведуча', 'host67h@example.com');
+  await register(host, 'host', 'Ірина Ведуча', email);
   const data = { ...makeRoundsQuiz([classicRound('r67h', [{ ...text, id: 'q67h', text: 'Яке місто називають перлиною біля моря?', accepted: ['Одеса'], timeLimit: 40 }] as never)], { leaderboard: 'end' }), title: 'Пульт на ПК 67' };
   const saved = await host.request.post(`${base}/api/quizzes`, { data });
   expect(saved.ok(), await saved.text()).toBe(true);
@@ -764,7 +764,7 @@ async function easyLightRtl67() {
   flags.restarting = false;
 
   // ── Легкий режим і світла тема: меню гравця, пульт у лобі й на запитанні, екран гравця. ──
-  const { host, stage, phones } = await hostGame67();
+  const { host, stage, phones } = await hostGame67('host67e@example.com');
   await setStore(host, 'quiz:easy', 'on');
   await setStore(host, 'quiz:theme', 'light');
   await host.reload();
