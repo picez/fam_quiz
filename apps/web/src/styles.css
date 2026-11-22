@@ -11988,7 +11988,7 @@ button.wall-tile:disabled {
   min-height: 2.75rem;
 }
 
-.ladder-level-row input[type='number'] {
+.ladder-level-row input[inputmode='numeric'] {
   width: 7rem;
   min-width: 0;
   min-height: 2.75rem;
@@ -23907,7 +23907,7 @@ input.sudoku-editor-cell:focus-visible {
   gap: 0.75rem;
 }
 
-.quest-settings .quest-first input[type='number'] {
+.quest-settings .quest-first input[inputmode='numeric'] {
   width: 5rem;
   min-height: 2.75rem;
 }
