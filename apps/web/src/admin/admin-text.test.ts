@@ -186,6 +186,10 @@ describe('logLine for feed and group moderation (63)', () => {
     expect(logLine(entry({ kind: 'group_item_hide', target: 'Петро', details: { title: 'Родина', text: 'Бабуся свистить' } }))).toContain('запис «Бабуся свистить» у групі «Родина»');
     for (const kind of ['group_restore', 'group_member_remove', 'group_delete', 'group_item_show'] as const) expect(logLine(entry({ kind, details: { title: 'Родина' } })), kind).toContain('«Родина»');
   });
+  it('writes adding a member and a quiz-bot record (72)', () => {
+    expect(logLine(entry({ kind: 'group_member_add', target: 'Петро', details: { title: 'Родина' } }))).toBe('Адмін додав(-ла) Петро до групи «Родина»');
+    expect(logLine(entry({ kind: 'group_item_add', target: 'Оля', details: { title: 'Родина', text: 'Бабуся свистить' } }))).toContain('запис «Бабуся свистить» у групу «Родина» від Квіз-бота (Оля)');
+  });
 });
 
 describe('logLine for account merging (66)', () => {
