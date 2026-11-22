@@ -7,8 +7,8 @@ import type { QuizSummary } from '../api';
 import { CalendarForm } from './CalendarForm';
 
 const quizzes: QuizSummary[] = [
-  { id: 'q1', title: 'Україна', description: '', questionCount: 5, updatedAt: '2026-11-01T10:00:00.000Z' },
-  { id: 'q2', title: 'Кіно', description: '', questionCount: 5, updatedAt: '2026-11-01T10:00:00.000Z' },
+  { id: 'q1', title: 'Україна', description: '', questionCount: 5, updatedAt: '2026-11-01T10:00:00.000Z', createdAt: '2026-11-01T10:00:00.000Z', folderId: null },
+  { id: 'q2', title: 'Кіно', description: '', questionCount: 5, updatedAt: '2026-11-01T10:00:00.000Z', createdAt: '2026-11-01T10:00:00.000Z', folderId: null },
 ];
 const now = new Date('2026-11-02T10:00:00.000Z');
 

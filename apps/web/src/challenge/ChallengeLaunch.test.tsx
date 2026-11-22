@@ -12,7 +12,7 @@ vi.mock('../api', () => ({
   createChallenge: vi.fn(),
 }));
 
-const quiz = { id: 'q1', title: 'Географія', description: '', questionCount: 6, updatedAt: '2026-10-12T10:00:00.000Z' };
+const quiz = { id: 'q1', title: 'Географія', description: '', questionCount: 6, updatedAt: '2026-10-12T10:00:00.000Z', createdAt: '2026-10-12T10:00:00.000Z', folderId: null };
 const mine: ChallengeMine = { quizId: 'q1', code: 'abcdefghjkmn', expiresAt: '2026-11-25T10:00:00.000Z', played: 0 };
 const nothing: ChallengeCheck = { skipped: { rounds: [], questions: [], settings: [] }, empty: false, active: null };
 

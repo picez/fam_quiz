@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { roundQuestions } from '@quiz/shared';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { forgetAccount } from '../useAccount';
@@ -29,7 +29,7 @@ vi.mock('../quiz-io/actions');
 vi.mock('../library/library-api', () => ({ myLibrary: vi.fn(), openInLibrary: vi.fn(), closeInLibrary: vi.fn(), appealLibrary: vi.fn() }));
 
 const account = { ok: true as const, id: 'u1', name: 'Олена', email: 'o@example.com', admin: false };
-const summary = { id: 'q1', title: 'Географія', description: 'Про Україну', questionCount: 6, updatedAt: '2026-10-12T10:00:00.000Z' };
+const summary = { id: 'q1', title: 'Географія', description: 'Про Україну', questionCount: 6, updatedAt: '2026-10-12T10:00:00.000Z', createdAt: '2026-10-01T10:00:00.000Z', folderId: null };
 
 beforeEach(() => {
   // Відома людина (stale-while-revalidate) не переходить з тесту в тест.
@@ -46,11 +46,25 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-const open = () =>
+/** Адреса для перевірки параметрів (як у Library.test.tsx). */
+function Where() {
+  const location = useLocation();
+  return <p data-testid="where">{location.pathname + location.search}</p>;
+}
+
+const open = (url = '/quizzes') =>
   render(
-    <MemoryRouter initialEntries={['/quizzes']}>
+    <MemoryRouter initialEntries={[url]}>
       <Routes>
-        <Route path="/quizzes" element={<Quizzes />} />
+        <Route
+          path="/quizzes"
+          element={
+            <>
+              <Quizzes />
+              <Where />
+            </>
+          }
+        />
         <Route path="/login" element={<p>сторінка входу</p>} />
         <Route path="/host/:code" element={<p>пульт</p>} />
         <Route path="/play/:code" element={<p>телефон</p>} />
@@ -299,5 +313,65 @@ describe('Quizzes: when the session check fails', () => {
     open();
     const banner = await screen.findByRole('link', { name: /123 456/ });
     expect(banner.getAttribute('href')).toBe('/host/123456');
+  });
+});
+
+describe('Quizzes: dates and sort (73)', () => {
+  // Сервер віддає за «нещодавно зміненими»; дати створення й назви — в іншому порядку.
+  const three = [
+    { ...summary, id: 'q1', title: 'Їжак', createdAt: '2026-09-02T10:00:00.000Z', updatedAt: '2026-11-03T10:00:00.000Z' },
+    { ...summary, id: 'q2', title: 'Гора', createdAt: '2026-09-01T10:00:00.000Z', updatedAt: '2026-11-02T10:00:00.000Z' },
+    { ...summary, id: 'q3', title: 'Ґанок', createdAt: '2026-09-03T10:00:00.000Z', updatedAt: '2026-11-01T10:00:00.000Z' },
+  ];
+  const titles = () => screen.getAllByRole('heading', { level: 2 }).map((one) => one.textContent);
+  const sortSelect = () => screen.getByRole('combobox', { name: t('quizSort') }) as HTMLSelectElement;
+  const where = () => screen.getByTestId('where').textContent;
+
+  beforeEach(() => {
+    vi.mocked(listQuizzes).mockResolvedValue({ ok: true, data: three });
+  });
+
+  it('shows the created day on every card', async () => {
+    open();
+    await screen.findByText('Їжак');
+    expect(screen.getByText('Створено 2 вересня 2026 · змінено 3 листопада 2026')).toBeTruthy();
+    expect(document.querySelectorAll('.quiz-dates time')).toHaveLength(3);
+    expect(document.querySelector('.quiz-dates time')!.getAttribute('dateTime')).toBe('2026-09-02T10:00:00.000Z');
+  });
+
+  it('keeps the server order by default, with «Нещодавно змінені» picked and no sort in the address', async () => {
+    open();
+    await screen.findByText('Їжак');
+    expect(titles()).toEqual(['Їжак', 'Гора', 'Ґанок']);
+    expect(sortSelect().value).toBe('changed');
+    expect(sortSelect().selectedOptions[0]!.textContent).toBe('Нещодавно змінені');
+    expect(where()).toBe('/quizzes');
+  });
+
+  it('sorts oldest first and by Ukrainian name, keeping the sort in the address', async () => {
+    open();
+    await screen.findByText('Їжак');
+    fireEvent.change(sortSelect(), { target: { value: 'old' } });
+    expect(titles()).toEqual(['Гора', 'Їжак', 'Ґанок']);
+    expect(where()).toBe('/quizzes?sort=old');
+    fireEvent.change(sortSelect(), { target: { value: 'name' } });
+    expect(titles()).toEqual(['Гора', 'Ґанок', 'Їжак']);
+    expect(where()).toBe('/quizzes?sort=name');
+    fireEvent.change(sortSelect(), { target: { value: 'changed' } });
+    expect(where()).toBe('/quizzes');
+  });
+
+  it('opens with the sort from the address', async () => {
+    open('/quizzes?sort=new');
+    await screen.findByText('Їжак');
+    expect(sortSelect().value).toBe('new');
+    expect(titles()).toEqual(['Ґанок', 'Їжак', 'Гора']);
+  });
+
+  it('drops an unknown sort from the address', async () => {
+    open('/quizzes?sort=zzz');
+    await screen.findByText('Їжак');
+    expect(sortSelect().value).toBe('changed');
+    await waitFor(() => expect(where()).toBe('/quizzes'));
   });
 });

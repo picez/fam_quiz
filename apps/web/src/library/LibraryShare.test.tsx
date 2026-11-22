@@ -14,7 +14,7 @@ vi.mock('./library-api', () => ({
   appealLibrary: vi.fn(),
 }));
 
-const quiz = { id: 'q1', title: 'Географія', description: '', questionCount: 6, updatedAt: '2026-10-12T10:00:00.000Z' };
+const quiz = { id: 'q1', title: 'Географія', description: '', questionCount: 6, updatedAt: '2026-10-12T10:00:00.000Z', createdAt: '2026-10-12T10:00:00.000Z', folderId: null };
 const entry = (over: Partial<LibraryMine> = {}): LibraryMine => ({
   quizId: 'q1',
   entryId: 'e1',

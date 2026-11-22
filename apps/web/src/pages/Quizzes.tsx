@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Link, Navigate, useNavigate } from 'react-router-dom';
-import type { ChallengeMine, LibraryMine } from '@quiz/shared';
+import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom';
+import { QUIZ_SORTS, parseQuizSort, sortQuizzes, type ChallengeMine, type QuizSort, type LibraryMine } from '@quiz/shared';
 import { deleteQuiz, listMyChallenges, listQuizzes, type QuizSummary } from '../api';
 import { ChallengeLaunch } from '../challenge/ChallengeLaunch';
 import { daysLeftText, playedText } from '../challenge/challenge-text';
 import { RunningGameBanner, addDemoQuiz, useStartGame } from '../host-game';
-import { quizSizeText } from '../format';
-import { errorText, t } from '../i18n';
+import { quizDatesText, quizSizeText } from '../format';
+import { errorText, t, type TextKey } from '../i18n';
 import { myLibrary } from '../library/library-api';
 import { LibraryShare, libraryStatusText } from '../library/LibraryShare';
 import { useAccount } from '../useAccount';
@@ -15,6 +15,7 @@ import { ImportDialog } from '../quiz-io/ImportDialog';
 import { AutopilotLaunch } from './AutopilotLaunch';
 
 const LOGIN = '/login?next=%2Fquizzes';
+const SORT_LABELS = { new: 'quizSort_new', old: 'quizSort_old', name: 'quizSort_name', changed: 'quizSort_changed' } as const satisfies Record<QuizSort, TextKey>;
 
 export function Quizzes() {
   const startGame = useStartGame();
@@ -31,6 +32,31 @@ export function Quizzes() {
   const [importOpen, setImportOpen] = useState(false);
   const navigate = useNavigate();
   const signedIn = account.status === 'signed-in';
+  const [params, setParams] = useSearchParams();
+  const sortParam = params.get('sort');
+  const sort = parseQuizSort(sortParam);
+
+  /** Міняє параметри адреси; типові значення («Усі», «Нещодавно змінені») з адреси прибираються. */
+  const update = useCallback(
+    (changes: Record<string, string>) =>
+      setParams(
+        (current) => {
+          const copy = new URLSearchParams(current);
+          for (const [key, value] of Object.entries(changes)) {
+            if (value === '' || (key === 'sort' && value === 'changed')) copy.delete(key);
+            else copy.set(key, value);
+          }
+          return copy;
+        },
+        { replace: true },
+      ),
+    [setParams],
+  );
+
+  // Невідомий чи типовий порядок в адресі — прибрати, показується «Нещодавно змінені».
+  useEffect(() => {
+    if (sortParam !== null && (sortParam !== sort || sort === 'changed')) update({ sort: '' });
+  }, [sortParam, sort, update]);
 
   /** Показує помилку; закінчену сесію перетворює на перехід до входу. */
   const fail = useCallback((code: string) => {
@@ -135,8 +161,22 @@ export function Quizzes() {
       {quizzes === null && <p className="meta">{t('loading')}</p>}
       {quizzes !== null && quizzes.length === 0 && <p className="lead">{t('noQuizzes')}</p>}
       {quizzes !== null && quizzes.length > 0 && (
+        <div className="quiz-folders">
+          <label className="field quiz-folder-sort">
+            <span>{t('quizSort')}</span>
+            <select value={sort} onChange={(event) => update({ sort: event.target.value })}>
+              {QUIZ_SORTS.map((one) => (
+                <option key={one} value={one}>
+                  {t(SORT_LABELS[one])}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+      )}
+      {quizzes !== null && quizzes.length > 0 && (
         <ul className="quiz-list">
-          {quizzes.map((quiz) => (
+          {sortQuizzes(quizzes, sort).map((quiz) => (
             <li className="panel" key={quiz.id}>
               <div>
                 <h2 dir="auto">{quiz.title}</h2>
@@ -145,6 +185,9 @@ export function Quizzes() {
                     {quiz.description}
                   </p>
                 )}
+                <p className="meta quiz-dates">
+                  <time dateTime={quiz.createdAt}>{quizDatesText(quiz)}</time>
+                </p>
                 <p className="meta">{quizSizeText(t('questionCount', { count: quiz.questionCount }), quiz.questionCount, quiz.truth)}</p>
                 {library.filter((one) => one.quizId === quiz.id).map((one) => (
                   <p className="meta library-line" key={one.entryId}>

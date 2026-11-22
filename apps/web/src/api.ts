@@ -37,6 +37,10 @@ export interface QuizSummary {
   /** Є раунд «Правда про гравця»: його запитань у questionCount немає. */
   truth?: boolean;
   updatedAt: string;
+  /** 73: коли вікторину створено (для дати на картці й порядку). */
+  createdAt: string;
+  /** 73: особиста категорія автора; null — без категорії. */
+  folderId: string | null;
 }
 
 interface Options {

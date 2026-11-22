@@ -341,6 +341,14 @@ export function formatDay(iso: string): string {
   return dropYearMark(text);
 }
 
+/** Рядок дат картки вікторини: «Створено …», а коли київський день зміни інший — ще й «· змінено …». */
+export function quizDatesText(quiz: { createdAt: string; updatedAt: string }): string {
+  const created = formatDay(quiz.createdAt);
+  const changed = formatDay(quiz.updatedAt);
+  if (changed === '' || changed === created) return t('quizCreatedOn', { date: created });
+  return t('quizCreatedChanged', { created, changed });
+}
+
 /** Місяць словами в називному відмінку з роком («листопад 2026»); '2026-11' → за мовою інтерфейсу, без « р.» в uk. */
 export function monthText(month: string): string {
   const [year, mon] = month.split('-').map(Number);
