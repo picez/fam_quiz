@@ -197,7 +197,7 @@ function GameMoment({ game }: { game: NonNullable<AdminProblemReport['game']> })
           <Link to={`/admin/quizzes/${encodeURIComponent(game.quizId)}`}>{t('adminProblemGameOpenQuiz')}</Link>
         </p>
       )}
-      {game.round !== null && <p dir="auto">{t('adminProblemGameRound', { number: game.round + 1, title: game.roundTitle ?? '' })}</p>}
+      {game.round !== null && <p dir="auto">{game.roundTitle === null || game.roundTitle === '' ? t('adminProblemGameRoundNoTitle', { number: game.round + 1 }) : t('adminProblemGameRound', { number: game.round + 1, title: game.roundTitle })}</p>}
       {game.question !== null && game.type !== null && <p>{t('adminProblemGameQuestion', { number: game.question + 1, type: labelOr(`type_${game.type}`, game.type) })}</p>}
       {game.phase !== null && <p>{t('adminProblemGamePhase', { phase: labelOr(`phase_${game.phase}`, game.phase) })}</p>}
       {game.text !== null && <p dir="auto">{t('adminProblemGameText', { text: game.text })}</p>}

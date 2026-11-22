@@ -95,6 +95,17 @@ describe('useInboxBadge (70)', () => {
     expect(getInboxBadge).toHaveBeenCalledTimes(1);
   });
 
+  it('setInboxUnread drops the answer of a request that was already flying', async () => {
+    let resolve!: (value: { ok: true; unread: number }) => void;
+    vi.mocked(getInboxBadge).mockReturnValueOnce(new Promise((r) => (resolve = r)));
+    const { result } = renderHook(() => useInboxBadge(true));
+    act(() => setInboxUnread(0));
+    await act(async () => {
+      resolve({ ok: true, unread: 9 });
+    });
+    expect(result.current).toBe(0);
+  });
+
   it('a failed read keeps the last value', async () => {
     const { result } = renderHook(() => useInboxBadge(true));
     await act(async () => {});

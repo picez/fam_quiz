@@ -198,7 +198,7 @@ describe('AdminErrors (ServerErrors, PlayerReports)', () => {
     replied = { status: 200, body: { pushed: true, inbox: true } };
     fireEvent.click(within(card).getByRole('button', { name: 'Надіслати відповідь' }));
     expect(await screen.findByText('Скарг немає.')).toBeTruthy();
-    expect(screen.getByRole('status').textContent).toBe('Відповідь у вхідних гравця й надіслана сповіщенням.');
+    expect(screen.getByRole('status').textContent).toBe('Відповідь додано у «Вхідні» гравця й надіслано сповіщенням.');
     expect(badgeEvents).toBe(1);
   });
 
@@ -245,6 +245,13 @@ describe('AdminErrors (ServerErrors, PlayerReports)', () => {
     expect(within(game).getByText('Скаржився ведучий')).toBeTruthy();
     expect(within(game).getByText('Кімнати вже немає — назва вікторини невідома')).toBeTruthy();
     expect(within(game).queryByRole('link')).toBeNull();
+  });
+
+  it('a round without a title has no dangling colon', async () => {
+    reports = [report({ id: 'r10', text: 'Дивно', game: { code: '123456', role: 'player', phase: 'question', round: 1, roundTitle: null, question: 0, type: 'single', text: null, quizId: null, quizTitle: null } })];
+    open('/admin/appeals/problems');
+    const card = (await screen.findByText('Дивно')).closest('li') as HTMLElement;
+    expect(within(card).getByText('Раунд 2')).toBeTruthy();
   });
 
   it('a report without a game moment has no game block', async () => {

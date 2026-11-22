@@ -53,6 +53,10 @@ export function refreshInbox(force = false): Promise<void> {
 
 /** Сторінка «Вхідних» щойно позначила прочитаним: нове число лягає в лічильник одразу, без запиту. */
 export function setInboxUnread(count: number): void {
+  // Запити, що вже летять, могли б принести старіше число — їхні відповіді відкидаються.
+  generation += 1;
+  inFlight = null;
+  againAfter = false;
   if (unread === count) return;
   unread = count;
   emit();

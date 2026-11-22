@@ -70,7 +70,7 @@ describe('InboxPage (70)', () => {
   it('an empty inbox says so', async () => {
     vi.mocked(getInbox).mockResolvedValue({ ok: true, items: [], unread: 0 });
     open();
-    expect(await screen.findByText('Тут з\'являться повідомлення від адміністрації й відповіді на ваші звернення.')).toBeTruthy();
+    expect(await screen.findByText('Тут з\'являться повідомлення від адміністрації й відповіді на твої звернення.')).toBeTruthy();
     expect(markInboxRead).not.toHaveBeenCalled();
   });
 
@@ -84,10 +84,10 @@ describe('InboxPage (70)', () => {
     expect(within(card).getByText('Від адміністрації')).toBeTruthy();
     expect(card.querySelector('time')?.getAttribute('datetime')).toBe('2026-11-22T10:00:00.000Z');
 
-    const answer = screen.getByText('Відповідь на ваше повідомлення').closest('li') as HTMLElement;
+    const answer = screen.getByText('Відповідь на твоє повідомлення').closest('li') as HTMLElement;
     expect(answer.classList.contains('is-new')).toBe(false);
     expect(within(answer).queryByText('Нове')).toBeNull();
-    expect(within(answer).getByText('Ви писали: Кнопка не натискається')).toBeTruthy();
+    expect(within(answer).getByText('Ти писав(-ла): Кнопка не натискається')).toBeTruthy();
     expect(within(answer).getByText('Виправили, дякуємо!')).toBeTruthy();
     expect(within(answer).getByRole('link', { name: 'Усі мої повідомлення' }).getAttribute('href')).toBe('/report');
   });
@@ -106,7 +106,7 @@ describe('InboxPage (70)', () => {
   it('nothing unread: no read request', async () => {
     vi.mocked(getInbox).mockResolvedValue({ ok: true, items: [reply], unread: 0 });
     open();
-    await screen.findByText('Відповідь на ваше повідомлення');
+    await screen.findByText('Відповідь на твоє повідомлення');
     expect(markInboxRead).not.toHaveBeenCalled();
   });
 
@@ -130,6 +130,22 @@ describe('InboxPage (70)', () => {
     expect(outside.getAttribute('target')).toBe('_blank');
     expect((await card('Небезпечне')).querySelector('a')).toBeNull();
     expect((await card('Чуже')).querySelector('a')).toBeNull();
+  });
+
+  it('a service worker signal reads the list again', async () => {
+    const worker = new EventTarget();
+    Object.defineProperty(navigator, 'serviceWorker', { configurable: true, value: worker });
+    try {
+      vi.mocked(getInbox).mockResolvedValue({ ok: true, items: [reply], unread: 0 });
+      open();
+      await screen.findByText('Відповідь на твоє повідомлення');
+      vi.mocked(getInbox).mockResolvedValue({ ok: true, items: [broadcast({ title: 'Свіже' }), reply], unread: 1 });
+      worker.dispatchEvent(new MessageEvent('message', { data: { type: 'quiz:inbox' } }));
+      expect(await screen.findByText('Свіже')).toBeTruthy();
+      expect(getInbox).toHaveBeenCalledTimes(2);
+    } finally {
+      delete (navigator as { serviceWorker?: unknown }).serviceWorker;
+    }
   });
 
   it('an error offers a retry', async () => {

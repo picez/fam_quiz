@@ -282,7 +282,6 @@ export function AdminBroadcast(): JSX.Element {
                 <p className="meta" dir="auto">
                   {toText(row.to)}
                 </p>
-                <p className="meta">{t('adminBroadcastRecipients', { count: row.people })}</p>
                 <p className="meta">{t('adminBroadcastInboxStats', { people: row.people, read: row.read, push: row.pushPeople })}</p>
                 <p className={`admin-mark tag ${row.status === 'sent' ? 'is-correct' : row.status === 'sending' ? 'is-pending' : 'is-muted'}`}>{statusText(row)}</p>
               </li>

@@ -87,6 +87,17 @@ function InboxList({ page }: { page: InboxData }): JSX.Element {
 export function InboxPage(): JSX.Element {
   const { key } = useLocation();
   const [attempt, setAttempt] = useState(0);
+  // Сигнал service worker «quiz:inbox» (прийшло сповіщення): список читається знову, не чекаючи переходу.
+  useEffect(() => {
+    const worker = typeof navigator !== 'undefined' && typeof navigator.serviceWorker === 'object' ? navigator.serviceWorker : null;
+    if (worker === null) return;
+    const onMessage = (event: Event) => {
+      const data = (event as MessageEvent).data as unknown;
+      if (typeof data === 'object' && data !== null && (data as { type?: unknown }).type === 'quiz:inbox') setAttempt((n) => n + 1);
+    };
+    worker.addEventListener('message', onMessage);
+    return () => worker.removeEventListener('message', onMessage);
+  }, []);
   const state = usePrivateData(async () => {
     const result = await getInbox();
     if (!result.ok) return result;
