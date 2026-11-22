@@ -1726,7 +1726,7 @@ async function invitesAndVersus() {
   expect(versusText).not.toContain('@');
   expect(versusText).not.toContain(hostId);
   const publicProfile = (await (await host.request.get(`${base}/api/profiles/${olyaId}`)).json()) as Record<string, unknown>;
-  expect(Object.keys(publicProfile).sort()).toEqual(['achievements', 'avatar', 'following', 'id', 'level', 'likes', 'nickname', 'showcase', 'stats']);
+  expect(Object.keys(publicProfile).sort()).toEqual(['achievements', 'avatar', 'following', 'form', 'id', 'leagueTitles', 'level', 'likes', 'nickname', 'showcase', 'stats']);
 
   expect(problems).toEqual([]);
 }
