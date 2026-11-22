@@ -170,7 +170,7 @@ export async function buildApp(options: AppOptions) {
   await registerPrizeRoutes(app, { db: options.db, manager, locate, currentUser });
   await registerShowcaseRoutes(app, { db: options.db, currentUser });
   const announcements = announcementCache(options.db, () => Date.now());
-  await registerProblemRoutes(app, { db: options.db, currentUser });
+  await registerProblemRoutes(app, { db: options.db, currentUser, manager });
   await registerInboxRoutes(app, { db: options.db, currentUser });
   await registerAnnouncementRoutes(app, { cache: announcements });
   const push = options.push === undefined ? null : createPushService({ db: options.db, ...options.push, log: (message, error) => log.error({ err: error }, message) });

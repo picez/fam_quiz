@@ -3,7 +3,11 @@ import { desc, eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { buildApp } from './app';
 import { adminAction, inboxItem, problemReport, profile, user } from './db/schema';
+import { makeQuiz } from '@quiz/engine/testing';
+import { appealEntry, openEntry } from './library-store';
 import { reportError } from './log';
+import { createQuiz } from './quizzes';
+import { actOnQuiz, fileReport } from './report-store';
 import { ensureProfile } from './profiles';
 import { saveSubscription } from './push-store';
 import { TEST_AUTH, signUp } from './testing/accounts';
@@ -144,6 +148,42 @@ describe('admin errors and problem reports (64)', () => {
     const inbox = (await call(ctx, 'GET', '/api/me/inbox', taras.cookie)).json() as InboxPage;
     expect(inbox.items).toHaveLength(1);
     expect(inbox.items[0]).toMatchObject({ kind: 'problem_reply', reply: 'Готово', read: false, problem: { id, text: 'Тарас скаржиться' } });
+  });
+
+  it('the list carries the game moment (70)', async () => {
+    const game = { code: '123456', role: 'player', phase: 'question', round: 1, roundTitle: 'Кіно', question: 0, type: 'single', text: 'Хто зняв?' };
+    const response = await call(ctx, 'POST', '/api/problem-reports', undefined, { text: 'Не видно варіантів', game }, fresh());
+    expect(response.statusCode).toBe(201);
+    const listed = (await call(ctx, 'GET', '/api/admin/problems', admin.cookie)).json() as AdminList<AdminProblemReport>;
+    expect(listed.rows.find((r) => r.text === 'Не видно варіантів')!.game).toEqual({ ...game, quizId: null, quizTitle: null });
+    expect(listed.rows.filter((r) => r.text !== 'Не видно варіантів').every((r) => r.game === null)).toBe(true);
+  });
+
+  it('the badge counts open moderation items too (70)', async () => {
+    const badge = async () => (await call(ctx, 'GET', '/api/admin/problems/badge', admin.cookie)).json() as AdminProblemsBadge;
+    const before = await badge();
+    expect(Object.keys(before).sort()).toEqual(['complaints', 'errors', 'reports']);
+    const author = await person('Автор');
+    const iryna = await person('Ірина');
+    const petro = await person('Петро');
+    const now = new Date();
+    const library = async (title: string) => {
+      const quizId = await createQuiz(db, author.id, { ...makeQuiz(), title });
+      const opened = await openEntry(db, author.id, quizId, 'uk', now);
+      if (!opened.ok) throw new Error(opened.error);
+      return { quizId, entryId: opened.entryId };
+    };
+    const first = await library('Карпати');
+    await fileReport(db, iryna.id, { target: { kind: 'quiz', entryId: first.entryId }, reason: 'spam' }, now);
+    await fileReport(db, petro.id, { target: { kind: 'quiz', entryId: first.entryId }, reason: 'spam' }, now);
+    expect((await badge()).complaints).toBe(before.complaints + 1);
+    await fileReport(db, iryna.id, { target: { kind: 'profile', userId: petro.id }, reason: 'offensive' }, now);
+    expect((await badge()).complaints).toBe(before.complaints + 2);
+    const second = await library('Дніпро');
+    await actOnQuiz(db, { adminId: admin.id, entryId: second.entryId, action: 'hide', now });
+    expect(await appealEntry(db, author.id, second.quizId, now)).toBe('ok');
+    const after = await badge();
+    expect(after).toEqual({ errors: before.errors, reports: before.reports, complaints: before.complaints + 3 });
   });
 
   it('no email anywhere', async () => {

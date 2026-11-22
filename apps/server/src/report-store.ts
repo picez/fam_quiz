@@ -12,7 +12,7 @@ import {
   type ReportReason,
   type ReportTarget,
 } from '@quiz/shared';
-import { and, eq, inArray, or, sql } from 'drizzle-orm';
+import { and, count, eq, inArray, or, sql } from 'drizzle-orm';
 import { isHidden, logAction } from './bans';
 import type { Db } from './db/client';
 import { isUniqueViolation } from './db/unique';
@@ -99,11 +99,8 @@ function tally(rows: OpenReport[]): { reports: number; reasons: Partial<Record<R
   return { reports: rows.length, reasons, texts, first };
 }
 
-/**
- * Черга адміна: елемент на об'єкт, не на скаргу. Вікторини з відкритими скаргами чи відкритим оскарженням
- * і профілі з відкритими скаргами; найдавніше — першим (оскарження — за appealed_at). Обсяг малий: злиття й сторінка в пам'яті.
- */
-export async function reportQueue(db: Db, page: number): Promise<AdminList<AdminReportItem>> {
+/** Відкриті скарги, згруплені за об'єктом: вікторини — за записом бібліотеки, профілі — за людиною. */
+async function openByTarget(db: Db): Promise<{ byEntry: Map<string, OpenReport[]>; byUser: Map<string, OpenReport[]> }> {
   const open = await db
     .select({
       kind: userReport.targetKind,
@@ -124,6 +121,26 @@ export async function reportQueue(db: Db, page: number): Promise<AdminList<Admin
     const group = row.kind === 'quiz' ? byEntry : byUser;
     group.set(key, [...(group.get(key) ?? []), row]);
   }
+  return { byEntry, byUser };
+}
+
+/** Записи бібліотеки в черзі: з відкритими скаргами чи з відкритим оскарженням. */
+const queuedEntries = (byEntry: Map<string, OpenReport[]>) =>
+  or(eq(libraryEntry.appealOpen, true), byEntry.size === 0 ? undefined : inArray(libraryEntry.id, [...byEntry.keys()]));
+
+/** 70: скільки елементів у черзі модерації (той самий відбір, що й reportQueue) — для бейджа «Звернень». */
+export async function openComplaints(db: Db): Promise<number> {
+  const { byEntry, byUser } = await openByTarget(db);
+  const [row] = await db.select({ n: count() }).from(libraryEntry).where(queuedEntries(byEntry));
+  return Number(row?.n ?? 0) + byUser.size;
+}
+
+/**
+ * Черга адміна: елемент на об'єкт, не на скаргу. Вікторини з відкритими скаргами чи відкритим оскарженням
+ * і профілі з відкритими скаргами; найдавніше — першим (оскарження — за appealed_at). Обсяг малий: злиття й сторінка в пам'яті.
+ */
+export async function reportQueue(db: Db, page: number): Promise<AdminList<AdminReportItem>> {
+  const { byEntry, byUser } = await openByTarget(db);
 
   const entries = await db
     .select({
@@ -138,7 +155,7 @@ export async function reportQueue(db: Db, page: number): Promise<AdminList<Admin
     })
     .from(libraryEntry)
     .leftJoin(profile, eq(profile.userId, libraryEntry.ownerId))
-    .where(or(eq(libraryEntry.appealOpen, true), byEntry.size === 0 ? undefined : inArray(libraryEntry.id, [...byEntry.keys()])));
+    .where(queuedEntries(byEntry));
 
   const items: { at: Date; item: AdminReportItem }[] = [];
   for (const entry of entries) {

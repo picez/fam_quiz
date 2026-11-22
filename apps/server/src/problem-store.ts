@@ -8,6 +8,7 @@ import {
   type AdminProblemReport,
   type MyProblemReport,
   type ProblemAuthor,
+  type ProblemGame,
   type ProblemReportInput,
 } from '@quiz/shared';
 import { and, count, desc, eq, gt, inArray, isNull } from 'drizzle-orm';
@@ -29,7 +30,7 @@ const LOG_TEXT = 80;
 /** Гість: спершу спільна стеля на годину (усі гості разом), потім рядок. */
 export async function createProblemReport(
   db: Db,
-  input: { userId: string | null; input: ProblemReportInput; now: Date },
+  input: { userId: string | null; input: ProblemReportInput; game?: ProblemGame | null; now: Date },
 ): Promise<{ id: string } | { error: 'problem_busy' }> {
   if (input.userId === null) {
     const since = new Date(input.now.getTime() - HOUR_MS);
@@ -41,7 +42,7 @@ export async function createProblemReport(
   }
   const [row] = await db
     .insert(problemReport)
-    .values({ userId: input.userId, fromAccount: input.userId !== null, text: input.input.text, page: input.input.page, createdAt: input.now })
+    .values({ userId: input.userId, fromAccount: input.userId !== null, text: input.input.text, page: input.input.page, game: input.game ?? null, createdAt: input.now })
     .returning({ id: problemReport.id });
   return { id: row.id };
 }

@@ -18,6 +18,7 @@ import type { Db } from './db/client';
 import { problemReport, profile, serverError } from './db/schema';
 import { errorFingerprint, errorParts, maskPersonal, shortenStack, truncateBytes, truncateChars } from './error-mask';
 import { log, type ErrorContext } from './log';
+import { openComplaints } from './report-store';
 import { realScheduler, type Scheduler } from './rooms/scheduler';
 
 /**
@@ -254,12 +255,12 @@ export async function resolveServerError(db: Db, input: { adminId: string; id: s
   });
 }
 
-/** Бейдж вкладки «Збої»: нові збої й відкриті скарги. */
+/** Спільний бейдж «Звернень» (70): нові збої, відкриті «Щось не працює» й елементи черги модерації. */
 export async function problemsBadge(db: Db): Promise<AdminProblemsBadge> {
-  const [[errors], [reports]] = await Promise.all([
+  const [[errors], [reports], complaints] = await Promise.all([
     db.select({ n: count() }).from(serverError).where(eq(serverError.status, 'new')),
     db.select({ n: count() }).from(problemReport).where(eq(problemReport.status, 'open')),
+    openComplaints(db),
   ]);
-  // 70: черга модерації — задача 5.
-  return { errors: Number(errors.n), reports: Number(reports.n), complaints: 0 };
+  return { errors: Number(errors.n), reports: Number(reports.n), complaints };
 }

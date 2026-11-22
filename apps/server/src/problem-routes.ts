@@ -3,10 +3,12 @@ import {
   PROBLEM_USER_PER_HOUR,
   problemReportInputSchema,
   type MyProblemReport,
+  type ProblemGame,
 } from '@quiz/shared';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { CurrentUser } from './account-routes';
 import { createProblemReport, myProblemReports } from './problem-store';
+import type { RoomManager } from './rooms/manager';
 
 const UNAUTHORIZED = { error: 'unauthorized' };
 const INVALID = { error: 'invalid_payload' };
@@ -15,12 +17,14 @@ const BODY_LIMIT = 8 * 1024;
 export interface ProblemRouteDeps {
   db: Parameters<typeof createProblemReport>[0];
   currentUser: (request: FastifyRequest) => Promise<CurrentUser | null>;
+  /** 70: кімнати в пам'яті — звідки момент гри бере id і назву вікторини. */
+  manager: Pick<RoomManager, 'get'>;
   now?: () => Date;
 }
 
 /** «Повідомити про проблему» (64): надсилає будь-хто, гість теж; обмеження — за акаунтом чи за адресою. IP у базу не йде. */
 export async function registerProblemRoutes(app: FastifyInstance, deps: ProblemRouteDeps): Promise<void> {
-  const { db, currentUser } = deps;
+  const { db, currentUser, manager } = deps;
   const now = deps.now ?? (() => new Date());
 
   app.post(
@@ -42,7 +46,11 @@ export async function registerProblemRoutes(app: FastifyInstance, deps: ProblemR
       const body = problemReportInputSchema.safeParse(request.body ?? {});
       if (!body.success) return reply.code(400).send(INVALID);
       const user = await currentUser(request);
-      const made = await createProblemReport(db, { userId: user?.id ?? null, input: body.data, now: now() });
+      // 70: момент гри — як бачила людина, плюс вікторина з кімнати (кімнати немає — null).
+      const moment = body.data.game;
+      const room = moment === null ? undefined : manager.get(moment.code);
+      const game: ProblemGame | null = moment === null ? null : { ...moment, quizId: room?.quizId ?? null, quizTitle: room?.state.quiz.title ?? null };
+      const made = await createProblemReport(db, { userId: user?.id ?? null, input: body.data, game, now: now() });
       if ('error' in made) return reply.code(429).send({ error: made.error });
       return reply.code(201).send({ id: made.id });
     },
