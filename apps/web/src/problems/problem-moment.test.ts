@@ -25,6 +25,11 @@ describe('readMoment', () => {
     expect(readMoment('/play/123456', NOW + 1000)?.question).toBe(2);
     expect(readMoment('/host/123456', NOW + 1000)?.code).toBe('123456');
   });
+  it('the admin bot host screen /bot-host/<code> gives the moment of its room', () => {
+    saveMoment(momentOf('123456', 'host', asked), NOW);
+    expect(readMoment('/bot-host/123456', NOW + 1000)?.code).toBe('123456');
+    expect(readMoment('/bot-host/654321', NOW + 1000)).toBeNull();
+  });
   it('another room code, a page that is not a game, and a missing record give null', () => {
     saveMoment(momentOf('123456', 'player', asked), NOW);
     expect(readMoment('/play/654321', NOW)).toBeNull();

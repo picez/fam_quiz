@@ -294,6 +294,14 @@ describe('the inbox bell (70)', () => {
     await vi.waitFor(() => expect(screen.getByRole('link', { name: 'Вхідні' }).querySelector('.menu-badge')).toBeNull());
   });
 
+  it('a big unread count is capped at 99+ in the badge, the name keeps the full number', async () => {
+    vi.mocked(me).mockResolvedValue(OK);
+    vi.mocked(getInboxBadge).mockResolvedValue({ ok: true, unread: 120 });
+    show('/quizzes');
+    const bell = await screen.findByRole('link', { name: 'Вхідні, непрочитаних: 120' });
+    expect(bell.querySelector('.menu-badge')?.textContent).toBe('99+');
+  });
+
   it('the bell is current on /inbox', async () => {
     vi.mocked(me).mockResolvedValue(OK);
     show('/inbox');

@@ -105,4 +105,17 @@ describe('PushInvite (70)', () => {
     await waitFor(() => expect(screen.getByRole('status').textContent).not.toBe(''));
     expect(screen.getByRole('status').textContent).not.toBe('Сповіщення увімкнено.');
   });
+
+  it('blocked storage (localStorage throws on access) renders nothing instead of breaking the page', async () => {
+    const blocked = vi.spyOn(window, 'localStorage', 'get').mockImplementation(() => {
+      throw new DOMException('blocked', 'SecurityError');
+    });
+    try {
+      expect(() => show()).not.toThrow();
+      await gone();
+      expect(getPushKey).not.toHaveBeenCalled();
+    } finally {
+      blocked.mockRestore();
+    }
+  });
 });

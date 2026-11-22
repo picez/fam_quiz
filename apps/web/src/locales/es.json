@@ -5103,7 +5103,7 @@
   "adminLogGiftNote": "{line}. Dedicatoria: «{text}»",
   "adminLogBalanced": "{line}. Experiencia ajustada a cero: {amount}",
   "adminTabBroadcast": "Difusión",
-  "adminBroadcastLead": "La notificación llegará a los teléfonos y ordenadores de quienes activaron las notificaciones. El texto se envía tal cual, sin traducción.",
+  "adminBroadcastLead": "El mensaje llega a la «Bandeja de entrada» del sitio de cada destinatario, y quienes activaron las notificaciones también lo reciben en el teléfono o el ordenador. El texto se envía tal cual, sin traducción.",
   "adminBroadcastTitleLabel": "Título",
   "adminBroadcastTextLabel": "Texto",
   "adminBroadcastChars": "{used} de {max}",

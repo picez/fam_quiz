@@ -5125,7 +5125,7 @@
   "adminLogGiftNote": "{line}. Dedykacja: „{text}”",
   "adminLogBalanced": "{line}. Doświadczenie wyrównane do zera: {amount}",
   "adminTabBroadcast": "Rozsyłka",
-  "adminBroadcastLead": "Powiadomienie trafi na telefony i komputery osób, które włączyły powiadomienia. Tekst idzie tak, jak jest, bez tłumaczenia.",
+  "adminBroadcastLead": "Wiadomość pojawi się w zakładce „Skrzynka” na stronie u każdego odbiorcy, a osoby, które włączyły powiadomienia, dostaną ją też na telefon lub komputer. Tekst idzie tak, jak jest, bez tłumaczenia.",
   "adminBroadcastTitleLabel": "Tytuł",
   "adminBroadcastTextLabel": "Tekst",
   "adminBroadcastChars": "{used} z {max}",

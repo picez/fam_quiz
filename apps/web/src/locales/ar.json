@@ -5328,7 +5328,7 @@
   "adminLogGiftNote": "{line}. الإهداء: «{text}»",
   "adminLogBalanced": "{line}. سُوّيت الخبرة إلى الصفر: {amount}",
   "adminTabBroadcast": "الإرسال الجماعي",
-  "adminBroadcastLead": "سيصل الإشعار إلى هواتف وحواسيب كل من فعّل الإشعارات. يُرسل النص كما هو، دون ترجمة.",
+  "adminBroadcastLead": "تصل الرسالة إلى «صندوق الوارد» في الموقع لكل مستلم، ومن فعّل الإشعارات يتلقاها أيضًا على هاتفه أو حاسوبه. يُرسل النص كما هو، دون ترجمة.",
   "adminBroadcastTitleLabel": "العنوان",
   "adminBroadcastTextLabel": "النص",
   "adminBroadcastChars": "{used} من {max}",

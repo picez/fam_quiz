@@ -5028,7 +5028,7 @@
   "adminLogGiftNote": "{line}. Widmung: „{text}“",
   "adminLogBalanced": "{line}. Erfahrung auf null ausgeglichen: {amount}",
   "adminTabBroadcast": "Rundsendung",
-  "adminBroadcastLead": "Die Benachrichtigung kommt auf die Handys und Computer aller, die Benachrichtigungen eingeschaltet haben. Der Text geht unverändert raus, ohne Übersetzung.",
+  "adminBroadcastLead": "Die Nachricht landet bei allen Empfängern im „Posteingang“ auf der Website; wer Benachrichtigungen eingeschaltet hat, bekommt sie zusätzlich aufs Handy oder den Computer. Der Text geht unverändert raus, ohne Übersetzung.",
   "adminBroadcastTitleLabel": "Titel",
   "adminBroadcastTextLabel": "Text",
   "adminBroadcastChars": "{used} von {max}",

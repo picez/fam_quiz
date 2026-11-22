@@ -5192,7 +5192,7 @@ const uk = {
   adminLogGiftNote: '{line}. Підпис: «{text}»',
   adminLogBalanced: '{line}. Досвід вирівняно до нуля: {amount}',
   adminTabBroadcast: 'Розсилка',
-  adminBroadcastLead: "Сповіщення прийде на телефони й комп'ютери тих, хто ввімкнув сповіщення. Текст іде як є, без перекладу.",
+  adminBroadcastLead: "Повідомлення прийде у «Вхідні» на сайті кожному отримувачу, а тим, хто ввімкнув сповіщення, — ще й на телефон чи комп'ютер. Текст іде як є, без перекладу.",
   adminBroadcastTitleLabel: 'Заголовок',
   adminBroadcastTextLabel: 'Текст',
   adminBroadcastChars: '{used} з {max}',

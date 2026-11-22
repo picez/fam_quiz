@@ -14,7 +14,14 @@ type Outcome = 'on' | 'denied' | 'unsupported' | 'failed' | null;
  * тоді нічого не питає в сервера. Внутрішня: лише акаунт, сервер має ключ, дозвіл не «заборонено», підписки на пристрої немає.
  */
 export function PushInvite({ env, now = Date.now }: { env?: BrowserEnv; now?: () => number }): JSX.Element | null {
-  const [due] = useState(() => pushSupport(env ?? browserEnv()) === 'supported' && inviteDue(now(), localStorage));
+  const [due] = useState(() => {
+    // Заблоковане сховище кидає вже на звертанні до localStorage — тоді без панелі, екран кінця гри цілий.
+    try {
+      return pushSupport(env ?? browserEnv()) === 'supported' && inviteDue(now(), localStorage);
+    } catch {
+      return false;
+    }
+  });
   return due ? <Invite now={now} /> : null;
 }
 
@@ -37,7 +44,11 @@ function Invite({ now }: { now: () => number }): JSX.Element | null {
       const sub = await currentSubscription().catch(() => null);
       if (!alive.current || sub !== null) return;
       setPublicKey(key.publicKey);
-      rememberInvite(now(), localStorage);
+      try {
+        rememberInvite(now(), localStorage);
+      } catch {
+        // сховище недоступне — запрошення просто може з'явитися знову
+      }
     })();
     return () => {
       alive.current = false;

@@ -33,9 +33,9 @@ export function saveMoment(moment: ProblemGameInput, now = Date.now()): void {
   }
 }
 
-/** Момент для сторінки /report?from=…: той самий код кімнати, не старший за 30 хв, форма правильна; інакше null. */
+/** Момент для сторінки /report?from=… (з /play, /host чи адмінського /bot-host): той самий код кімнати, не старший за 30 хв, форма правильна; інакше null. */
 export function readMoment(from: string, now = Date.now()): ProblemGameInput | null {
-  const match = /^\/(?:play|host)\/(\d{6})/.exec(from);
+  const match = /^\/(?:play|host|bot-host)\/(\d{6})/.exec(from);
   if (match === null) return null;
   try {
     const raw: unknown = JSON.parse(localStorage.getItem(MOMENT_KEY) ?? 'null');

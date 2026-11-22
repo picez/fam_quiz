@@ -5103,7 +5103,7 @@
   "adminLogGiftNote": "{line}. Dedica: «{text}»",
   "adminLogBalanced": "{line}. Esperienza riportata a zero: {amount}",
   "adminTabBroadcast": "Invio a tutti",
-  "adminBroadcastLead": "La notifica arriverà su telefoni e computer di chi ha attivato le notifiche. Il testo va così com’è, senza traduzione.",
+  "adminBroadcastLead": "Il messaggio arriva nella «Posta in arrivo» del sito di ogni destinatario, e chi ha attivato le notifiche lo riceve anche su telefono o computer. Il testo va così com’è, senza traduzione.",
   "adminBroadcastTitleLabel": "Titolo",
   "adminBroadcastTextLabel": "Testo",
   "adminBroadcastChars": "{used} di {max}",

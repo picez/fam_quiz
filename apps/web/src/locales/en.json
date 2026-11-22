@@ -5028,7 +5028,7 @@
   "adminLogGiftNote": "{line}. Note: “{text}”",
   "adminLogBalanced": "{line}. Experience balanced to zero: {amount}",
   "adminTabBroadcast": "Broadcast",
-  "adminBroadcastLead": "The notification goes to the phones and computers of everyone who turned notifications on. The text is sent as written, without translation.",
+  "adminBroadcastLead": "The message lands in every recipient's “Inbox” on the site, and those who turned notifications on also get it on their phone or computer. The text is sent as written, without translation.",
   "adminBroadcastTitleLabel": "Title",
   "adminBroadcastTextLabel": "Text",
   "adminBroadcastChars": "{used} of {max}",

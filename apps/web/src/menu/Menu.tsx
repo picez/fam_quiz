@@ -84,7 +84,7 @@ export function Menu() {
           <span aria-hidden="true">🔔</span>
           {inbox > 0 && (
             <span className="menu-badge" aria-hidden="true">
-              {inbox}
+              {feedBadgeLabel(inbox)}
             </span>
           )}
         </Link>

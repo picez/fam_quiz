@@ -1229,5 +1229,6 @@ export const inboxItem = pgTable(
     uniqueIndex('inbox_item_problem_once').on(table.problemId).where(sql`problem_id is not null`),
     index('inbox_item_user_created_idx').on(table.userId, table.createdAt),
     index('inbox_item_unread_idx').on(table.userId).where(sql`read_at is null`),
+    index('inbox_item_broadcast_idx').on(table.broadcastId),
   ],
 );
