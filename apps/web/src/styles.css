@@ -29383,6 +29383,14 @@ details.admin-fold[open] > summary::before {
   }
 }
 
+/* Адмін на 320 px: п'ять пунктів + «Адмінка» + дзвіночок + тема — вужчі клітинки дзвіночка й теми, щоб нічого не гортало вбік. */
+@media (max-width: 400px) {
+  .menu .menu-inbox,
+  .menu .menu-theme {
+    flex-basis: 2.25rem;
+  }
+}
+
 .inbox-list {
   display: grid;
   gap: 0.75rem;
@@ -29457,4 +29465,11 @@ details.admin-fold[open] > summary::before {
 
 .push-invite p[role='status']:empty {
   display: none;
+}
+
+/* 70: прихована таблиця діаграм не розтягує сторінку вбік на вузькому екрані (підписи в ній — nowrap зі sr-only): дозволяємо перенос. */
+table.sr-only caption,
+table.sr-only th,
+table.sr-only td {
+  white-space: normal;
 }

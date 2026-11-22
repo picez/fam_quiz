@@ -314,9 +314,9 @@ async function library47() {
   await rowOf(olena, NEW_TITLE).getByText('⏳ Тимчасово приховано: скарги на перевірці', exact).waitFor();
   expect((await mine()).moderation).toBe('auto_hidden');
 
-  // ── 6. Адмін: черга «Скарги», причини й текст; «Сховати вікторину»; відкрити знову не можна; журнал. ──
+  // ── 6. Адмін: черга «Звернення → Скарги», причини й текст; «Сховати вікторину»; відкрити знову не можна; журнал. ──
   await admin.goto(`${base}/admin`);
-  await admin.getByRole('link', { name: 'Скарги', ...exact }).click();
+  await admin.locator('nav.admin-tabs a[href="/admin/appeals"]').click(); // 70: «Скарги» стали підвкладкою «Звернень»
   const card = admin.locator('ul.admin-reports > li', { hasText: NEW_TITLE });
   await card.waitFor();
   await card.getByText('3 скарги', exact).waitFor();
@@ -329,7 +329,7 @@ async function library47() {
   expect(await wordsWhole(admin, 'ul.admin-reports')).toEqual([]);
   // «Переглянути вікторину» — знімок із каталогу, на який скаржились, лише для перегляду й без скаржників.
   await card.getByRole('link', { name: 'Переглянути вікторину', ...exact }).click();
-  await admin.waitForURL(`${base}/admin/reports/quiz/${entryId}`);
+  await admin.waitForURL(`${base}/admin/appeals/complaints/quiz/${entryId}`);
   await admin.getByRole('heading', { name: NEW_TITLE, ...exact }).waitFor();
   await admin.getByText(/^Знімок у бібліотеці від .+ — саме його бачать гравці.$/).waitFor();
   expect(await admin.getByRole('button', { name: 'Видалити запитання', ...exact }).count()).toBe(0);
@@ -362,7 +362,7 @@ async function library47() {
   await click(olena, 'Оскаржити');
   await sheet(olena).getByText('Оскарження надіслано', exact).waitFor();
   await click(olena, 'Скасувати');
-  await admin.getByRole('link', { name: 'Скарги', ...exact }).click();
+  await admin.locator('nav.admin-tabs a[href="/admin/appeals"]').click(); // 70: «Скарги» стали підвкладкою «Звернень»
   const appealCard = admin.locator('ul.admin-reports > li', { hasText: NEW_TITLE });
   await appealCard.getByText('Автор оскаржує приховування', exact).waitFor();
   await appealCard.getByText('🚫 Приховано модератором', exact).waitFor();
@@ -397,7 +397,9 @@ async function library47() {
   await profileDialog.getByLabel('Образливе', exact).check();
   await click(iryna, 'Надіслати');
   await profileDialog.getByText('Дякуємо, скаргу надіслано.', exact).waitFor();
+  // Стара адреса веде на нову без зайвого кроку в історії (70).
   await admin.goto(`${base}/admin/reports`);
+  await admin.waitForURL(`${base}/admin/appeals/complaints`);
   const profileCard = admin.locator('ul.admin-reports > li', { hasText: `Профіль ${NICK}` });
   await profileCard.waitFor();
   await profileCard.getByText('Образливе × 1', exact).waitFor();

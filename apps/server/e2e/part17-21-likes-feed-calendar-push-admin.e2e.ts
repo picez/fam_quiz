@@ -1346,9 +1346,9 @@ async function admin21a() {
     await admin.setViewportSize({ width: 375, height: 812 });
     expect(await noSideScroll(admin)).toBe(true);
     const tabs = admin.locator('.admin-tabs a');
-    // Тринадцять вкладок: «Скарги» (47), «Живі ігри» (53), «Бот» (54), «Розсилка» (59), «Стрічка» й «Групи» (63), «Збої» й «Копії» (64).
+    // Дванадцять вкладок: «Звернення» (47, 64 і 70 — скарги, «Щось не працює», збої), «Живі ігри» (53), «Бот» (54), «Розсилка» (59), «Стрічка» й «Групи» (63), «Копії» (64).
     const tabCount = await tabs.count();
-    expect(tabCount).toBe(13);
+    expect(tabCount).toBe(12);
     for (let i = 0; i < tabCount; i++) expect((await tabs.nth(i).boundingBox())!.height, `tab ${i}`).toBeGreaterThanOrEqual(44);
     await shot(admin, 'p21a-stats');
 
