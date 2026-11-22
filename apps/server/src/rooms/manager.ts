@@ -212,7 +212,12 @@ export const AUTOPILOT_EMPTY_MS = 30 * 60_000;
 export interface Identity {
   role: Role;
   playerId: string | null;
+  /** 68: id адміна, що веде кімнату бота з пульта; лише з role 'host'. */
+  admin?: string;
 }
+
+/** 68: ключ з'єднань пультів адмінів у room.connections (не 'host': таймер «нікого» автопілота й hostLeft його не стосуються). */
+const ADMIN_HOST_KEY = 'admin-host';
 
 /** Видимість і пароль лобі (24c); живе на кімнаті й у знімку, не в GameState. */
 export interface LobbyState {
@@ -311,6 +316,12 @@ export interface Room {
   newAchievements: { byUser: Map<string, AchievementId[]>; hideAnti: Set<string> } | null;
   /** Досвід гри (49): userId → картка. null — рекордер ще не дорахував. Лише в пам'яті (не в знімку й не в стані рушія); заповнює рекордер. */
   xpMoments: Map<string, GameXpMoment> | null;
+  /** 68: пульти адмінів кімнати бота: токен → id адміна. Лише в пам'яті, у знімок не йде; після перезапуску порожньо. */
+  adminHosts: Map<string, string>;
+  /** 68: режим «Керую сам» — хто з адмінів узяв керування і коли; null — гру веде бот. Лише в пам'яті, у знімок не йде; після перезапуску порожньо. */
+  botManual: { adminId: string; since: number } | null;
+  /** 68: таймер повернення керування боту, коли всі пульти адмінів відключилися; null — таймера немає. Лише в пам'яті, у знімок не йде; після перезапуску порожньо. */
+  manualAway: unknown;
 }
 
 /** Позначка гри для сімейної ліги (45): id групи й назва на мить вибору (для рядків у грі). */
@@ -820,6 +831,11 @@ export class RoomManager {
     return (room.connections.get('host') ?? 0) > 0;
   }
 
+  /** 68: скільки пультів адмінів кімнати бота на зв'язку. */
+  adminHostsOnline(room: Room): number {
+    return room.connections.get(ADMIN_HOST_KEY) ?? 0;
+  }
+
   stageOnline(room: Room): boolean {
     return (room.connections.get('stage') ?? 0) > 0;
   }
@@ -920,6 +936,9 @@ export class RoomManager {
       likes: { mine: new Map() },
       newAchievements: null,
       xpMoments: null,
+      adminHosts: new Map(),
+      botManual: null,
+      manualAway: null,
     };
     this.live.set(room.code, room);
     this.reschedule(room);
@@ -1001,6 +1020,9 @@ export class RoomManager {
       likes: { mine: new Map() },
       newAchievements: null,
       xpMoments: null,
+      adminHosts: new Map(),
+      botManual: null,
+      manualAway: null,
     };
     const forgotten = forgottenOf(saved.forgotten);
     if (forgotten.size > 0) room.forgotten = forgotten;
@@ -1602,7 +1624,12 @@ export class RoomManager {
     if (room === undefined) return null;
     if (role === 'host' || role === 'stage') {
       // Автопілот: пульта немає, токен ведучого не підходить ніколи (11g).
-      if (role === 'host' && room.state.autopilot !== undefined) return null;
+      // 68: виняток — пульт адміна в кімнаті бота, лише з його власним токеном (room.adminHosts).
+      if (role === 'host' && room.state.autopilot !== undefined) {
+        if (!isBotUser(room.hostUserId)) return null;
+        for (const [expected, admin] of room.adminHosts) if (sameToken(token, expected)) return { room, identity: { role: 'host', playerId: null, admin } };
+        return null;
+      }
       const expected = role === 'host' ? room.hostToken : room.stageToken;
       return sameToken(token, expected) ? { room, identity: { role, playerId: null } } : null;
     }
@@ -1612,6 +1639,14 @@ export class RoomManager {
 
   connect(room: Room, identity: Identity): void {
     if (!this.alive(room)) return;
+    if (identity.admin !== undefined) {
+      // 68: пульт адміна — свій ключ, без гілки ведучого: таймер «нікого» автопілота (room.absence) не чіпати.
+      room.connections.set(ADMIN_HOST_KEY, this.adminHostsOnline(room) + 1);
+      this.scheduler.clearTimeout(room.manualAway);
+      room.manualAway = null;
+      this.watchAuthor(room);
+      return;
+    }
     const key = identity.playerId ?? identity.role;
     const count = (room.connections.get(key) ?? 0) + 1;
     room.connections.set(key, count);
@@ -1634,6 +1669,14 @@ export class RoomManager {
 
   disconnect(room: Room, identity: Identity): void {
     if (!this.alive(room)) return;
+    if (identity.admin !== undefined) {
+      // 68: пульт адміна — без hostLeft (у кімнаті бота ведучого-людини немає).
+      const left = this.adminHostsOnline(room) - 1;
+      if (left > 0) room.connections.set(ADMIN_HOST_KEY, left);
+      else room.connections.delete(ADMIN_HOST_KEY);
+      this.watchAuthor(room);
+      return;
+    }
     const key = identity.playerId ?? identity.role;
     // Людину вилучили чи звільнили (release / kick стирають її з'єднання): сокет, що закривається після цього, розриву не лишає.
     if (identity.playerId !== null && !room.connections.has(key)) return;
@@ -1753,7 +1796,11 @@ export class RoomManager {
     const continued = room.continued;
     const passed = truthPassed(room);
     if (identity.role === 'host') {
-      const host = passed ? closedTruth(hostView(room.state)) : hostView(room.state);
+      // 68: пульт адміна в кімнаті бота — скасування балів і правки груп, як у ведучого, і режим керування.
+      const admin = identity.admin;
+      const raw = hostView(room.state, { byAdmin: admin !== undefined });
+      const shown = passed ? closedTruth(raw) : raw;
+      const host = admin === undefined ? shown : { ...shown, botHost: { manual: room.botManual !== null, mine: room.botManual?.adminId === admin } };
       return continued === null ? host : { ...host, continued: this.continuedView(room, continued) };
     }
     if (identity.role === 'stage') return passed ? closedTruth(stageView(room.state)) : stageView(room.state);
@@ -2616,6 +2663,65 @@ export class RoomManager {
     return this.setLobby(room, { visibility: input.listed ? 'all' : 'hidden', password: input.password });
   }
 
+  /**
+   * Токен пульта адміна в кімнаті бота (68): по одному на адміна й кімнату, лише в пам'яті (room.adminHosts); той самий адмін
+   * отримує свій наявний (fresh false). Немає кімнати, не бота чи не автопілот → game_not_found; зупинка → restarting.
+   */
+  botHostToken(code: string, adminId: string): { ok: true; hostToken: string; stageToken: string; fresh: boolean } | { ok: false; error: 'game_not_found' | 'restarting' } {
+    const room = this.live.get(code);
+    if (room === undefined || !isBotUser(room.hostUserId) || room.state.autopilot === undefined) return { ok: false, error: 'game_not_found' };
+    if (this.isFrozen) return { ok: false, error: 'restarting' };
+    for (const [token, admin] of room.adminHosts) if (admin === adminId) return { ok: true, hostToken: token, stageToken: room.stageToken, fresh: false };
+    const token = newToken();
+    room.adminHosts.set(token, adminId);
+    return { ok: true, hostToken: token, stageToken: room.stageToken, fresh: true };
+  }
+
+  /**
+   * Дія з пульта адміна в кімнаті бота (68). Не кімната бота чи не автопілот → forbidden. Конфлікти з автопілотом:
+   * - next, lock, skip, survey-all, bluff-all — затримка 11b (too_soon), як у ведучого; автопілот переплановує крок від нової миті;
+   * - start — autopilotStart без жереба за способу 'host' (склад адміна лишається, нерозподілені — у найменшу команду);
+   * - pause / resume — пауза автора (hold 'author'), бот сам не продовжить; kick, release, team-form, cloud-hide — як дія автора;
+   * - end у лобі закриває кімнату (як botAct), інакше end рушія;
+   * - save (гра бота не зберігається), sounds (у автопілоті не діє), think-words і think-off (заготовлені слова й голосування
+   *   «не на тему» автопілота) → not_allowed;
+   * - оцінки, undo, правки груп «Думай як усі», вигадки «Правди» — як у ведучого (byAdmin знімає відмову автопілота в рушії);
+   * - adjust — як у ведучого: пульт уже шле id учасника рушія (у командній грі — команди).
+   */
+  adminHost(room: Room, action: HostAction): AckResult {
+    if (!this.alive(room)) return this.gone();
+    const state = room.state;
+    if (!isBotUser(room.hostUserId) || state.autopilot === undefined) return FORBIDDEN;
+    const paced = PACED[action.type];
+    if (paced !== undefined && !state.paused && tooSoon(state, paced, this.now() + PACE_GRACE_MS)) return { ok: false, error: 'too_soon' };
+    switch (action.type) {
+      case 'start':
+        if (room.challenge !== null && action.resume !== undefined) return NOT_ALLOWED;
+        return this.apply(room, autopilotStart(state, this.now(), this.rng, action.resume ?? this.carryFor(room), { hostTeams: true }));
+      case 'pause':
+      case 'resume':
+        return this.authorAct(room, null, { type: action.type });
+      case 'kick':
+      case 'release':
+      case 'team-form':
+      case 'cloud-hide':
+        return this.authorAct(room, null, action);
+      case 'end':
+        if (state.phase !== 'lobby') return this.authorAct(room, null, { type: 'end' });
+        this.close(room);
+        return { ok: true };
+      case 'save':
+      case 'sounds':
+      case 'think-words':
+      case 'think-off':
+        return NOT_ALLOWED;
+      case 'adjust':
+        return this.hostStep(room, action);
+      default:
+        return this.hostStep(room, action, true);
+    }
+  }
+
   /** Тіло дії автора (11g) для author і botAct; playerId — автор-гравець (null — адмін за бота), для kick/release. */
   private authorAct(room: Room, playerId: string | null, action: AuthorAction): AckResult {
     const state = room.state;
@@ -2655,11 +2761,17 @@ export class RoomManager {
   host(room: Room, action: HostAction): AckResult {
     if (!this.alive(room)) return this.gone();
     const state = room.state;
-    // Автопілот: ролі host немає (identify), тож сюди не дійти; для певності.
+    // Автопілот: ролі host немає (identify; пульт адміна в кімнаті бота йде через adminHost), тож сюди не дійти; для певності.
     if (state.autopilot !== undefined) return FORBIDDEN;
     // На паузі рушій сам відповість paused; затримка — лише поки гра йде.
     const paced = PACED[action.type];
     if (paced !== undefined && !state.paused && tooSoon(state, paced, this.now() + PACE_GRACE_MS)) return { ok: false, error: 'too_soon' };
+    return this.hostStep(room, action);
+  }
+
+  /** Крок ведучого для host і adminHost (68); byAdmin — пульт адміна в кімнаті бота: рушій не відмовляє автопілоту в undo й правках. */
+  private hostStep(room: Room, action: HostAction, byAdmin = false): AckResult {
+    const state = room.state;
     switch (action.type) {
       case 'start':
         return this.apply(room, start(state, this.now(), action.resume ?? this.carryFor(room)));
@@ -2721,7 +2833,7 @@ export class RoomManager {
       case 'undo':
         // Після кінця гри з призами (14a) результат зафіксовано: скасування штрафу за вихід переставило б місця.
         if (state.phase === 'finished' && room.prizes.length > 0) return { ok: false, error: 'prizes_final' };
-        return this.apply(room, undoScore(state, action.target, this.now()));
+        return this.apply(room, undoScore(state, action.target, this.now(), byAdmin));
       case 'debuff':
         return this.apply(room, setDebuff(state, action.playerId, action.kind));
       case 'undebuff':
@@ -2753,7 +2865,7 @@ export class RoomManager {
       case 'truth-fake': {
         if (truthPassed(room)) return { ok: false, error: 'truth_closed' };
         if (!rateAllowed(room, 'truth', HOST_RATE_ID, this.now())) return { ok: false, error: 'too_soon' };
-        return this.apply(room, setTruthFake(state, action.id, action.text));
+        return this.apply(room, setTruthFake(state, action.id, action.text, byAdmin));
       }
       case 'think-words': {
         const now = this.now();
@@ -2766,9 +2878,9 @@ export class RoomManager {
         return this.apply(room, markThinkOff(state, action.playerId, action.off));
       }
       case 'alike-join':
-        return this.apply(room, alikeJoin(state, action.from, action.to));
+        return this.apply(room, alikeJoin(state, action.from, action.to, byAdmin));
       case 'alike-split':
-        return this.apply(room, alikeSplit(state, action.playerId));
+        return this.apply(room, alikeSplit(state, action.playerId, byAdmin));
     }
   }
 
