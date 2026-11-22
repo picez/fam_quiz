@@ -6,6 +6,7 @@ import { nickText } from '../../nick';
 import { adjustXp } from '../admin-api';
 import type { CardProps } from '../AdminUser';
 import { CardFold } from './CardFold';
+import { NumberInput } from '../../ui/NumberInput';
 
 /** Ціле від −ADMIN_XP_MAX до ADMIN_XP_MAX, не 0; інакше null (кнопка неактивна). */
 function amountOf(draft: string): number | null {
@@ -56,7 +57,7 @@ export function CardXp({ detail, act, busy }: CardProps): JSX.Element {
       <div className="admin-card-form">
         <label className="field">
           <span>{t('adminCardXpAmount')}</span>
-          <input type="text" inputMode="numeric" value={amount} onChange={(event) => setAmount(event.target.value)} maxLength={6} />
+          <NumberInput negative inputMode="numeric" value={amount} onChange={(event) => setAmount(event.target.value)} maxLength={6} />
         </label>
         <label className="field">
           <span>{t('adminCardXpReason')}</span>

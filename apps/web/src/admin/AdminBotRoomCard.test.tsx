@@ -173,6 +173,24 @@ describe('AdminBotRoomCard', () => {
     expect((within(person('Оля')).getByRole('button', { name: 'Вилучити' }) as HTMLButtonElement).disabled).toBe(true);
   });
 
+  it('the points field keeps only digits and a leading minus, and sends a signed adjust', () => {
+    show(room({ status: 'playing', question: true, inRound: true }));
+    const field = screen.getByLabelText(t('adminBotPointsLabel', { name: 'Оля' })) as HTMLInputElement;
+    expect(field.type).toBe('text');
+    expect(field.inputMode).toBe('numeric');
+    const apply = within(person('Оля')).getByRole('button', { name: t('adjustApply') }) as HTMLButtonElement;
+    fireEvent.change(field, { target: { value: 'abc' } });
+    expect(field.value).toBe('');
+    expect(apply.disabled).toBe(true);
+    fireEvent.change(field, { target: { value: '--1e5x0' } });
+    expect(field.value).toBe('-150');
+    fireEvent.change(field, { target: { value: '−٢٠' } });
+    expect(field.value).toBe('-20');
+    fireEvent.click(apply);
+    expect(onCommand).toHaveBeenLastCalledWith({ type: 'adjust', playerId: 'p1', points: -20 });
+    expect(field.value).toBe('');
+  });
+
   it('a continued game offers release', () => {
     const confirm = vi.mocked(window.confirm);
     show(room({ status: 'playing', continued: true }));

@@ -6,6 +6,7 @@ import { t, type TextKey } from '../i18n';
 import { nickText } from '../nick';
 import { addGroupItem, addGroupMember } from './admin-api';
 import { PeoplePicker, type PickedPerson } from './PeoplePicker';
+import { NumberInput } from '../ui/NumberInput';
 
 /** Дія картки групи (AdminGroup): підтвердження → запит → помилка в report; true — успіх. */
 export type GroupAct = (confirmText: string | null, run: () => Promise<ApiData<unknown>>, report: (message: string | null) => void) => Promise<boolean>;
@@ -163,7 +164,7 @@ export function AddItemSection({ group, members, busy, act, reload }: SectionPro
       </label>
       <label className="field" htmlFor="admin-group-item-year">
         <span>{t('itemYearLabel')}</span>
-        <input id="admin-group-item-year" type="text" inputMode="numeric" value={year} maxLength={4} onChange={(event) => setYear(event.target.value)} />
+        <NumberInput id="admin-group-item-year" value={year} maxLength={4} onChange={(event) => setYear(event.target.value)} />
       </label>
       <button type="button" className="btn" disabled={busy || !ready} onClick={() => void add()}>
         {t('adminGroupItemAddButton')}

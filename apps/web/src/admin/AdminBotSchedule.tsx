@@ -7,6 +7,7 @@ import { nickText } from '../nick';
 import { cancelBotPlan, createBotPlan, updateBotPlan } from './admin-api';
 import { botPlanReasonText, kyivWhenText } from './admin-text';
 import { PeoplePicker, type PickedPerson } from './PeoplePicker';
+import { NumberInput } from '../ui/NumberInput';
 
 const AUTO_DEFAULT = 10;
 
@@ -311,7 +312,7 @@ export function AdminBotSchedule({ schedule, quizzes, onChanged }: { schedule: A
           {form.auto && (
             <label className="field compact" htmlFor="bot-plan-auto-min">
               <span>{t('adminBotPlanAutoAfter')}</span>
-              <input id="bot-plan-auto-min" type="number" inputMode="numeric" min={BOT_PLAN_AUTO_MIN} max={BOT_PLAN_AUTO_MAX} step={1} required aria-invalid={autoBad} value={form.autoMin} onChange={(e) => patch({ autoMin: e.target.value })} />
+              <NumberInput id="bot-plan-auto-min" min={BOT_PLAN_AUTO_MIN} max={BOT_PLAN_AUTO_MAX} step={1} required aria-invalid={autoBad} value={form.autoMin} onChange={(e) => patch({ autoMin: e.target.value })} />
             </label>
           )}
           <label className="field field-check" htmlFor="bot-plan-weekly">

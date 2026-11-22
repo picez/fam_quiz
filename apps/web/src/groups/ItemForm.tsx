@@ -3,6 +3,7 @@ import { GROUP_ITEM_KINDS, GROUP_LIMITS, type GroupItem, type GroupItemInput, ty
 import { ACCEPT, useImageUpload } from '../editor/ImageField';
 import { errorText, t } from '../i18n';
 import { AboutChips, type AboutPick } from './AboutChips';
+import { NumberInput } from '../ui/NumberInput';
 
 const YEAR = /^\d{4}$/;
 
@@ -101,9 +102,8 @@ export function ItemForm({
         </label>
         <label className="item-year">
           <span>{t('itemYearLabel')}</span>
-          <input
+          <NumberInput
             value={year}
-            inputMode="numeric"
             maxLength={4}
             placeholder="1998"
             aria-invalid={yearBad}
