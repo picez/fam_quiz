@@ -36,7 +36,7 @@ describe('NumberInput', () => {
     expect(field().inputMode).toBe('decimal');
     cleanup();
     render(<Field negative />);
-    expect(field().inputMode).toBe('text');
+    expect(field().getAttribute('inputmode')).toBeNull();
     cleanup();
     render(<Field negative inputMode="numeric" />);
     expect(field().inputMode).toBe('numeric');

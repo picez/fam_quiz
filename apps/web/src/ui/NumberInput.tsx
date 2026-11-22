@@ -20,7 +20,7 @@ const setNativeValue = (input: HTMLInputElement, value: string) => {
  * Текстове поле для числа: набране, вставлене, перетягнуте й набране через IME проходить через
  * sanitizeNumber ще до onChange, тож event.target.value у власника вже чисте. type="text", бо
  * type="number" пропускає «e», «+», «.», а Firefox — будь-що. Клавіатура телефону: numeric
- * (decimal для дробів); зі знаком — text, бо цифрова клавіатура iOS не має мінуса.
+ * (decimal для дробів); зі знаком — звичайна, бо цифрова клавіатура iOS не має мінуса.
  */
 export const NumberInput = forwardRef<HTMLInputElement, NumberInputProps>(function NumberInput(
   { negative = false, decimal = false, min, max, step, maxLength, inputMode, onChange, onKeyDown, ...rest },
@@ -66,7 +66,11 @@ export const NumberInput = forwardRef<HTMLInputElement, NumberInputProps>(functi
       {...rest}
       ref={ref}
       type="text"
-      inputMode={inputMode ?? (negative ? 'text' : decimal ? 'decimal' : 'numeric')}
+      inputMode={inputMode ?? (negative ? undefined : decimal ? 'decimal' : 'numeric')}
+      // Браузер не перевіряє min/max у type="text"; атрибути лишаються як опис меж для тестів і читачів коду.
+      min={min}
+      max={max}
+      step={step}
       maxLength={maxLength}
       onChange={change}
       onKeyDown={key}
