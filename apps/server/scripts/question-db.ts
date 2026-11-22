@@ -33,6 +33,7 @@ import { alikeQuiz } from './alike-quiz';
 import { big1Quiz } from './big1-quiz';
 import { BIG2_PHOTOS, big2Quiz } from './big2-quiz';
 import { BIG3_FILES, BIG3_PHOTOS, big3Quiz } from './big3-quiz';
+import { FANTASY_PHOTOS, fantasyQuiz } from './fantasy-quiz';
 import { CLASSROOM_IMAGES, classroomQuiz } from './classroom-quiz';
 import { compassQuiz } from './compass-quiz';
 import { demoQuiz } from './demo-quiz';
@@ -480,6 +481,7 @@ export const SEED_BUILDERS = {
   big2: () => big2Quiz(seedImages('big2', BIG2_PHOTOS)),
   big3: () => big3Quiz(seedImages('big3', BIG3_PHOTOS, { dir: 'big3', keys: BIG3_FILES })),
   filmbluff: () => filmbluffQuiz(),
+  fantasy: () => fantasyQuiz(seedImages('fantasy', FANTASY_PHOTOS)),
 } satisfies Record<string, () => Quiz>;
 
 export type SeedName = keyof typeof SEED_BUILDERS;
