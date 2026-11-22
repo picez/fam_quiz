@@ -6,6 +6,8 @@ import { kyivDay } from './xp-rules';
 
 /** 71: стеля активного часу в редакторі за київський день — 16 год. */
 export const EDITOR_DAY_MAX_SEC = 57_600;
+/** 71: стеля відкриттів редактора за київський день — більше людина не відкриє, а «накрутка» не пройде. */
+export const EDITOR_DAY_MAX_SESSIONS = 200;
 
 /** 71: людина була на сайті цього київського дня; повтор — нічого. Бот — не людина. */
 export async function markActiveDay(db: Db, userId: string, now: Date): Promise<void> {
@@ -13,7 +15,7 @@ export async function markActiveDay(db: Db, userId: string, now: Date): Promise<
   await db.insert(activityDay).values({ userId, day: kyivDay(now) }).onConflictDoNothing();
 }
 
-/** 71: + активні секунди редактора за київський день (стеля EDITOR_DAY_MAX_SEC); start — нова сесія. */
+/** 71: + активні секунди редактора за київський день (стелі EDITOR_DAY_MAX_SEC і EDITOR_DAY_MAX_SESSIONS); start — нова сесія. */
 export async function addEditorTime(db: Db, userId: string, input: EditorTimeInput, now: Date): Promise<void> {
   if (isBotUser(userId)) return;
   const sessions = input.start ? 1 : 0;
@@ -24,7 +26,7 @@ export async function addEditorTime(db: Db, userId: string, input: EditorTimeInp
       target: [activityDay.userId, activityDay.day],
       set: {
         editorSec: sql`least(${EDITOR_DAY_MAX_SEC}, ${activityDay.editorSec} + excluded.editor_sec)`,
-        editorSessions: sql`${activityDay.editorSessions} + excluded.editor_sessions`,
+        editorSessions: sql`least(${EDITOR_DAY_MAX_SESSIONS}, ${activityDay.editorSessions} + excluded.editor_sessions)`,
       },
     });
 }

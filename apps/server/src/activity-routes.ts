@@ -21,7 +21,8 @@ export async function registerActivityRoutes(app: FastifyInstance, deps: Activit
   const limited = {
     config: {
       rateLimit: {
-        max: 12,
+        // Клієнт шле порцію раз на хвилину + залишок при виході; 3 — із запасом, але без «накрутки».
+        max: 3,
         timeWindow: '1 minute',
         keyGenerator: async (request: FastifyRequest) => `editor-time:${(await currentUser(request))?.id ?? request.ip}`,
       },

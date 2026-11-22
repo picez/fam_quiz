@@ -558,11 +558,11 @@ describe('people rules', () => {
     expect(ctx.summary).toEqual(summaryBefore);
   });
 
-  it('activity days of the secondary are summed into the primary, the cap holds', async () => {
+  it('activity days of the secondary are summed into the primary, the caps of seconds and sessions hold', async () => {
     const { primary, secondary, ctx } = await pair();
     await db.insert(activityDay).values([
-      { userId: primary, day: '2026-11-20', editorSec: 100, editorSessions: 1 },
-      { userId: secondary, day: '2026-11-20', editorSec: 57_550, editorSessions: 2 },
+      { userId: primary, day: '2026-11-20', editorSec: 100, editorSessions: 150 },
+      { userId: secondary, day: '2026-11-20', editorSec: 57_550, editorSessions: 120 },
       { userId: secondary, day: '2026-11-21', editorSec: 30, editorSessions: 1 },
       // День лише з відвідуванням — нулі, теж переноситься.
       { userId: secondary, day: '2026-11-22' },
@@ -573,7 +573,8 @@ describe('people rules', () => {
 
     const days = await db.select().from(activityDay).where(eq(activityDay.userId, primary));
     expect(days.map((row) => [row.day, row.editorSec, row.editorSessions]).sort()).toEqual([
-      ['2026-11-20', 57_600, 3],
+      // Обидві стелі дня: 16 год і 200 сесій.
+      ['2026-11-20', 57_600, 200],
       ['2026-11-21', 30, 1],
       ['2026-11-22', 0, 0],
     ]);

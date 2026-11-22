@@ -45,18 +45,20 @@ describe('editor time route (71)', () => {
   });
 
   it('a bad portion is 400', async () => {
-    const taras = await account('Тарас');
-    for (const payload of [{ seconds: 0, start: true }, { seconds: 601, start: true }, { seconds: 60, start: true, quizId: 'q' }, { seconds: 60 }]) {
+    const payloads = [{ seconds: 0, start: true }, { seconds: 91, start: true }, { seconds: 60, start: true, quizId: 'q' }, { seconds: 60 }];
+    for (const [index, payload] of payloads.entries()) {
+      // Своя людина на кожну порцію: більше трьох за хвилину — уже 429.
+      const taras = await account(`Тарас ${index}`);
       const response = await post(payload, taras.cookie);
       expect(response.statusCode).toBe(400);
       expect(response.json()).toEqual({ error: 'invalid_payload' });
     }
   });
 
-  it('the 13th portion in a minute is 429', async () => {
+  it('the 4th portion in a minute is 429: a day cannot be inflated in minutes', async () => {
     const petro = await account('Петро');
-    for (let i = 0; i < 12; i += 1) expect((await post({ seconds: 5, start: i === 0 }, petro.cookie)).statusCode).toBe(204);
-    expect((await post({ seconds: 5, start: false }, petro.cookie)).statusCode).toBe(429);
-    expect(await daysOf(petro.id)).toEqual([{ sec: 60, sessions: 1 }]);
+    for (let i = 0; i < 3; i += 1) expect((await post({ seconds: 90, start: true }, petro.cookie)).statusCode).toBe(204);
+    expect((await post({ seconds: 90, start: true }, petro.cookie)).statusCode).toBe(429);
+    expect(await daysOf(petro.id)).toEqual([{ sec: 270, sessions: 3 }]);
   });
 });

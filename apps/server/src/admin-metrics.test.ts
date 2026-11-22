@@ -123,7 +123,7 @@ describe('adminMetrics (71)', () => {
     const metrics = await adminMetrics(db, 30, now);
     expect(bucketOf(metrics, TODAY)).toMatchObject({ active: 1, editorMin: 30 });
     expect(bucketOf(metrics, '2026-11-15')).toMatchObject({ active: 1, editorMin: 10 });
-    expect(metrics.summary).toMatchObject({ dau: 0.1, wau: 2, mau: 3, stickiness: 3, editorHours: 0.7, editorSessions: 3, editorSessionMin: 13.3, editors: 2 });
+    expect(metrics.summary).toMatchObject({ dau: 0.1, wau: 2, mau: 3, stickiness: 4, editorHours: 0.7, editorSessions: 3, editorSessionMin: 13.3, editors: 2 });
     expect(metrics.trackedSince).toBe('2026-08-01');
     expect(metrics.topEditors).toEqual([
       { userId: a, nickname: 'Нік a', minutes: 30, sessions: 2 },
@@ -132,8 +132,29 @@ describe('adminMetrics (71)', () => {
     expect(JSON.stringify(metrics)).not.toContain('@');
 
     const week = await adminMetrics(db, 7, now);
-    // mau тижневого періоду — за 30 днів до його кінця.
-    expect(week.summary).toMatchObject({ wau: 2, mau: 3 });
+    // mau тижневого періоду — за 30 днів до його кінця; залипання — середнє за ті самі 30 днів, не за 7.
+    expect(week.summary).toMatchObject({ dau: 0.4, wau: 2, mau: 3, stickiness: 4 });
+  });
+
+  it('averages count only the days since tracking began; a previous period wholly before it has no activity numbers', async () => {
+    const db = await fresh();
+    const [a, b] = [await person(db, 'a'), await person(db, 'b')];
+    // Облік почався 10.11: 10 днів до кінця 30-денного періоду; a — щодня, b — один день.
+    const rows = Array.from({ length: 10 }, (_, i) => ({ userId: a, day: shiftDay('2026-11-10', i) }));
+    await db.insert(activityDay).values([...rows, { userId: b, day: TODAY }]);
+    // Гра в попередньому періоді (21.09–20.10) — він є, але цілком до початку обліку.
+    await finishedGame(db, a, '2026-10-01T10:00:00Z', 10, [a]);
+
+    const metrics = await adminMetrics(db, 30, now);
+    expect(metrics.trackedSince).toBe('2026-11-10');
+    // 11 пар за 10 днів обліку, а не за 30.
+    expect(metrics.summary).toMatchObject({ dau: 1.1, wau: 2, mau: 2, stickiness: 55 });
+    expect(metrics.previous).toMatchObject({ games: 1, dau: null, wau: null, mau: null, stickiness: null });
+
+    // Тиждень: 8 пар за 7 днів; попередній (6.11–12.11) — частково в обліку: 3 пари за 3 дні, а не за 7.
+    const week = await adminMetrics(db, 7, now);
+    expect(week.summary).toMatchObject({ dau: 1.1 });
+    expect(week.previous).toMatchObject({ dau: 1 });
   });
 
   it('new accounts without the bot, and how many played within 7 days of signing up', async () => {
@@ -146,6 +167,13 @@ describe('adminMetrics (71)', () => {
     const metrics = await adminMetrics(db, 30, now);
     expect(metrics.summary).toMatchObject({ newUsers: 2, activation: 50 });
     expect(bucketOf(metrics, '2026-11-01').newUsers).toBe(2);
+
+    // Акаунтам молодшим за 7 днів ще рано: у нових вони є, у частці активації — ні (ні в чисельнику, ні в знаменнику).
+    const fresh1 = await person(db, 'fresh1', new Date('2026-11-15T10:00:00Z'));
+    await person(db, 'fresh2', new Date('2026-11-19T08:00:00Z'));
+    await finishedGame(db, host, '2026-11-16T10:00:00Z', 10, [fresh1]);
+    const later = await adminMetrics(db, 30, now);
+    expect(later.summary).toMatchObject({ newUsers: 4, activation: 50 });
   });
 
   it('new quizzes without the bot ones', async () => {

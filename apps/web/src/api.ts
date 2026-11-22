@@ -131,8 +131,8 @@ export const googleSignIn = (next: string) =>
     body: { provider: 'google', callbackURL: next, errorCallbackURL: '/login' },
   });
 
-/** 71: порція активного часу в редакторі; true — прийнято (204). Збої ковтаємо: метрика не важливіша за редактор. */
-export async function sendEditorTime(body: { seconds: number; start: boolean }, keepalive: boolean): Promise<boolean> {
+/** 71: порція активного часу в редакторі; true — прийнято (204), 'signed-out' — 401. Збої ковтаємо: метрика не важливіша за редактор. */
+export async function sendEditorTime(body: { seconds: number; start: boolean }, keepalive: boolean): Promise<boolean | 'signed-out'> {
   try {
     const response = await fetch('/api/me/editor-time', {
       method: 'POST',
@@ -141,6 +141,7 @@ export async function sendEditorTime(body: { seconds: number; start: boolean }, 
       body: JSON.stringify(body),
       keepalive,
     });
+    if (response.status === 401) return 'signed-out';
     return response.status === 204;
   } catch {
     return false;

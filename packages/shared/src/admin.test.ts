@@ -104,7 +104,8 @@ describe('editorTimeSchema (71)', () => {
   });
   it('rejects bad portions', () => {
     expect(() => editorTimeSchema.parse({ seconds: 0, start: true })).toThrow();
-    expect(() => editorTimeSchema.parse({ seconds: 601, start: true })).toThrow();
+    expect(() => editorTimeSchema.parse({ seconds: 91, start: true })).toThrow();
+    expect(editorTimeSchema.parse({ seconds: 90, start: false })).toEqual({ seconds: 90, start: false });
     expect(() => editorTimeSchema.parse({ seconds: 1.5, start: true })).toThrow();
     expect(() => editorTimeSchema.parse({ seconds: 60 })).toThrow();
     expect(() => editorTimeSchema.parse({ seconds: 60, start: true, quizId: 'x' })).toThrow();

@@ -33,12 +33,12 @@ export async function healthDb(db: Db): Promise<HealthDb> {
   return { bytes, rows, push: { subscriptions: num(row.push_subscriptions), people: num(row.push_people) } };
 }
 
-/** 71: збої за 24 год (сума day_count і різних), нерозібрані збої, відкриті скарги на проблеми й на вміст. */
+/** 71: збої за 24 год — ті, що траплялися за останню добу (last_at; сума їхніх day_count і різних), нерозібрані збої, відкриті скарги на проблеми й на вміст. */
 export async function healthProblems(db: Db, now: Date): Promise<HealthProblems> {
   const since = new Date(now.getTime() - DAY_MS).toISOString();
   const result = (await db.execute(sql`select
-      (select coalesce(sum(day_count), 0)::int from "server_error" where day_start > ${since}) as errors24h,
-      (select count(distinct fingerprint)::int from "server_error" where day_start > ${since}) as kinds24h,
+      (select coalesce(sum(day_count), 0)::int from "server_error" where last_at > ${since}) as errors24h,
+      (select count(distinct fingerprint)::int from "server_error" where last_at > ${since}) as kinds24h,
       (select count(*)::int from "server_error" where status = 'new') as errors_new,
       (select count(*)::int from "problem_report" where status = 'open') as problems_open,
       (select count(*)::int from "user_report" where status = 'open') as reports_open`)) as { rows: Record<string, unknown>[] };

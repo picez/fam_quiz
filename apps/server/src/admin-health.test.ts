@@ -65,6 +65,8 @@ describe('healthProblems (71)', () => {
       { fingerprint: 'a', where: 'http', name: 'Error', message: 'boom', dayCount: 3, count: 5, dayStart: at(2 * HOUR), firstAt: at(40 * HOUR), lastAt: at(HOUR) },
       { fingerprint: 'b', where: 'http', name: 'Error', message: 'old', dayCount: 7, count: 7, dayStart: at(30 * HOUR), firstAt: at(30 * HOUR), lastAt: at(29 * HOUR) },
       { fingerprint: 'c', where: 'http', name: 'Error', message: 'done', dayCount: 2, count: 2, dayStart: at(HOUR), firstAt: at(HOUR), lastAt: at(HOUR), status: 'resolved' },
+      // Добове вікно почалось 30 год тому, але збій повторився годину тому — він є за останні 24 год.
+      { fingerprint: 'd', where: 'http', name: 'Error', message: 'again', dayCount: 4, count: 9, dayStart: at(30 * HOUR), firstAt: at(60 * HOUR), lastAt: at(HOUR) },
     ]);
     await db.insert(problemReport).values([
       { userId: olia, fromAccount: true, text: 'Зависла гра', createdAt: NOW },
@@ -75,7 +77,7 @@ describe('healthProblems (71)', () => {
       { reporterId: taras, targetKind: 'profile', targetUserId: olia, reason: 'other', status: 'dismissed' },
     ]);
 
-    expect(await healthProblems(db, NOW)).toEqual({ errors24h: 5, errorKinds24h: 2, errorsNew: 2, problemsOpen: 1, reportsOpen: 1 });
+    expect(await healthProblems(db, NOW)).toEqual({ errors24h: 9, errorKinds24h: 3, errorsNew: 3, problemsOpen: 1, reportsOpen: 1 });
   });
 });
 

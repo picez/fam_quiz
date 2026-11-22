@@ -1,7 +1,7 @@
 import { MERGE_LOGINS, SHOWCASE_PIN_KINDS, SHOWCASE_PIN_LIMITS, type MergeLogin } from '@quiz/shared';
 import { and, eq, inArray, or, sql } from 'drizzle-orm';
 import type { MergeRule, Tx } from './account-merge-rules';
-import { EDITOR_DAY_MAX_SEC } from './activity';
+import { EDITOR_DAY_MAX_SEC, EDITOR_DAY_MAX_SESSIONS } from './activity';
 import {
   account,
   achievementBlock,
@@ -286,7 +286,7 @@ const inboxRule: MergeRule = {
   },
 };
 
-/** 71. Дні активності: рядки S вливаються в P з підсумовуванням (стеля дня та сама), далі геть. */
+/** 71. Дні активності: рядки S вливаються в P з підсумовуванням (стелі дня — секунд і сесій — ті самі), далі геть. */
 const activityDayRule: MergeRule = {
   keys: ['activity_day.user_id'],
   async run(tx, { primaryId: P, secondaryId: S }) {
@@ -294,7 +294,7 @@ const activityDayRule: MergeRule = {
       select ${P}, day, editor_sec, editor_sessions from "activity_day" where user_id = ${S}
       on conflict (user_id, day) do update set
         editor_sec = least(${EDITOR_DAY_MAX_SEC}, "activity_day".editor_sec + excluded.editor_sec),
-        editor_sessions = "activity_day".editor_sessions + excluded.editor_sessions`);
+        editor_sessions = least(${EDITOR_DAY_MAX_SESSIONS}, "activity_day".editor_sessions + excluded.editor_sessions)`);
     await tx.execute(sql`delete from "activity_day" where user_id = ${S}`);
   },
 };

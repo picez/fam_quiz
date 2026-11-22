@@ -172,8 +172,9 @@ export const adminMetricsQuerySchema = z
       .default(30),
   })
   .strict();
-/** 71: активний час у редакторі — порція від клієнта; start — перша порція цього відкриття редактора. */
-export const EDITOR_TIME_MAX_SEC = 600;
+/** 71: активний час у редакторі — порція від клієнта; start — перша порція цього відкриття редактора.
+ * Порція — не більше 90 с: клієнт шле хвилину, а більша стеля дозволила б «накрутити» день за хвилини. */
+export const EDITOR_TIME_MAX_SEC = 90;
 export const editorTimeSchema = z.object({ seconds: z.number().int().min(1).max(EDITOR_TIME_MAX_SEC), start: z.boolean() }).strict();
 export type EditorTimeInput = z.infer<typeof editorTimeSchema>;
 
@@ -222,14 +223,14 @@ export interface AdminMetricsSummary {
   autopilot: number;
   bot: number;
   newUsers: number;
-  /** % нових акаунтів, що зіграли гру протягом 7 днів після реєстрації; null — нових немає. */
+  /** % нових акаунтів, що зіграли гру протягом 7 днів після реєстрації; лише акаунти, яким уже є 7 днів; null — таких немає. */
   activation: number | null;
-  /** Середнє активних на день. */
-  dau: number;
-  /** Різні акаунти за останні 7 / 30 днів періоду. */
-  wau: number;
-  mau: number;
-  /** dau / mau, %. */
+  /** Середнє активних на день — лише за дні від trackedSince; null — період цілком до початку обліку. */
+  dau: number | null;
+  /** Різні акаунти за останні 7 / 30 днів періоду; null — період цілком до початку обліку. */
+  wau: number | null;
+  mau: number | null;
+  /** Середнє активних на день за останні 30 днів періоду (від trackedSince) ÷ mau, %. */
   stickiness: number | null;
   editorHours: number;
   editorSessions: number;

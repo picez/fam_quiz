@@ -17,7 +17,7 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-function start(result: () => boolean = () => true) {
+function start(result: () => boolean | 'signed-out' = () => true) {
   const sent: { body: Body; keepalive: boolean }[] = [];
   const send = vi.fn(async (body: Body, keepalive: boolean) => {
     sent.push({ body: { ...body }, keepalive });
@@ -88,25 +88,49 @@ describe('startEditorTime (71)', () => {
     expect(second.send).not.toHaveBeenCalled();
   });
 
-  it('a failed send keeps the seconds for the next portion, at most 600, without doubling', async () => {
+  it('a failed send keeps the seconds for the next portion, at most 90 (the server cap), without doubling', async () => {
     let ok = false;
     const results: boolean[] = [];
     const { sent } = start(() => {
       results.push(ok);
       return ok;
     });
-    // 12 хвилин роботи, усе невдало: лишається не більше 600 с; повтор — не частіше раз на хвилину.
+    // 12 хвилин роботи, усе невдало: лишається не більше 90 с; повтор — не частіше раз на хвилину.
     await pass(720, 20);
     expect(sent.length).toBeGreaterThan(0);
     expect(sent.length).toBeLessThanOrEqual(12);
-    expect(sent.every((item) => item.body.seconds <= 600 && item.body.start)).toBe(true);
+    expect(sent.every((item) => item.body.seconds <= 90 && item.body.start)).toBe(true);
     ok = true;
     await pass(180, 20);
     const delivered = sent.filter((_, index) => results[index]).map((item) => item.body);
-    expect(delivered[0]).toEqual({ seconds: 600, start: true });
+    expect(delivered[0]).toEqual({ seconds: 90, start: true });
     expect(delivered.length).toBeGreaterThan(1);
     // Після вдалої порції — нові з нуля: по 60 с, уже не початок сесії.
     expect(delivered.slice(1).every((body) => body.seconds === 60 && !body.start)).toBe(true);
+  });
+
+  it('no portion is ever over 90 seconds, even the rest sent on leaving', async () => {
+    let ok = false;
+    const { sent } = start(() => ok);
+    await pass(300, 20);
+    ok = true;
+    stop!();
+    stop = null;
+    await vi.advanceTimersByTimeAsync(0);
+    expect(sent.length).toBeGreaterThan(1);
+    expect(sent.every((item) => item.body.seconds <= 90)).toBe(true);
+  });
+
+  it('after a 401 nothing more is sent, not even on leaving', async () => {
+    const { sent } = start(() => 'signed-out');
+    await pass(60, 20);
+    expect(sent).toHaveLength(1);
+    await pass(300, 20);
+    hide();
+    stop!();
+    stop = null;
+    await vi.advanceTimersByTimeAsync(0);
+    expect(sent).toHaveLength(1);
   });
 
   it('stopping removes the listeners and the timer', async () => {

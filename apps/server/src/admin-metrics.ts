@@ -71,6 +71,8 @@ interface ActivityRow {
 interface NewUserRow {
   day: string;
   played: boolean;
+  /** Акаунту вже є 7 днів: лише такі йдуть у частку активації (молодший ще не встиг). */
+  settled: boolean;
 }
 
 /** Дні одного вікна (поточний чи попередній період) і все, що з них рахується. */
@@ -125,10 +127,14 @@ export async function adminMetrics(db: Db, period: AdminMetricPeriod, now: Date)
       where day >= ${shiftDay(previous.first, -29)} and user_id <> ${BOT_USER_ID}`),
   ).map((row) => ({ ...row, editor_sec: Number(row.editor_sec), editor_sessions: Number(row.editor_sessions) }));
   const [tracked] = rowsOf<{ day: string | null }>(await db.execute(sql`select min(day) as day from "activity_day"`));
+  const trackedSince = tracked?.day ?? null;
+  /** Дні списку, коли активність уже лічилась (раніше trackedSince рядків activity_day бути не могло). */
+  const trackedDays = (list: readonly string[]) => (trackedSince === null ? list : list.filter((day) => day >= trackedSince));
 
   // Нові акаунти (без бота) і чи зіграли вони гру протягом 7 днів після реєстрації.
   const newUsers = rowsOf<NewUserRow>(
     await db.execute(sql`select ${dayOf(sql`u.created_at`)} as day,
+        (u.created_at <= ${now.toISOString()}::timestamptz - interval '7 days') as settled,
         exists (select 1 from "participant" p join "game" g on g.id = p.game_id
           where p.user_id = u.id and g.started_at >= u.created_at and g.started_at < u.created_at + interval '7 days') as played
       from "user" u where u.created_at >= ${fromPrev} and u.id <> ${BOT_USER_ID}`),
@@ -145,11 +151,23 @@ export async function adminMetrics(db: Db, period: AdminMetricPeriod, now: Date)
     const playerMin = timed(finished).reduce((sum, g) => sum + g.minutes! * g.people, 0);
     const users = newUsers.filter((u) => inWindow(w, u.day));
     const acts = activity.filter((a) => inWindow(w, a.day));
-    const activeDays = new Map<string, Set<string>>();
-    for (const a of acts) activeDays.set(a.day, (activeDays.get(a.day) ?? new Set()).add(a.user_id));
     const distinctSince = (firstDay: string) => new Set(activity.filter((a) => a.day >= firstDay && a.day <= w.last).map((a) => a.user_id)).size;
-    const dau = round1([...activeDays.values()].reduce((sum, set) => sum + set.size, 0) / w.days.length);
-    const mau = distinctSince(shiftDay(w.last, -29));
+    // Середнє активних на день — лише за дні, коли активність уже лічилась: дні до trackedSince не розбавляють його нулями.
+    // Рядок activity_day — один на (акаунт, день), тож рядки й є пари «активний того дня».
+    const perDay = (list: readonly string[]): number | null => {
+      const counted = trackedDays(list);
+      if (counted.length === 0) return null;
+      const first = list[0]!;
+      const last = list[list.length - 1]!;
+      return activity.filter((a) => a.day >= first && a.day <= last).length / counted.length;
+    };
+    const dayAverage = perDay(w.days);
+    // Вікно цілком до початку обліку — активності не знаємо: null, а не нулі (і порівняння з ним немає).
+    const untracked = dayAverage === null;
+    const dau = dayAverage === null ? null : round1(dayAverage);
+    const mau = untracked ? null : distinctSince(shiftDay(w.last, -29));
+    // Залипання — одне вікно: середнє активних на день за 30 днів до кінця періоду ÷ різні акаунти за ті самі 30 днів.
+    const dau30 = perDay(Array.from({ length: 30 }, (_, i) => shiftDay(w.last, i - 29)));
     const editorSec = acts.reduce((sum, a) => sum + a.editor_sec, 0);
     const editorSessions = acts.reduce((sum, a) => sum + a.editor_sessions, 0);
     return {
@@ -163,11 +181,11 @@ export async function adminMetrics(db: Db, period: AdminMetricPeriod, now: Date)
       playerHours: round1(playerMin / 60),
       ...hostSplit(own),
       newUsers: users.length,
-      activation: pct(users.filter((u) => u.played).length, users.length),
+      activation: pct(users.filter((u) => u.settled && u.played).length, users.filter((u) => u.settled).length),
       dau,
-      wau: distinctSince(shiftDay(w.last, -6)),
+      wau: untracked ? null : distinctSince(shiftDay(w.last, -6)),
       mau,
-      stickiness: mau === 0 ? null : Math.round((100 * dau) / mau),
+      stickiness: mau === null || mau === 0 || dau30 === null ? null : Math.round((100 * dau30) / mau),
       editorHours: round1(editorSec / 3600),
       editorSessions,
       editorSessionMin: editorSessions === 0 ? null : round1(editorSec / 60 / editorSessions),
@@ -215,7 +233,7 @@ export async function adminMetrics(db: Db, period: AdminMetricPeriod, now: Date)
     buckets,
     summary: summarize(current),
     previous: hasPrevious ? summarize(previous) : null,
-    trackedSince: tracked?.day ?? null,
+    trackedSince,
     topQuizzes: await topQuizzes(db, games.filter((g) => inWindow(current, g.day))),
     roundTypes: await roundTypes(db, from),
     ...(await questionTypes(db, from)),

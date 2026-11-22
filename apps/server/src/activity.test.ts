@@ -1,7 +1,7 @@
 import { BOT_USER_ID } from '@quiz/shared';
 import { eq } from 'drizzle-orm';
 import { beforeAll, describe, expect, it } from 'vitest';
-import { EDITOR_DAY_MAX_SEC, addEditorTime, markActiveDay } from './activity';
+import { EDITOR_DAY_MAX_SEC, EDITOR_DAY_MAX_SESSIONS, addEditorTime, markActiveDay } from './activity';
 import type { Db } from './db/client';
 import { activityDay, profile, user } from './db/schema';
 import { touchSeen } from './profiles';
@@ -54,6 +54,12 @@ describe('addEditorTime (71)', () => {
     expect(await daysOf(id)).toEqual([{ day: '2026-11-20', sec: 900, sessions: 1 }]);
     for (let i = 0; i < 100; i += 1) await addEditorTime(db, id, { seconds: 600, start: false }, NOW);
     expect(await daysOf(id)).toEqual([{ day: '2026-11-20', sec: EDITOR_DAY_MAX_SEC, sessions: 1 }]);
+  });
+
+  it('sessions of a day stop at the cap', async () => {
+    const id = await person();
+    for (let i = 0; i < EDITOR_DAY_MAX_SESSIONS + 5; i += 1) await addEditorTime(db, id, { seconds: 1, start: true }, NOW);
+    expect(await daysOf(id)).toEqual([{ day: '2026-11-20', sec: EDITOR_DAY_MAX_SESSIONS + 5, sessions: EDITOR_DAY_MAX_SESSIONS }]);
   });
 
   it('a visit row of the day gets the editor time', async () => {
