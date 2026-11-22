@@ -98,8 +98,10 @@ function startAfterTour(state: GameState, now: number): Result {
 /**
  * «Почати гру» від автора (правила — план 11g, «Автор»); не автопілот → not_allowed; поза лобі → wrong_phase.
  * resume — «Продовжити гру» (12r): хибні дані → помилка ще до туру кубиків; тур зберігає їх до старту після нього.
+ * hostTeams — старт з пульта адміна в кімнаті бота (68): за способу 'host' склад адміна лишається без жереба,
+ * нерозподілених розсаджує formTeams у start (у найменшу команду).
  */
-export function autopilotStart(state: GameState, now: number, rng: Rng, resume?: ResumeSetup): Result {
+export function autopilotStart(state: GameState, now: number, rng: Rng, resume?: ResumeSetup, options: { hostTeams?: boolean } = {}): Result {
   if (state.autopilot === undefined) return fail('not_allowed');
   if (state.phase !== 'lobby') return fail('wrong_phase');
   if (resume !== undefined) {
@@ -108,6 +110,9 @@ export function autopilotStart(state: GameState, now: number, rng: Rng, resume?:
   }
   if (!teamsOn(state)) return startNow(state, now, resume);
   const { form, members, dice } = state.teams;
+  // Склад розподілив адмін з пульта (68): без жереба, як у ведучого-людини. Відкладеного resume тут немає: його лишає лише тур кубиків,
+  // а перехід на спосіб 'host' (authorTeamForm) прибирає starting і resume.
+  if (form === 'host' && options.hostTeams === true) return startNow(state, now, resume);
   if (form === 'host' || form === 'random') {
     // Розподілу ведучого немає: склад роздає жереб у мить старту, спосіб лишається тим, що вибрав автор.
     const dealt = dealTeams({ ...state, teams: { ...state.teams, form: 'random' } }, rng);

@@ -96,6 +96,8 @@ import { emptyDraft, resumePayload } from '../resume';
 export { STAGE_GONE_MS };
 
 interface Props {
+  /** 68: пульт адміна в кімнаті бота — без «Зберегти гру», звуків сцени, доступу до лобі, продовження гри й слів «Думай». */
+  botHost?: boolean;
   view: HostView;
   code: string;
   stageUrl: string;
@@ -278,7 +280,7 @@ function HostScores({ view }: { view: HostView }) {
   );
 }
 
-export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, stageOnline = true, audioCommand = null, tilts, watch = true, onWatch, drafts = null, reactions = NO_REACTIONS, drawing = null }: Props) {
+export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, stageOnline = true, audioCommand = null, tilts, watch = true, onWatch, drafts = null, reactions = NO_REACTIONS, drawing = null, botHost = false }: Props) {
   const [error, setError] = useState<string | null>(null);
   const { phase, correct, round } = view;
   const quizTitle = useQuizTitle(code, phase === 'finished');
@@ -664,9 +666,9 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
             👁<span className="live-toggle-label"> {t('liveToggle')}</span>
           </button>
         )}
-        <button type="button" className="btn btn-small live-toggle" aria-pressed={view.soundsOff !== true} aria-label={t('hostSounds')} title={t('hostSoundsHint')} onClick={() => void act('host:sounds', { on: view.soundsOff === true })}>
+        {!botHost && <button type="button" className="btn btn-small live-toggle" aria-pressed={view.soundsOff !== true} aria-label={t('hostSounds')} title={t('hostSoundsHint')} onClick={() => void act('host:sounds', { on: view.soundsOff === true })}>
           🔔<span className="live-toggle-label"> {t('hostSounds')}</span>
-        </button>
+        </button>}
         {view.undo !== null && <UndoButton undo={view.undo} teams={view.teams !== null} send={send} />}
         <ThemeToggle className="bar-theme" />
         <ReactionButton shown={reactionAllowed(phase)} level={Infinity} event="host:react" send={send} />
@@ -909,8 +911,8 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
 
       {thinkHost !== null && (
         <>
-          <HostThinkWords key={`${round?.index ?? 0}:${view.questionIndex}`} think={thinkHost} phase={phase} send={send} onError={setError} />
-          <HostThinkAnswers think={thinkHost} phase={phase} send={send} onError={setError} />
+          {!botHost && <HostThinkWords key={`${round?.index ?? 0}:${view.questionIndex}`} think={thinkHost} phase={phase} send={send} onError={setError} />}
+          <HostThinkAnswers think={thinkHost} phase={phase} send={send} onError={setError} noOff={botHost} />
         </>
       )}
       {/* «Думай як усі» (37e): групи з locked; на reveal (не автопілот) — «Об'єднати з…» і «Окремо», відмову видно в рядку помилки. */}
@@ -1639,10 +1641,10 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
 
       {phase === 'lobby' && view.levelBonuses !== 'none' && <p className="meta">{t(view.levelBonuses === 'off' ? 'levelBonusesOff' : 'levelBonusesOn')}</p>}
       {phase === 'lobby' && view.family === true && <p className="meta family-lobby">{t('familyLobby')}</p>}
-      {phase === 'lobby' && <LobbyAccess code={code} />}
-      {phase === 'lobby' && <InviteFriends code={code} />}
-      {phase === 'lobby' && <PrizePlaces code={code} />}
-      {phase === 'lobby' && <LeaguePick code={code} />}
+      {phase === 'lobby' && !botHost && <LobbyAccess code={code} />}
+      {phase === 'lobby' && !botHost && <InviteFriends code={code} />}
+      {phase === 'lobby' && !botHost && <PrizePlaces code={code} />}
+      {phase === 'lobby' && !botHost && <LeaguePick code={code} />}
 
       <nav className="links">
         <a href={stageUrl} target="_blank" rel="noreferrer">
@@ -1655,7 +1657,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
       </nav>
 
       {/* Продовження збереженої гри (13b): бали переносить сервер, тож «Продовжити попередню гру» не потрібна. */}
-      {phase === 'lobby' && view.continued === undefined && view.resume !== null && view.resume.rounds.length > 0 && (
+      {!botHost && phase === 'lobby' && view.continued === undefined && view.resume !== null && view.resume.rounds.length > 0 && (
         <ResumePanel code={code} info={view.resume} draft={resumeDraft} onChange={setResumeDraft} />
       )}
       {view.continued !== undefined && <SlotsPanel continued={view.continued} send={send} paused={view.paused} phase={phase} resume={view.resume} />}
@@ -1677,9 +1679,11 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
                 {t('endRound')}
               </button>
             )}
-            <button type="button" className="btn" onClick={saveGame}>
-              {t('saveLater')}
-            </button>
+            {!botHost && (
+              <button type="button" className="btn" onClick={saveGame}>
+                {t('saveLater')}
+              </button>
+            )}
             <button type="button" className="btn btn-danger" onClick={inRound && lastRound ? endRound : endGame}>
               {t('end')}
             </button>

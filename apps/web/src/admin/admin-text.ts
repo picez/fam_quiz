@@ -55,7 +55,9 @@ export function logLine(entry: AdminLogEntry): string {
   // 63: подія стрічки — словами, як була на мить дії.
   const feed = entry.details.feed === undefined ? null : feedText(entry.details.feed);
   const text = feed ?? entry.details.text ?? (entry.kind === 'account_delete' ? nickText(entry.target) : '');
-  const line = t(`adminLog_${entry.kind}` as TextKey, { admin: nickText(entry.admin), target: nickText(entry.target), title: entry.details.title ?? '', text, code: entry.details.code ?? '', count: String(entry.details.count ?? ''), seconds: BOT_TIME_SECONDS, when, reason: planReason, amount: signedXp(entry.details.amount ?? 0), achievement: entry.details.achievementId === undefined ? '' : t(`achievement_${entry.details.achievementId}` as TextKey), summary: entry.kind === 'account_merge' ? mergeSummaryText(entry.details.merge ?? emptyMergeSummary()) : '', ...lobbyVars(entry) });
+  // 68: оцінка без людини (name, alike-*) — без « — {text}».
+  const key = entry.kind === 'bot_room_grade' && text === '' ? 'adminLog_bot_room_grade_plain' : `adminLog_${entry.kind}`;
+  const line = t(key as TextKey, { admin: nickText(entry.admin), target: nickText(entry.target), title: entry.details.title ?? '', text, code: entry.details.code ?? '', count: String(entry.details.count ?? ''), seconds: BOT_TIME_SECONDS, when, reason: planReason, amount: signedXp(entry.details.amount ?? 0), achievement: entry.details.achievementId === undefined ? '' : t(`achievement_${entry.details.achievementId}` as TextKey), summary: entry.kind === 'account_merge' ? mergeSummaryText(entry.details.merge ?? emptyMergeSummary()) : '', ...lobbyVars(entry) });
   const reason = entry.kind === 'ban' || entry.kind === 'xp_adjust' || entry.kind === 'group_hide' ? entry.details.reason : null;
   if (entry.kind === 'nickname_reset' && entry.details.text) return t('adminLogWas', { line, text: entry.details.text });
   if (entry.kind === 'prize_gift' && entry.details.text) return t('adminLogGiftNote', { line, text: entry.details.text });

@@ -1,7 +1,7 @@
 import { isObjectLike } from '@quiz/shared';
 import type { AdminBroadcast, AdminBroadcasts, BroadcastInput, BroadcastPreview, BroadcastRecipients } from '@quiz/shared';
 import type { AdminBackups, AdminProblemReport, AdminProblemsBadge, AdminServerError } from '@quiz/shared';
-import type { AchievementId, AdminBot, AdminRevokeManyResult, AdminBotLobby, AdminBotPerson, AdminBotPlan, BotCommand, BotPlanInput, GameDetail, GameReplay } from '@quiz/shared';
+import type { AchievementId, AdminBot, AdminBotHostAccess, AdminRevokeManyResult, AdminBotLobby, AdminBotPerson, AdminBotPlan, BotCommand, BotPlanInput, GameDetail, GameReplay } from '@quiz/shared';
 import type { Announcement, AnnouncementInput, AdminCharts, AdminHealth, AdminLiveList, AdminList, AdminReportItem, AdminLogExport, AdminLogGroup, AdminLogPage, AdminQuizCheck, AdminQuizRow, AdminQuizView, AdminStats, AdminUserDetail, AdminUserRow } from '@quiz/shared';
 import type { AccountMergePreview, MergeSummary } from '@quiz/shared';
 import type { AdminFeedKind, AdminFeedRow, AdminGroupDetail, AdminGroupRow } from '@quiz/shared';
@@ -73,6 +73,10 @@ export const botRoomCommand = (code: string, command: BotCommand): Promise<ApiRe
   const { type, ...body } = command;
   return request<object>(`/api/admin/bot/rooms/${id(code)}/${type}`, Object.keys(body).length === 0 ? { method: 'POST' } : { method: 'POST', body });
 };
+/** 68: токени пульта адміна в кімнаті бота (лише для цієї вкладки; кожен виклик — той самий токен адміна). */
+export const botHostAccess = (code: string): Promise<ApiResult<AdminBotHostAccess>> => request<AdminBotHostAccess>(`/api/admin/bot/rooms/${id(code)}/host-access`, { method: 'POST' });
+/** 68: «Взяти керування» (on) і «Віддати боту». */
+export const botManual = (code: string, on: boolean): Promise<ApiResult<object>> => request<object>(`/api/admin/bot/rooms/${id(code)}/manual`, { method: 'PUT', body: { on } });
 /** 62: лобі кімнати бота — у списку лобі чи лише за кодом, і пароль (null — без пароля). */
 export const saveBotLobby = (code: string, input: AdminBotLobby): Promise<ApiResult<AdminBotLobby>> =>
   request<AdminBotLobby>(`/api/admin/bot/rooms/${id(code)}/lobby`, { method: 'PUT', body: input });

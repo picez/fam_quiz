@@ -4382,3 +4382,35 @@ describe('HostScreen: 67 columns', () => {
     expect(side.textContent).not.toContain('Гру завершено');
   });
 });
+
+describe('HostScreen: bot host (68)', () => {
+  const resume = { rounds: [{ title: 'Розминка', type: 'classic' as const }], participants: [{ id: 'p1', nickname: 'Олена' }] };
+  const showBot = (current: HostView, botHost: boolean) => {
+    const send = vi.fn(async () => ({ ok: true as const }));
+    render(<HostScreen view={current} code="123456" stageUrl="http://quiz.test/stage/123456#s" joinUrl="http://quiz.test/play/123456" send={send} botHost={botHost} />);
+  };
+
+  it('without botHost the save button, the sounds switch, the lobby access and the resume panel are there', async () => {
+    showBot(view({ resume, phase: 'question', questionIndex: 0, question: publicOf(single), correct: single }), false);
+    expect(screen.getByRole('button', { name: t('saveLater') })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Звуки на сцені' })).toBeTruthy();
+    cleanup();
+    showBot(view({ resume }), false);
+    expect(document.querySelector('details.resume-panel')).not.toBeNull();
+    await waitFor(() => expect(document.querySelector('.lobby-access')).not.toBeNull());
+  });
+
+  it('with botHost none of the four is shown, the rest of the remote works', () => {
+    showBot(view({ resume, phase: 'question', questionIndex: 0, question: publicOf(single), correct: single }), true);
+    expect(screen.queryByRole('button', { name: t('saveLater') })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Звуки на сцені' })).toBeNull();
+    expect(screen.getByRole('button', { name: t('pause') })).toBeTruthy();
+    cleanup();
+    showBot(view({ resume }), true);
+    expect(document.querySelector('details.resume-panel')).toBeNull();
+    expect(document.querySelector('.lobby-access')).toBeNull();
+    // Запрошення друзів, призи й ліга живуть за акаунтом ведучого: у грі бота їх немає.
+    expect(screen.queryByRole('button', { name: 'Запросити друзів' })).toBeNull();
+    expect(button('Почати гру')).toBeTruthy();
+  });
+});

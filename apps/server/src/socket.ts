@@ -88,6 +88,8 @@ import {
 } from '@quiz/shared';
 import { teamOf } from '@quiz/engine';
 import type { HostAction } from './rooms/manager';
+import type { AdminActionKind } from '@quiz/shared';
+import { adminHostLog, type AdminHostAction } from './admin-host-log';
 import { Server, type Socket } from 'socket.io';
 import type { Identity, Room, RoomManager } from './rooms/manager';
 import type { Located } from './rooms/store';
@@ -186,6 +188,8 @@ export interface SocketOptions {
   puzzleGapMs?: number;
   /** Загальний ліміт подій сокета за секунду (30a); типово SOCKET_EVENTS_PER_SECOND. */
   eventsPerSecond?: number;
+  /** 68: вдала дія з пульта адміна в кімнаті бота, що йде в журнал адмінки (кроки темпу й показу сюди не потрапляють). */
+  onAdminHost?: (entry: { adminId: string; code: string; title: string; kind: AdminActionKind; text?: string }) => void;
 }
 
 /** Вікно злиття зрізів від пакетів клітинок (28d): телефон шле пакет раз на 250 мс, тож на кімнату — не частіше. */
@@ -545,7 +549,26 @@ export function attachSockets(
     const isHost = identity.role === 'host';
     // Хто доходить до обробників host:*: пульт; у грі без ведучого — і гравець (manager.author відповідає not_allowed чужим і зайвим діям).
     const hostSide = isHost || (identity.role === 'player' && identity.playerId !== null && room.state.autopilot !== undefined);
-    const run = (action: HostAction): AckResult => (isHost ? manager.host(room, action) : manager.author(room, identity.playerId!, action));
+    // 68: пульт адміна в кімнаті бота — дії через adminHost, вдалі пишуться в журнал (вид і нік рахуються до дії).
+    const admin = identity.admin;
+    const logged = (action: AdminHostAction, act: () => AckResult): AckResult => {
+      const entry = adminHostLog(room.state, action);
+      const title = room.state.quiz.title;
+      const result = act();
+      if (result.ok && entry !== null && admin !== undefined) {
+        try {
+          options.onAdminHost?.({ adminId: admin, code: room.code, title, ...entry });
+        } catch (error) {
+          // Збій журналу дії не скасовує: ack лишається ok.
+          reportError(error, { ...context, event: 'admin-host-log' });
+        }
+      }
+      return result;
+    };
+    const run = (action: HostAction): AckResult => {
+      if (admin !== undefined) return logged(action, () => manager.adminHost(room, action));
+      return isHost ? manager.host(room, action) : manager.author(room, identity.playerId!, action);
+    };
 
     on('player:answer', (args) => {
       if (identity.role !== 'player' || identity.playerId === null) return FORBIDDEN;
@@ -1023,7 +1046,10 @@ export function attachSockets(
     on('host:hint', (args) => {
       if (!hostSide) return FORBIDDEN;
       const payload = hintSchema.safeParse(payloadOf(args));
-      return payload.success ? (isHost ? manager.hostHint(room, payload.data.playerId, payload.data.text) : NOT_ALLOWED) : INVALID;
+      if (!payload.success) return INVALID;
+      if (!isHost) return NOT_ALLOWED;
+      const { playerId, text } = payload.data;
+      return admin === undefined ? manager.hostHint(room, playerId, text) : logged({ type: 'hint', playerId }, () => manager.hostHint(room, playerId, text));
     });
 
     on('host:ladder-pick', (args) => {
@@ -1035,7 +1061,10 @@ export function attachSockets(
     on('host:ladder-decide', (args) => {
       if (!hostSide) return FORBIDDEN;
       const payload = ladderDecideSchema.safeParse(payloadOf(args));
-      return payload.success ? (isHost ? manager.hostLadderDecide(room, payload.data.take) : NOT_ALLOWED) : INVALID;
+      if (!payload.success) return INVALID;
+      if (!isHost) return NOT_ALLOWED;
+      const { take } = payload.data;
+      return admin === undefined ? manager.hostLadderDecide(room, take) : logged({ type: 'ladder-decide' }, () => manager.hostLadderDecide(room, take));
     });
 
     on('host:debuff', (args) => {

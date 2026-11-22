@@ -119,10 +119,13 @@ export function scoreAlike(state: GameState): GameState {
   return rescore(state, state.questionIndex);
 }
 
-/** Правити групи можна лише на reveal поточного thinkalike (wrong_phase) і не в автопілоті (not_allowed); інакше null. */
-function editRefusal(state: GameState): 'wrong_phase' | 'not_allowed' | null {
+/**
+ * Правити групи можна лише на reveal поточного thinkalike (wrong_phase) і не в автопілоті (not_allowed); інакше null.
+ * byAdmin — пульт адміна в кімнаті бота (68): у ведучого-людини поруч відмови автопілота немає.
+ */
+function editRefusal(state: GameState, byAdmin = false): 'wrong_phase' | 'not_allowed' | null {
   if (state.phase !== 'reveal' || alikePlayAt(state, state.questionIndex) === null) return 'wrong_phase';
-  return state.autopilot === undefined ? null : 'not_allowed';
+  return state.autopilot === undefined || byAdmin ? null : 'not_allowed';
 }
 
 /** Нові мітки груп поточного запитання (перша правка — з поточних груп), бали перераховано одразу. */
@@ -136,8 +139,8 @@ function withLabels(state: GameState, groups: readonly AlikeGroup[], change: (la
 }
 
 /** Ведучий об'єднує групу from з групою to: усі з from отримують мітку to. Невідомий ключ чи from === to — alike_group. */
-export function alikeJoin(state: GameState, from: string, to: string): Result {
-  const refusal = editRefusal(state);
+export function alikeJoin(state: GameState, from: string, to: string, byAdmin = false): Result {
+  const refusal = editRefusal(state, byAdmin);
   if (refusal !== null) return fail(refusal);
   const groups = alikeGroups(state, state.questionIndex);
   const source = groups.find((g) => g.key === from);
@@ -150,8 +153,8 @@ export function alikeJoin(state: GameState, from: string, to: string): Result {
 }
 
 /** Ведучий виносить відповідь гравця в окрему групу (мітка solo:<id>). Без відповіді чи вже сам — alike_group. */
-export function alikeSplit(state: GameState, playerId: string): Result {
-  const refusal = editRefusal(state);
+export function alikeSplit(state: GameState, playerId: string, byAdmin = false): Result {
+  const refusal = editRefusal(state, byAdmin);
   if (refusal !== null) return fail(refusal);
   const groups = alikeGroups(state, state.questionIndex);
   const own = groups.find((g) => g.ids.includes(playerId));
@@ -205,9 +208,9 @@ export function alikeInfo(state: GameState): AlikeInfo | undefined {
   return state.phase === 'reveal' ? (infoOf(state) ?? undefined) : undefined;
 }
 
-/** Пульт: locked і reveal поточного thinkalike; editable — reveal і не автопілот. */
-export function hostAlike(state: GameState): HostAlike | undefined {
+/** Пульт: locked і reveal поточного thinkalike; editable — reveal і не автопілот (пульт адміна в кімнаті бота — byAdmin, 68). */
+export function hostAlike(state: GameState, byAdmin = false): HostAlike | undefined {
   if (state.phase !== 'locked' && state.phase !== 'reveal') return undefined;
   const info = infoOf(state);
-  return info === null ? undefined : { ...info, editable: editRefusal(state) === null };
+  return info === null ? undefined : { ...info, editable: editRefusal(state, byAdmin) === null };
 }

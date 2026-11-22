@@ -4143,7 +4143,9 @@ function playerShop(state: GameState, playerId: string): PlayerShop | null {
   return { items, targets, block: shopBlock(state, playerId) };
 }
 
-export function hostView(state: GameState): HostView {
+/** Зріз пульта; byAdmin — пульт адміна в кімнаті бота (68): скасування балів і правка груп «Думай як усі», як у ведучого. */
+export function hostView(state: GameState, options: { byAdmin?: boolean } = {}): HostView {
+  const byAdmin = options.byAdmin === true;
   const current = state.plays[state.questionIndex]?.question;
   const unscored = current !== undefined && isUnscored(current);
   // Голоси без балів у командній грі лежать під id людей (voterList; у соло-грі — гравці).
@@ -4208,7 +4210,7 @@ export function hostView(state: GameState): HostView {
     ...optional('quest', hostQuest(state)),
     ...optional('drawing', hostDrawing(state)),
     ...optional('think', hostThink(state)),
-    ...optional('alike', hostAlike(state)),
+    ...optional('alike', hostAlike(state, byAdmin)),
     ...optional('spy', hostSpy(state)),
     chain: chainInfo(state),
     sort: sortInfo(state),
@@ -4224,7 +4226,7 @@ export function hostView(state: GameState): HostView {
     surveySkipped: skippedSurveys(state).map((q) => q.text),
     pace: hostPace(state),
     live: hostLive(state),
-    undo: undoPanel(state),
+    undo: undoPanel(state, byAdmin),
     resume: resumeLobby(state),
     roundQuestions: roundQuestionShares(state),
   };

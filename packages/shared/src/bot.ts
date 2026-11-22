@@ -33,6 +33,16 @@ export const BOT_COMMAND_TYPES = [...BOT_ACTIONS, ...BOT_PERSON_ACTIONS, 'team-f
 /** 62: the bot room lobby the admin sets: shown in the lobby list or not, and an optional password. */
 export const adminBotLobbySchema = z.object({ listed: z.boolean(), password: lobbyPasswordSchema.nullable() }).strict();
 export type AdminBotLobby = z.infer<typeof adminBotLobbySchema>;
+/** 68: with every admin host screen offline this long, a bot room in manual mode goes back to the bot. */
+export const BOT_MANUAL_GRACE_MS = 60_000;
+/** 68: «Взяти керування» (on) / «Віддати боту» (off) in a bot room. */
+export const adminBotManualSchema = z.object({ on: z.boolean() }).strict();
+export type AdminBotManual = z.infer<typeof adminBotManualSchema>;
+/** 68: the admin's own host screen token for a bot room (kept in memory only) and the stage token. */
+export interface AdminBotHostAccess {
+  hostToken: string;
+  stageToken: string;
+}
 
 export function isBotUser(id: string | null | undefined): boolean {
   return id === BOT_USER_ID;

@@ -25,7 +25,7 @@ type TeamChoice = (typeof BOT_TEAM_FORMS)[number];
  * Картка кімнати бота (62): стан і кнопки ведучого, лобі (у списку чи за кодом, пароль, команди) і люди.
  * Запитання й відповіді сюди не потрапляють — лише прапорець «відкрите запитання».
  */
-export function AdminBotRoomCard({ room, busy, onCommand, onLobby }: { room: AdminBotRoom; busy: boolean; onCommand: (command: BotCommand) => void; onLobby: (input: AdminBotLobby) => void }): JSX.Element {
+export function AdminBotRoomCard({ room, busy, onCommand, onLobby, onManual }: { room: AdminBotRoom; busy: boolean; onCommand: (command: BotCommand) => void; onLobby: (input: AdminBotLobby) => void; onManual: (on: boolean) => void }): JSX.Element {
   const saved = room.lobby.password;
   const [draft, setDraft] = useState(saved ?? '');
   const [shown, setShown] = useState(false);
@@ -72,11 +72,17 @@ export function AdminBotRoomCard({ room, busy, onCommand, onLobby }: { room: Adm
         {saved !== null && <span className="tag admin-bot-locked">{t('lobbyLocked')}</span>}
       </p>
       <h3 dir="auto">{room.title}</h3>
-      <p className="admin-mark">{t(STATUS_KEY[room.status])}</p>
+      <p className="admin-mark">{t(STATUS_KEY[room.status])}
+        {room.manual && <span className="tag admin-bot-manual">{t('adminBotManualTag')}</span>}
+      </p>
       <p>{t('adminBotPlayers', { online: room.players.online, total: room.players.total })}</p>
+      {room.hosts > 0 && <p className="meta">{t('adminBotHosts', { count: room.hosts })}</p>}
       <div className="admin-actions">
         <a className="btn" href={room.stageUrl} target="_blank" rel="noopener noreferrer">
           {t('adminBotStage')}
+        </a>
+        <a className="btn" href={`/bot-host/${encodeURIComponent(room.code)}`} target="_blank" rel="noopener noreferrer">
+          {t('adminBotHostOpen')}
         </a>
         {room.status !== 'finished' && (
           <Link className="btn" to={`/play/${encodeURIComponent(room.code)}`}>
@@ -101,6 +107,11 @@ export function AdminBotRoomCard({ room, busy, onCommand, onLobby }: { room: Adm
         {playing && room.inRound && (
           <button type="button" className="btn" disabled={busy} onClick={() => asked(t('endRoundConfirm'), { type: 'end-round' })}>
             {t('endRound')}
+          </button>
+        )}
+        {room.status !== 'finished' && (
+          <button type="button" className="btn" disabled={busy} onClick={() => onManual(!room.manual)}>
+            {t(room.manual ? 'botHostGiveBack' : 'botHostTakeOver')}
           </button>
         )}
         {room.status !== 'finished' && (

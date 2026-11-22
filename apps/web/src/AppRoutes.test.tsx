@@ -28,6 +28,7 @@ vi.mock('./admin/Admin', () => ({ Admin: () => <p>Admin</p> }));
 vi.mock('./pages/HostHelp', () => ({ HostHelp: () => <p>HostHelp</p> }));
 vi.mock('./pages/Home', () => ({ Home: () => <p>Home</p> }));
 vi.mock('./pages/Host', () => ({ Host: () => <p>Host</p> }));
+vi.mock('./pages/BotHost', () => ({ BotHost: () => <p>BotHost</p> }));
 vi.mock('./pages/Login', () => ({ Login: () => <p>Login</p> }));
 vi.mock('./pages/MyGames', () => ({ MyGames: () => <p>MyGames</p> }));
 vi.mock('./pages/Play', () => ({ Play: () => <p>Play</p> }));
@@ -64,6 +65,7 @@ describe('AppRoutes', () => {
   it.each([
     ['/play/123456', 'Play'],
     ['/host/123456', 'Host'],
+    ['/bot-host/123456', 'BotHost'],
     ['/stage/123456', 'Stage'],
   ])('a game screen %s has no menu', async (path, page) => {
     vi.mocked(me).mockResolvedValue({ ok: false, error: 'unauthorized' });

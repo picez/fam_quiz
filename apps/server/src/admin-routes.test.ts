@@ -130,6 +130,8 @@ describe('hiding the admin panel (Review Focus 3)', () => {
     ['POST', '/api/admin/bot/rooms/123456/start'],
     ['POST', '/api/admin/bot/rooms/123456/kick'],
     ['PUT', '/api/admin/bot/rooms/123456/lobby'],
+    ['POST', '/api/admin/bot/rooms/123456/host-access'],
+    ['PUT', '/api/admin/bot/rooms/123456/manual'],
     ['GET', '/api/admin/live'],
     ['POST', '/api/admin/live/123456/close'],
     ['GET', '/api/admin/charts'],

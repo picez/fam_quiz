@@ -1,7 +1,8 @@
 import { relative } from 'node:path';
 import rateLimit from '@fastify/rate-limit';
 import fastifyStatic from '@fastify/static';
-import { joinSchema, type CodeInfo } from '@quiz/shared';
+import { BOT_USER_ID, joinSchema, type CodeInfo } from '@quiz/shared';
+import { logAction } from './bans';
 import Fastify, { LogController, type FastifyBaseLogger } from 'fastify';
 import { CODE_LIMIT, registerAccountRoutes } from './account-routes';
 import { createAuth, type AuthOptions } from './auth';
@@ -257,7 +258,19 @@ export async function buildApp(options: AppOptions) {
     return reply.code(404).send({ error: 'not_found' });
   });
 
-  const io = attachSockets(app.server, manager, locate, { trustProxy: options.trustProxy, deflate: options.socketDeflate });
+  const io = attachSockets(app.server, manager, locate, {
+    trustProxy: options.trustProxy,
+    deflate: options.socketDeflate,
+    // 68: дії з пульта адміна в кімнаті бота — у журнал адмінки; збій запису не зачіпає гру.
+    onAdminHost: (entry) =>
+      void logAction(options.db, {
+        adminId: entry.adminId,
+        kind: entry.kind,
+        targetUserId: BOT_USER_ID,
+        details: { title: entry.title, code: entry.code, ...(entry.text === undefined ? {} : { text: entry.text }) },
+        now: new Date(),
+      }).catch((error: unknown) => reportError(error, { where: 'admin-host-log' })),
+  });
   // Відкриті WebSocket-з'єднання (і довгі опитування) не дали б HTTP-серверу завершитись. io.close()
   // закриває й транспорти engine.io, і рукостискання в польоті; не чекаємо на нього: він сам чекає на
   // закриття HTTP-сервера, яке Fastify зробить після цього хука.

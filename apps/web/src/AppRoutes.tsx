@@ -1,6 +1,7 @@
 import { lazy } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { WithMenu } from './menu/WithMenu';
+import { BotHost } from './pages/BotHost';
 import { Achievements } from './pages/Achievements';
 import { CreateGame } from './pages/CreateGame';
 import { Feed } from './pages/Feed';
@@ -93,6 +94,7 @@ export function AppRoutes() {
       </Route>
       <Route path="/play/:code" element={<Play />} />
       <Route path="/host/:code" element={<Host />} />
+      <Route path="/bot-host/:code" element={<BotHost />} />
       <Route path="/stage/:code" element={<Stage />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

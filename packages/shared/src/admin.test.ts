@@ -35,7 +35,7 @@ describe('adminPages', () => {
 });
 
 it('ADMIN_ACTION_KINDS', () => {
-  expect([...ADMIN_ACTION_KINDS]).toEqual(['ban', 'unban', 'quiz_delete', 'question_delete', 'prize_delete', 'award_delete', 'library_hide', 'library_restore', 'report_dismiss', 'appeal_reject', 'nickname_reset', 'avatar_reset', 'game_close', 'announcement_set', 'announcement_clear', 'bot_game_start', 'bot_copy', 'bot_quiz_delete', 'bot_plan_create', 'bot_plan_update', 'bot_plan_cancel', 'bot_plan_run', 'bot_plan_fail', 'quiz_view', 'achievement_grant', 'achievement_revoke', 'xp_adjust', 'prize_gift', 'gift_revoke', 'account_delete', 'bot_room_start', 'bot_room_pause', 'bot_room_resume', 'bot_room_end', 'bot_room_skip', 'bot_room_time', 'bot_room_end_round', 'bot_room_kick', 'bot_room_release', 'bot_room_teams', 'bot_room_lobby', 'bot_room_adjust', 'push_broadcast', 'feed_hide', 'feed_show', 'group_hide', 'group_restore', 'group_member_remove', 'group_owner_transfer', 'group_delete', 'group_item_hide', 'group_item_show', 'server_error_resolve', 'problem_resolve', 'problem_reply', 'backup_now', 'game_replay_view', 'account_merge']);
+  expect([...ADMIN_ACTION_KINDS]).toEqual(['ban', 'unban', 'quiz_delete', 'question_delete', 'prize_delete', 'award_delete', 'library_hide', 'library_restore', 'report_dismiss', 'appeal_reject', 'nickname_reset', 'avatar_reset', 'game_close', 'announcement_set', 'announcement_clear', 'bot_game_start', 'bot_copy', 'bot_quiz_delete', 'bot_plan_create', 'bot_plan_update', 'bot_plan_cancel', 'bot_plan_run', 'bot_plan_fail', 'quiz_view', 'achievement_grant', 'achievement_revoke', 'xp_adjust', 'prize_gift', 'gift_revoke', 'account_delete', 'bot_room_start', 'bot_room_pause', 'bot_room_resume', 'bot_room_end', 'bot_room_skip', 'bot_room_time', 'bot_room_end_round', 'bot_room_kick', 'bot_room_release', 'bot_room_teams', 'bot_room_lobby', 'bot_room_adjust', 'push_broadcast', 'feed_hide', 'feed_show', 'group_hide', 'group_restore', 'group_member_remove', 'group_owner_transfer', 'group_delete', 'group_item_hide', 'group_item_show', 'server_error_resolve', 'problem_resolve', 'problem_reply', 'backup_now', 'game_replay_view', 'account_merge', 'bot_room_host_open', 'bot_room_manual_on', 'bot_room_manual_off', 'bot_room_grade', 'bot_room_undo', 'bot_room_debuff', 'bot_room_hint']);
   for (const k of ['server_error_resolve', 'problem_resolve', 'problem_reply', 'backup_now']) expect(ADMIN_ACTION_KINDS).toContain(k);
   expect(ADMIN_ACTION_KINDS).toContain('game_replay_view');
 });
@@ -57,6 +57,8 @@ describe('admin log groups (63)', () => {
     expect(ADMIN_LOG_GROUPS.reduce((sum, g) => sum + ADMIN_LOG_GROUP_KINDS[g].length, 0)).toBe(ADMIN_ACTION_KINDS.length);
     expect(ADMIN_LOG_GROUP_KINDS.moderation).toEqual(expect.arrayContaining(['feed_hide', 'group_delete', 'library_hide', 'ban']));
     expect(ADMIN_LOG_GROUP_KINDS.bot).toEqual(expect.arrayContaining(['bot_plan_run', 'bot_room_lobby']));
+    // 68: дії з пульта адміна в кімнаті бота.
+    expect(ADMIN_LOG_GROUP_KINDS.bot).toEqual(expect.arrayContaining(['bot_room_host_open', 'bot_room_manual_on', 'bot_room_manual_off', 'bot_room_grade', 'bot_room_undo', 'bot_room_debuff', 'bot_room_hint']));
     expect(ADMIN_LOG_GROUP_KINDS.announcements).toContain('push_broadcast');
     expect(ADMIN_LOG_GROUP_KINDS.games).toEqual(['game_close', 'game_replay_view']);
     expect(ADMIN_LOG_GROUP_KINDS.system).toEqual(['server_error_resolve', 'problem_resolve', 'problem_reply', 'backup_now']);

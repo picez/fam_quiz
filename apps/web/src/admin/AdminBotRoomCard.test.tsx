@@ -22,15 +22,19 @@ const room = (over: Partial<AdminBotRoom> = {}): AdminBotRoom => ({
   ],
   teams: null,
   continued: false,
+  manual: false,
+  hosts: 0,
   ...over,
 });
 
 let onCommand: ReturnType<typeof vi.fn<(command: BotCommand) => void>>;
 let onLobby: ReturnType<typeof vi.fn<(input: AdminBotLobby) => void>>;
+let onManual: ReturnType<typeof vi.fn<(on: boolean) => void>>;
 
 beforeEach(() => {
   onCommand = vi.fn<(command: BotCommand) => void>();
   onLobby = vi.fn<(input: AdminBotLobby) => void>();
+  onManual = vi.fn<(on: boolean) => void>();
   vi.spyOn(window, 'confirm').mockReturnValue(true);
 });
 afterEach(() => {
@@ -42,7 +46,7 @@ const show = (data: AdminBotRoom, busy = false) =>
   render(
     <MemoryRouter>
       <ul>
-        <AdminBotRoomCard room={data} busy={busy} onCommand={onCommand} onLobby={onLobby} />
+        <AdminBotRoomCard room={data} busy={busy} onCommand={onCommand} onLobby={onLobby} onManual={onManual} />
       </ul>
     </MemoryRouter>,
   );
@@ -194,5 +198,47 @@ describe('AdminBotRoomCard', () => {
     expect(onCommand).toHaveBeenLastCalledWith({ type: 'end' });
     fireEvent.click(screen.getByRole('button', { name: 'Почати гру' }));
     expect(onCommand).toHaveBeenLastCalledWith({ type: 'start' });
+  });
+});
+
+describe('AdminBotRoomCard: host screen (68)', () => {
+  it('«Відкрити як ведучий» opens /bot-host/<code> in a new tab, in every status', () => {
+    for (const status of ['lobby', 'playing', 'paused', 'finished'] as const) {
+      show(room({ status }));
+      const link = screen.getByRole('link', { name: 'Відкрити як ведучий' });
+      expect(link.getAttribute('href')).toBe('/bot-host/123456');
+      expect(link.getAttribute('target')).toBe('_blank');
+      expect(link.getAttribute('rel')).toBe('noopener noreferrer');
+      cleanup();
+    }
+  });
+
+  it('the auto mode: no tag, «Взяти керування» asks for manual', () => {
+    show(room({ status: 'playing' }));
+    expect(screen.queryByText('Керує адмін')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Взяти керування' }));
+    expect(onManual).toHaveBeenCalledWith(true);
+  });
+
+  it('the manual mode: the tag and «Віддати боту» ask for auto', () => {
+    show(room({ status: 'playing', manual: true }));
+    expect(screen.getByText('Керує адмін')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Віддати боту' }));
+    expect(onManual).toHaveBeenCalledWith(false);
+    expect(screen.queryByRole('button', { name: 'Взяти керування' })).toBeNull();
+  });
+
+  it('shows the admin host screens online only when there are some; the buttons follow busy', () => {
+    show(room({ status: 'playing', hosts: 2 }), true);
+    expect(screen.getByText('Пультів адмінів: 2')).toBeTruthy();
+    expect((screen.getByRole('button', { name: 'Взяти керування' }) as HTMLButtonElement).disabled).toBe(true);
+    cleanup();
+    show(room({ status: 'playing', hosts: 0 }));
+    expect(screen.queryByText(/Пультів адмінів/)).toBeNull();
+  });
+
+  it('a finished room has no take over button', () => {
+    show(room({ status: 'finished' }));
+    expect(screen.queryByRole('button', { name: 'Взяти керування' })).toBeNull();
   });
 });

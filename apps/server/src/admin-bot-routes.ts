@@ -6,6 +6,8 @@ import {
   BOT_USER_ID,
   adminBotCopySchema,
   adminBotLobbySchema,
+  adminBotManualSchema,
+  type AdminBotHostAccess,
   botCommandSchema,
   type AdminActionKind,
   type AdminBot,
@@ -27,7 +29,7 @@ import { logAction } from './bans';
 import { profile, user } from './db/schema';
 import { createQuiz, deleteQuiz, getQuiz } from './quizzes';
 import type { QuizChecker } from './quiz-check';
-import type { Room } from './rooms/manager';
+import type { Room, RoomManager } from './rooms/manager';
 
 const NOT_FOUND = { error: 'not_found' };
 const INVALID = { error: 'invalid_payload' };
@@ -66,7 +68,7 @@ const BOT_ROOM_LOG: Record<BotCommand['type'], AdminActionKind> = {
 };
 
 /** Картка кімнати бота: нічого із запитань і відповідей — лише прапорець відкритого запитання. */
-function botRoomView(room: Room): AdminBotRoom {
+function botRoomView(room: Room, manager: RoomManager): AdminBotRoom {
   const { state } = room;
   const isOnline = (id: string) => (room.connections.get(id) ?? 0) > 0;
   const online = state.players.filter((p) => isOnline(p.id)).length;
@@ -80,6 +82,9 @@ function botRoomView(room: Room): AdminBotRoom {
     people,
     teams: teamsOn(state) ? { form: state.teams.form } : null,
     continued: room.continued !== null,
+    // 68: «Керую сам» і пульти адмінів на зв'язку.
+    manual: room.botManual !== null,
+    hosts: manager.adminHostsOnline(room),
     code: room.code,
     title: room.state.quiz.title,
     status: botStatus(room),
@@ -99,7 +104,7 @@ export async function registerAdminBotRoutes(app: FastifyInstance, deps: AdminDe
     const [row] = await db.select({ nickname: profile.nickname }).from(user).leftJoin(profile, eq(profile.userId, user.id)).where(eq(user.id, BOT_USER_ID));
     const rooms = manager
       .botRooms()
-      .map((room) => ({ view: botRoomView(room), opened: room.lobby.openedAt }))
+      .map((room) => ({ view: botRoomView(room, manager), opened: room.lobby.openedAt }))
       .sort((x, y) => Number(x.view.status === 'finished') - Number(y.view.status === 'finished') || y.opened - x.opened);
     return {
       bot: { nickname: row?.nickname ?? null, ready: row !== undefined },
@@ -151,6 +156,44 @@ export async function registerAdminBotRoutes(app: FastifyInstance, deps: AdminDe
       logAction(tx, { adminId: me.id, kind: 'bot_quiz_delete', targetUserId: BOT_USER_ID, details: { title: deleted.title }, now: now() }),
     );
     return done ? reply.code(204).send() : reply.code(404).send(NOT_FOUND);
+  });
+
+  // 68: пульт адміна — свій токен ведучого (лише в пам'яті сервера); статичний сегмент має пріоритет над /:code/:action.
+  app.post<{ Params: { code: string } }>('/api/admin/bot/rooms/:code/host-access', write, async (request, reply) => {
+    const me = await adminOf(request);
+    if (me === null) return reply.code(404).send(NOT_FOUND);
+    const { code } = request.params;
+    if (!ROOM_CODE.test(code)) return reply.code(404).send(NOT_FOUND);
+    if (manager.frozen) return reply.code(503).send(RESTARTING);
+    const access = manager.botHostToken(code, me.id);
+    if (!access.ok) return access.error === 'restarting' ? reply.code(503).send(RESTARTING) : reply.code(404).send(NOT_FOUND);
+    // Лише новий токен — рядок журналу: повторне відкриття пульта того самого адміна його не дублює.
+    if (access.fresh) {
+      await logAction(db, { adminId: me.id, kind: 'bot_room_host_open', targetUserId: BOT_USER_ID, details: { title: manager.get(code)?.state.quiz.title, code }, now: now() });
+    }
+    const body: AdminBotHostAccess = { hostToken: access.hostToken, stageToken: access.stageToken };
+    return reply.code(200).send(body);
+  });
+
+  // 68: «Взяти керування» / «Віддати боту»; рядок журналу — лише коли режим справді змінився.
+  app.put<{ Params: { code: string } }>('/api/admin/bot/rooms/:code/manual', write, async (request, reply) => {
+    const me = await adminOf(request);
+    if (me === null) return reply.code(404).send(NOT_FOUND);
+    const { code } = request.params;
+    if (!ROOM_CODE.test(code)) return reply.code(404).send(NOT_FOUND);
+    if (manager.frozen) return reply.code(503).send(RESTARTING);
+    const body = adminBotManualSchema.safeParse(request.body ?? {});
+    if (!body.success) return reply.code(400).send(INVALID);
+    const { on } = body.data;
+    const done = manager.botManual(code, me.id, on);
+    if (!done.ok) {
+      if (done.error === 'game_not_found') return reply.code(404).send(NOT_FOUND);
+      return reply.code(done.error === 'restarting' ? 503 : 409).send({ error: done.error });
+    }
+    if (done.changed === true) {
+      await logAction(db, { adminId: me.id, kind: on ? 'bot_room_manual_on' : 'bot_room_manual_off', targetUserId: BOT_USER_ID, details: { title: manager.get(code)?.state.quiz.title, code }, now: now() });
+    }
+    return reply.code(200).send({ on });
   });
 
   app.post<{ Params: { code: string; action: string } }>('/api/admin/bot/rooms/:code/:action', write, async (request, reply) => {

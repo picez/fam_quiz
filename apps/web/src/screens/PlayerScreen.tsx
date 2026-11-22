@@ -923,7 +923,7 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
   // Опитування й хмару командної гри кожен проходить сам: його вибір теж іде лише пульту.
   const soloDraft =
     (team === null || (unscored && phase === 'question')) &&
-    !view.autopilot &&
+    (!view.autopilot || view.liveWatched === true) &&
     !instant &&
     ((phase === 'question' && question !== null && me.answer === null) || (phase === 'leaderboard' && me.survival?.canAnswerTrial === true));
   // «Ставки» (27a): хто пропускає запитання, нічого не відповідає й не радить.

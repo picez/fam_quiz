@@ -2379,6 +2379,8 @@ export interface PlayerTable {
 
 export interface PlayerView extends BaseView {
   role: 'player';
+  /** 68: у грі бота пульт адміна дивиться наживо — телефон шле чернетки й соло-гравця. Ставить сервер у зрізі, у стані гри ключа немає. */
+  liveWatched?: true;
   /** Гра для ліги (45): група, свої бали після фінішу, «замало» лише автору автопілота. Ставить сервер; рушій ключа не ставить. */
   league?: PlayerLeagueView;
   /**
@@ -2658,6 +2660,8 @@ export interface PaceWindow { from: number; until: number }
 export interface HostPace { next: PaceWindow | null; lock: PaceWindow | null; skip: PaceWindow | null }
 
 export interface HostView extends BaseView {
+  /** 68: є лише в зрізі пульта адміна в кімнаті бота; manual — режим «Керую сам», mine — його взяв цей адмін. */
+  botHost?: { manual: boolean; mine: boolean };
   /** Гра для ліги (45): група й бали рядків після фінішу або «замало». Ставить сервер; рушій ключа не ставить. */
   league?: HostLeagueView;
   /** «Нові досягнення» (12j): у каруселі «Нагород гри» є слайд досягнень — кнопка показу потрібна й без нагород. Ставить сервер; немає — false. */

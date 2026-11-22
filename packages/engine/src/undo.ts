@@ -165,9 +165,10 @@ export function questionNumber(state: GameState, index: number): number {
 /**
  * Рядки аркуша «Скасування балів» (12a); null у лобі й в автопілоті. Правила — план 12a, «Що потрапляє в панель».
  * Після кінця гри — лише штрафи за вихід (12e); без них — null.
+ * byAdmin — пульт адміна в кімнаті бота (68): у ведучого-людини поруч відмови автопілота немає.
  */
-export function undoPanel(state: GameState): UndoPanel | null {
-  if (state.phase === 'lobby' || state.autopilot !== undefined) return null;
+export function undoPanel(state: GameState, byAdmin = false): UndoPanel | null {
+  if (state.phase === 'lobby' || (state.autopilot !== undefined && !byAdmin)) return null;
   const lines = rowsOf(state);
   if (finishedLock(state) && lines.length === 0) return null;
   const rounds = [...new Set(lines.map((l) => l.round))].sort((a, b) => b - a);
@@ -292,11 +293,14 @@ function penaltyRedos(state: GameState, ledger: UndoLedger, undo: ScoreAdjustmen
     .map((a) => ({ playerId: a.playerId, points: -a.points, undoes: { seq: a.seq }, roundIndex: a.roundIndex }));
 }
 
-/** Скасувати чи «Повернути» (12a): кілька коригувань 'undo' з одним batch. Коди відмов — план 12a, «Коди відмов». */
-export function undoScore(state: GameState, target: HostUndoTarget, now: number): Result {
+/**
+ * Скасувати чи «Повернути» (12a): кілька коригувань 'undo' з одним batch. Коди відмов — план 12a, «Коди відмов».
+ * byAdmin — пульт адміна в кімнаті бота (68): у ведучого-людини поруч відмови автопілота немає.
+ */
+export function undoScore(state: GameState, target: HostUndoTarget, now: number, byAdmin = false): Result {
   // Після кінця гри — лише штраф за вихід (12e): решту стереже undosOf.
   if (state.phase === 'lobby') return fail('wrong_phase');
-  if (state.autopilot !== undefined) return fail('not_allowed');
+  if (state.autopilot !== undefined && !byAdmin) return fail('not_allowed');
   const undos = undosOf(state, target);
   if (typeof undos === 'string') return fail(undos);
   // Журнал лише вперед: записи відповідей не змінюються, дописуються тільки коригування.

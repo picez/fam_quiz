@@ -1,5 +1,5 @@
 import { classicRound, makeQuiz, makeRoundsQuiz, single, think, thinkRound } from '@quiz/engine/testing';
-import { BOT_USER_ID, defaultTeams, type AdminBot, type AdminQuizCheck, type AdminList, type AdminLogEntry, type Quiz } from '@quiz/shared';
+import { BOT_USER_ID, defaultTeams, type AdminBot, type AdminBotHostAccess, type AdminQuizCheck, type AdminList, type AdminLogEntry, type Quiz } from '@quiz/shared';
 import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { buildApp } from './app';
@@ -384,6 +384,85 @@ describe('admin bot routes (54)', () => {
     expect(late.statusCode).toBe(409);
     expect(late.json()).toEqual({ error: 'wrong_phase' });
     ctx.manager.botAct(code, 'end');
+  });
+
+  it('68: host access hands the admin a host token of his own, logged once; only for a bot room and only to an admin', async () => {
+    const id = await botQuiz();
+    const { code } = (await asAdmin('POST', `/api/admin/bot/quizzes/${id}/games`)).json() as { code: string };
+    const room = ctx.manager.get(code)!;
+    const first = await asAdmin('POST', `/api/admin/bot/rooms/${code}/host-access`);
+    expect(first.statusCode).toBe(200);
+    const access = first.json() as AdminBotHostAccess;
+    expect(access.stageToken).toBe(room.stageToken);
+    expect(access.hostToken).not.toBe(room.hostToken);
+    expect(ctx.manager.identify(code, 'host', access.hostToken)?.identity.admin).toBeDefined();
+    const entry = await lastLog();
+    expect(entry).toMatchObject({ kind: 'bot_room_host_open', details: { title: TITLE, code } });
+    const again = await asAdmin('POST', `/api/admin/bot/rooms/${code}/host-access`);
+    expect(again.statusCode).toBe(200);
+    expect((again.json() as AdminBotHostAccess).hostToken).toBe(access.hostToken);
+    expect((await lastLog()).id).toBe(entry.id);
+    // Статичний сегмент не потрапляє в параметричний маршрут дій: дії бота не сталося.
+    expect(room.state.phase).toBe('lobby');
+    expect((await call('POST', `/api/admin/bot/rooms/${code}/host-access`)).statusCode).toBe(404);
+    expect((await call('POST', `/api/admin/bot/rooms/${code}/host-access`, olya.cookie)).statusCode).toBe(404);
+    expect((await asAdmin('POST', '/api/admin/bot/rooms/abc/host-access')).statusCode).toBe(404);
+    expect((await asAdmin('POST', '/api/admin/bot/rooms/000000/host-access')).statusCode).toBe(404);
+    const plain = ((await call('POST', '/api/games', admin.cookie, { quizId: ((await call('POST', '/api/quizzes', admin.cookie, makeQuiz([single]))).json() as { id: string }).id })).json() as { code: string }).code;
+    expect((await asAdmin('POST', `/api/admin/bot/rooms/${plain}/host-access`)).statusCode).toBe(404);
+    // Звичайний автопілот гравця.
+    const pilot = ctx.manager.createAutopilot(makeQuiz([single]), 'u-marta', null, 'Марта');
+    if (!pilot.ok) throw new Error(pilot.error);
+    expect((await asAdmin('POST', `/api/admin/bot/rooms/${pilot.room.code}/host-access`)).statusCode).toBe(404);
+    ctx.manager.botAct(code, 'end');
+  });
+
+  it('68: manual mode on and off, logged on change; the card shows it and the admin host screens online', async () => {
+    const id = await botQuiz();
+    const { code } = (await asAdmin('POST', `/api/admin/bot/quizzes/${id}/games`)).json() as { code: string };
+    const room = ctx.manager.get(code)!;
+    const card = async () => (await bot()).rooms.find((r) => r.code === code)!;
+    expect(await card()).toMatchObject({ manual: false, hosts: 0 });
+    const put = (payload: unknown) => asAdmin('PUT', `/api/admin/bot/rooms/${code}/manual`, payload);
+    const on = await put({ on: true });
+    expect(on.statusCode).toBe(200);
+    expect(on.json()).toEqual({ on: true });
+    expect(await card()).toMatchObject({ manual: true });
+    const entry = await lastLog();
+    expect(entry).toMatchObject({ kind: 'bot_room_manual_on', details: { title: TITLE, code } });
+    expect((await put({ on: true })).statusCode).toBe(200);
+    expect((await lastLog()).id).toBe(entry.id);
+    expect((await put({ on: false })).json()).toEqual({ on: false });
+    expect(await lastLog()).toMatchObject({ kind: 'bot_room_manual_off', details: { title: TITLE, code } });
+    expect(await card()).toMatchObject({ manual: false });
+    expect((await put({ on: 'yes' })).statusCode).toBe(400);
+    expect((await put({})).statusCode).toBe(400);
+    expect((await asAdmin('PUT', '/api/admin/bot/rooms/000000/manual', { on: true })).statusCode).toBe(404);
+    expect((await call('PUT', `/api/admin/bot/rooms/${code}/manual`, olya.cookie, { on: true })).statusCode).toBe(404);
+    // Пульт адміна на зв'язку — на картці.
+    const access = (await asAdmin('POST', `/api/admin/bot/rooms/${code}/host-access`)).json() as AdminBotHostAccess;
+    const identity = ctx.manager.identify(code, 'host', access.hostToken)!.identity;
+    ctx.manager.connect(room, identity);
+    expect((await card()).hosts).toBe(1);
+    ctx.manager.disconnect(room, identity);
+    expect((await card()).hosts).toBe(0);
+    // Фініш — 409 wrong_phase.
+    const joined = ctx.manager.join(code, 'Оля');
+    if (!joined.ok) throw new Error(joined.error);
+    ctx.manager.connect(room, { role: 'player', playerId: joined.playerId });
+    expect(ctx.manager.botAct(code, 'start')).toEqual({ ok: true });
+    expect(ctx.manager.botAct(code, 'end')).toEqual({ ok: true });
+    const late = await put({ on: true });
+    expect(late.statusCode).toBe(409);
+    expect(late.json()).toEqual({ error: 'wrong_phase' });
+    const other = await buildApp({ db, auth: TEST_AUTH, adminEmails: emails });
+    try {
+      other.manager.freeze();
+      expect((await asAdmin('PUT', `/api/admin/bot/rooms/${code}/manual`, { on: true }, other)).statusCode).toBe(503);
+      expect((await asAdmin('POST', `/api/admin/bot/rooms/${code}/host-access`, undefined, other)).statusCode).toBe(503);
+    } finally {
+      await other.app.close();
+    }
   });
 
   it('gives only 404 to non-admins and guests', async () => {

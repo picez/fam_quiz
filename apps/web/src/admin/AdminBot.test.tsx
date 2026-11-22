@@ -22,6 +22,8 @@ const room = (over: Partial<AdminBotRoom> = {}): AdminBotRoom => ({
   people: [],
   teams: null,
   continued: false,
+  manual: false,
+  hosts: 0,
   ...over,
 });
 const quiz = (over: Partial<AdminBotQuiz> = {}): AdminBotQuiz => ({ id: QUIZ_ID, title: 'Річки України', rounds: 2, questions: 10, truth: false, updatedAt: '2026-11-18T10:00:00.000Z', check: null, ...over });
@@ -350,5 +352,21 @@ describe('AdminBot', () => {
     fireEvent.click(within(item).getByRole('button', { name: 'Перевірити: Річки України' }));
     await waitFor(() => expect(sent('POST', `/api/admin/quizzes/${QUIZ_ID}/check`)).toHaveLength(1));
     await waitFor(() => expect(sent('GET', '/api/admin/bot')).toHaveLength(2));
+  });
+
+  it('take over and give back call the manual route and reload the list', async () => {
+    replies['GET /api/admin/bot'] = { status: 200, body: bot({ rooms: [room({ status: 'playing' })] }) };
+    replies['PUT /api/admin/bot/rooms/123456/manual'] = { status: 200, body: {} };
+    open();
+    await screen.findByText('Код 123456');
+    fireEvent.click(within(card('123456')).getByRole('button', { name: 'Взяти керування' }));
+    await waitFor(() => expect(sent('PUT', '/api/admin/bot/rooms/123456/manual')).toHaveLength(1));
+    expect(sent('PUT', '/api/admin/bot/rooms/123456/manual')[0]!.body).toEqual({ on: true });
+    await waitFor(() => expect(sent('GET', '/api/admin/bot')).toHaveLength(2));
+    replies['GET /api/admin/bot'] = { status: 200, body: bot({ rooms: [room({ status: 'playing', manual: true })] }) };
+    fireEvent.click(screen.getByRole('button', { name: 'Оновити' }));
+    fireEvent.click(await within(card('123456')).findByRole('button', { name: 'Віддати боту' }));
+    await waitFor(() => expect(sent('PUT', '/api/admin/bot/rooms/123456/manual')).toHaveLength(2));
+    expect(sent('PUT', '/api/admin/bot/rooms/123456/manual')[1]!.body).toEqual({ on: false });
   });
 });
