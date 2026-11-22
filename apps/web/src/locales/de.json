@@ -5333,5 +5333,6 @@
   "adminLog_bot_room_grade_plain": "{admin} hat im Bot-Spiel eine Antwort bewertet (Code {code})",
   "adminLog_bot_room_undo": "{admin} hat im Bot-Spiel Punkte rückgängig gemacht (Code {code})",
   "adminLog_bot_room_debuff": "{admin} hat im Bot-Spiel einen Debuff geändert — {text} (Code {code})",
-  "adminLog_bot_room_hint": "{admin} hat im Bot-Spiel einen Hinweis gegeben — {text} (Code {code})"
+  "adminLog_bot_room_hint": "{admin} hat im Bot-Spiel einen Hinweis gegeben — {text} (Code {code})",
+  "botHostRetry": "Erneut versuchen"
 }

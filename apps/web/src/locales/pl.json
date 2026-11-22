@@ -5434,5 +5434,6 @@
   "adminLog_bot_room_grade_plain": "{admin} ocenił(a) odpowiedź w grze bota (kod {code})",
   "adminLog_bot_room_undo": "{admin} cofnął(-ęła) punkty w grze bota (kod {code})",
   "adminLog_bot_room_debuff": "{admin} zmienił(a) debuff w grze bota — {text} (kod {code})",
-  "adminLog_bot_room_hint": "{admin} dał(a) podpowiedź w grze bota — {text} (kod {code})"
+  "adminLog_bot_room_hint": "{admin} dał(a) podpowiedź w grze bota — {text} (kod {code})",
+  "botHostRetry": "Spróbuj ponownie"
 }

@@ -12,7 +12,8 @@ export function BotHostBar({ view, code }: { view: HostView; code: string }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const state = view.botHost;
-  if (state === undefined || view.phase === 'finished') return null;
+  if (state === undefined) return null;
+  const finished = view.phase === 'finished';
   const text = state.manual ? t(state.mine ? 'botHostManualMine' : 'botHostManualOther') : t('botHostAuto');
   const flip = () => {
     if (busy) return;
@@ -25,13 +26,17 @@ export function BotHostBar({ view, code }: { view: HostView; code: string }) {
   };
   return (
     <div className="bot-host-bar">
-      <p className="bot-host-state" role="status">
-        {text}
-      </p>
+      {!finished && (
+        <p className="bot-host-state" role="status">
+          {text}
+        </p>
+      )}
       <div className="bot-host-actions">
+        {!finished && (
         <button type="button" className={state.manual ? 'btn btn-small' : 'btn btn-small btn-primary'} disabled={busy} onClick={flip}>
           {t(state.manual ? 'botHostGiveBack' : 'botHostTakeOver')}
         </button>
+        )}
         <Link className="quiet-link" to="/admin/bot">
           {t('botHostBack')}
         </Link>

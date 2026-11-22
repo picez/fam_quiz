@@ -5641,5 +5641,6 @@
   "adminLog_bot_room_grade_plain": "قيّم {admin} إجابة في لعبة البوت (الرمز {code})",
   "adminLog_bot_room_undo": "ألغى {admin} نقاطًا في لعبة البوت (الرمز {code})",
   "adminLog_bot_room_debuff": "غيّر {admin} عقوبة في لعبة البوت — {text} (الرمز {code})",
-  "adminLog_bot_room_hint": "أعطى {admin} تلميحًا في لعبة البوت — {text} (الرمز {code})"
+  "adminLog_bot_room_hint": "أعطى {admin} تلميحًا في لعبة البوت — {text} (الرمز {code})",
+  "botHostRetry": "حاول مرة أخرى"
 }

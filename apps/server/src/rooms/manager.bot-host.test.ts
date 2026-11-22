@@ -272,6 +272,47 @@ describe('manual mode of a bot room (68)', () => {
     expect(manager.botManual(room.code, 'admin-1', false)).toEqual({ ok: true, changed: false });
   });
 
+  it('giving back after the end succeeds and clears the mode; taking over a finished game is refused', () => {
+    const { manager } = setup();
+    const room = botRoom(manager);
+    enter(manager, room, 'Оля');
+    expect(manager.botAct(room.code, 'start')).toEqual({ ok: true });
+    expect(manager.botManual(room.code, 'admin-1', true)).toEqual({ ok: true, changed: true });
+    expect(manager.botAct(room.code, 'end')).toEqual({ ok: true });
+    expect(room.state.phase).toBe('finished');
+    expect(manager.botManual(room.code, 'admin-1', true)).toEqual({ ok: false, error: 'wrong_phase' });
+    expect(manager.botManual(room.code, 'admin-1', false)).toEqual({ ok: true, changed: true });
+    expect(room.botManual).toBeNull();
+  });
+
+  it('another admin taking over gets the whole grace, not what was left of the first one', () => {
+    const { manager, scheduler } = setup();
+    const { room } = atQuestion(manager, scheduler);
+    expect(manager.botManual(room.code, 'admin-1', true).ok).toBe(true);
+    scheduler.advance(BOT_MANUAL_GRACE_MS - 1000);
+    expect(manager.botManual(room.code, 'admin-2', true)).toEqual({ ok: true, changed: true });
+    scheduler.advance(2000);
+    expect(room.botManual?.adminId).toBe('admin-2');
+    scheduler.advance(BOT_MANUAL_GRACE_MS);
+    expect(room.botManual).toBeNull();
+  });
+
+  it('a live-watched flag is in the phones views only while an admin host screen is open', () => {
+    const { manager, scheduler } = setup();
+    const { room, olya } = atQuestion(manager, scheduler);
+    const flag = () => (manager.view(room, olya.identity) as { liveWatched?: true }).liveWatched;
+    expect(flag()).toBeUndefined();
+    const admin = adminHost(manager, room);
+    manager.connect(room, admin);
+    expect(flag()).toBe(true);
+    // Соло-гравець автопілота: чернетка приймається лише поки пульт дивиться.
+    expect(manager.draft(room, olya.playerId, { type: 'single', optionId: 'a' })).toEqual({ ok: true });
+    manager.disconnect(room, admin);
+    expect(flag()).toBeUndefined();
+    expect(manager.draft(room, olya.playerId, { type: 'single', optionId: 'b' })).toEqual({ ok: false, error: 'not_allowed' });
+    expect(JSON.stringify(manager.snapshot(room))).not.toContain('liveWatched');
+  });
+
   it('manual mode refuses rooms that are not a bot room and a finished game', () => {
     const { manager } = setup();
     const pilot = manager.createAutopilot(quiz(), 'u-marta', 'q2', 'Марта');

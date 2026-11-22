@@ -5333,5 +5333,6 @@
   "adminLog_bot_room_grade_plain": "{admin} graded an answer in the bot game (code {code})",
   "adminLog_bot_room_undo": "{admin} undid points in the bot game (code {code})",
   "adminLog_bot_room_debuff": "{admin} changed a debuff in the bot game — {text} (code {code})",
-  "adminLog_bot_room_hint": "{admin} gave a hint in the bot game — {text} (code {code})"
+  "adminLog_bot_room_hint": "{admin} gave a hint in the bot game — {text} (code {code})",
+  "botHostRetry": "Try again"
 }

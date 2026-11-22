@@ -5410,5 +5410,6 @@
   "adminLog_bot_room_grade_plain": "{admin} ha valutato una risposta nella partita del bot (codice {code})",
   "adminLog_bot_room_undo": "{admin} ha annullato dei punti nella partita del bot (codice {code})",
   "adminLog_bot_room_debuff": "{admin} ha cambiato un debuff nella partita del bot — {text} (codice {code})",
-  "adminLog_bot_room_hint": "{admin} ha dato un indizio nella partita del bot — {text} (codice {code})"
+  "adminLog_bot_room_hint": "{admin} ha dato un indizio nella partita del bot — {text} (codice {code})",
+  "botHostRetry": "Riprova"
 }

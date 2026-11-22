@@ -4327,6 +4327,14 @@ describe('PlayerScreen: live choices for the host (12b)', () => {
       expect(draftCalls(send)).toHaveLength(0);
     }));
 
+  it('68: a bot game sends drafts only while the admin host screen watches (liveWatched)', () =>
+    withTimers(() => {
+      const send = show(onQuestion({ question: multi, autopilot: true, liveWatched: true }));
+      fireEvent.click(screen.getByRole('button', { name: /Київ/ }));
+      tick(300);
+      expect(draftCalls(send)).toHaveLength(1);
+    }));
+
   it('a game with no host sends no drafts', () =>
     withTimers(() => {
       const send = show(onQuestion({ question: multi, autopilot: true }));

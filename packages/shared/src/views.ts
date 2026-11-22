@@ -2379,6 +2379,8 @@ export interface PlayerTable {
 
 export interface PlayerView extends BaseView {
   role: 'player';
+  /** 68: у грі бота пульт адміна дивиться наживо — телефон шле чернетки й соло-гравця. Ставить сервер у зрізі, у стані гри ключа немає. */
+  liveWatched?: true;
   /** Гра для ліги (45): група, свої бали після фінішу, «замало» лише автору автопілота. Ставить сервер; рушій ключа не ставить. */
   league?: PlayerLeagueView;
   /**

@@ -113,16 +113,19 @@ describe('the admin host socket of a bot room (68)', () => {
       const rows = await logRows(adminId);
       expect(rows.map((r) => [r.kind, r.details])).toEqual([['bot_room_grade', { title: 'Ріки 68', code: room.code, text: 'Оля ✓' }]]);
     });
+    // Режим «Керую сам»: бот кроків не робить, тож після вікна затримки «Далі» адміна діє й рушає гру 
+    expect(ctx.manager.botManual(room.code, adminId, true).ok).toBe(true);
     scheduler.advance(10_000);
     const before = room.state.phase;
-    const next = await send(host, 'host:next');
-    expect(next.ok || (!next.ok && next.error === 'too_soon')).toBe(true);
-    expect(room.state.phase === before).toBe(!next.ok);
+    expect(before).toBe('reveal');
+    expect(await send(host, 'host:next')).toEqual({ ok: true });
+    expect(room.state.phase).not.toBe(before);
     expect(await send(host, 'host:save')).toEqual({ ok: false, error: 'not_allowed' });
     expect(await send(host, 'host:sounds', { on: false })).toEqual({ ok: false, error: 'not_allowed' });
     // Показ і решта прямих подій пульта доходять до менеджера (рушій сам відповідає за фазу), не forbidden.
     expect(await send(host, 'host:awards')).toEqual({ ok: false, error: 'wrong_phase' });
-    expect(await send(host, 'host:hint', { playerId: olyaId, text: 'Річка' })).toEqual({ ok: false, error: 'not_found' });
+    // Після «Далі» гра вже не на reveal: підказка доходить до менеджера й відхиляється за фазою.
+    expect(await send(host, 'host:hint', { playerId: olyaId, text: 'Річка' })).toEqual({ ok: false, error: 'wrong_phase' });
     expect(await send(host, 'host:ladder-decide', { take: true })).toEqual({ ok: false, error: 'wrong_phase' });
     expect(await send(host, 'host:pause')).toEqual({ ok: true });
     await vi.waitFor(async () => expect((await logRows(adminId)).map((r) => r.kind).sort()).toEqual(['bot_room_grade', 'bot_room_pause']));

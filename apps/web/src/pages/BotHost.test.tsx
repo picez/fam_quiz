@@ -98,6 +98,19 @@ describe('BotHost', () => {
     open();
     await screen.findByText('HostScreen 123456 bot');
     expect(screen.queryByRole('button', { name: 'Взяти керування' })).toBeNull();
+    expect(screen.queryByRole('status')).toBeNull();
+    expect(screen.getByRole('link', { name: 'До вкладки «Бот»' }).getAttribute('href')).toBe('/admin/bot');
+  });
+
+  it('a network failure is not «no access»: its text and a retry that asks again', async () => {
+    vi.mocked(botHostAccess).mockResolvedValueOnce({ ok: false, error: 'network' }).mockResolvedValue(granted);
+    setGame('live', hostView({ manual: false, mine: false }));
+    open();
+    expect(await screen.findByRole('alert')).toBeTruthy();
+    expect(screen.queryByText('Ця кімната не бота або ти не адмін')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Спробувати ще' }));
+    expect(await screen.findByText('HostScreen 123456 bot')).toBeTruthy();
+    expect(botHostAccess).toHaveBeenCalledTimes(2);
   });
 
   it('asks again once after unauthorized, the second time in a row means the game is gone', async () => {

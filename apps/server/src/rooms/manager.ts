@@ -832,6 +832,11 @@ export class RoomManager {
     return (room.connections.get('host') ?? 0) > 0;
   }
 
+  /** 68: кімната бота з пультом адміна на зв'язку — тільки тоді соло-чернетки гравців бачить пульт (гра без ведучого їх не збирає). */
+  liveWatched(room: Room): boolean {
+    return isBotUser(room.hostUserId) && this.adminHostsOnline(room) > 0;
+  }
+
   /** 68: скільки пультів адмінів кімнати бота на зв'язку. */
   adminHostsOnline(room: Room): number {
     return room.connections.get(ADMIN_HOST_KEY) ?? 0;
@@ -1642,10 +1647,13 @@ export class RoomManager {
     if (!this.alive(room)) return;
     if (identity.admin !== undefined) {
       // 68: пульт адміна — свій ключ, без гілки ведучого: таймер «нікого» автопілота (room.absence) не чіпати.
+      const first = this.adminHostsOnline(room) === 0;
       room.connections.set(ADMIN_HOST_KEY, this.adminHostsOnline(room) + 1);
       this.scheduler.clearTimeout(room.manualAway);
       room.manualAway = null;
       this.watchAuthor(room);
+      // Перший пульт увімкнув liveWatched у зрізах телефонів.
+      if (first) this.emit(room, { type: 'changed' });
       return;
     }
     const key = identity.playerId ?? identity.role;
@@ -1677,6 +1685,7 @@ export class RoomManager {
       else room.connections.delete(ADMIN_HOST_KEY);
       if (left <= 0) this.watchManual(room);
       this.watchAuthor(room);
+      if (left <= 0) this.emit(room, { type: 'changed' });
       return;
     }
     const key = identity.playerId ?? identity.role;
@@ -1809,6 +1818,9 @@ export class RoomManager {
     if (identity.playerId === null) return null;
     const own = playerView(room.state, identity.playerId, this.now());
     if (own === null) return null;
+    const watched = this.liveWatched(room);
+    /** 68: ключ лише тоді, коли пульт адміна дивиться наживо (телефон тоді шле чернетки й соло-гравця). */
+    const flagged = (shown: PlayerView): PlayerView => (watched ? { ...shown, liveWatched: true } : shown);
     const raw = passed ? closedTruth(own) : own;
     // Автор продовження бачить місця у своєму меню (13b); автор спроби виклику (44) — код і назву виклику.
     const challenge = room.challenge === null ? {} : { challenge: { code: room.challenge.code, title: room.challenge.title } };
@@ -1817,9 +1829,9 @@ export class RoomManager {
         ? raw
         : { ...raw, author: { ...raw.author, ...(continued === null ? {} : { continued: this.continuedView(room, continued) }), ...challenge } };
     const team = view.team;
-    if (team === null || team.teamId === null) return this.withPhoneClip(room, view);
+    if (team === null || team.teamId === null) return flagged(this.withPhoneClip(room, view));
     const draft = this.currentDraft(room, team.teamId, identity.playerId);
-    return this.withPhoneClip(room, draft === null ? view : { ...view, team: { ...team, draft } });
+    return flagged(this.withPhoneClip(room, draft === null ? view : { ...view, team: { ...team, draft } }));
   }
 
   /**
@@ -1904,7 +1916,8 @@ export class RoomManager {
     } else if (!this.inGame(state, playerId)) {
       return { ok: false, error: 'not_found' };
     }
-    if (state.autopilot !== undefined && !teammates) return NOT_ALLOWED;
+    // 68: соло-вибір у грі бота бачить лише пульт адміна на зв'язку (liveWatched у зрізі гравця); без нього — як було.
+    if (state.autopilot !== undefined && !teammates && !this.liveWatched(room)) return NOT_ALLOWED;
     if (draft !== null) {
       if (draftQuestionType(draft) !== at.question(id).type) return { ok: false, error: 'type_mismatch' };
       if (draft.type === 'lie' && state.plays[state.questionIndex]?.bluff?.stage !== 'lies') return { ok: false, error: 'wrong_phase' };
@@ -2688,7 +2701,8 @@ export class RoomManager {
     const room = this.live.get(code);
     if (room === undefined || !isBotUser(room.hostUserId) || room.state.autopilot === undefined) return GONE;
     if (this.isFrozen) return RESTARTING;
-    if (room.state.phase === 'finished') return { ok: false, error: 'wrong_phase' };
+    // Віддати боту можна й після фіналу (інакше картка лишалась би «Керує адмін»); взяти керування — лише в грі.
+    if (on && room.state.phase === 'finished') return { ok: false, error: 'wrong_phase' };
     if (!on) {
       if (room.botManual === null) return { ok: true, changed: false };
       this.releaseManual(room);
@@ -2696,6 +2710,9 @@ export class RoomManager {
     }
     if (room.botManual?.adminId === adminId) return { ok: true, changed: false };
     room.botManual = { adminId, since: this.now() };
+    // Інший адмін перехопив: його відлік повернення — повні BOT_MANUAL_GRACE_MS, а не залишок попереднього.
+    this.scheduler.clearTimeout(room.manualAway);
+    room.manualAway = null;
     // Узято з картки без жодного пульта на зв'язку — той самий відлік повернення, що й після відходу пультів.
     this.watchManual(room);
     this.reschedule(room);
@@ -2719,7 +2736,9 @@ export class RoomManager {
     room.manualAway = null;
     const { state } = room;
     const pilot = state.autopilot;
-    if (pilot !== undefined && !state.paused && state.phase !== 'lobby' && state.phase !== 'finished') {
+    // У лобі свіжий відлік лише для жеребу команд (тур кубиків): інакше at лобі — це момент старту, його не чіпаємо.
+    const diceTour = state.phase === 'lobby' && (state.teams?.dice?.tour.length ?? 0) > 0;
+    if (pilot !== undefined && !state.paused && state.phase !== 'finished' && (state.phase !== 'lobby' || diceTour)) {
       this.commit(room, { ...state, autopilot: { ...pilot, at: autopilotDue(state, this.now()) } });
       return;
     }

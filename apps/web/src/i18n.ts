@@ -5148,6 +5148,7 @@ const uk = {
   adminCardRemovePicked: 'Прибрати вибрані',
   adminCardRemovePickedConfirm: 'Прибрати з вітрини {nickname} ({count}): {names}? Скасувати не можна.',
   adminCardPickedPartial: 'Зроблено {done} з {count}; решти вже не було — картку оновлено.',
+  botHostRetry: 'Спробувати ще',
   adminBotHostOpen: 'Відкрити як ведучий',
   adminBotManualTag: 'Керує адмін',
   adminBotHosts: 'Пультів адмінів: {count}',

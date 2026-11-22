@@ -29310,3 +29310,8 @@ details.admin-fold[open] > summary::before {
   flex: 1 1 100%;
   margin: 0;
 }
+
+/* 68: тег «Керує адмін» не зливається зі станом кімнати. */
+.admin-bot-manual {
+  margin-inline-start: 0.5rem;
+}

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import type { SocketAuth, SortTilt } from '@quiz/shared';
 import { botHostAccess } from '../admin/admin-api';
-import { t } from '../i18n';
+import { errorText, t } from '../i18n';
 import { NetSignal } from '../live/NetSignal';
 import { RETRY_MS, statusTextKey, useGame } from '../live/useGame';
 import { useLiveWatch } from '../live/useLiveWatch';
@@ -12,7 +12,7 @@ import { HostScreen } from '../screens/HostScreen';
 const NO_TILTS: Record<string, SortTilt> = {};
 
 interface Tokens { hostToken: string; stageToken: string }
-type Access = { status: 'asking' } | { status: 'denied' } | { status: 'granted'; tokens: Tokens };
+type Access = { status: 'asking' } | { status: 'denied' } | { status: 'failed'; error: string } | { status: 'granted'; tokens: Tokens };
 
 /**
  * Пульт адміна в кімнаті бота (68): те саме HostScreen, що й у ведучого, але токени — з маршруту адміна, лише в стані
@@ -36,7 +36,8 @@ export function BotHost() {
           retry = setTimeout(ask, RETRY_MS);
           return;
         }
-        if (!result.ok) return setAccess({ status: 'denied' });
+        // Лише «не знайдено» (не бот, не адмін) — відмова; мережа, ліміт чи збій сервера — окремий текст і «Спробувати ще».
+        if (!result.ok) return setAccess(result.error === 'not_found' || result.error === 'forbidden' ? { status: 'denied' } : { status: 'failed', error: result.error });
         setAccess({ status: 'granted', tokens: { hostToken: result.hostToken, stageToken: result.stageToken } });
       });
     ask();
@@ -67,6 +68,20 @@ export function BotHost() {
       <main className="app narrow game-bg">
         <p className="lead">{t('botHostDenied')}</p>
         <Link className="btn btn-primary" to="/admin/bot">
+          {t('botHostBack')}
+        </Link>
+      </main>
+    );
+  }
+
+  if (access.status === 'failed') {
+    return (
+      <main className="app narrow game-bg">
+        <p className="lead" role="alert">{errorText(access.error)}</p>
+        <button type="button" className="btn btn-primary" onClick={() => setAccess({ status: 'asking' })}>
+          {t('botHostRetry')}
+        </button>
+        <Link className="quiet-link" to="/admin/bot">
           {t('botHostBack')}
         </Link>
       </main>
