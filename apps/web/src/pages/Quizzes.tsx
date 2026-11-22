@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom';
-import { QUIZ_SORTS, parseQuizSort, sortQuizzes, type ChallengeMine, type LibraryMine, type QuizFolder, type QuizSort } from '@quiz/shared';
+import { parseQuizSort, sortQuizzes, type ChallengeMine, type LibraryMine, type QuizFolder } from '@quiz/shared';
 import { deleteQuiz, listMyChallenges, listQuizzes, type QuizSummary } from '../api';
 import { ChallengeLaunch } from '../challenge/ChallengeLaunch';
 import { daysLeftText, playedText } from '../challenge/challenge-text';
 import { RunningGameBanner, addDemoQuiz, useStartGame } from '../host-game';
 import { quizDatesText, quizSizeText } from '../format';
-import { errorText, t, type TextKey } from '../i18n';
+import { errorText, t } from '../i18n';
 import { myLibrary } from '../library/library-api';
 import { LibraryShare, libraryStatusText } from '../library/LibraryShare';
 import { useAccount } from '../useAccount';
@@ -14,11 +14,11 @@ import { ExportMenu } from '../quiz-io/ExportMenu';
 import { ImportDialog } from '../quiz-io/ImportDialog';
 import { FolderFilter, filterByFolder, folderless, type FolderPick } from '../quiz-folders/FolderFilter';
 import { FolderManager } from '../quiz-folders/FolderManager';
+import { QuizSortField } from '../quiz-folders/QuizSortField';
 import { listFolders, moveQuizToFolder } from '../quiz-folders/folder-api';
 import { AutopilotLaunch } from './AutopilotLaunch';
 
 const LOGIN = '/login?next=%2Fquizzes';
-const SORT_LABELS = { new: 'quizSort_new', old: 'quizSort_old', name: 'quizSort_name', changed: 'quizSort_changed' } as const satisfies Record<QuizSort, TextKey>;
 
 export function Quizzes() {
   const startGame = useStartGame();
@@ -209,16 +209,7 @@ export function Quizzes() {
               </button>
             )}
           </div>
-          <label className="field quiz-folder-sort">
-            <span>{t('quizSort')}</span>
-            <select value={sort} onChange={(event) => update({ sort: event.target.value })}>
-              {QUIZ_SORTS.map((one) => (
-                <option key={one} value={one}>
-                  {t(SORT_LABELS[one])}
-                </option>
-              ))}
-            </select>
-          </label>
+          <QuizSortField sort={sort} onChange={(one) => update({ sort: one })} />
           {folders !== null && managing && <FolderManager folders={folders} onChanged={foldersChanged} />}
         </div>
       )}

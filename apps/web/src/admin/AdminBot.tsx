@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useState, type JSX } from 'react';
 import { Link, Navigate } from 'react-router-dom';
-import { BOT_NICKNAME, BOT_USER_ID, type AdminBotLobby, type AdminBotQuiz, type AdminBotRoom, type BotCommand } from '@quiz/shared';
+import { BOT_NICKNAME, BOT_USER_ID, sortQuizzes, type AdminBotLobby, type AdminBotQuiz, type AdminBotRoom, type BotCommand, type QuizSort } from '@quiz/shared';
 import { listQuizzes, type ApiResult, type QuizSummary } from '../api';
-import { formatDay, quizSizeText } from '../format';
+import { quizDatesText, quizSizeText } from '../format';
 import { countText, errorText, t, type TextKey } from '../i18n';
 import { Avatar } from '../profile/Avatar';
 import { adminBot, botManual, botRoomCommand, copyToBot, deleteBotQuiz, saveBotLobby, startBotGame } from './admin-api';
@@ -10,6 +10,7 @@ import { AdminBotRoomCard } from './AdminBotRoomCard';
 import { AdminBotSchedule } from './AdminBotSchedule';
 import { QuizCheckButton } from './QuizCheck';
 import { useAdminData } from './useAdminData';
+import { QuizSortField } from '../quiz-folders/QuizSortField';
 
 const sizeText = (quiz: AdminBotQuiz): string =>
   t('adminBotSize', { rounds: countText('adminBotRounds', quiz.rounds, { count: quiz.rounds }), questions: quizSizeText(countText('questionCount', quiz.questions, { count: quiz.questions }), quiz.questions, quiz.truth) });
@@ -38,6 +39,8 @@ export function AdminBot(): JSX.Element {
   const state = useAdminData(adminBot, 'bot', { keep: true });
   const mine = useMine();
   const [error, setError] = useState<string | null>(null);
+  // 73: порядок «Вікторин бота» — лише для показу (список невеликий, без сторінок і без адреси); розклад бере вихідний.
+  const [sort, setSort] = useState<QuizSort>('changed');
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const { reload } = state;
@@ -132,11 +135,12 @@ export function AdminBot(): JSX.Element {
           <AdminBotSchedule schedule={state.data.schedule} quizzes={state.data.quizzes} onChanged={reload} />
           <section aria-labelledby="admin-bot-quizzes">
             <h2 id="admin-bot-quizzes">{t('adminBotQuizzes')}</h2>
+            {state.data.quizzes.length > 0 && <QuizSortField sort={sort} onChange={setSort} className="admin-quiz-sort" />}
             {state.data.quizzes.length === 0 ? (
               <p className="meta">{t('adminBotQuizzesEmpty')}</p>
             ) : (
               <ul className="admin-list">
-                {state.data.quizzes.map((quiz) => (
+                {sortQuizzes(state.data.quizzes, sort).map((quiz) => (
                   <li key={quiz.id} className="admin-card">
                     <h3 dir="auto">{quiz.title}</h3>
                     {quiz.check !== null && quiz.check.errors > 0 && (
@@ -147,7 +151,9 @@ export function AdminBot(): JSX.Element {
                       </p>
                     )}
                     <p className="meta">{sizeText(quiz)}</p>
-                    <p className="meta">{formatDay(quiz.updatedAt)}</p>
+                    <p className="meta quiz-dates">
+                      <time dateTime={quiz.createdAt}>{quizDatesText(quiz)}</time>
+                    </p>
                     <div className="admin-actions">
                       <Link className="btn" to={`/admin/bot/quizzes/${encodeURIComponent(quiz.id)}`} aria-label={`${t('adminView')}: ${quiz.title}`}>
                         {t('adminView')}

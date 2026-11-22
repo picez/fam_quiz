@@ -4,6 +4,7 @@ import type { AdminBackups, AdminProblemReport, AdminProblemsBadge, AdminServerE
 import type { AchievementId, AdminBot, AdminBotHostAccess, AdminRevokeManyResult, AdminBotLobby, AdminBotPerson, AdminBotPlan, BotCommand, BotPlanInput, GameDetail, GameReplay } from '@quiz/shared';
 import type { Announcement, AnnouncementInput, AdminHealth, AdminLiveList, AdminList, AdminMetricPeriod, AdminMetrics, AdminReportItem, AdminLogExport, AdminLogGroup, AdminLogPage, AdminQuizCheck, AdminQuizRow, AdminQuizView, AdminStats, AdminUserDetail, AdminUserRow } from '@quiz/shared';
 import type { AccountMergePreview, MergeSummary } from '@quiz/shared';
+import type { QuizSort } from '@quiz/shared';
 import type { AdminFeedKind, AdminFeedRow, AdminGroupDetail, AdminGroupMemberAdded, AdminGroupRow, GroupItemInput } from '@quiz/shared';
 import { fetchData, request, type ApiData, type ApiResult } from '../api';
 
@@ -16,7 +17,9 @@ export const adminUser = (userId: string): Promise<ApiData<AdminUserDetail>> => 
 export const banUser = (userId: string, reason: string): Promise<ApiResult<object>> =>
   request<object>(`/api/admin/users/${id(userId)}/ban`, { method: 'POST', body: { reason } });
 export const unbanUser = (userId: string): Promise<ApiResult<object>> => request<object>(`/api/admin/users/${id(userId)}/ban`, { method: 'DELETE' });
-export const adminQuizzes = (q: string, page: number): Promise<ApiData<AdminList<AdminQuizRow>>> => fetchData(list('quizzes', q, page));
+/** 73: порядок дописується лише коли він не типовий («Нещодавно змінені»). */
+export const adminQuizzes = (q: string, page: number, sort: QuizSort = 'changed'): Promise<ApiData<AdminList<AdminQuizRow>>> =>
+  fetchData(list('quizzes', q, page) + (sort === 'changed' ? '' : `&sort=${sort}`));
 export const adminQuiz = (quizId: string): Promise<ApiData<AdminQuizView>> => fetchData<AdminQuizView>(`/api/admin/quizzes/${id(quizId)}`);
 export const deleteQuizAsAdmin = (quizId: string): Promise<ApiResult<object>> => request<object>(`/api/admin/quizzes/${id(quizId)}`, { method: 'DELETE' });
 /** Перевірка вікторини (57): сервер ходить за файлами й відео, тому довго; 404 — як в інших адмін-запитах. */
