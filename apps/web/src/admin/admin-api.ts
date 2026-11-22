@@ -2,7 +2,7 @@ import { isObjectLike } from '@quiz/shared';
 import type { AdminBroadcast, AdminBroadcasts, BroadcastInput, BroadcastPreview, BroadcastRecipients } from '@quiz/shared';
 import type { AdminBackups, AdminProblemReport, AdminProblemsBadge, AdminServerError } from '@quiz/shared';
 import type { AchievementId, AdminBot, AdminBotHostAccess, AdminRevokeManyResult, AdminBotLobby, AdminBotPerson, AdminBotPlan, BotCommand, BotPlanInput, GameDetail, GameReplay } from '@quiz/shared';
-import type { Announcement, AnnouncementInput, AdminCharts, AdminHealth, AdminLiveList, AdminList, AdminReportItem, AdminLogExport, AdminLogGroup, AdminLogPage, AdminQuizCheck, AdminQuizRow, AdminQuizView, AdminStats, AdminUserDetail, AdminUserRow } from '@quiz/shared';
+import type { Announcement, AnnouncementInput, AdminCharts, AdminHealth, AdminLiveList, AdminList, AdminMetricPeriod, AdminMetrics, AdminReportItem, AdminLogExport, AdminLogGroup, AdminLogPage, AdminQuizCheck, AdminQuizRow, AdminQuizView, AdminStats, AdminUserDetail, AdminUserRow } from '@quiz/shared';
 import type { AccountMergePreview, MergeSummary } from '@quiz/shared';
 import type { AdminFeedKind, AdminFeedRow, AdminGroupDetail, AdminGroupRow } from '@quiz/shared';
 import { fetchData, request, type ApiData, type ApiResult } from '../api';
@@ -56,6 +56,8 @@ export const adminLive = (): Promise<ApiData<AdminLiveList>> => fetchData<AdminL
 /** Закриває гру, як її ведучий: лобі зникає, гра посеред запитання завершується. */
 export const closeLiveGame = (code: string): Promise<ApiResult<object>> => request<object>(`/api/admin/live/${id(code)}/close`, { method: 'POST' });
 export const adminCharts = (): Promise<ApiData<AdminCharts>> => fetchData<AdminCharts>('/api/admin/charts');
+/** 71: метрики за період (7/30/90/365). */
+export const adminMetrics = (period: AdminMetricPeriod): Promise<ApiData<AdminMetrics>> => fetchData<AdminMetrics>(`/api/admin/metrics?period=${period}`);
 export const adminHealth = (): Promise<ApiData<AdminHealth>> => fetchData<AdminHealth>('/api/admin/health');
 export const adminAnnouncement = (): Promise<ApiData<{ announcement: Announcement | null }>> => fetchData<{ announcement: Announcement | null }>('/api/admin/announcement');
 export const saveAnnouncement = (input: AnnouncementInput): Promise<ApiData<Announcement>> =>

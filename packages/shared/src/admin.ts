@@ -16,7 +16,7 @@ export const ADMIN_REASON_MAX = 500;
 export const ADMIN_QUERY_MAX = 100;
 /** 53: як часто вкладка «Живі ігри» оновлюється сама. */
 export const ADMIN_LIVE_REFRESH_MS = 10_000;
-/** 53: скільки днів (до сьогодні включно) показують графіки статистики. */
+/** @deprecated 71: графіки беруть період з AdminMetrics. 53: скільки днів (до сьогодні включно) показують графіки статистики. */
 export const ADMIN_CHART_DAYS = 30;
 /** 53: скільки живуть у кеші графіки й список резервних копій. */
 export const ADMIN_CACHE_MS = 600_000;

@@ -1,10 +1,10 @@
-import { ADMIN_CACHE_MS, ANNOUNCEMENT_MAX_DAYS, BOT_USER_ID, adminListQuerySchema, adminLogFilterSchema, adminLogQuerySchema, announcementInputSchema, adminProfileActionSchema, adminQuizActionSchema, banSchema, type AdminBackupInfo, type AdminHealth } from '@quiz/shared';
+import { ADMIN_CACHE_MS, ANNOUNCEMENT_MAX_DAYS, BOT_USER_ID, adminListQuerySchema, adminMetricsQuerySchema, adminLogFilterSchema, adminLogQuerySchema, announcementInputSchema, adminProfileActionSchema, adminQuizActionSchema, banSchema, type AdminBackupInfo, type AdminHealth, type AdminMetricPeriod, type AdminMetrics } from '@quiz/shared';
 import { eq } from 'drizzle-orm';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { CurrentUser } from './account-routes';
 import type { ProcessStats } from './process-stats';
 import { isAdmin } from './admin';
-import { adminCharts } from './admin-charts';
+import { adminMetrics } from './admin-metrics';
 import { healthDb, healthProblems, liveBreakdown } from './admin-health';
 import type { PushService } from './push';
 import { registerAdminBotRoutes } from './admin-bot-routes';
@@ -124,9 +124,17 @@ export async function registerAdminRoutes(app: FastifyInstance, deps: AdminDeps)
   const read = limited('admin-read', 120);
   const write = limited('admin-write', 30);
 
-  // Графіки й список копій — раз на 10 хвилин на всіх адмінів (53).
+  // Метрики (71) і список копій — раз на 10 хвилин на всіх адмінів (53); метрики — свій кеш на кожен період.
   const cacheClock = () => now().getTime();
-  const charts = ttlCache(() => adminCharts(db, now()), ADMIN_CACHE_MS, cacheClock);
+  const metrics = new Map<AdminMetricPeriod, ReturnType<typeof ttlCache<AdminMetrics>>>();
+  const metricsOf = (period: AdminMetricPeriod) => {
+    let cache = metrics.get(period);
+    if (cache === undefined) {
+      cache = ttlCache(() => adminMetrics(db, period, now()), ADMIN_CACHE_MS, cacheClock);
+      metrics.set(period, cache);
+    }
+    return cache.get();
+  };
   // Збій списку не кешується: ttlCache не зберігає відхилений проміс, і наступний запит питає сховище знову.
   type BackupsHealth = { info: AdminBackupInfo; stored: AdminHealth['backups'] };
   const backups = ttlCache(async (): Promise<BackupsHealth> => {
@@ -156,7 +164,11 @@ export async function registerAdminRoutes(app: FastifyInstance, deps: AdminDeps)
     });
   const commit = deps.commit ? deps.commit.slice(0, 7) : null;
 
-  app.get('/api/admin/charts', read, async () => charts.get());
+  app.get('/api/admin/metrics', read, async (request, reply): Promise<AdminMetrics | void> => {
+    const query = adminMetricsQuerySchema.safeParse(request.query ?? {});
+    if (!query.success) return reply.code(400).send(INVALID);
+    return metricsOf(query.data.period);
+  });
 
   app.get('/api/admin/health', read, async (): Promise<AdminHealth> => {
     const usage = process.memoryUsage();
