@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ADMIN_ACTION_KINDS, ADMIN_LOG_GROUP_KINDS, ADMIN_LOG_GROUPS, adminBotCopySchema, adminListQuerySchema, adminLogFilterSchema, adminLogQuerySchema, adminPages, banSchema, ADMIN_METRIC_PERIODS, adminMetricsQuerySchema, editorTimeSchema, metricBucket } from './admin';
+import { ADMIN_ACTION_KINDS, ADMIN_LOG_GROUP_KINDS, ADMIN_LOG_GROUPS, adminBotCopySchema, adminListQuerySchema, adminLogFilterSchema, adminQuizListQuerySchema, adminLogQuerySchema, adminPages, banSchema, ADMIN_METRIC_PERIODS, adminMetricsQuerySchema, editorTimeSchema, metricBucket } from './admin';
 
 describe('adminListQuerySchema', () => {
   it('defaults and coerces', () => {
@@ -11,6 +11,19 @@ describe('adminListQuerySchema', () => {
     expect(() => adminListQuerySchema.parse({ page: 'x' })).toThrow();
     expect(() => adminListQuerySchema.parse({ q: 'a'.repeat(101) })).toThrow();
     expect(() => adminListQuerySchema.parse({ sort: 'x' })).toThrow();
+  });
+});
+
+describe('adminQuizListQuerySchema (73)', () => {
+  it('defaults sort to changed and accepts the four sorts', () => {
+    expect(adminQuizListQuerySchema.parse({})).toEqual({ page: 1, sort: 'changed' });
+    expect(adminQuizListQuerySchema.parse({ sort: 'name', q: 'ріки', page: '2' })).toEqual({ sort: 'name', q: 'ріки', page: 2 });
+    for (const sort of ['new', 'old', 'name', 'changed']) expect(adminQuizListQuerySchema.parse({ sort }).sort).toBe(sort);
+  });
+  it('rejects unknown sorts and extra fields', () => {
+    expect(() => adminQuizListQuerySchema.parse({ sort: 'popular' })).toThrow();
+    expect(() => adminQuizListQuerySchema.parse({ extra: 1 })).toThrow();
+    expect(() => adminQuizListQuerySchema.parse({ page: '0' })).toThrow();
   });
 });
 

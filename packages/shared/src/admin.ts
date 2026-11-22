@@ -8,6 +8,7 @@ import type { BotPlanReason, BotPlanStatus } from './bot-schedule';
 import type { TeamForm } from './teams';
 import type { AchievementId } from './achievements';
 import type { AdminPlayerCard } from './player-card';
+import { QUIZ_SORTS } from './quiz-folders';
 import type { FeedData } from './feed';
 import type { MergeSummary } from './account-merge';
 
@@ -37,6 +38,8 @@ export interface AdminUserRow {
 export interface AdminQuizRow {
   id: string; title: string; author: { id: string; nickname: string | null }; authorBanned: boolean;
   questionCount: number; games: number; updatedAt: string;
+  /** 73: дата створення на картці й порядок «Спершу нові/давні». */
+  createdAt: string;
   /** Є раунд «Правда про гравця»: його запитань у questionCount немає. */
   truth?: boolean;
 }
@@ -83,7 +86,7 @@ export interface AdminHealth {
   /** 71: null — запит до бази впав. */
   problems: { errors24h: number; errorKinds24h: number; errorsNew: number; problemsOpen: number; reportsOpen: number } | null;
 }
-export interface AdminBotQuiz { id: string; title: string; rounds: number; questions: number; truth: boolean; updatedAt: string; /** 57: лічильники останньої перевірки цієї версії; null — не перевіряли чи змінено після перевірки. */ check: { errors: number; warnings: number } | null }
+export interface AdminBotQuiz { id: string; title: string; rounds: number; questions: number; truth: boolean; updatedAt: string; /** 73: дата створення на картці. */ createdAt: string; /** 57: лічильники останньої перевірки цієї версії; null — не перевіряли чи змінено після перевірки. */ check: { errors: number; warnings: number } | null }
 export type AdminBotStatus = 'lobby' | 'playing' | 'paused' | 'finished';
 /** 62: one person of a bot room on the admin card. */
 export interface AdminBotRoomPerson { id: string; nickname: string; online: boolean; team: string | null }
@@ -147,6 +150,9 @@ export const adminListQuerySchema = z
     page: z.coerce.number().int().min(1).max(100000).default(1),
   })
   .strict();
+
+/** 73: список вікторин в адмінці — та сама схема плюс порядок (adminListQuerySchema спільна для інших списків, її не чіпаємо). */
+export const adminQuizListQuerySchema = adminListQuerySchema.extend({ sort: z.enum(QUIZ_SORTS).default('changed') }).strict();
 
 export const banSchema = z
   .object({

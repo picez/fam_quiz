@@ -13,6 +13,7 @@ const row = (over: Partial<AdminQuizRow> = {}): AdminQuizRow => ({
   questionCount: 12,
   games: 3,
   updatedAt: '2026-11-18T10:00:00.000Z',
+  createdAt: '2026-11-01T10:00:00.000Z',
   ...over,
 });
 let body: AdminList<AdminQuizRow>;

@@ -164,6 +164,7 @@ export async function botQuizzes(db: Db, checker: Pick<QuizChecker, 'last'>): Pr
     questions: questionsOf(row).length,
     truth: hasTruthRound(row),
     updatedAt: iso(row.updatedAt),
+    createdAt: iso(row.createdAt),
     check: lastCheckOf(checker, row.id, row.updatedAt),
   }));
 }
@@ -203,6 +204,7 @@ export async function adminQuizzes(db: Db, query: { q?: string; page: number }):
       truth: hasTruthRound(r.row),
       games: num(r.games),
       updatedAt: iso(r.row.updatedAt),
+      createdAt: iso(r.row.createdAt),
     });
   }
   return { rows: result, total, page: query.page, pages: adminPages(total) };

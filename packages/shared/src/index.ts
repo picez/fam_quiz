@@ -72,6 +72,7 @@ export * from './question-bank';
 export * from './challenge';
 export * from './league';
 export * from './library';
+export * from './quiz-folders';
 export * from './quiz-check';
 export * from './problems';
 export * from './inbox';
