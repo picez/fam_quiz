@@ -56,6 +56,7 @@ import { mosaicQuiz } from './mosaic-quiz';
 import { movieQuiz } from './movie-quiz';
 import { MOVIES90_IMAGES, movies90Quiz } from './movies90-quiz';
 import { partyQuiz } from './party-quiz';
+import { PL_BIG_PHOTOS, PL_GEO_PHOTOS, PL_LIGHT_PHOTOS, plBigQuiz, plFunQuiz, plGeoQuiz, plLightQuiz } from './pl-quiz';
 import { quickQuiz } from './quick-quiz';
 import { schoolQuiz } from './school-quiz';
 import { school3Quiz } from './school3-quiz';
@@ -482,6 +483,10 @@ export const SEED_BUILDERS = {
   big3: () => big3Quiz(seedImages('big3', BIG3_PHOTOS, { dir: 'big3', keys: BIG3_FILES })),
   filmbluff: () => filmbluffQuiz(),
   fantasy: () => fantasyQuiz(seedImages('fantasy', FANTASY_PHOTOS)),
+  'pl-light': () => plLightQuiz(seedImages('pl-light', PL_LIGHT_PHOTOS)),
+  'pl-geo': () => plGeoQuiz(seedImages('pl-geo', PL_GEO_PHOTOS)),
+  'pl-big': () => plBigQuiz(seedImages('pl-big', PL_BIG_PHOTOS)),
+  'pl-fun': () => plFunQuiz(),
 } satisfies Record<string, () => Quiz>;
 
 export type SeedName = keyof typeof SEED_BUILDERS;

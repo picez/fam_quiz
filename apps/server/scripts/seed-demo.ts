@@ -1,6 +1,6 @@
 /**
  * Додає демо-вікторину користувачу за email (чи «Квіз-боту» за --bot) або оновлює вже наявну вікторину за її id.
- * Запуск: DATABASE_URL=... pnpm --filter @quiz/server seed:demo you@example.com [demo|party|party-media|movies|erudite|school|mosaic|compass|horizon|teams|showcase|grand|family|family2|evening|classroom|movies90|logic|world|fun|halloween|mix|quick|mix2|mega|fest|detective|think|video|alike|spy|school3|wordle|big1|big2|big3|filmbluff|fantasy]
+ * Запуск: DATABASE_URL=... pnpm --filter @quiz/server seed:demo you@example.com [demo|party|party-media|movies|erudite|school|mosaic|compass|horizon|teams|showcase|grand|family|family2|evening|classroom|movies90|logic|world|fun|halloween|mix|quick|mix2|mega|fest|detective|think|video|alike|spy|school3|wordle|big1|big2|big3|filmbluff|fantasy|pl-light|pl-geo|pl-big|pl-fun]
  * Бот: DATABASE_URL=... pnpm --filter @quiz/server seed:demo --bot <seedName> — створює акаунт бота, якщо його ще нема, і дає йому вікторину.
  * Оновлення: DATABASE_URL=... pnpm --filter @quiz/server seed:demo --update <quizId> <seedName>
  * — замінює назву, опис, налаштування й раунди рядка новим вмістом сіда (як збереження в редакторі,
@@ -13,6 +13,7 @@
  * big2 потребує SITE_URL: завантажує фото для пазлів і картини для «Пам’яті» з Wikimedia Commons (BIG2_PHOTOS).
  * big3 потребує SITE_URL: «Знайди відмінності» — картина Аверкампа з Wikimedia Commons (BIG3_PHOTOS) і її змінена копія scripts/big3/img (BIG3_FILES).
  * fantasy потребує SITE_URL: одинадцять картинок з Wikimedia Commons (FANTASY_PHOTOS) — фото, мініатюра, актори, пазл.
+ * pl-light, pl-geo і pl-big потребують SITE_URL: фото й картини з Wikimedia Commons (PL_*_PHOTOS); pl-fun — без картинок, SITE_URL не потрібен.
  */
 import { join } from 'node:path';
 import { BOT_USER_ID, quizSchema, type Quiz } from '@quiz/shared';
@@ -64,6 +65,7 @@ import { BIG2_PHOTOS, big2Quiz } from './big2-quiz';
 import { BIG3_FILES, BIG3_PHOTOS, big3Quiz } from './big3-quiz';
 import { FANTASY_PHOTOS, fantasyQuiz } from './fantasy-quiz';
 import { ARTICLES } from './seed-articles';
+import { PL_BIG_PHOTOS, PL_GEO_PHOTOS, PL_LIGHT_PHOTOS, plBigQuiz, plFunQuiz, plGeoQuiz, plLightQuiz } from './pl-quiz';
 
 async function thumbnails(keys: readonly string[]): Promise<Record<string, string>> {
   const titles = keys.map((key) => ARTICLES[key]).join('|');
@@ -118,7 +120,7 @@ const uploadImages = (
   sources: () => Promise<Record<string, string>> = () => thumbnails(keys),
 ): Promise<Record<string, string>> => uploadSiteImages(site, db, keys, sources);
 
-const SEEDS = ['demo', 'party', 'party-media', 'movies', 'erudite', 'school', 'mosaic', 'compass', 'horizon', 'teams', 'showcase', 'grand', 'family', 'family2', 'evening', 'classroom', 'movies90', 'logic', 'world', 'fun', 'halloween', 'mix', 'quick', 'mix2', 'mega', 'fest', 'detective', 'think', 'video', 'alike', 'spy', 'school3', 'wordle', 'big1', 'big2', 'big3', 'filmbluff', 'fantasy'] as const;
+const SEEDS = ['demo', 'party', 'party-media', 'movies', 'erudite', 'school', 'mosaic', 'compass', 'horizon', 'teams', 'showcase', 'grand', 'family', 'family2', 'evening', 'classroom', 'movies90', 'logic', 'world', 'fun', 'halloween', 'mix', 'quick', 'mix2', 'mega', 'fest', 'detective', 'think', 'video', 'alike', 'spy', 'school3', 'wordle', 'big1', 'big2', 'big3', 'filmbluff', 'fantasy', 'pl-light', 'pl-geo', 'pl-big', 'pl-fun'] as const;
 type SeedName = (typeof SEEDS)[number];
 const isSeed = (arg: string | undefined): arg is SeedName => (SEEDS as readonly string[]).includes(arg ?? '');
 
@@ -145,6 +147,21 @@ async function seedQuiz(name: SeedName, db: Db, site: string | undefined): Promi
       return school3Quiz();
     case 'filmbluff':
       return filmbluffQuiz();
+    case 'pl-fun':
+      return plFunQuiz();
+    case 'pl-light':
+    case 'pl-geo':
+    case 'pl-big': {
+      if (!site) throw new Error(`The ${name} quiz needs SITE_URL: its pictures are required`);
+      const [photos, build] =
+        name === 'pl-light' ? [PL_LIGHT_PHOTOS, plLightQuiz] : name === 'pl-geo' ? [PL_GEO_PHOTOS, plGeoQuiz] : [PL_BIG_PHOTOS, plBigQuiz];
+      const urls = await uploadImages(site, db, Object.keys(photos), () => wideSources(photos));
+      return build((key) => {
+        const url = urls[key];
+        if (!url) throw new Error(`Picture ${key} was not uploaded`);
+        return url;
+      });
+    }
     case 'wordle':
       return wordleQuiz();
     case 'big1':
