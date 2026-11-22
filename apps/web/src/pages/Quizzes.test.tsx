@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { roundQuestions } from '@quiz/shared';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -9,6 +9,7 @@ import { t } from '../i18n';
 import { loadHost, loadLastGame, saveAuthor, saveHost, saveLastGame } from '../storage';
 import { myLibrary } from '../library/library-api';
 import { importQuizFile } from '../quiz-io/actions';
+import { listFolders, moveQuizToFolder } from '../quiz-folders/folder-api';
 import { Quizzes } from './Quizzes';
 
 vi.mock('../api', () => ({
@@ -26,6 +27,14 @@ vi.mock('../api', () => ({
 }));
 
 vi.mock('../quiz-io/actions');
+vi.mock('../quiz-folders/folder-api', () => ({
+  listFolders: vi.fn(),
+  createFolder: vi.fn(),
+  renameFolder: vi.fn(),
+  reorderFolders: vi.fn(),
+  deleteFolder: vi.fn(),
+  moveQuizToFolder: vi.fn(),
+}));
 vi.mock('../library/library-api', () => ({ myLibrary: vi.fn(), openInLibrary: vi.fn(), closeInLibrary: vi.fn(), appealLibrary: vi.fn() }));
 
 const account = { ok: true as const, id: 'u1', name: 'Олена', email: 'o@example.com', admin: false };
@@ -40,6 +49,7 @@ beforeEach(() => {
   vi.mocked(listQuizzes).mockResolvedValue({ ok: true, data: [summary] });
   vi.mocked(listMyChallenges).mockResolvedValue({ ok: true, data: [] });
   vi.mocked(myLibrary).mockResolvedValue({ ok: true, data: [] });
+  vi.mocked(listFolders).mockResolvedValue({ ok: true, data: [] });
 });
 afterEach(() => {
   cleanup();
@@ -373,5 +383,121 @@ describe('Quizzes: dates and sort (73)', () => {
     await screen.findByText('Їжак');
     expect(sortSelect().value).toBe('changed');
     await waitFor(() => expect(where()).toBe('/quizzes'));
+  });
+});
+
+describe('Quizzes: folders (73)', () => {
+  const asya = { id: 'f1', name: 'Для Асі', position: 0, createdAt: '2026-11-01T10:00:00.000Z' };
+  const kino = { id: 'f2', name: 'Кіно', position: 1, createdAt: '2026-11-01T10:00:00.000Z' };
+  const three = [
+    { ...summary, id: 'q1', title: 'Їжак', folderId: 'f1', updatedAt: '2026-11-03T10:00:00.000Z' },
+    { ...summary, id: 'q2', title: 'Гора', updatedAt: '2026-11-02T10:00:00.000Z' },
+    { ...summary, id: 'q3', title: 'Ґанок', updatedAt: '2026-11-01T10:00:00.000Z' },
+  ];
+  const chips = () => [...screen.getByRole('group', { name: t('quizFoldersLabel') }).querySelectorAll('button')].map((one) => one.textContent);
+  const titles = () => screen.queryAllByRole('heading', { level: 2 }).map((one) => one.textContent);
+  const where = () => screen.getByTestId('where').textContent;
+
+  beforeEach(() => {
+    vi.mocked(listQuizzes).mockResolvedValue({ ok: true, data: three });
+    vi.mocked(listFolders).mockResolvedValue({ ok: true, data: [asya, kino] });
+  });
+
+  it('without folders shows no chips and no folder pick, but offers to manage them', async () => {
+    vi.mocked(listFolders).mockResolvedValue({ ok: true, data: [] });
+    open();
+    expect(await screen.findByRole('button', { name: t('quizFoldersManage') })).toBeTruthy();
+    expect(screen.queryByRole('group', { name: t('quizFoldersLabel') })).toBeNull();
+    expect(screen.queryByRole('combobox', { name: t('quizFolderPick') })).toBeNull();
+  });
+
+  it('shows chips with counts in the author order, «Без категорії» last, «Усі» picked', async () => {
+    open();
+    await screen.findByText('Для Асі (1)');
+    expect(chips()).toEqual(['Усі (3)', 'Для Асі (1)', 'Кіно (0)', 'Без категорії (2)']);
+    expect(screen.getByRole('button', { name: 'Усі (3)' }).getAttribute('aria-pressed')).toBe('true');
+    expect(screen.getAllByRole('combobox', { name: t('quizFolderPick') })).toHaveLength(3);
+  });
+
+  it('filters by a folder, by «Без категорії», shows the empty texts and works with the sort', async () => {
+    open('/quizzes?sort=name');
+    fireEvent.click(await screen.findByRole('button', { name: 'Для Асі (1)' }));
+    expect(titles()).toEqual(['Їжак']);
+    expect(where()).toBe('/quizzes?sort=name&folder=f1');
+    expect(screen.getByRole('button', { name: 'Для Асі (1)' }).getAttribute('aria-pressed')).toBe('true');
+    fireEvent.click(screen.getByRole('button', { name: 'Без категорії (2)' }));
+    expect(titles()).toEqual(['Гора', 'Ґанок']);
+    expect(where()).toBe('/quizzes?sort=name&folder=none');
+    fireEvent.click(screen.getByRole('button', { name: 'Кіно (0)' }));
+    expect(titles()).toEqual([]);
+    expect(screen.getByText('У цій категорії поки немає вікторин.')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Усі (3)' }));
+    expect(where()).toBe('/quizzes?sort=name');
+  });
+
+  it('says every quiz is in a folder when «Без категорії» is empty', async () => {
+    vi.mocked(listQuizzes).mockResolvedValue({ ok: true, data: [three[0]!] });
+    open('/quizzes?folder=none');
+    expect(await screen.findByText('Усі вікторини вже в категоріях.')).toBeTruthy();
+  });
+
+  it('opens with the folder from the address and drops an unknown one', async () => {
+    open('/quizzes?folder=f1');
+    await screen.findByText('Для Асі (1)');
+    expect(titles()).toEqual(['Їжак']);
+    cleanup();
+    open('/quizzes?folder=gone');
+    await screen.findByText('Для Асі (1)');
+    await waitFor(() => expect(where()).toBe('/quizzes'));
+    expect(titles()).toHaveLength(3);
+    expect(screen.getByRole('button', { name: 'Усі (3)' }).getAttribute('aria-pressed')).toBe('true');
+  });
+
+  it('moves a quiz into a folder and updates the chip counts without reloading', async () => {
+    vi.mocked(moveQuizToFolder).mockResolvedValue({ ok: true, folderId: 'f2' });
+    open();
+    await screen.findByText('Кіно (0)');
+    const pick = screen.getAllByRole('combobox', { name: t('quizFolderPick') })[0] as HTMLSelectElement;
+    expect(pick.value).toBe('f1');
+    fireEvent.change(pick, { target: { value: 'f2' } });
+    expect(await screen.findByText('Кіно (1)')).toBeTruthy();
+    expect(screen.getByText('Для Асі (0)')).toBeTruthy();
+    expect(moveQuizToFolder).toHaveBeenCalledWith('q1', 'f2');
+    expect(listQuizzes).toHaveBeenCalledTimes(1);
+  });
+
+  it('puts the pick back and explains when the move fails', async () => {
+    vi.mocked(moveQuizToFolder).mockResolvedValue({ ok: false, error: 'not_found' });
+    open();
+    await screen.findByText('Кіно (0)');
+    const pick = screen.getAllByRole('combobox', { name: t('quizFolderPick') })[1] as HTMLSelectElement;
+    fireEvent.change(pick, { target: { value: 'f2' } });
+    expect((await screen.findByRole('alert')).textContent).toBe(t('err_not_found'));
+    expect(pick.value).toBe('');
+    expect(screen.getByText('Кіно (0)')).toBeTruthy();
+  });
+
+  it('keeps the quizzes when the folders do not load', async () => {
+    vi.mocked(listFolders).mockResolvedValue({ ok: false, error: 'offline' });
+    open();
+    expect(await screen.findByText('Їжак')).toBeTruthy();
+    expect(screen.queryByRole('group', { name: t('quizFoldersLabel') })).toBeNull();
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  it('opens the manager and turns quizzes of a deleted folder into «Без категорії»', async () => {
+    const { deleteFolder } = await import('../quiz-folders/folder-api');
+    vi.mocked(deleteFolder).mockResolvedValue({ ok: true });
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    open('/quizzes?folder=f1');
+    const manage = await screen.findByRole('button', { name: t('quizFoldersManage') });
+    expect(manage.getAttribute('aria-expanded')).toBe('false');
+    fireEvent.click(manage);
+    expect(manage.getAttribute('aria-expanded')).toBe('true');
+    const manager = screen.getByRole('region', { name: t('quizFoldersManage') });
+    fireEvent.click(within(manager).getAllByRole('button', { name: t('quizFolderDelete') })[0]!);
+    await waitFor(() => expect(chips()).toEqual(['Усі (3)', 'Кіно (0)', 'Без категорії (3)']));
+    await waitFor(() => expect(where()).toBe('/quizzes'));
+    expect(titles()).toHaveLength(3);
   });
 });
