@@ -1,4 +1,5 @@
 import type { CSSProperties, JSX } from 'react';
+import { Link } from 'react-router-dom';
 import { t } from '../../i18n';
 import { decimalNumber } from './chart-scale';
 import type { ChartView } from './BarChart';
@@ -7,6 +8,8 @@ import type { ChartView } from './BarChart';
 export interface HBarItem {
   key: string;
   name: string;
+  /** Назва — посилання (сторінка вікторини чи людини в адмінці). */
+  href?: string;
   value: number;
   /** Як показати число (за замовчуванням — ціле мовою інтерфейсу). */
   valueText?: string;
@@ -19,6 +22,14 @@ export function HBarList({ title, items, view = 'chart', limit }: { title: strin
   const shown = limit === undefined ? items : items.slice(0, limit);
   const max = Math.max(0, ...items.map((item) => item.value));
   const text = (item: HBarItem) => item.valueText ?? decimalNumber(item.value, 0);
+  const name = (item: HBarItem) =>
+    item.href === undefined ? (
+      item.name
+    ) : (
+      <Link to={item.href} dir="auto">
+        {item.name}
+      </Link>
+    );
   if (view === 'table') {
     return (
       <div className="chart-table-wrap">
@@ -34,7 +45,7 @@ export function HBarList({ title, items, view = 'chart', limit }: { title: strin
             {items.map((item) => (
               <tr key={item.key}>
                 <td>
-                  {item.name}
+                  {name(item)}
                   {item.meta !== undefined && <span className="meta"> · {item.meta}</span>}
                 </td>
                 <td>{text(item)}</td>
@@ -50,7 +61,7 @@ export function HBarList({ title, items, view = 'chart', limit }: { title: strin
       {shown.map((item) => (
         <li key={item.key} className="hbar" style={{ '--share': max > 0 ? item.value / max : 0 } as CSSProperties}>
           <div className="hbar-head">
-            <span className="hbar-name">{item.name}</span>
+            <span className="hbar-name">{name(item)}</span>
             <span className="hbar-value">{text(item)}</span>
           </div>
           <div className="hbar-track" aria-hidden="true">

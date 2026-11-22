@@ -61,6 +61,11 @@ export function chartValueText(value: number, unit: ChartUnit): string {
   }
 }
 
+/** Число в таблиці: відсотки — без знака (він уже в назві графіка «…, %»), як у таблицях 53. */
+function tableText(value: number, unit: ChartUnit): string {
+  return unit === 'percent' ? decimalNumber(value) : chartValueText(value, unit);
+}
+
 /** Підпис поділки осі Y: компактно; відсотки — «50 %». */
 function tickText(value: number, unit: ChartUnit): string {
   return unit === 'percent' ? percentText(value) : compactNumber(value);
@@ -108,7 +113,7 @@ export function ChartTable({ title, labels, series, unit, visible }: { title: st
             <td>{label.full}</td>
             {series.map((one) => {
               const value = one.values[index];
-              return <td key={one.key}>{value === null || value === undefined ? '—' : chartValueText(value, unit)}</td>;
+              return <td key={one.key}>{value === null || value === undefined ? '—' : tableText(value, unit)}</td>;
             })}
           </tr>
         ))}

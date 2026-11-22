@@ -16,8 +16,6 @@ export const ADMIN_REASON_MAX = 500;
 export const ADMIN_QUERY_MAX = 100;
 /** 53: як часто вкладка «Живі ігри» оновлюється сама. */
 export const ADMIN_LIVE_REFRESH_MS = 10_000;
-/** @deprecated 71: графіки беруть період з AdminMetrics. 53: скільки днів (до сьогодні включно) показують графіки статистики. */
-export const ADMIN_CHART_DAYS = 30;
 /** 53: скільки живуть у кеші графіки й список резервних копій. */
 export const ADMIN_CACHE_MS = 600_000;
 export const ADMIN_ACTION_KINDS = ['ban', 'unban', 'quiz_delete', 'question_delete', 'prize_delete', 'award_delete', 'library_hide', 'library_restore', 'report_dismiss', 'appeal_reject', 'nickname_reset', 'avatar_reset', 'game_close', 'announcement_set', 'announcement_clear', 'bot_game_start', 'bot_copy', 'bot_quiz_delete', 'bot_plan_create', 'bot_plan_update', 'bot_plan_cancel', 'bot_plan_run', 'bot_plan_fail', 'quiz_view', 'achievement_grant', 'achievement_revoke', 'xp_adjust', 'prize_gift', 'gift_revoke', 'account_delete', 'bot_room_start', 'bot_room_pause', 'bot_room_resume', 'bot_room_end', 'bot_room_skip', 'bot_room_time', 'bot_room_end_round', 'bot_room_kick', 'bot_room_release', 'bot_room_teams', 'bot_room_lobby', 'bot_room_adjust', 'push_broadcast', 'feed_hide', 'feed_show', 'group_hide', 'group_restore', 'group_member_remove', 'group_owner_transfer', 'group_delete', 'group_item_hide', 'group_item_show', 'server_error_resolve', 'problem_resolve', 'problem_reply', 'backup_now', 'game_replay_view', 'account_merge', 'bot_room_host_open', 'bot_room_manual_on', 'bot_room_manual_off', 'bot_room_grade', 'bot_room_undo', 'bot_room_debuff', 'bot_room_hint'] as const;
@@ -63,10 +61,6 @@ export interface AdminLiveRoom {
   stageUrl: string;
 }
 export interface AdminLiveList { rooms: AdminLiveRoom[]; at: string }
-/** @deprecated 71: замість цього — AdminMetrics. */
-export interface AdminChartDay { day: string; players: number; games: number; finished: number; completion: number | null; returns: number | null }
-/** @deprecated 71: замість цього — AdminMetrics. */
-export interface AdminCharts { days: AdminChartDay[]; computedAt: string }
 export type AdminBackupInfo = { state: 'ok'; at: string; bytes: number } | { state: 'none' | 'off' | 'error' };
 /** 71: таблиці, рядки яких рахує «Стан». */
 export const ADMIN_HEALTH_TABLES = ['user', 'quiz', 'game', 'participant', 'answer', 'game_event', 'saved_game', 'activity_day'] as const;

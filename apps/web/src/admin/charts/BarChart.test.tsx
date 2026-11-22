@@ -134,6 +134,6 @@ describe('BarChart', () => {
     const { container } = show({ series: single([1, 50]), unit: 'percent', view: 'table' });
     expect(container.querySelector('svg')).toBeNull();
     const table = container.querySelector('table.chart-table') as HTMLElement;
-    expect(within(table).getAllByRole('row').map((row) => row.textContent)).toEqual(['ДеньЗначення', 'day 01 %', 'day 150 %']);
+    expect(within(table).getAllByRole('row').map((row) => row.textContent)).toEqual(['ДеньЗначення', 'day 01', 'day 150']);
   });
 });
