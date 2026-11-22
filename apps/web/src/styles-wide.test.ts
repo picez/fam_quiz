@@ -208,8 +208,8 @@ describe('67 lists, start, history', () => {
     expect(found('1024', '.app.start')[0]?.body).toContain('--app-w: 64rem;');
   });
 
-  it('a library quiz keeps a reading width, help lays topic cards out as a grid', () => {
-    expect(found('1024', '.app.library-quiz')[0]?.body).toContain('--app-w: var(--w-read);');
+  it('a library quiz takes the wide page (its text keeps the reading width), help lays topic cards out as a grid', () => {
+    expect(found('1024', '.app.library-quiz')).toEqual([]);
     const help = found('1024', '.host-help > section').find((rule) => rule.body.includes('display: grid;'));
     expect(help?.body).toContain('grid-template-columns: repeat(auto-fill, minmax(26rem, 1fr));');
     expect(found('1024', '.host-help > section > h2')[0]?.body).toContain('grid-column: 1 / -1;');
@@ -245,10 +245,13 @@ describe('67 profile, groups, friends', () => {
     expect(list?.selector).toMatch(/\.friend-list[\s\S]*\.group-item-list[\s\S]*\.liked-list[\s\S]*\.prize-list/);
     expect(list?.body).toContain('display: grid;');
     expect(list?.body).toContain('grid-template-columns: repeat(auto-fill, minmax(var(--card-min), 1fr));');
-    const form = found('1024', '.app.settings-page')[0];
-    expect(form?.selector).toContain('.app.challenge-page');
+    // 1024–1279: налаштування — колонка планшета (не вужча, ніж до 67); виклик і запрошення — форма.
+    expect(found('1024', '.app.settings-page')[0]?.body).toContain('--app-w: var(--w-tablet);');
+    const form = found('1024', '.app.challenge-page')[0];
     expect(form?.selector).toContain('.app.group-join');
     expect(form?.body).toContain('--app-w: var(--w-form);');
+    // Сітки на сторінці (.app має min-height 100dvh) не розтягують рядки.
+    for (const selector of ['.app.settings-page', '.app.game-history']) expect(found('1280', selector).find((rule) => rule.body.includes('display: grid;'))?.body, selector).toContain('align-content: start;');
     // Від 1280 налаштування — дві колонки.
     const settings = found('1280', '.app.settings-page').find((rule) => rule.body.includes('display: grid;'));
     expect(settings?.body).toContain('grid-template-columns: repeat(2, minmax(0, 1fr));');

@@ -28955,6 +28955,8 @@ details.admin-fold[open] > summary::before {
   .host-cols.is-lobby .host-side {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(min(100%, 24rem), 1fr));
+    /* Панелі лобі заповнюють дірки поруч із рядками на всю ширину. */
+    grid-auto-flow: row dense;
     align-items: start;
     gap: 1.25rem 2rem;
   }
@@ -29146,11 +29148,6 @@ details.admin-fold[open] > summary::before {
     grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
   }
 
-  /* Сторінка вікторини в бібліотеці — суцільний текст: читана ширина. */
-  .app.library-quiz {
-    --app-w: var(--w-read);
-  }
-
   /* Довідка: темою — сітка карток (кожна ≈ читана ширина), заголовок теми — на весь рядок; вступ і пошук тримають --w-read. */
   .host-help > section {
     display: grid;
@@ -29191,6 +29188,8 @@ details.admin-fold[open] > summary::before {
     grid-auto-flow: row dense;
     column-gap: 1.25rem;
     align-items: start;
+    /* .app тягнеться на всю висоту вікна: рядки сітки не розтягуються на запас. */
+    align-content: start;
   }
 
   .app.game-history > :is(h1, .brand, .meta, .history-tabs, .error, .wide-panel, .bar, .result-image-button) {
@@ -29212,7 +29211,10 @@ details.admin-fold[open] > summary::before {
   }
 
   /* Налаштування, виклик і запрошення в групу — форма й картка однієї дії: не на всю сторінку. */
-  .app.settings-page,
+  .app.settings-page {
+    --app-w: var(--w-tablet);
+  }
+
   .app.challenge-page,
   .app.group-join {
     --app-w: var(--w-form);
@@ -29253,6 +29255,7 @@ details.admin-fold[open] > summary::before {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 1.25rem 2rem;
     align-items: start;
+    align-content: start;
   }
 
   .app.settings-page > :is(.profile-sub-head, .toolbar, .error, .meta) {

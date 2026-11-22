@@ -589,7 +589,8 @@ async function lists67() {
   await host.locator('main.library-quiz').waitFor();
   await wide67(host, 'lists67-library-quiz', async ({ tag }) => {
     if (tag === '375') expect(await mainWidth67(host), 'library quiz 375').toBeLessThanOrEqual(375);
-    else expect(await mainWidth67(host), `library quiz ${tag}`).toBeLessThanOrEqual(672 + 2 * 48);
+    // Широка сторінка, як інші .app.wide: на ПК не вузька смужка (текст тримає читану ширину).
+    else expect(await mainWidth67(host), `library quiz ${tag}`).toBeGreaterThan(1000);
   });
 
   // Перегляд зіграної гри й «Мої ігри» (гравець).
