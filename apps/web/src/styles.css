@@ -3743,7 +3743,13 @@ button.match-item {
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     align-items: start;
     gap: 1.25rem 2rem;
-    max-width: 64rem;
+  }
+}
+
+/* 960–1023 px — як до 67 (64 rem); від 1024 px колонку веде .app.wide (--w-page). */
+@media (min-width: 960px) and (max-width: 1023px) {
+  .app.profile-main {
+    --app-w: 64rem;
   }
 }
 
@@ -29187,5 +29193,77 @@ details.admin-fold[open] > summary::before {
 
   .app.game-history > :is(h1, .brand, .meta, .history-tabs, .error, .wide-panel, .bar, .result-image-button) {
     grid-column: 1 / -1;
+  }
+}
+
+/* ---------- 67: профіль, групи, друзі, призи, досягнення ---------- */
+@media (min-width: 1024px) {
+  /* Підсторінки: списки карток — сіткою (досягнення й нагороди вже мають свою auto-fill сітку). */
+  .group-cards,
+  .friend-list,
+  .group-item-list,
+  .liked-list,
+  .prize-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(var(--card-min), 1fr));
+    align-items: start;
+  }
+
+  /* Налаштування, виклик і запрошення в групу — форма й картка однієї дії: не на всю сторінку. */
+  .app.settings-page,
+  .app.challenge-page,
+  .app.group-join {
+    --app-w: var(--w-form);
+  }
+}
+
+@media (min-width: 1600px) {
+  /* Великий ПК: ліворуч шапка й плитки, праворуч вітрини — ширші. */
+  .app.profile-main {
+    grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
+  }
+}
+
+@media (min-width: 1024px) {
+  /* Карта рівнів: рядки-картки в кілька колонок; поле нового друга й пошук у записах групи не тягнуться на всю сторінку. */
+  .level-map {
+    grid-template-columns: repeat(auto-fill, minmax(22rem, 1fr));
+    align-items: start;
+  }
+
+  /* Текст ліги — читана ширина; таблиця й картки лишаються на всю колонку. */
+  .group-league > p {
+    max-inline-size: var(--w-read);
+  }
+
+  .add-friend,
+  .group-items-filters input,
+  .group-items-filters select {
+    max-inline-size: var(--w-form);
+  }
+}
+
+@media (min-width: 1280px) {
+  /* Налаштування: розділи у дві колонки; шапка й рядки дій — на весь рядок. */
+  .app.settings-page {
+    --app-w: 64rem;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1.25rem 2rem;
+    align-items: start;
+  }
+
+  .app.settings-page > :is(.profile-sub-head, .toolbar, .error, .meta) {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (min-width: 1280px) {
+  /* Вкладка «Учасники»: запрошення ліворуч, склад групи праворуч. */
+  .group-page [role='tabpanel']:has(> .group-invite-panel) {
+    display: grid;
+    grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
+    gap: 1.25rem 2rem;
+    align-items: start;
   }
 }

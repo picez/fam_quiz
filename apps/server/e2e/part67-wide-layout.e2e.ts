@@ -618,3 +618,117 @@ it('part 67 lists: my quizzes, library, feed, calendar, history, a finished game
     throw error;
   }
 }, 400_000);
+
+async function profile67() {
+  const olena = await open('profile67o', 1920, 1080);
+  await register(olena, 'menu', 'Олена Профільна', 'profile67o@example.com');
+  const friends: Page[] = [];
+  for (const [index, name] of ['Петро Гай', 'Оксана Друг', 'Богдан Лис'].entries()) {
+    const person = await open(`profile67f${index}`, 1366, 768);
+    await register(person, 'menu', name, `profile67f${index}@example.com`);
+    friends.push(person);
+  }
+  const olenaId = await myId(olena);
+  for (const person of friends) {
+    expect((await olena.request.put(`${base}/api/me/friends/${await myId(person)}`)).ok()).toBe(true);
+    expect((await person.request.put(`${base}/api/me/friends/${olenaId}`)).ok()).toBe(true);
+  }
+  const created = await olena.request.post(`${base}/api/groups`, { data: { name: 'Родина Квіткових', emoji: '🌻', description: 'Наші запитання про рідню' } });
+  expect(created.status(), await created.text()).toBe(201);
+  const { id: groupId, inviteCode } = (await created.json()) as { id: string; inviteCode: string };
+  for (const person of friends.slice(0, 2)) expect((await person.request.post(`${base}/api/groups/join/${inviteCode}`)).status()).toBe(200);
+  for (const [index, kind] of ['fact', 'fact', 'fact'].entries()) {
+    const made = await olena.request.post(`${base}/api/groups/${groupId}/items`, {
+      data: { kind, about: [], answer: null, year: null, photo: null, surprise: false, text: `Родинна історія номер ${index + 1}: хто з нас першим побачив море?` },
+    });
+    expect(made.status(), await made.text()).toBe(201);
+  }
+  // Ще одна вікторина в профілі й одна група для порожніх сітки/списку.
+  const saved = await olena.request.post(`${base}/api/quizzes`, { data: { ...makeRoundsQuiz([classicRound('r67p', [{ ...single, id: 'q67p', text: 'Яке місто називають перлиною біля моря?' }] as never)], { leaderboard: 'end' }), title: 'Профіль 67' } });
+  expect(saved.ok(), await saved.text()).toBe(true);
+
+  const boxes = (page: Page, selector: string) =>
+    page.evaluate(`(() => { const r = [...document.querySelectorAll('${selector}')].map((el) => el.getBoundingClientRect()); return { count: r.length, inFirstRow: r.filter((box) => r.length > 0 && Math.abs(box.y - r[0].y) <= 1).length }; })()`) as Promise<{ count: number; inFirstRow: number }>;
+  const columns = (page: Page) =>
+    page.evaluate(`(() => { const r = [...document.querySelectorAll('main > .profile-col')].map((el) => el.getBoundingClientRect()); return { count: r.length, x: r.map((b) => b.x), w: r.map((b) => b.width) }; })()`) as Promise<{ count: number; x: number[]; w: number[] }>;
+
+  const pages: { name: string; path: string; page: Page; check?: (tag: string, page: Page) => Promise<void> }[] = [
+    {
+      name: 'profile67-main',
+      path: '/profile',
+      page: olena,
+      check: async (tag, page) => {
+        const cols = await columns(page);
+        expect(cols.count, `profile ${tag}: two columns`).toBe(2);
+        if (tag === '375') expect(cols.x[1]!, 'profile 375: the columns stand one under another').toBe(cols.x[0]);
+        else expect(cols.x[1]!, `profile ${tag}: the second column is on the right`).toBeGreaterThan(cols.x[0]! + cols.w[0]! - 1);
+        if (tag === '1920') expect(cols.w[1]!, 'profile 1920: the right column is wider').toBeGreaterThan(cols.w[0]!);
+        if (tag === '1920') expect(await mainWidth67(page), 'profile 1920').toBeGreaterThan(1200);
+      },
+    },
+    { name: 'profile67-public', path: `/profile/${olenaId}`, page: friends[0]!, check: async (tag, page) => {
+        const cols = await columns(page);
+        expect(cols.count, `public ${tag}: two columns`).toBe(2);
+        if (tag !== '375') expect(cols.x[1]!, `public ${tag}: the second column is on the right`).toBeGreaterThan(cols.x[0]! + cols.w[0]! - 1);
+      } },
+    { name: 'profile67-achievements', path: '/profile/achievements', page: olena, check: async (tag, page) => {
+        const cards = await boxes(page, '.achievement-cards > li');
+        if (tag === '1920') expect(cards.inFirstRow, 'achievements 1920: at least three in a row').toBeGreaterThanOrEqual(3);
+        if (tag === '375') expect(cards.inFirstRow, 'achievements 375').toBeLessThanOrEqual(2);
+      } },
+    { name: 'profile67-groups', path: '/profile/groups', page: olena },
+    { name: 'profile67-group', path: `/profile/groups/${groupId}`, page: olena },
+    { name: 'profile67-friends', path: '/profile/friends', page: olena, check: async (tag, page) => {
+        const cards = await boxes(page, '.friend-list > li');
+        if (tag === '1920') expect(cards.inFirstRow, 'friends 1920: at least three in a row').toBeGreaterThanOrEqual(3);
+        if (tag === '375') expect(cards.inFirstRow, 'friends 375: one under another').toBe(1);
+      } },
+    { name: 'profile67-settings', path: '/profile/settings', page: olena, check: async (tag, page) => {
+        const width = await mainWidth67(page);
+        if (tag === '375') return;
+        expect(width, `settings ${tag}`).toBeLessThanOrEqual(1024 + 1);
+        // Від 1280 px розділи налаштувань стоять у дві колонки (кадр 1366 і 1920).
+        const rows = await boxes(page, '.settings-page > .profile-section');
+        expect(rows.inFirstRow, `settings ${tag}: two columns`).toBeGreaterThanOrEqual(2);
+      } },
+    { name: 'profile67-stats', path: '/profile/stats', page: olena },
+    { name: 'profile67-levels', path: '/profile/levels', page: olena },
+    { name: 'profile67-looks', path: '/profile/looks', page: olena },
+    { name: 'profile67-likes', path: '/profile/likes', page: olena },
+    { name: 'profile67-quizzes', path: '/profile/quizzes', page: olena },
+    { name: 'profile67-prizes', path: '/profile/prizes', page: olena },
+    { name: 'profile67-join', path: `/groups/join/${inviteCode}`, page: friends[2]!, check: async (tag, page) => {
+        if (tag !== '375') expect(await mainWidth67(page), `join ${tag}`).toBeLessThanOrEqual(576 + 1);
+      } },
+  ];
+  // Вкладки групи: учасники, ліга, налаштування — кадри на трьох розмірах.
+  await olena.setViewportSize({ width: 1920, height: 1080 });
+  await olena.goto(`${base}/profile/groups/${groupId}`);
+  for (const [index, label] of ['Учасники', 'Ліга', 'Налаштування'].entries()) {
+    await olena.locator('.group-tabs').getByText(label, exact).click();
+    await olena.waitForLoadState('networkidle');
+    await wide67(olena, `profile67-group-tab${index}`);
+  }
+
+  for (const { name, path, page, check } of pages) {
+    await page.setViewportSize({ width: 1920, height: 1080 });
+    await page.goto(`${base}${path}`);
+    await page.locator('main').waitFor();
+    await page.waitForLoadState('networkidle');
+    await wide67(page, name, async ({ tag }) => {
+      if (tag === '375') expect(await mainWidth67(page), `${name} 375`).toBeLessThanOrEqual(375);
+      await check?.(tag, page);
+    });
+    // Довгі сторінки з прокручуваними вкладеними блоками (вигляд) закінчуються під нижньою панеллю й до 67 — їх перевіряє лише відсутність бічної прокрутки.
+    if (name !== 'profile67-looks') await expectPhoneFit(page, name);
+  }
+}
+
+it('part 67 profile: the profile, a public profile, achievements, groups, a group, friends, settings, stats, levels, prizes and an invite on a computer — columns grow with the page, card lists as grids, settings and invites at a form width; the 375 phone stays one column', async () => {
+  try {
+    await profile67();
+  } catch (error) {
+    await snapshot();
+    throw error;
+  }
+}, 400_000);

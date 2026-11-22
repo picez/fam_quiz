@@ -82,51 +82,55 @@ export function PublicProfile() {
   const hasMore = profile.showcase.awards.length > shelfCount;
 
   return (
-    <main className="app wide">
-      <ProfileHeader profile={profile} level={profile.level.level} looks={profile.level.looks} title={profile.showcase.title?.text ?? null} stats={profile.stats} form={profile.form}>
-        {following === false && (
-          <button type="button" className="btn btn-small" disabled={busy} onClick={() => void toggle()}>
-            {t('addFriend')}
-          </button>
-        )}
-        {following === true && (
-          <p>
-            <span>{t('inFriends')}</span>{' '}
+    <main className="app wide profile-main">
+      <div className="profile-col">
+        <ProfileHeader profile={profile} level={profile.level.level} looks={profile.level.looks} title={profile.showcase.title?.text ?? null} stats={profile.stats} form={profile.form}>
+          {following === false && (
             <button type="button" className="btn btn-small" disabled={busy} onClick={() => void toggle()}>
-              {t('removeFriend')}
+              {t('addFriend')}
             </button>
-          </p>
-        )}
-        {following !== null && (
-          <button type="button" className="btn btn-small" onClick={() => setReporting(true)}>
-            {t('reportButton')}
-          </button>
-        )}
-        {following === null && isOwner && <Link to="/profile">{t('thisIsYou')}</Link>}
-        {following === null && account.status === 'anonymous' && (
-          <Link to={`/login?next=${encodeURIComponent(`/profile/${profile.id}`)}`}>{t('signInToFollow')}</Link>
-        )}
-        {problem !== null && (
-          <p className="error" role="alert">
-            {problem}
-          </p>
-        )}
-      </ProfileHeader>
-      <LeagueTitles titles={profile.leagueTitles} />
-      <ShowcaseShelf
-        awards={profile.showcase.awards}
-        pinned={profile.showcase.pins.prizes}
-        onAll={hasMore ? () => setAllAwards((open) => !open) : undefined}
-        allLabel={allAwards ? t('publicAwardsHide') : t('publicAwardsAll', { n: profile.showcase.awards.length })}
-      />
-      {allAwards && <Showcase showcase={profile.showcase} own={isOwner} />}
-      <AchievementShowcase achievements={profile.achievements} pinned={profile.showcase.pins.achievements} allTo={`/profile/${encodeURIComponent(profile.id)}/achievements`} />
-      <LikesCard likes={profile.likes} />
-      <section className="profile-section">
-        <h2>{t('statsTitle')}</h2>
-        <StatsView stats={profile.stats} />
-      </section>
-      {account.status === 'signed-in' && !isOwner && <VersusBlock id={profile.id} nickname={nickText(profile.nickname)} />}
+          )}
+          {following === true && (
+            <p>
+              <span>{t('inFriends')}</span>{' '}
+              <button type="button" className="btn btn-small" disabled={busy} onClick={() => void toggle()}>
+                {t('removeFriend')}
+              </button>
+            </p>
+          )}
+          {following !== null && (
+            <button type="button" className="btn btn-small" onClick={() => setReporting(true)}>
+              {t('reportButton')}
+            </button>
+          )}
+          {following === null && isOwner && <Link to="/profile">{t('thisIsYou')}</Link>}
+          {following === null && account.status === 'anonymous' && (
+            <Link to={`/login?next=${encodeURIComponent(`/profile/${profile.id}`)}`}>{t('signInToFollow')}</Link>
+          )}
+          {problem !== null && (
+            <p className="error" role="alert">
+              {problem}
+            </p>
+          )}
+        </ProfileHeader>
+        <LeagueTitles titles={profile.leagueTitles} />
+        <ShowcaseShelf
+          awards={profile.showcase.awards}
+          pinned={profile.showcase.pins.prizes}
+          onAll={hasMore ? () => setAllAwards((open) => !open) : undefined}
+          allLabel={allAwards ? t('publicAwardsHide') : t('publicAwardsAll', { n: profile.showcase.awards.length })}
+        />
+        {allAwards && <Showcase showcase={profile.showcase} own={isOwner} />}
+      </div>
+      <div className="profile-col">
+        <AchievementShowcase achievements={profile.achievements} pinned={profile.showcase.pins.achievements} allTo={`/profile/${encodeURIComponent(profile.id)}/achievements`} />
+        <LikesCard likes={profile.likes} />
+        <section className="profile-section">
+          <h2>{t('statsTitle')}</h2>
+          <StatsView stats={profile.stats} />
+        </section>
+        {account.status === 'signed-in' && !isOwner && <VersusBlock id={profile.id} nickname={nickText(profile.nickname)} />}
+      </div>
       {reporting && <ReportDialog target={{ kind: 'profile', userId: profile.id }} onClose={() => setReporting(false)} />}
     </main>
   );

@@ -223,6 +223,41 @@ describe('67 lists, start, history', () => {
   });
 });
 
+describe('67 profile, groups, friends', () => {
+  const found = (width: string, part: string) =>
+    minWidthMedia(clean).filter((item) => item.width === width).flatMap(({ body }) => rules(body)).filter((rule) => rule.selector.replace(/\s+/g, ' ').includes(part));
+
+  it('the profile keeps two columns from 960 px and grows with --w-page', () => {
+    const wide = found('960', '.app.profile-main')[0];
+    expect(wide?.body).toContain('display: grid;');
+    expect(wide?.body).not.toContain('max-width: 64rem');
+    // 960–1023 px — як до 67 (власний @media з обома межами); від 1024 колонку веде .app.wide.
+    const tablet = block(clean, '@media (min-width: 960px) and (max-width: 1023px)') ?? '';
+    expect(tablet).toContain('.app.profile-main');
+    expect(tablet).toContain('--app-w: 64rem;');
+    expect(found('1024', '.app.wide')[0]?.body).toContain('--app-w: var(--w-page);');
+    expect(found('1600', '.app.profile-main')[0]?.body).toContain('grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);');
+  });
+
+  it('profile sub pages: card lists as grids, settings and one-action pages at a form width', () => {
+    const list = found('1024', '.group-cards')[0];
+    expect(list?.selector).toMatch(/\.friend-list[\s\S]*\.group-item-list[\s\S]*\.liked-list[\s\S]*\.prize-list/);
+    expect(list?.body).toContain('display: grid;');
+    expect(list?.body).toContain('grid-template-columns: repeat(auto-fill, minmax(var(--card-min), 1fr));');
+    const form = found('1024', '.app.settings-page')[0];
+    expect(form?.selector).toContain('.app.challenge-page');
+    expect(form?.selector).toContain('.app.group-join');
+    expect(form?.body).toContain('--app-w: var(--w-form);');
+    // Від 1280 налаштування — дві колонки.
+    const settings = found('1280', '.app.settings-page').find((rule) => rule.body.includes('display: grid;'));
+    expect(settings?.body).toContain('grid-template-columns: repeat(2, minmax(0, 1fr));');
+    expect(found('1280', '.app.settings-page > :is(')[0]?.body).toContain('grid-column: 1 / -1;');
+    // «Учасники» групи: запрошення й склад — двома колонками.
+    const members = found('1280', ".group-page [role='tabpanel']:has(> .group-invite-panel)").find((rule) => rule.body.includes('display: grid;'));
+    expect(members?.body).toContain('grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);');
+  });
+});
+
 /** Тіло верхньорівневого правила з цим селектором (для .app, .app.host тощо). */
 function topLevel(selector: string): string {
   return rules(clean).find((rule) => rule.selector === selector)?.body ?? '';

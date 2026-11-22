@@ -202,6 +202,12 @@ describe('profile sub-pages', () => {
 });
 
 describe('«Налаштування»', () => {
+  it('67: the page has the settings-page class for the form width', async () => {
+    const { container } = open('/profile/settings');
+    await screen.findByText('o@example.com');
+    expect(container.querySelector('main.app.settings-page')).not.toBeNull();
+  });
+
   it('shows the email, the language, the public profile link and no admin link', async () => {
     open('/profile/settings');
     expect(await screen.findByText('o@example.com')).toBeTruthy();
