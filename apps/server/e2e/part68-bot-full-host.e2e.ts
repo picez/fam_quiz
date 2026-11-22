@@ -82,7 +82,7 @@ async function full68(sockets: Socket[]) {
         boardRound(
           'b68',
           [
-            { title: 'Гори', cells: [cell('b68-100', 'Найвища вершина Чорногори?', 'Говерла 68', 100), cell('b68-200', 'Найвища вершина Карпат?', 'Говерла 68', 200)] },
+            ...['Гори', 'Річки', 'Міста'].map((title, c) => ({ title, cells: [1, 2, 3].map((n) => cell(`b68-${c}-${n}`, `${title}: питання ${n}?`, 'Говерла 68', n * 100)) })),
           ],
           { title: 'Поле', answerMode: 'phone', check: 'manual' },
         ),
@@ -216,7 +216,7 @@ async function full68(sockets: Socket[]) {
   await emitOk(chooser, 'player:answer', { type: 'text', value: 'Говерла 68' });
   await sleep(AUTOPILOT_MS.locked + 3000);
   expect(phaseOf(chooser), 'a manual-check answer waits for the admin').not.toBe('reveal');
-  await host.getByRole('button', { name: 'Прийняти', ...exact }).click();
+  await host.getByRole('button', { name: 'Правильно', ...exact }).click();
   const accepted = await frame(chooser, (v) => v.phase === 'reveal', mark, 20_000);
   expect(accepted.view.me.result?.accepted).toBe(true);
 
