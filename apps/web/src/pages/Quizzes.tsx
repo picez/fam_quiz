@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom';
 import { parseQuizSort, sortQuizzes, type ChallengeMine, type LibraryMine, type QuizFolder } from '@quiz/shared';
 import { deleteQuiz, listMyChallenges, listQuizzes, type QuizSummary } from '../api';
@@ -46,20 +46,24 @@ export function Quizzes() {
     folders !== null && folderParam !== null && (folderParam === 'none' ? folders.length > 0 : folders.some((one) => one.id === folderParam));
   const pick: FolderPick = folderKnown ? folderParam : null;
 
+  // Найсвіжіші параметри: перехід роутера рендериться не одразу (transition), і друга зміна поспіль
+  // (чип, тоді «Порядок») інакше взяла б старі параметри й повернула б щойно прибраний фільтр.
+  const latest = useRef(params);
+  useLayoutEffect(() => {
+    latest.current = params;
+  }, [params]);
+
   /** Міняє параметри адреси; типові значення («Усі», «Нещодавно змінені») з адреси прибираються. */
   const update = useCallback(
-    (changes: Record<string, string>) =>
-      setParams(
-        (current) => {
-          const copy = new URLSearchParams(current);
-          for (const [key, value] of Object.entries(changes)) {
-            if (value === '' || (key === 'sort' && value === 'changed')) copy.delete(key);
-            else copy.set(key, value);
-          }
-          return copy;
-        },
-        { replace: true },
-      ),
+    (changes: Record<string, string>) => {
+      const copy = new URLSearchParams(latest.current);
+      for (const [key, value] of Object.entries(changes)) {
+        if (value === '' || (key === 'sort' && value === 'changed')) copy.delete(key);
+        else copy.set(key, value);
+      }
+      latest.current = copy;
+      setParams(copy, { replace: true });
+    },
     [setParams],
   );
 
@@ -228,6 +232,18 @@ export function Quizzes() {
                 <p className="meta quiz-dates">
                   <time dateTime={quiz.createdAt}>{quizDatesText(quiz)}</time>
                 </p>
+                <p className="meta">{quizSizeText(t('questionCount', { count: quiz.questionCount }), quiz.questionCount, quiz.truth)}</p>
+                {library.filter((one) => one.quizId === quiz.id).map((one) => (
+                  <p className="meta library-line" key={one.entryId}>
+                    {libraryStatusText(one)}
+                  </p>
+                ))}
+                {challenges.filter((one) => one.quizId === quiz.id).map((one) => (
+                  <p className="meta challenge-line" key={one.code}>
+                    {t('challengeActive', { days: daysLeftText(one.expiresAt), played: playedText(one.played) })}{' '}
+                    <Link to={`/challenge/${one.code}`}>{t('challengeResultsLink')}</Link>
+                  </p>
+                ))}
                 {folders !== null && folders.length > 0 && (
                   <label className="field quiz-folder-pick">
                     <span>{t('quizFolderPick')}</span>
@@ -241,18 +257,6 @@ export function Quizzes() {
                     </select>
                   </label>
                 )}
-                <p className="meta">{quizSizeText(t('questionCount', { count: quiz.questionCount }), quiz.questionCount, quiz.truth)}</p>
-                {library.filter((one) => one.quizId === quiz.id).map((one) => (
-                  <p className="meta library-line" key={one.entryId}>
-                    {libraryStatusText(one)}
-                  </p>
-                ))}
-                {challenges.filter((one) => one.quizId === quiz.id).map((one) => (
-                  <p className="meta challenge-line" key={one.code}>
-                    {t('challengeActive', { days: daysLeftText(one.expiresAt), played: playedText(one.played) })}{' '}
-                    <Link to={`/challenge/${one.code}`}>{t('challengeResultsLink')}</Link>
-                  </p>
-                ))}
               </div>
               <div className="toolbar">
                 <button type="button" className="btn btn-primary" disabled={busy} onClick={() => play(quiz)}>

@@ -30071,6 +30071,12 @@ table.sr-only td {
   margin: 0;
 }
 
+/* Між категоріями списку — риска: кнопки однієї не плутаються з назвою наступної. */
+.quiz-folder-list > li + li {
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--line);
+}
+
 .quiz-folder-row .quiz-folder-name {
   flex: 1 1 12rem;
   min-inline-size: 0;
@@ -30099,4 +30105,10 @@ table.sr-only td {
     grid-column: 1 / -1;
     max-inline-size: var(--w-read);
   }
+}
+
+/* 73: «Порядок» в адмінці — не на всю ширину вкладки «Бот» на ПК. */
+.admin-quiz-sort {
+  max-inline-size: 22rem;
+  margin-bottom: 0.75rem;
 }
