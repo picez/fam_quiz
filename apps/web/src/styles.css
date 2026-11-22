@@ -18106,6 +18106,14 @@ details.admin-round > summary > .admin-round-title {
   fill: var(--paper);
 }
 
+/* Підпис середнього може лягти на стовпчик: обвідка кольору тла тримає його читаним. */
+.chart-svg .chart-avg-label {
+  paint-order: stroke;
+  stroke: var(--surface);
+  stroke-width: 3px;
+  stroke-linejoin: round;
+}
+
 .chart-tip {
   position: absolute;
   inset-block-start: 0;

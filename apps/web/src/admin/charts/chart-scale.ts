@@ -78,9 +78,15 @@ export function xLabelLayout(count: number, width: number, labelWidth: number, m
   const out: Placed[] = [place(0)];
   if (count > 1) {
     const step = Math.max(1, Math.ceil(Math.max(minGap, labelWidth + X_LABEL_SPACE) / slot));
-    for (let index = step; index < count - 1; index += step) {
+    for (let index = step; index < count - 1; ) {
       const next = place(index);
-      if (fits(out[out.length - 1]!, next)) out.push(next);
+      // Притиснутий до краю перший підпис ширший за пів кроку: наступний зсуваємо праворуч до першого, що влазить.
+      if (!fits(out[out.length - 1]!, next)) {
+        index += 1;
+        continue;
+      }
+      out.push(next);
+      index += step;
     }
     const last = place(count - 1);
     while (out.length > 1 && !fits(out[out.length - 1]!, last)) out.pop();

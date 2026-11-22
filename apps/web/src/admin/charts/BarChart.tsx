@@ -267,7 +267,8 @@ function Plot({ titleId, labels, series, unit, size, average = true, labelGap = 
         {mean !== null && (
           <g>
             <line className="chart-avg" x1={left} x2={width} y1={y(mean)} y2={y(mean)} />
-            <text className="chart-avg-label" x={width} y={y(mean) - 4} textAnchor="end">
+            {/* Підпис середнього — ліворуч: праворуч стоїть найсвіжіший стовпчик, і він закривав би текст. */}
+            <text className="chart-avg-label" x={left + 4} y={y(mean) - 4} textAnchor="start">
               {t('chartAverage', { value: chartValueText(mean, unit === 'minutes' ? 'minutes' : 'decimal') })}
             </text>
           </g>

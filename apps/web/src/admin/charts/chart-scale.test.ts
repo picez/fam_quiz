@@ -64,6 +64,13 @@ describe('xLabelLayout', () => {
     }
   });
 
+  it('a pinned first label does not swallow the next one: a year on a phone has a label in between', () => {
+    const width = textWidth('з 24 лист.', 12);
+    const labels = xLabelLayout(52, 270, width, 56);
+    expect(labels.length).toBeGreaterThanOrEqual(3);
+    expectApart(labels, width, 270);
+  });
+
   it('labels a single bar and none for no bars', () => {
     expect(xLabelLayout(1, 300, 40, 56)).toEqual([{ index: 0, x: 150, anchor: 'middle' }]);
     expect(xLabelLayout(0, 300, 40, 56)).toEqual([]);
