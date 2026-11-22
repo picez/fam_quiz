@@ -73,4 +73,19 @@ describe('inbox routes (70)', () => {
       expect(response.json()).toEqual({ error: 'invalid_payload' });
     }
   });
+
+  it('each route is rate limited per account', async () => {
+    const olya = await account('Оля');
+    const taras = await account('Тарас');
+    for (let i = 0; i < 60; i += 1) expect((await get('/api/me/inbox/badge', olya.cookie)).statusCode).toBe(200);
+    expect((await get('/api/me/inbox/badge', olya.cookie)).statusCode).toBe(429);
+    for (let i = 0; i < 60; i += 1) expect((await get('/api/me/inbox', olya.cookie)).statusCode).toBe(200);
+    expect((await get('/api/me/inbox', olya.cookie)).statusCode).toBe(429);
+    const upTo = new Date().toISOString();
+    for (let i = 0; i < 30; i += 1) expect((await read({ upTo }, olya.cookie)).statusCode).toBe(200);
+    expect((await read({ upTo }, olya.cookie)).statusCode).toBe(429);
+    // В іншого акаунта свій лічильник.
+    expect((await get('/api/me/inbox/badge', taras.cookie)).statusCode).toBe(200);
+    expect((await read({ upTo }, taras.cookie)).statusCode).toBe(200);
+  });
 });

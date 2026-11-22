@@ -17,20 +17,33 @@ export interface InboxRouteDeps {
 export async function registerInboxRoutes(app: FastifyInstance, deps: InboxRouteDeps): Promise<void> {
   const { db, currentUser } = deps;
   const now = deps.now ?? (() => new Date());
+  // Ліміт на акаунт (як стрічка): меню опитує бейдж раз на хвилину й на кожен перехід.
+  const perUser = (prefix: string, max: number) => ({
+    config: {
+      rateLimit: {
+        max,
+        timeWindow: '1 minute',
+        keyGenerator: async (request: FastifyRequest) => `${prefix}:${(await currentUser(request))?.id ?? request.ip}`,
+      },
+    },
+  });
+  const list = perUser('inbox:user', 60);
+  const badge = perUser('inbox-badge:user', 60);
+  const mark = perUser('inbox-read:user', 30);
 
-  app.get('/api/me/inbox', async (request, reply): Promise<InboxPage | void> => {
+  app.get('/api/me/inbox', list, async (request, reply): Promise<InboxPage | void> => {
     const user = await currentUser(request);
     if (user === null) return reply.code(401).send(UNAUTHORIZED);
     return inboxPage(db, user.id);
   });
 
-  app.get('/api/me/inbox/badge', async (request, reply): Promise<InboxBadge | void> => {
+  app.get('/api/me/inbox/badge', badge, async (request, reply): Promise<InboxBadge | void> => {
     const user = await currentUser(request);
     if (user === null) return reply.code(401).send(UNAUTHORIZED);
     return { unread: await inboxUnread(db, user.id) };
   });
 
-  app.post('/api/me/inbox/read', { bodyLimit: READ_BODY_LIMIT }, async (request, reply): Promise<InboxBadge | void> => {
+  app.post('/api/me/inbox/read', { bodyLimit: READ_BODY_LIMIT, ...mark }, async (request, reply): Promise<InboxBadge | void> => {
     const user = await currentUser(request);
     if (user === null) return reply.code(401).send(UNAUTHORIZED);
     const body = inboxReadSchema.safeParse(request.body ?? {});

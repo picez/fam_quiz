@@ -267,10 +267,12 @@ const plainRule: MergeRule = {
   },
 };
 
-/** 70. «Вхідні»: розсилка, що вже є в P, — рядок S геть (рядок P з його «прочитано» лишається); решта — до P. */
+/** 70. «Вхідні»: розсилка, що вже є в P, — рядок P лишається (прочитана в будь-кому — прочитана), рядок S геть; решта — до P. */
 const inboxRule: MergeRule = {
   keys: ['inbox_item.user_id'],
   async run(tx, { primaryId: P, secondaryId: S }) {
+    await tx.execute(sql`update "inbox_item" p set read_at = coalesce(p.read_at, s.read_at) from "inbox_item" s
+      where p.user_id = ${P} and s.user_id = ${S} and p.broadcast_id = s.broadcast_id and p.broadcast_id is not null`);
     await tx
       .delete(inboxItem)
       .where(

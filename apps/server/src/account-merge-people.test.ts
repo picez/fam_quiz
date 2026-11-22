@@ -528,7 +528,7 @@ describe('people rules', () => {
     expect(ctx.summary.hosted).toBe(1);
   });
 
-  it('inbox rows move to the primary; a broadcast both already have keeps the primary row (70)', async () => {
+  it('inbox rows move to the primary; a broadcast both already have keeps the primary row and the read mark (70)', async () => {
     const { primary, secondary, ctx } = await pair();
     const broadcast = async (title: string) =>
       (await db.insert(pushBroadcast).values({ title, text: 'Текст', recipients: 'all', peopleCount: 2, createdAt: NOW }).returning())[0]!.id;
@@ -550,7 +550,9 @@ describe('people rules', () => {
 
     const mine = await db.select().from(inboxItem).where(eq(inboxItem.userId, primary));
     expect(mine.map((row) => row.broadcastId ?? row.problemId).sort()).toEqual([b1, b2, problem.id].sort());
-    expect(mine.find((row) => row.broadcastId === b1)).toMatchObject({ id: kept.id, readAt: null });
+    // Прочитане в S лишається прочитаним у P.
+    expect(mine.find((row) => row.broadcastId === b1)).toMatchObject({ id: kept.id, readAt: NOW });
+    expect(mine.find((row) => row.broadcastId === b2)?.readAt).toBeNull();
     expect(await db.select().from(inboxItem).where(eq(inboxItem.userId, secondary))).toEqual([]);
     expect(ctx.summary).toEqual(summaryBefore);
   });
