@@ -2,7 +2,7 @@ import { eq, or, sql } from 'drizzle-orm';
 import type { Db } from '../db/client';
 import {
   account, achievementBlock, adminAction, announcement, botPlan, calendarEvent, calendarRequest, challenge, challengeAttempt,
-  feedEvent, follow, game, gameEvent, groupInvite, groupItem, groupMember, leagueChampion, leaguePoint, libraryCopy, libraryEntry,
+  feedEvent, follow, game, gameEvent, groupInvite, groupItem, groupMember, inboxItem, leagueChampion, leaguePoint, libraryCopy, libraryEntry,
   liveRoom, mergedEmail, participant, prize, prizeAward, problemReport, profile, pushBroadcast, pushSubscription, quiz, savedGame,
   serverError, session, showcasePin, user, userAchievement, userBan, userLike, userReport, userTitle, verification, xpEntry,
 } from '../db/schema';
@@ -35,6 +35,7 @@ export async function referencing(db: Db, userId: string): Promise<Record<string
   await add('calendar_event', db.select().from(calendarEvent).where(eq(calendarEvent.hostId, userId)));
   await add('calendar_request', db.select().from(calendarRequest).where(eq(calendarRequest.userId, userId)));
   await add('merged_email', db.select().from(mergedEmail).where(eq(mergedEmail.userId, userId)));
+  await add('inbox_item', db.select().from(inboxItem).where(eq(inboxItem.userId, userId)));
   await add('push_subscription', db.select().from(pushSubscription).where(eq(pushSubscription.userId, userId)));
   await add('user_ban', db.select().from(userBan).where(or(eq(userBan.userId, userId), eq(userBan.bannedBy, userId))));
   await add('admin_action.admin_id', db.select().from(adminAction).where(eq(adminAction.adminId, userId)));

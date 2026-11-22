@@ -29,7 +29,9 @@ export async function registerAdminBroadcastRoutes(app: FastifyInstance, deps: A
   app.post('/api/admin/broadcasts/preview', read, async (request, reply): Promise<BroadcastPreview | void> => {
     const body = broadcastPreviewSchema.safeParse(request.body ?? {});
     if (!body.success) return reply.code(400).send(INVALID);
-    return { people: (await audienceOf(db, body.data.recipients)).length };
+    // 70: окремий підрахунок «Вхідних» — задача 4.
+    const people = (await audienceOf(db, body.data.recipients)).length;
+    return { people, push: people };
   });
 
   app.post('/api/admin/broadcasts', write, async (request, reply): Promise<AdminBroadcast | void> => {

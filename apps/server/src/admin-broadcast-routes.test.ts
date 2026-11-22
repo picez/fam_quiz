@@ -74,7 +74,7 @@ describe('admin push broadcast routes (59)', () => {
   it('the preview counts who will get it', async () => {
     const ok = await call(ctx, 'POST', '/api/admin/broadcasts/preview', admin.cookie, { recipients: { kind: 'group', groupId } });
     expect(ok.statusCode).toBe(200);
-    expect(ok.json()).toEqual({ people: 1 });
+    expect(ok.json()).toEqual({ people: 1, push: 1 });
     const bad = await call(ctx, 'POST', '/api/admin/broadcasts/preview', admin.cookie, { recipients: { kind: 'none' } });
     expect(bad.statusCode).toBe(400);
   });
@@ -119,7 +119,7 @@ describe('admin push broadcast routes (59)', () => {
     try {
       expect((await list()).groups.map((g) => g.id)).not.toContain(groupId);
       const preview = await call(ctx, 'POST', '/api/admin/broadcasts/preview', admin.cookie, { recipients: { kind: 'group', groupId } });
-      expect(preview.json()).toEqual({ people: 0 });
+      expect(preview.json()).toEqual({ people: 0, push: 0 });
       const response = await call(ctx, 'POST', '/api/admin/broadcasts', admin.cookie, input());
       expect([response.statusCode, response.json()]).toEqual([404, { error: 'group_not_found' }]);
       expect(await db.select().from(pushBroadcast)).toEqual([]);

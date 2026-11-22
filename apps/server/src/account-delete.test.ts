@@ -26,6 +26,7 @@ import {
   groupInvite,
   groupItem,
   groupMember,
+  inboxItem,
   leagueChampion,
   leaguePoint,
   libraryCopy,
@@ -230,10 +231,23 @@ describe('deleteAccount', () => {
     ]);
     await db.insert(announcement).values({ text: 'Привіт', createdBy: taras, createdAt: NOW });
     await db.insert(botPlan).values({ quizId, title: 'План', startsAt: NOW, recipients: 'people', people: [taras, olia], createdBy: taras, createdAt: NOW, updatedAt: NOW });
-    await db.insert(pushBroadcast).values({ createdBy: taras, title: 'Розсилка', text: 'Текст', recipients: 'people', people: [taras, olia], peopleCount: 2, createdAt: NOW });
+    const [broadcastRow] = await db
+      .insert(pushBroadcast)
+      .values({ createdBy: taras, title: 'Розсилка', text: 'Текст', recipients: 'people', people: [taras, olia], peopleCount: 2, createdAt: NOW })
+      .returning();
     await db.insert(problemReport).values([
       { userId: taras, fromAccount: true, text: 'Не відкривається таблиця', createdAt: NOW },
       { userId: olia, fromAccount: true, text: 'Зависла гра', status: 'resolved', resolvedBy: taras, resolvedAt: NOW, createdAt: NOW },
+    ]);
+    // 70: його «Вхідні» — розсилка й відповідь на власну скаргу; у Олі — та сама розсилка.
+    const [answered] = await db
+      .insert(problemReport)
+      .values({ userId: taras, fromAccount: true, text: 'Не грає звук', reply: 'Виправили', repliedAt: NOW, status: 'resolved', createdAt: NOW })
+      .returning();
+    await db.insert(inboxItem).values([
+      { userId: taras, kind: 'broadcast', broadcastId: broadcastRow.id, createdAt: NOW },
+      { userId: taras, kind: 'problem_reply', problemId: answered.id, createdAt: NOW },
+      { userId: olia, kind: 'broadcast', broadcastId: broadcastRow.id, createdAt: NOW },
     ]);
     await db.insert(serverError).values({ fingerprint: 'f', where: 'store', name: 'Error', message: 'boom', dayStart: NOW, firstAt: NOW, lastAt: NOW, status: 'resolved', resolvedBy: taras, resolvedAt: NOW });
     const oliaSaved = await seedGame(db, { hostId: olia, status: 'saved', startedAt: PAST, players: [{ userId: taras, nickname: 'Тарас', score: 0, rank: null }] });
@@ -265,6 +279,9 @@ describe('deleteAccount', () => {
     expect((await db.select().from(problemReport).where(eq(problemReport.text, 'Не відкривається таблиця')))[0]).toMatchObject({ userId: null, fromAccount: true });
     expect((await db.select().from(problemReport).where(eq(problemReport.userId, olia)))[0]).toMatchObject({ resolvedBy: null, status: 'resolved' });
     expect((await db.select().from(serverError))[0]).toMatchObject({ resolvedBy: null, status: 'resolved' });
+    // 70: його «Вхідні» зникли, Олині лишилися.
+    expect(await db.select().from(inboxItem).where(eq(inboxItem.userId, taras))).toEqual([]);
+    expect(await db.select().from(inboxItem).where(eq(inboxItem.userId, olia))).toHaveLength(1);
     expect((await db.select().from(savedGame).where(eq(savedGame.gameId, oliaSaved.gameId)))[0]?.data).toEqual({ v: 1, playerUsers: [['p-olia', olia]], forgotten: ['p-taras'] });
     const [room] = await db.select().from(liveRoom).where(eq(liveRoom.code, `r-${n}`));
     expect(room.data).toEqual({ playerUsers: [['p-olia', olia]], forgotten: ['p-taras'], continued: { bound: ['p-olia'], carry: null, replaces: null } });
@@ -492,7 +509,7 @@ const HANDLED = [
   'league_point.user_id', 'league_champion.user_id', 'library_entry.owner_id', 'library_copy.user_id', 'user_report.reporter_id',
   'user_report.target_user_id', 'announcement.created_by', 'bot_plan.created_by', 'push_broadcast.created_by',
   'problem_report.user_id', 'problem_report.resolved_by', 'server_error.resolved_by', 'game_event.user_id',
-  'merged_email.user_id',
+  'merged_email.user_id', 'inbox_item.user_id',
 ];
 
 describe('the schema', () => {

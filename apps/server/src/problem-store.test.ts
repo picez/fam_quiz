@@ -18,7 +18,7 @@ describe('problem store (64)', () => {
     }
   });
 
-  const input = (text: string) => ({ text, page: null });
+  const input = (text: string) => ({ text, page: null, game: null });
 
   it('stores a report and lists it for its author, newest first', async () => {
     const a = await createProblemReport(db, { userId: ids.olya, input: input('перша'), now: NOW });

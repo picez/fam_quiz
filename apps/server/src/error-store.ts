@@ -260,5 +260,6 @@ export async function problemsBadge(db: Db): Promise<AdminProblemsBadge> {
     db.select({ n: count() }).from(serverError).where(eq(serverError.status, 'new')),
     db.select({ n: count() }).from(problemReport).where(eq(problemReport.status, 'open')),
   ]);
-  return { errors: Number(errors.n), reports: Number(reports.n) };
+  // 70: черга модерації — задача 5.
+  return { errors: Number(errors.n), reports: Number(reports.n), complaints: 0 };
 }

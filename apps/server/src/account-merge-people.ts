@@ -12,6 +12,7 @@ import {
   groupInvite,
   groupItem,
   groupMember,
+  inboxItem,
   prize,
   prizeAward,
   session,
@@ -266,6 +267,22 @@ const plainRule: MergeRule = {
   },
 };
 
+/** 70. «Вхідні»: розсилка, що вже є в P, — рядок S геть (рядок P з його «прочитано» лишається); решта — до P. */
+const inboxRule: MergeRule = {
+  keys: ['inbox_item.user_id'],
+  async run(tx, { primaryId: P, secondaryId: S }) {
+    await tx
+      .delete(inboxItem)
+      .where(
+        and(
+          eq(inboxItem.userId, S),
+          sql`${inboxItem.broadcastId} in (select i.broadcast_id from "inbox_item" i where i.user_id = ${P} and i.broadcast_id is not null)`,
+        ),
+      );
+    await tx.update(inboxItem).set({ userId: P }).where(eq(inboxItem.userId, S));
+  },
+};
+
 /** 20. Скарги: P на самого себе — геть; відкрита скарга, що повторила б відкриту скаргу P (чи на P), — рядок S геть. */
 const reportRule: MergeRule = {
   keys: ['user_report.reporter_id', 'user_report.target_user_id'],
@@ -361,6 +378,7 @@ export const PEOPLE_RULES: readonly MergeRule[] = [
   calendarRule,
   challengeRule,
   plainRule,
+  inboxRule,
   reportRule,
   banRule,
   sessionRule,

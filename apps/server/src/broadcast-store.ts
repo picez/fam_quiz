@@ -99,6 +99,9 @@ async function view(db: Db | Tx, rows: BroadcastRow[], now: Date): Promise<Admin
       url: row.url,
       to,
       people: row.peopleCount,
+      // 70: справжні «Вхідні» й прочитані — задача 4.
+      pushPeople: row.pushPeople,
+      read: 0,
       delivered: row.delivered,
       failed: row.failed,
       status: stale ? 'interrupted' : row.status,

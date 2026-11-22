@@ -97,6 +97,7 @@ export async function listProblemReports(db: Db, query: { status: 'open' | 'reso
         who,
         text: row.text,
         page: row.page,
+        game: row.game ?? null,
         status: row.status,
         reply: row.reply,
         repliedAt: row.repliedAt === null ? null : row.repliedAt.toISOString(),
