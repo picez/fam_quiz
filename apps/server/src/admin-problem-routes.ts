@@ -72,6 +72,6 @@ export async function registerAdminProblemRoutes(app: FastifyInstance, deps: Adm
     // Відповідь — особисте, а не розсилка: іде незалежно від admin_push.
     const pushed = push !== null && (await subscriptionsOf(db, [userId])).length > 0;
     push?.background(push.deliver([userId], { kind: 'problem_reply', reportId: request.params.id, text: body.data.text }));
-    return { pushed };
+    return { pushed, inbox: true };
   });
 }

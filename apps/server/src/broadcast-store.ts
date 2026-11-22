@@ -14,8 +14,9 @@ import { and, asc, desc, eq, gt, inArray, isNull, sql } from 'drizzle-orm';
 import { logAction } from './bans';
 import { recipientsFor } from './bot-plan-store';
 import type { Db } from './db/client';
-import { familyGroup, profile, pushBroadcast, pushSubscription, user } from './db/schema';
+import { familyGroup, inboxItem, profile, pushBroadcast, pushSubscription, user } from './db/schema';
 import { notHidden } from './feed-store';
+import { addBroadcast } from './inbox-store';
 
 /** 63: адресат-група є й не прихована адміністратором; інші адресати — завжди так. */
 export async function groupTargetOk(db: Db, to: BroadcastRecipients): Promise<boolean> {
@@ -46,6 +47,19 @@ export async function audienceOf(db: Db, to: BroadcastRecipients): Promise<strin
     )
     .orderBy(asc(user.id));
   return rows.map((row) => row.id);
+}
+
+/**
+ * Хто отримає розсилку у «Вхідні» (70): «Усім» — кожен акаунт, крім бота й забанених (з підпискою чи ні);
+ * «Група» й «Люди» — адресати 56 як є. Перемикач «Оголошення від адміністраторів» — лише про push.
+ * Без повторів, у порядку id.
+ */
+export async function inboxAudienceOf(db: Db, to: BroadcastRecipients): Promise<string[]> {
+  if (to.kind === 'all') {
+    const rows = await db.select({ id: user.id }).from(user).where(notHidden(user.id)).orderBy(asc(user.id));
+    return rows.map((row) => row.id);
+  }
+  return [...new Set(await recipientsFor(db, to))].sort();
 }
 
 type Tx = Parameters<Parameters<Db['transaction']>[0]>[0];
@@ -79,6 +93,16 @@ async function view(db: Db | Tx, rows: BroadcastRow[], now: Date): Promise<Admin
   const adminIds = [...new Set(rows.map((r) => r.createdBy).filter((id): id is string => id !== null))];
   const personIds = [...new Set(rows.flatMap((r) => r.people))];
   const known = [...new Set([...adminIds, ...personIds])];
+  // 70: скільки прочитали у «Вхідних» — одним запитом на всі рядки.
+  const reads = new Map<string, number>();
+  if (rows.length > 0) {
+    const counted = await db
+      .select({ id: inboxItem.broadcastId, n: sql<number>`count(*) filter (where ${inboxItem.readAt} is not null)` })
+      .from(inboxItem)
+      .where(inArray(inboxItem.broadcastId, rows.map((r) => r.id)))
+      .groupBy(inboxItem.broadcastId);
+    for (const c of counted) if (c.id !== null) reads.set(c.id, Number(c.n));
+  }
   const nicks = new Map<string, string>();
   if (known.length > 0) {
     const found = await db.select({ id: profile.userId, nickname: profile.nickname }).from(profile).where(inArray(profile.userId, known));
@@ -99,9 +123,8 @@ async function view(db: Db | Tx, rows: BroadcastRow[], now: Date): Promise<Admin
       url: row.url,
       to,
       people: row.peopleCount,
-      // 70: справжні «Вхідні» й прочитані — задача 4.
       pushPeople: row.pushPeople,
-      read: 0,
+      read: reads.get(row.id) ?? 0,
       delivered: row.delivered,
       failed: row.failed,
       status: stale ? 'interrupted' : row.status,
@@ -112,8 +135,12 @@ async function view(db: Db | Tx, rows: BroadcastRow[], now: Date): Promise<Admin
 export type CreateBroadcastResult = { ok: true; row: AdminBroadcast } | { ok: false; error: 'broadcast_too_soon' | 'broadcast_day_limit'; nextAt: string };
 
 /** Створює розсилку під замком: ліміти не розійдуться між паралельними адмінами; відмова не лишає ні рядка, ні журналу. */
-export async function createBroadcast(db: Db, args: { adminId: string; input: BroadcastInput; people: string[]; now: Date }): Promise<CreateBroadcastResult> {
-  const { adminId, input, people, now } = args;
+/** people — адресати «Вхідних» (70), pushPeople — з них ті, кому ще й сповіщення. */
+export async function createBroadcast(
+  db: Db,
+  args: { adminId: string; input: BroadcastInput; people: string[]; pushPeople: string[]; now: Date },
+): Promise<CreateBroadcastResult> {
+  const { adminId, input, people, pushPeople, now } = args;
   return db.transaction(async (tx) => {
     await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext('push_broadcast'))`);
     const limits = await broadcastLimits(tx, now);
@@ -139,10 +166,12 @@ export async function createBroadcast(db: Db, args: { adminId: string; input: Br
         groupName,
         people: target.people,
         peopleCount: people.length,
+        pushPeople: pushPeople.length,
         status: 'sending',
         createdAt: now,
       })
       .returning();
+    await addBroadcast(tx, { broadcastId: row!.id, userIds: people, now });
     await logAction(tx, { adminId, kind: 'push_broadcast', targetUserId: null, details: { title: input.title, count: people.length }, now });
     const [made] = await view(tx, [row!], now);
     return { ok: true as const, row: made! };

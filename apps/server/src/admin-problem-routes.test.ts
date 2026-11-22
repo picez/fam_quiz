@@ -1,8 +1,8 @@
-import type { AdminList, AdminProblemReport, AdminProblemsBadge, AdminServerError, MyProblemReport, PushPayload } from '@quiz/shared';
+import type { AdminList, AdminProblemReport, AdminProblemsBadge, AdminServerError, InboxPage, MyProblemReport, PushPayload } from '@quiz/shared';
 import { desc, eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { buildApp } from './app';
-import { adminAction, problemReport, profile, user } from './db/schema';
+import { adminAction, inboxItem, problemReport, profile, user } from './db/schema';
 import { reportError } from './log';
 import { ensureProfile } from './profiles';
 import { saveSubscription } from './push-store';
@@ -90,7 +90,7 @@ describe('admin errors and problem reports (64)', () => {
 
     const replied = await call(ctx, 'POST', `/api/admin/problems/${olyaId}/reply`, admin.cookie, { text: 'Виправили, дякуємо!' });
     expect(replied.statusCode).toBe(200);
-    expect(replied.json()).toEqual({ pushed: true });
+    expect(replied.json()).toEqual({ pushed: true, inbox: true });
     await ctx.push!.idle();
     expect(sent).toContainEqual({ kind: 'problem_reply', reportId: olyaId, text: 'Виправили, дякуємо!', locale: 'uk' });
     const [row] = await db.select().from(problemReport).where(eq(problemReport.id, olyaId));
@@ -99,6 +99,8 @@ describe('admin errors and problem reports (64)', () => {
     const again = await call(ctx, 'POST', `/api/admin/problems/${olyaId}/reply`, admin.cookie, { text: 'ще раз' });
     expect(again.statusCode).toBe(409);
     expect(again.json()).toEqual({ error: 'problem_replied' });
+    // 70: відповідь — один рядок у «Вхідних» Олі, повтор другого не додає.
+    expect((await db.select().from(inboxItem).where(eq(inboxItem.problemId, olyaId))).map((r) => [r.userId, r.kind, r.readAt])).toEqual([[olya.id, 'problem_reply', null]]);
     const toGuest = await call(ctx, 'POST', `/api/admin/problems/${guestId}/reply`, admin.cookie, { text: 'привіт' });
     expect(toGuest.statusCode).toBe(409);
     expect(toGuest.json()).toEqual({ error: 'problem_no_account' });
@@ -106,6 +108,7 @@ describe('admin errors and problem reports (64)', () => {
 
     expect((await call(ctx, 'POST', `/api/admin/problems/${guestId}/resolve`, admin.cookie, {})).statusCode).toBe(200);
     expect(await lastLog()).toMatchObject({ kind: 'problem_resolve', details: { text: 'гість скаржиться' } });
+    expect(await db.select().from(inboxItem).where(eq(inboxItem.problemId, guestId))).toEqual([]);
     expect((await call(ctx, 'POST', '/api/admin/problems/abc/resolve', admin.cookie, {})).statusCode).toBe(404);
     expect((await call(ctx, 'POST', '/api/admin/problems/6f1c9b0e-1111-4111-8111-111111111111/resolve', admin.cookie, {})).statusCode).toBe(404);
 
@@ -123,9 +126,24 @@ describe('admin errors and problem reports (64)', () => {
     const id = await report('Ганна скаржиться', hanna.cookie);
     sent.length = 0;
     const replied = await call(ctx, 'POST', `/api/admin/problems/${id}/reply`, admin.cookie, { text: 'Готово' });
-    expect(replied.json()).toEqual({ pushed: true });
+    expect(replied.json()).toEqual({ pushed: true, inbox: true });
     await ctx.push!.idle();
     expect(sent.map((p) => p.kind)).toEqual(['problem_reply']);
+  });
+
+  it('a reply without push lands only in the inbox (70)', async () => {
+    const taras = await person('Тарас');
+    const id = await report('Тарас скаржиться', taras.cookie);
+    const closed = await report('Тарас ще раз', taras.cookie);
+    expect((await call(ctx, 'POST', `/api/admin/problems/${closed}/resolve`, admin.cookie, {})).statusCode).toBe(200);
+    sent.length = 0;
+    const replied = await call(ctx, 'POST', `/api/admin/problems/${id}/reply`, admin.cookie, { text: 'Готово' });
+    expect(replied.json()).toEqual({ pushed: false, inbox: true });
+    await ctx.push!.idle();
+    expect(sent).toEqual([]);
+    const inbox = (await call(ctx, 'GET', '/api/me/inbox', taras.cookie)).json() as InboxPage;
+    expect(inbox.items).toHaveLength(1);
+    expect(inbox.items[0]).toMatchObject({ kind: 'problem_reply', reply: 'Готово', read: false, problem: { id, text: 'Тарас скаржиться' } });
   });
 
   it('no email anywhere', async () => {

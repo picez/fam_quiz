@@ -15,6 +15,7 @@ import { logAction } from './bans';
 import type { Db } from './db/client';
 import { problemReport, profile, pushSubscription } from './db/schema';
 import { truncateChars } from './error-mask';
+import { addProblemReply } from './inbox-store';
 import { ensureProfile } from './profiles';
 
 /**
@@ -129,6 +130,8 @@ export async function resolveProblem(db: Db, input: { adminId: string; id: strin
         .update(problemReport)
         .set({ status: 'resolved', reply: input.reply, repliedAt: input.now, resolvedBy: input.adminId, resolvedAt: input.now })
         .where(eq(problemReport.id, row.id));
+      // 70: відповідь — у «Вхідні» автора в тій самій транзакції.
+      await addProblemReply(tx, { userId: row.userId, problemId: row.id, now: input.now });
       await logAction(tx, { adminId: input.adminId, kind: 'problem_reply', targetUserId: row.userId, details: { text: input.reply }, now: input.now });
       return { ok: true, userId: row.userId, replied: true };
     }

@@ -1,8 +1,8 @@
-import type { AdminBroadcast, AdminBroadcasts, PushPayload } from '@quiz/shared';
+import type { AdminBroadcast, AdminBroadcasts, InboxPage, PushPayload } from '@quiz/shared';
 import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { buildApp } from './app';
-import { familyGroup, groupMember, profile, pushBroadcast, pushSubscription, user } from './db/schema';
+import { familyGroup, groupMember, inboxItem, profile, pushBroadcast, pushSubscription, user, userBan } from './db/schema';
 import { createGroup } from './group-store';
 import { ensureProfile } from './profiles';
 import { saveSubscription } from './push-store';
@@ -23,6 +23,8 @@ describe('admin push broadcast routes (59)', () => {
   let admin: { cookie: string; id: string };
   let groupId: string;
   let olya: string;
+  let olyaCookie: string;
+  let taras: { cookie: string; id: string };
   const sent: { endpoint: string; payload: PushPayload }[] = [];
   const status: Record<string, number> = {};
   const emails = new Set<string>();
@@ -55,6 +57,8 @@ describe('admin push broadcast routes (59)', () => {
     const t = await person(ctx, 'Тарас');
     const h = await person(ctx, 'Ганна');
     olya = o.id;
+    olyaCookie = o.cookie;
+    taras = t;
     await saveSubscription(db, o.id, sub('olya'), NOW);
     await saveSubscription(db, h.id, sub('hanna'), NOW);
     await ensureProfile(db, h.id);
@@ -74,7 +78,8 @@ describe('admin push broadcast routes (59)', () => {
   it('the preview counts who will get it', async () => {
     const ok = await call(ctx, 'POST', '/api/admin/broadcasts/preview', admin.cookie, { recipients: { kind: 'group', groupId } });
     expect(ok.statusCode).toBe(200);
-    expect(ok.json()).toEqual({ people: 1, push: 1 });
+    // 70: у «Вхідні» — уся група (власник Тарас, Оля, Ганна), сповіщенням — лише Оля.
+    expect(ok.json()).toEqual({ people: 3, push: 1 });
     const bad = await call(ctx, 'POST', '/api/admin/broadcasts/preview', admin.cookie, { recipients: { kind: 'none' } });
     expect(bad.statusCode).toBe(400);
   });
@@ -83,7 +88,7 @@ describe('admin push broadcast routes (59)', () => {
     await reset();
     const made = await call(ctx, 'POST', '/api/admin/broadcasts', admin.cookie, input());
     expect(made.statusCode).toBe(201);
-    expect(made.json()).toMatchObject({ status: 'sending', people: 1, title: 'Нова вікторина' });
+    expect(made.json()).toMatchObject({ status: 'sending', people: 3, pushPeople: 1, read: 0, title: 'Нова вікторина' });
     await ctx.push!.idle();
     expect(sent).toHaveLength(1);
     expect(sent[0]!.endpoint).toContain('olya');
@@ -109,6 +114,11 @@ describe('admin push broadcast routes (59)', () => {
     const response = await call(ctx, 'POST', '/api/admin/broadcasts', admin.cookie, input({ recipients: { kind: 'people', userIds: ['нема'] } }));
     expect(response.statusCode).toBe(409);
     expect(response.json()).toEqual({ error: 'broadcast_nobody' });
+    // 70: лише забанений — теж нікому.
+    const banned = await person(ctx, 'Мирон');
+    await db.insert(userBan).values({ userId: banned.id, reason: null, bannedAt: NOW });
+    const onlyBanned = await call(ctx, 'POST', '/api/admin/broadcasts', admin.cookie, input({ recipients: { kind: 'people', userIds: [banned.id] } }));
+    expect([onlyBanned.statusCode, onlyBanned.json()]).toEqual([409, { error: 'broadcast_nobody' }]);
     expect(await db.select().from(pushBroadcast)).toEqual([]);
     expect((await list()).limits).toMatchObject({ nextAt: null, lastDay: 0 });
   });
@@ -148,20 +158,47 @@ describe('admin push broadcast routes (59)', () => {
     expect(await db.select().from(pushBroadcast)).toEqual([]);
   });
 
-  it('no push on the server is 503 push_off and pushOn false', async () => {
+  it('without push on the server a broadcast still goes to the inbox (70), pushOn false', async () => {
+    await reset();
     const off = await buildApp({ db, auth: TEST_AUTH, adminEmails: emails });
     try {
       const second = await signUp(off.app, 'Адмін2');
       const { cookie } = second;
       emails.add(second.email.toLowerCase());
       await db.update(user).set({ emailVerified: true }).where(eq(user.email, second.email));
-      const post = await call(off, 'POST', '/api/admin/broadcasts', cookie, input());
-      expect(post.statusCode).toBe(503);
-      expect(post.json()).toEqual({ error: 'push_off' });
+      const recipients = { kind: 'people', userIds: [olya, taras.id] };
+      const preview = await call(off, 'POST', '/api/admin/broadcasts/preview', cookie, { recipients });
+      expect(preview.json()).toEqual({ people: 2, push: 0 });
+      const post = await call(off, 'POST', '/api/admin/broadcasts', cookie, input({ recipients }));
+      expect(post.statusCode).toBe(201);
+      const made = post.json() as AdminBroadcast;
+      expect(made).toMatchObject({ people: 2, pushPeople: 0 });
+      const [row] = (await call(off, 'GET', '/api/admin/broadcasts', cookie)).json().rows as AdminBroadcast[];
+      expect(row).toMatchObject({ id: made.id, status: 'sent', delivered: 0, failed: 0, people: 2, pushPeople: 0 });
+      const inbox = (await call(off, 'GET', '/api/me/inbox', taras.cookie)).json() as InboxPage;
+      expect(inbox.items[0]).toMatchObject({ kind: 'broadcast', title: 'Нова вікторина', text: 'Заходьте грати', url: '/library', read: false });
+      expect(sent).toEqual([]);
       expect(((await call(off, 'GET', '/api/admin/broadcasts', cookie)).json() as AdminBroadcasts).pushOn).toBe(false);
     } finally {
       await off.shutdown();
     }
+  });
+
+  it('push goes to the subscribed one, the inbox to both; reading counts (70)', async () => {
+    await reset();
+    const recipients = { kind: 'people', userIds: [olya, taras.id] };
+    expect((await call(ctx, 'POST', '/api/admin/broadcasts/preview', admin.cookie, { recipients })).json()).toEqual({ people: 2, push: 1 });
+    const post = await call(ctx, 'POST', '/api/admin/broadcasts', admin.cookie, input({ recipients }));
+    expect(post.statusCode).toBe(201);
+    const made = post.json() as AdminBroadcast;
+    await ctx.push!.idle();
+    expect(sent.map((p) => p.endpoint)).toEqual(['https://fcm.googleapis.com/fcm/send/olya']);
+    const rows = await db.select().from(inboxItem).where(eq(inboxItem.broadcastId, made.id));
+    expect(rows.map((r) => r.userId).sort()).toEqual([olya, taras.id].sort());
+    expect((await list()).rows[0]).toMatchObject({ id: made.id, people: 2, pushPeople: 1, read: 0, status: 'sent', delivered: 1 });
+    const page = (await call(ctx, 'GET', '/api/me/inbox', olyaCookie)).json() as InboxPage;
+    expect((await call(ctx, 'POST', '/api/me/inbox/read', olyaCookie, { upTo: page.items[0]!.at })).statusCode).toBe(200);
+    expect((await list()).rows[0]).toMatchObject({ read: 1 });
   });
 
   it('no email anywhere', async () => {
