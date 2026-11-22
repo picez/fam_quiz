@@ -26,11 +26,18 @@ describe('quizFolderNameSchema (73)', () => {
     expect(quizFolderNameSchema.safeParse('Кі\u0000но').success).toBe(false);
     expect(quizFolderNameSchema.safeParse(5).success).toBe(false);
   });
-  it('rejects format characters: zero-width, joiners, bidi marks, BOM, soft hyphen', () => {
-    for (const mark of ['​', '‍', '‎', '‮', '⁦', '﻿', '­']) {
+  it('rejects invisible and bidi characters: zero-width space, bidi marks, BOM, soft hyphen', () => {
+    for (const mark of ['​', '‎', '‮', '⁦', '﻿', '­', '⁠']) {
       expect(quizFolderNameSchema.safeParse(`Кі${mark}но`).success, JSON.stringify(mark)).toBe(false);
     }
     expect(quizFolderNameSchema.parse('Кіно 🎬')).toBe('Кіно 🎬');
+  });
+  it('keeps joined emoji (ZWJ), flags with tag characters and ZWNJ', () => {
+    const family = '\u{1F468}‍\u{1F469}‍\u{1F467}';
+    const scotland = '\u{1F3F4}\u{E0067}\u{E0062}\u{E0073}\u{E0063}\u{E0074}\u{E007F}';
+    expect(quizFolderNameSchema.parse(`Родина ${family}`)).toBe(`Родина ${family}`);
+    expect(quizFolderNameSchema.parse(`Шотландія ${scotland}`)).toBe(`Шотландія ${scotland}`);
+    expect(quizFolderNameSchema.parse('می‌خواهم')).toBe('می‌خواهم');
   });
 });
 

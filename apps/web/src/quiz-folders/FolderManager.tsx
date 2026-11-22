@@ -46,7 +46,10 @@ export function FolderManager({ folders, onChanged }: Props) {
   const rename = (folder: QuizFolder) =>
     run(async () => {
       const result = await renameFolder(folder.id, drafts[folder.id] ?? folder.name);
-      if (!result.ok) return result.error;
+      if (!result.ok) {
+        if (result.error === 'not_found') await refresh();
+        return result.error;
+      }
       setDrafts(({ [folder.id]: _done, ...rest }) => rest);
       onChanged(folders.map((one) => (one.id === folder.id ? result.data : one)));
       return null;
@@ -69,7 +72,10 @@ export function FolderManager({ folders, onChanged }: Props) {
     if (!window.confirm(t('quizFolderDeleteConfirm', { name: folder.name }))) return;
     void run(async () => {
       const result = await deleteFolder(folder.id);
-      if (!result.ok) return result.error;
+      if (!result.ok) {
+        if (result.error === 'not_found') await refresh();
+        return result.error;
+      }
       onChanged(folders.filter((one) => one.id !== folder.id));
       return null;
     });

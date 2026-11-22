@@ -517,7 +517,7 @@ const uk = {
   quizFolderChip: '{name} ({count})',
   quizFoldersManage: 'Керувати категоріями',
   quizFoldersHint: 'Категорії бачиш лише ти. Кожна вікторина може лежати в одній категорії.',
-  quizFoldersEmpty: 'Категорій ще немає. Створи першу — наприклад, «Для Асі» чи «Кіно».',
+  quizFoldersEmpty: 'Категорій ще немає. Створи першу — наприклад, «Для дітей» чи «Кіно».',
   quizFolderNewLabel: 'Нова категорія',
   quizFolderAdd: 'Додати',
   quizFolderNameLabel: 'Назва категорії',

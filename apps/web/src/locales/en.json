@@ -5513,7 +5513,7 @@
   "quizFolderChip": "{name} ({count})",
   "quizFoldersManage": "Manage categories",
   "quizFoldersHint": "Only you can see your categories. Each quiz can be in one category.",
-  "quizFoldersEmpty": "No categories yet. Create the first one — for example, “For Asya” or “Movies”.",
+  "quizFoldersEmpty": "No categories yet. Create the first one — for example, “For kids” or “Movies”.",
   "quizFolderNewLabel": "New category",
   "quizFolderAdd": "Add",
   "quizFolderNameLabel": "Category name",

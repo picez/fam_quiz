@@ -5590,7 +5590,7 @@
   "quizFolderChip": "{name} ({count})",
   "quizFoldersManage": "Gestionar categorías",
   "quizFoldersHint": "Solo tú ves tus categorías. Cada quiz puede estar en una categoría.",
-  "quizFoldersEmpty": "Aún no hay categorías. Crea la primera, por ejemplo, «Para Asya» o «Cine».",
+  "quizFoldersEmpty": "Aún no hay categorías. Crea la primera, por ejemplo, «Para niños» o «Cine».",
   "quizFolderNewLabel": "Nueva categoría",
   "quizFolderAdd": "Añadir",
   "quizFolderNameLabel": "Nombre de la categoría",

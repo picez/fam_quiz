@@ -152,6 +152,11 @@ export function Quizzes() {
     if (!result.ok) {
       place(before);
       fail(result.error);
+      // Категорію могли видалити в іншій вкладці — оновити список, щоб її не було у виборі.
+      if (result.error === 'not_found') {
+        const shelf = await listFolders();
+        if (shelf.ok) setFolders(shelf.data);
+      }
     }
   };
 

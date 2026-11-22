@@ -9,11 +9,11 @@ export const parseQuizSort = (raw: string | null | undefined): QuizSort => QUIZ_
 
 export interface QuizFolder { id: string; name: string; position: number; createdAt: string }
 
-/** Назва категорії: обрізані краї, схлопнуті пробіли, 1–40 символів, без керівних і форматних символів (нульової ширини, напрямку тексту). */
+/** Назва категорії: обрізані краї, схлопнуті пробіли, 1–40 символів, без керівних символів, керування напрямком тексту й невидимих (ZWJ у складених емодзі й ZWNJ — можна). */
 export const quizFolderNameSchema = z
   .string()
   .transform((raw) => raw.trim().replace(/ {2,}/g, ' '))
-  .pipe(z.string().min(1).max(QUIZ_FOLDER_LIMITS.nameMax).regex(/^[^\p{Cc}\p{Cf}]+$/u));
+  .pipe(z.string().min(1).max(QUIZ_FOLDER_LIMITS.nameMax).regex(/^[^\p{Cc}­؜᠎​‎‏‪-‮⁠-⁤⁦-⁯﻿￹-￻]+$/u));
 
 export const quizFolderInputSchema = z.object({ name: quizFolderNameSchema }).strict();
 
