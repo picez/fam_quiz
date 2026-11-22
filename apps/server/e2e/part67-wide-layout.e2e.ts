@@ -732,3 +732,93 @@ it('part 67 profile: the profile, a public profile, achievements, groups, a grou
     throw error;
   }
 }, 400_000);
+
+/** Легкий режим (rem = 19 px), світла тема й арабська (RTL): колонка не вилазить за вікно, пульт і вкладки адмінки стоять дзеркально. */
+async function easyLightRtl67() {
+  const setStore = (page: Page, key: string, value: string) => page.context().addInitScript(([k, v]) => localStorage.setItem(k!, v!), [key, value]);
+  const fits = (page: Page) => page.evaluate('document.documentElement.scrollWidth <= innerWidth');
+  const rect = (page: Page, selector: string) =>
+    page.evaluate(`(() => { const r = document.querySelector('${selector}').getBoundingClientRect(); return { x: r.x, right: r.right, w: r.width }; })()`) as Promise<{ x: number; right: number; w: number }>;
+
+  // ── Адмінка арабською: вкладки з правого боку. ──
+  const admin = await open('admin67r', 1920, 1080);
+  await register(admin, 'menu', 'Адмін 67 RTL', 'admin67r@example.com');
+  await db.update(user).set({ emailVerified: true }).where(eq(user.email, 'admin67r@example.com'));
+  flags.restarting = true;
+  await ctx.shutdown();
+  await relisten({ adminEmails: adminEmails({ ADMIN_EMAILS: 'admin67r@example.com' }) });
+  flags.restarting = false;
+  await setStore(admin, 'quiz:locale', 'ar');
+  await admin.goto(`${base}/admin/users`);
+  await admin.locator('.admin-body').waitFor();
+  expect(await admin.evaluate('document.documentElement.dir'), 'admin: rtl').toBe('rtl');
+  await wide67(admin, 'easy67-admin-rtl', async ({ tag }) => {
+    if (tag === '375') return;
+    const nav = await rect(admin, 'nav.admin-tabs');
+    const body = await rect(admin, '.admin-body');
+    expect(nav.x, `admin ${tag}: tabs on the right in rtl`).toBeGreaterThan(body.x + body.w - 1);
+  });
+  flags.restarting = true;
+  await ctx.shutdown().catch(() => undefined);
+  await relisten();
+  flags.restarting = false;
+
+  // ── Легкий режим і світла тема: меню гравця, пульт у лобі й на запитанні, екран гравця. ──
+  const { host, stage, phones } = await hostGame67();
+  await setStore(host, 'quiz:easy', 'on');
+  await setStore(host, 'quiz:theme', 'light');
+  await host.reload();
+  await host.getByRole('heading', { name: 'Гравці: 4' }).waitFor();
+  expect(await host.evaluate("document.documentElement.classList.contains('is-easy')"), 'easy class on html').toBe(true);
+  await wide67(host, 'easy67-host-lobby', async ({ tag, width }) => {
+    expect(await fits(host), `easy lobby ${tag}`).toBe(true);
+    expect(await mainWidth67(host), `easy lobby ${tag}: the column fits the window`).toBeLessThanOrEqual(width);
+  });
+  await host.goto(`${base}/quizzes`);
+  await host.locator('main').waitFor();
+  await wide67(host, 'easy67-quizzes', async ({ tag, width }) => {
+    expect(await mainWidth67(host), `easy quizzes ${tag}`).toBeLessThanOrEqual(width);
+  });
+  await host.goBack();
+  await host.getByRole('heading', { name: 'Гравці: 4' }).waitFor();
+
+  await setStore(phones[0]!, 'quiz:easy', 'on');
+  await setStore(phones[0]!, 'quiz:theme', 'light');
+  await click(host, 'Почати гру');
+  await afterSplash(host, stage, ...phones);
+  await step27a(host, 'Почати раунд');
+  await afterSplash(host, stage, ...phones);
+  await phones[0]!.reload();
+  await phones[0]!.getByLabel('Ваша відповідь', exact).waitFor();
+  await host.getByRole('timer').first().waitFor();
+  await wide67(host, 'easy67-host-question', async ({ tag, width }) => {
+    expect(await fits(host), `easy question ${tag}`).toBe(true);
+    expect(await mainWidth67(host), `easy question ${tag}`).toBeLessThanOrEqual(width);
+    await expectColumns67(host, tag);
+  });
+  await wide67(phones[0]!, 'easy67-player-question', async ({ tag, width }) => {
+    expect(await fits(phones[0]!), `easy player ${tag}`).toBe(true);
+    expect(await mainWidth67(phones[0]!), `easy player ${tag}`).toBeLessThanOrEqual(width);
+  });
+
+  // ── Пульт арабською на запитанні: основна колонка праворуч, бічна ліворуч. ──
+  await setStore(host, 'quiz:locale', 'ar');
+  await host.reload();
+  await host.locator('.host-main').waitFor();
+  expect(await host.evaluate('document.documentElement.dir'), 'host: rtl').toBe('rtl');
+  await wide67(host, 'easy67-host-rtl', async ({ tag }) => {
+    if (tag === '375') return;
+    const main = await rect(host, '.host-main');
+    const side = await rect(host, '.host-side');
+    expect(side.right, `host ${tag}: the side column on the left in rtl`).toBeLessThanOrEqual(main.x + 1);
+  });
+}
+
+it('part 67 easy, light and right to left: the easy mode (19 px rem) and the light theme keep the columns inside the window on a computer and a phone, the host side column and the admin tabs mirror in Arabic', async () => {
+  try {
+    await easyLightRtl67();
+  } catch (error) {
+    await snapshot();
+    throw error;
+  }
+}, 400_000);
