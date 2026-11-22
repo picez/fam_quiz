@@ -125,6 +125,21 @@ describe('BarChart', () => {
     expect(container.querySelector('.chart-tip')).toBeNull();
   });
 
+  it('drops the hovered bar when a shorter period replaces the data under the mouse', () => {
+    const element = (values: number[]) => (
+      <>
+        <h3 id="t">Ігри за день</h3>
+        <BarChart title="Ігри за день" titleId="t" labels={labels(values.length)} unit="count" size="small" series={single(values)} />
+      </>
+    );
+    const { container, rerender } = render(element([1, 2, 3, 4, 5]));
+    fireEvent.mouseEnter(container.querySelectorAll('.chart-hit')[4]!);
+    expect(container.querySelector('.chart-tip')?.textContent).toBe('day 45');
+    rerender(element([1, 2]));
+    expect(container.querySelector('.chart-tip')).toBeNull();
+    expect(container.querySelector('.chart-band')).toBeNull();
+  });
+
   it('treats NaN, infinity and negative values as gaps: no bar, no "NaN", not in the total', () => {
     const series: ChartSeries[] = [
       { key: 'a', label: 'А', color: 1, values: [NaN, 2, -3, Infinity] },

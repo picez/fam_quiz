@@ -65,8 +65,8 @@ describe('healthProblems (71)', () => {
       { fingerprint: 'a', where: 'http', name: 'Error', message: 'boom', dayCount: 3, count: 5, dayStart: at(2 * HOUR), firstAt: at(40 * HOUR), lastAt: at(HOUR) },
       { fingerprint: 'b', where: 'http', name: 'Error', message: 'old', dayCount: 7, count: 7, dayStart: at(30 * HOUR), firstAt: at(30 * HOUR), lastAt: at(29 * HOUR) },
       { fingerprint: 'c', where: 'http', name: 'Error', message: 'done', dayCount: 2, count: 2, dayStart: at(HOUR), firstAt: at(HOUR), lastAt: at(HOUR), status: 'resolved' },
-      // Добове вікно почалось 30 год тому, але збій повторився годину тому — він є за останні 24 год.
-      { fingerprint: 'd', where: 'http', name: 'Error', message: 'again', dayCount: 4, count: 9, dayStart: at(30 * HOUR), firstAt: at(60 * HOUR), lastAt: at(HOUR) },
+      // Добове вікно почалось 20 год тому, збій повторився годину тому — він є за останні 24 год (старіше вікно error-store скинув би на новому збої).
+      { fingerprint: 'd', where: 'http', name: 'Error', message: 'again', dayCount: 4, count: 9, dayStart: at(20 * HOUR), firstAt: at(60 * HOUR), lastAt: at(HOUR) },
     ]);
     await db.insert(problemReport).values([
       { userId: olia, fromAccount: true, text: 'Зависла гра', createdAt: NOW },

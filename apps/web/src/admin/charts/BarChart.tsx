@@ -164,9 +164,11 @@ function Legend({ series, unit }: { series: ChartSeries[]; unit: ChartUnit }): J
 
 function Plot({ titleId, labels, series, unit, size, average = true, labelGap = 56 }: BarChartProps): JSX.Element {
   const [ref, width] = useWidth<HTMLDivElement>();
-  const [active, setActive] = useState<number | null>(null);
+  const [hovered, setActive] = useState<number | null>(null);
   const [focused, setFocused] = useState(false);
   const count = labels.length;
+  // Період змінився під курсором: старий індекс може бути поза новими стовпчиками.
+  const active = hovered !== null && hovered < count ? hovered : null;
   const height = size === 'large' ? largeHeight() : HEIGHT_SMALL;
   const top = TOP[size];
   const bottom = height - BOTTOM;
