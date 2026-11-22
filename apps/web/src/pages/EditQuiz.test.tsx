@@ -2,7 +2,8 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { createQuiz, fetchQuizLikes, getQuiz, markGroupUses, me, updateQuiz } from '../api';
+import { createQuiz, fetchQuizLikes, getQuiz, markGroupUses, me, sendEditorTime, updateQuiz } from '../api';
+import { forgetAccount } from '../useAccount';
 import { roundQuestions } from '@quiz/shared';
 import { demoQuiz } from '../demo-quiz';
 import type { Question, Quiz } from '@quiz/shared';
@@ -11,12 +12,13 @@ import { saveDraft, saveGroupDrafts } from '../editor/draft-storage';
 import { errorText, t } from '../i18n';
 import { EditQuiz } from './EditQuiz';
 
-vi.mock('../api', () => ({ me: vi.fn(), getQuiz: vi.fn(), createQuiz: vi.fn(), updateQuiz: vi.fn(), fetchQuizLikes: vi.fn(), markGroupUses: vi.fn() }));
+vi.mock('../api', () => ({ me: vi.fn(), getQuiz: vi.fn(), createQuiz: vi.fn(), updateQuiz: vi.fn(), fetchQuizLikes: vi.fn(), markGroupUses: vi.fn(), sendEditorTime: vi.fn() }));
 
 beforeEach(() => {
   vi.clearAllMocks();
   sessionStorage.clear();
   vi.mocked(fetchQuizLikes).mockResolvedValue(null);
+  vi.mocked(sendEditorTime).mockResolvedValue(true);
   vi.mocked(me).mockResolvedValue({ ok: true, id: 'u1', name: 'Олена', email: 'o@example.com', admin: false });
 });
 afterEach(cleanup);
@@ -34,6 +36,47 @@ const open = (path: string) =>
   );
 
 describe('EditQuiz', () => {
+  describe('editor time (71)', () => {
+    afterEach(() => {
+      vi.useRealTimers();
+      forgetAccount();
+    });
+    const work = async (sec: number) => {
+      for (let t = 0; t < sec; t += 5) {
+        fireEvent.keyDown(document, { key: 'a' });
+        await vi.advanceTimersByTimeAsync(5_000);
+      }
+    };
+
+    it('counts active time of a signed-in author and sends it by the minute', async () => {
+      vi.useFakeTimers({ shouldAdvanceTime: true });
+      open('/quizzes/new');
+      await screen.findByLabelText('Назва вікторини');
+      await work(60);
+      expect(sendEditorTime).toHaveBeenCalledWith({ seconds: 60, start: true }, false);
+    });
+
+    it('does not count before the account is known', async () => {
+      forgetAccount();
+      vi.mocked(me).mockReturnValue(new Promise(() => {}));
+      vi.useFakeTimers();
+      const view = open('/quizzes/new');
+      await work(120);
+      view.unmount();
+      expect(sendEditorTime).not.toHaveBeenCalled();
+    });
+
+    it('does not count for a guest', async () => {
+      forgetAccount();
+      vi.mocked(me).mockResolvedValue({ ok: false, error: 'unauthorized' });
+      open('/quizzes/new');
+      expect(await screen.findByText('сторінка входу')).toBeTruthy();
+      vi.useFakeTimers();
+      await work(120);
+      expect(sendEditorTime).not.toHaveBeenCalled();
+    });
+  });
+
   it('asks for the likes of a saved quiz and shows them without blocking the editor (17a)', async () => {
     vi.mocked(getQuiz).mockResolvedValue({ ok: true, data: demoQuiz });
     vi.mocked(fetchQuizLikes).mockResolvedValue({ quiz: 5, questions: {} });

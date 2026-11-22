@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom';
 import { createQuiz, fetchQuizLikes, getQuiz, markGroupUses, updateQuiz } from '../api';
 import { newQuiz } from '../editor/draft';
+import { useEditorTime } from '../editor/editor-time';
 import { clearDraft, clearGroupDrafts, loadDraft, loadGroupDrafts, saveDraft, saveGroupDrafts } from '../editor/draft-storage';
 import { GroupDraftsProvider, usesToMark, type GroupDrafts } from '../editor/group-drafts';
 import { newId } from '../editor/new-id';
@@ -28,6 +29,8 @@ export function EditQuiz() {
   const [likes, setLikes] = useState<QuizLikes | undefined>(undefined);
   const [expired, setExpired] = useState(false);
   const signedIn = account.status === 'signed-in';
+  // 71: активний час у редакторі — для статистики адміна; лише для акаунта.
+  useEditorTime(signedIn);
 
   useEffect(() => {
     if (!signedIn || id === undefined) return;

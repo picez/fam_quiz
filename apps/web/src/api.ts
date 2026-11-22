@@ -131,6 +131,22 @@ export const googleSignIn = (next: string) =>
     body: { provider: 'google', callbackURL: next, errorCallbackURL: '/login' },
   });
 
+/** 71: порція активного часу в редакторі; true — прийнято (204). Збої ковтаємо: метрика не важливіша за редактор. */
+export async function sendEditorTime(body: { seconds: number; start: boolean }, keepalive: boolean): Promise<boolean> {
+  try {
+    const response = await fetch('/api/me/editor-time', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body),
+      keepalive,
+    });
+    return response.status === 204;
+  } catch {
+    return false;
+  }
+}
+
 export const getPushKey = () => request<{ publicKey: string | null }>('/api/push/key');
 export const savePushSubscription = (sub: PushSubscriptionInput) => request<object>('/api/me/push', { body: sub });
 export const deletePushSubscription = (endpoint: string) => request<object>('/api/me/push', { method: 'DELETE', body: { endpoint } });
