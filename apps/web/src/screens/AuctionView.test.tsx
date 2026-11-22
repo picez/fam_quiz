@@ -81,6 +81,22 @@ describe('BidForm', () => {
     expect(screen.queryByText('Більше за свої бали поставити не можна.')).toBeNull();
   });
 
+  it('the bid field takes only digits: letters, e, +, minus and separators are dropped', async () => {
+    const send = vi.fn<Send>(async () => ({ ok: true }));
+    render(<BidForm auction={info({ mode: 'free', next: 201 })} mine={mineOf({ next: 201 })} send={send} />);
+    const field = screen.getByLabelText(t('auctionBidLabel')) as HTMLInputElement;
+    expect(field.type).toBe('text');
+    expect(field.inputMode).toBe('numeric');
+    fireEvent.change(field, { target: { value: 'abc' } });
+    expect(field.value).toBe('');
+    fireEvent.change(field, { target: { value: '+4e5-0,5' } });
+    expect(field.value).toBe('4505');
+    fireEvent.change(field, { target: { value: '٣٠٠' } });
+    expect(field.value).toBe('300');
+    fireEvent.click(screen.getByRole('button', { name: 'Поставити' }));
+    await waitFor(() => expect(send).toHaveBeenCalledWith('player:wager', { amount: 300 }));
+  });
+
   it('a closed auction says the bidding is over', async () => {
     const send = vi.fn<Send>(async () => ({ ok: false, error: 'time_over' }));
     render(<BidForm auction={info()} mine={mineOf()} send={send} />);

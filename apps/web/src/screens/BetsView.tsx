@@ -3,6 +3,7 @@ import type { BetsInfo, Grade, HostBets, PlayerBets } from '@quiz/shared';
 import { answerText, num, signed } from '../format';
 import { errorText, t } from '../i18n';
 import type { Send } from '../live/types';
+import { NumberInput } from '../ui/NumberInput';
 
 /** Тема, «Запитання k з n» і початок тексту: спільна шапка ставки (і для того, хто лише дивиться). */
 export function BetsHeader({ bets }: { bets: BetsInfo }) {
@@ -64,9 +65,7 @@ export function BetForm({ bets, mine, send }: { bets: BetsInfo; mine: PlayerBets
         <div className="wager-row">
           <label className="field">
             <span className="meta">{t('finalWagerLabel')}</span>
-            <input
-              type="number"
-              inputMode="numeric"
+            <NumberInput
               dir="ltr"
               min={mine.minimum}
               max={mine.limit}

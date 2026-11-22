@@ -78,7 +78,7 @@ describe('ResumePanel', () => {
     const select = screen.getByRole('combobox', { name: 'Почати з раунду' }) as HTMLSelectElement;
     expect(Array.from(select.options).map((o) => o.textContent)).toEqual(['Раунд 1 · Розминка', 'Раунд 2 · Річки', 'Раунд 3 · Гори']);
     expect(field('Оля').value).toBe('0');
-    // Текстове поле без inputMode: «42 434» і «−500» не відкидає браузер.
+    // Текстове поле без inputMode: на iOS є мінус для «−500»; лишаються тільки цифри й мінус.
     expect(field('Тарас').type).toBe('text');
     expect(field('Тарас').getAttribute('inputmode')).toBeNull();
     expect(field('Тарас').getAttribute('autocomplete')).toBe('off');
@@ -95,11 +95,16 @@ describe('ResumePanel', () => {
     expect(screen.getByText('Старт: Раунд 3 · Гори. Перенесені бали: 1 з 3.')).toBeTruthy();
   });
 
-  it('takes «42 434» and «−500» as typed', () => {
+  it('takes «42 434» as 42434 and «−500» as -500, and drops letters', () => {
     render(<Harness initial={{ ...emptyDraft(), open: true }} />);
     fireEvent.change(field('Оля'), { target: { value: '42 434' } });
     fireEvent.change(field('Петро'), { target: { value: '−500' } });
-    expect(field('Оля').value).toBe('42 434');
+    expect(field('Оля').value).toBe('42434');
+    expect(field('Петро').value).toBe('-500');
+    fireEvent.change(field('Тарас'), { target: { value: '7a0b' } });
+    expect(field('Тарас').value).toBe('70');
+    fireEvent.change(field('Тарас'), { target: { value: 'о0' } });
+    expect(field('Тарас').value).toBe('0');
     expect(field('Оля').getAttribute('aria-invalid')).toBeNull();
     expect(field('Петро').getAttribute('aria-invalid')).toBeNull();
     expect(resumePayload(latest, info)).toEqual({ resume: { roundIndex: 0, points: { p1: 42_434, p2: -500 } } });

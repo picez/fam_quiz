@@ -3589,7 +3589,7 @@ describe('HostScreen: resume a game (12r)', () => {
   it('a bad field disables «Почати гру» while the panel is open', () => {
     show(view({ resume }));
     const panel = unfold();
-    fireEvent.change(within(panel).getByRole('textbox', { name: 'Тарас' }), { target: { value: '1.5' } });
+    fireEvent.change(within(panel).getByRole('textbox', { name: 'Тарас' }), { target: { value: '-' } });
     expect(button('Почати гру').disabled).toBe(true);
     panel.open = false;
     fireEvent(panel, new Event('toggle'));
@@ -3607,7 +3607,7 @@ describe('HostScreen: resume a game (12r)', () => {
     const joined = { ...resume, participants: [...resume.participants, { id: 'p3', nickname: 'Іра' }] };
     rerender(<HostScreen view={view({ resume: joined })} {...props} />);
     expect((within(panel).getByRole('textbox', { name: 'Іра' }) as HTMLInputElement).value).toBe('0');
-    expect((within(panel).getByRole('textbox', { name: 'Олена' }) as HTMLInputElement).value).toBe('42 434');
+    expect((within(panel).getByRole('textbox', { name: 'Олена' }) as HTMLInputElement).value).toBe('42434');
     expect((within(panel).getByRole('combobox', { name: 'Почати з раунду' }) as HTMLSelectElement).value).toBe('1');
     expect(within(panel).getByText('Старт: Раунд 2 · Річки. Перенесені бали: 1 з 3.')).toBeTruthy();
     // Олена вийшла: її бали більше не надсилаються.

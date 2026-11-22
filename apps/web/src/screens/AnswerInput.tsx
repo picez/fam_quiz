@@ -9,6 +9,7 @@ import { MatchInput } from './MatchView';
 import { PinInput } from './PinInput';
 import { SliderInput } from './SliderInput';
 import { SurveyInput } from './SurveyInput';
+import { NumberInput } from '../ui/NumberInput';
 
 interface Props {
   question: PublicQuestion;
@@ -140,16 +141,32 @@ function TypedInput({ question, onSubmit, submitLabel, autoFocus = true, onDraft
     <form className="typed" onSubmit={submit}>
       <label className="field">
         <span>{t('yourAnswer')}</span>
-        <input
-          value={raw}
-          onChange={(event) => change(event.target.value)}
-          inputMode={numeric ? 'decimal' : 'text'}
-          placeholder={t(numeric ? 'numberPlaceholder' : question.type === 'thinkalike' ? 'alikePhoneHint' : 'answerPlaceholder')}
-          maxLength={question.type === 'thinkalike' ? LIMITS.thinkWord : 200}
-          autoComplete="off"
-          ref={field}
-          disabled={disabled}
-        />
+        {numeric ? (
+          // Число може бути від'ємним і дробовим; клавіатура та сама, що й раніше (decimal).
+          <NumberInput
+            value={raw}
+            onChange={(event) => change(event.target.value)}
+            negative
+            decimal
+            inputMode="decimal"
+            placeholder={t('numberPlaceholder')}
+            maxLength={200}
+            autoComplete="off"
+            ref={field}
+            disabled={disabled}
+          />
+        ) : (
+          <input
+            value={raw}
+            onChange={(event) => change(event.target.value)}
+            inputMode="text"
+            placeholder={t(question.type === 'thinkalike' ? 'alikePhoneHint' : 'answerPlaceholder')}
+            maxLength={question.type === 'thinkalike' ? LIMITS.thinkWord : 200}
+            autoComplete="off"
+            ref={field}
+            disabled={disabled}
+          />
+        )}
       </label>
       <button type="submit" className="btn btn-primary" disabled={!ready || disabled}>
         {submitLabel ?? t('submit')}

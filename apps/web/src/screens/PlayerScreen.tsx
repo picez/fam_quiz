@@ -109,6 +109,7 @@ import { StickyTimerProvider } from '../live/StickyTimer';
 import { ReactionButton } from './ReactionSheet';
 import { LikeButton, LikePanel } from './Likes';
 import { canReact } from '../reactions';
+import { NumberInput } from '../ui/NumberInput';
 
 interface Props {
   view: PlayerView;
@@ -615,9 +616,7 @@ function WagerForm({
           <div className="wager-row">
             <label className="field">
               <span className="meta">{t('finalWagerLabel')}</span>
-              <input
-                type="number"
-                inputMode="numeric"
+              <NumberInput
                 min={0}
                 max={final.limit}
                 step={1}

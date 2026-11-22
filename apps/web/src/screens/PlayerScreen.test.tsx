@@ -1500,9 +1500,13 @@ describe('PlayerScreen final', () => {
     expect(place.disabled).toBe(true);
     fireEvent.change(field, { target: { value: '401' } });
     expect(place.disabled).toBe(true);
+    // Мінус, роздільник і букви поле не впускає: лишаються тільки цифри.
     fireEvent.change(field, { target: { value: '-1' } });
-    expect(place.disabled).toBe(true);
-    fireEvent.change(field, { target: { value: '1.5' } });
+    expect(field.value).toBe('1');
+    fireEvent.change(field, { target: { value: '1.5e' } });
+    expect(field.value).toBe('15');
+    fireEvent.change(field, { target: { value: 'abc' } });
+    expect(field.value).toBe('');
     expect(place.disabled).toBe(true);
     fireEvent.change(field, { target: { value: '0' } });
     expect(place.disabled).toBe(false);

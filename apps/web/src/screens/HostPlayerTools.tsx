@@ -5,6 +5,7 @@ import { signed } from '../format';
 import { t } from '../i18n';
 import type { Send } from '../live/types';
 import { useGuardedSend } from '../live/useGuardedSend';
+import { NumberInput } from '../ui/NumberInput';
 
 export const QUICK_POINTS = [-50, -100, -200, 50, 100] as const;
 
@@ -57,8 +58,8 @@ export function PointsPanel({ player, send, onError }: PanelProps) {
       <form className="custom-points" onSubmit={submit}>
         <label className="field">
           {t('adjustCustom')}
-          <input
-            type="text"
+          <NumberInput
+            negative
             // Без inputMode="numeric": цифрова клавіатура iOS не має мінуса, а суму треба й відняти.
             autoComplete="off"
             value={raw}
