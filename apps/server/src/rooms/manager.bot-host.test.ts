@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { classicRound, makeRoundsQuiz, single, text } from '@quiz/engine/testing';
-import { defaultTeams, type HostView, type Quiz } from '@quiz/shared';
+import { blitzRound, classicRound, makeRoundsQuiz, single, text } from '@quiz/engine/testing';
+import { AUTOPILOT_MS, BOT_MANUAL_GRACE_MS, defaultTeams, type HostView, type Quiz } from '@quiz/shared';
 import { FakeScheduler } from '../testing/fake-scheduler';
-import { AUTOPILOT_EMPTY_MS, RoomManager, type Identity, type Room } from './manager';
+import { AUTOPILOT_EMPTY_MS, HOST_ABSENCE_MS, RoomManager, type Identity, type Room } from './manager';
 
 // 68: адмін веде гру бота з пульта — токен, ідентичність, дії ведучого.
 
@@ -52,6 +52,17 @@ function atQuestion(manager: RoomManager, scheduler: FakeScheduler): { room: Roo
 function wrongReveal(manager: RoomManager, scheduler: FakeScheduler, room: Room, playerId: string): void {
   expect(manager.answer(room, playerId, { type: 'single', optionId: 'a' })).toEqual({ ok: true });
   for (let i = 0; i < 300 && room.state.phase !== 'reveal'; i++) scheduler.advance(100);
+  expect(room.state.phase).toBe('reveal');
+}
+
+/** «Керую сам»: Оля відповідає неправильно, запитання закривається само, а розкриває його адмін (бот кроків не робить). */
+function manualReveal(manager: RoomManager, scheduler: FakeScheduler, room: Room, playerId: string): void {
+  expect(manager.answer(room, playerId, { type: 'single', optionId: 'a' })).toEqual({ ok: true });
+  for (let i = 0; i < 300 && room.state.phase === 'question'; i++) scheduler.advance(100);
+  expect(room.state.phase).toBe('locked');
+  scheduler.advance(AUTOPILOT_MS.locked * 4);
+  expect(room.state.phase).toBe('locked');
+  expect(manager.adminHost(room, { type: 'next' })).toEqual({ ok: true });
   expect(room.state.phase).toBe('reveal');
 }
 
@@ -186,5 +197,152 @@ describe('the admin host of a bot room (68)', () => {
     if (!pilot.ok) throw new Error(pilot.error);
     expect(manager.author(pilot.room, pilot.playerId, { type: 'override', playerId: pilot.playerId, grade: 'correct' })).toEqual({ ok: false, error: 'not_allowed' });
     expect(manager.author(pilot.room, pilot.playerId, { type: 'undo', target: { round: 0 } })).toEqual({ ok: false, error: 'not_allowed' });
+  });
+});
+
+describe('manual mode of a bot room (68)', () => {
+  it('in manual mode the bot makes no step on reveal; the admin goes on', () => {
+    const { manager, scheduler } = setup();
+    const { room, olya } = atQuestion(manager, scheduler);
+    const admin = adminHost(manager, room);
+    manager.connect(room, admin);
+    expect(manager.botManual(room.code, 'admin-1', true)).toEqual({ ok: true, changed: true });
+    expect(room.botManual).toMatchObject({ adminId: 'admin-1' });
+    expect((manager.view(room, admin) as HostView).botHost).toEqual({ manual: true, mine: true });
+    expect((manager.view(room, adminHost(manager, room, 'admin-2')) as HostView).botHost).toEqual({ manual: true, mine: false });
+    manualReveal(manager, scheduler, room, olya.playerId);
+    scheduler.advance(AUTOPILOT_MS.reveal + 5000);
+    expect(room.state.phase).toBe('reveal');
+    expect(manager.adminHost(room, { type: 'next' })).toEqual({ ok: true });
+    expect(room.state.phase).not.toBe('reveal');
+    // Той самий адмін удруге — без змін; інший перехоплює.
+    expect(manager.botManual(room.code, 'admin-1', true)).toEqual({ ok: true, changed: false });
+    expect(manager.botManual(room.code, 'admin-2', true)).toEqual({ ok: true, changed: true });
+    expect(room.botManual).toMatchObject({ adminId: 'admin-2' });
+  });
+
+  it('an answer waiting for the host is not judged by the bot in manual mode; the admin judges it', () => {
+    const blitz = (): Quiz => makeRoundsQuiz([blitzRound('b1', [{ ...single, timeLimit: 60 }, { ...single, timeLimit: 60 }], { check: 'manual', attempts: 1 })]);
+    const run = (manual: boolean) => {
+      const { manager, scheduler } = setup();
+      const room = botRoom(manager, blitz());
+      const olya = enter(manager, room, 'Оля');
+      expect(manager.botAct(room.code, 'start')).toEqual({ ok: true });
+      for (let i = 0; i < 30 && room.state.phase !== 'question'; i++) scheduler.advance(1000);
+      expect(room.state.phase).toBe('question');
+      if (manual) expect(manager.botManual(room.code, 'admin-1', true).ok).toBe(true);
+      expect(manager.buzz(room, olya.playerId)).toEqual({ ok: true });
+      expect(manager.answer(room, olya.playerId, { type: 'single', optionId: single.correctId })).toEqual({ ok: true });
+      scheduler.advance(2000);
+      return { manager, room, olya };
+    };
+    const helped = run(false);
+    expect(helped.room.state.plays[0].blitz?.attempts.map((a) => a.grade)).toEqual(['correct']);
+    const { manager, room, olya } = run(true);
+    expect(room.state.phase).toBe('question');
+    expect(room.state.plays[0].blitz?.attempts).toEqual([]);
+    expect(manager.adminHost(room, { type: 'judge', playerId: olya.playerId, correct: true })).toEqual({ ok: true });
+    expect(room.state.plays[0].blitz?.attempts.map((a) => a.grade)).toEqual(['correct']);
+  });
+
+  it('a timed question still closes by the engine clock in manual mode', () => {
+    const { manager, scheduler } = setup();
+    const { room } = atQuestion(manager, scheduler);
+    expect(manager.botManual(room.code, 'admin-1', true).ok).toBe(true);
+    scheduler.advance(26_000);
+    expect(room.state.phase).toBe('locked');
+    scheduler.advance(AUTOPILOT_MS.locked + 5000);
+    expect(room.state.phase).toBe('locked');
+  });
+
+  it('giving it back starts the current step afresh and the bot steps on time', () => {
+    const { manager, scheduler } = setup();
+    const { room, olya } = atQuestion(manager, scheduler);
+    expect(manager.botManual(room.code, 'admin-1', true).ok).toBe(true);
+    manualReveal(manager, scheduler, room, olya.playerId);
+    scheduler.advance(AUTOPILOT_MS.reveal * 3);
+    const back = scheduler.now();
+    expect(manager.botManual(room.code, 'admin-1', false)).toEqual({ ok: true, changed: true });
+    expect(room.botManual).toBeNull();
+    expect(room.state.autopilot?.at).toBe(back + AUTOPILOT_MS.reveal);
+    scheduler.advance(AUTOPILOT_MS.reveal - 1);
+    expect(room.state.phase).toBe('reveal');
+    scheduler.advance(1);
+    expect(room.state.phase).not.toBe('reveal');
+    expect(manager.botManual(room.code, 'admin-1', false)).toEqual({ ok: true, changed: false });
+  });
+
+  it('manual mode refuses rooms that are not a bot room and a finished game', () => {
+    const { manager } = setup();
+    const pilot = manager.createAutopilot(quiz(), 'u-marta', 'q2', 'Марта');
+    if (!pilot.ok) throw new Error(pilot.error);
+    expect(manager.botManual(pilot.room.code, 'admin-1', true)).toEqual({ ok: false, error: 'game_not_found' });
+    expect(manager.botManual('000000', 'admin-1', true)).toEqual({ ok: false, error: 'game_not_found' });
+    const room = botRoom(manager);
+    enter(manager, room, 'Оля');
+    expect(manager.botAct(room.code, 'start')).toEqual({ ok: true });
+    expect(manager.botAct(room.code, 'end')).toEqual({ ok: true });
+    expect(manager.botManual(room.code, 'admin-1', true)).toEqual({ ok: false, error: 'wrong_phase' });
+    const other = botRoom(manager);
+    manager.freeze();
+    expect(manager.botManual(other.code, 'admin-1', true)).toEqual({ ok: false, error: 'restarting' });
+  });
+
+  it('with every admin host screen offline for the grace, the bot takes the game back', () => {
+    const { manager, scheduler } = setup();
+    const { room } = atQuestion(manager, scheduler);
+    const admin = adminHost(manager, room);
+    manager.connect(room, admin);
+    expect(manager.botManual(room.code, 'admin-1', true).ok).toBe(true);
+    manager.disconnect(room, admin);
+    scheduler.advance(BOT_MANUAL_GRACE_MS - 1);
+    expect(room.botManual).not.toBeNull();
+    manager.connect(room, admin);
+    scheduler.advance(BOT_MANUAL_GRACE_MS * 2);
+    expect(room.botManual).not.toBeNull();
+    manager.disconnect(room, admin);
+    scheduler.advance(BOT_MANUAL_GRACE_MS - 1);
+    expect(room.botManual).not.toBeNull();
+    scheduler.advance(1);
+    expect(room.botManual).toBeNull();
+  });
+
+  it("an admin pause holds while an admin host screen is open; without one the ten-minute rule is back", () => {
+    const { manager, scheduler } = setup();
+    const { room } = atQuestion(manager, scheduler);
+    const admin = adminHost(manager, room);
+    manager.connect(room, admin);
+    expect(manager.adminHost(room, { type: 'pause' })).toEqual({ ok: true });
+    scheduler.advance(HOST_ABSENCE_MS + 1);
+    expect(room.state.paused).toBe(true);
+    manager.disconnect(room, admin);
+    scheduler.advance(HOST_ABSENCE_MS - 1);
+    expect(room.state.paused).toBe(true);
+    scheduler.advance(1);
+    expect(room.state.paused).toBe(false);
+  });
+
+  it('a restart gives the game back to the bot and forgets the admin tokens', () => {
+    const { manager, scheduler } = setup();
+    const { room } = atQuestion(manager, scheduler);
+    adminHost(manager, room);
+    expect(manager.botManual(room.code, 'admin-1', true).ok).toBe(true);
+    const back = setup().manager.restore(manager.snapshot(room));
+    expect(back).not.toBeNull();
+    expect(back!.botManual).toBeNull();
+    expect(back!.adminHosts.size).toBe(0);
+    expect(back!.manualAway).toBeNull();
+  });
+});
+
+describe('manual mode without a host screen (68)', () => {
+  it('taken with no admin host screen open, it goes back to the bot after the grace', () => {
+    const { manager, scheduler } = setup();
+    const { room } = atQuestion(manager, scheduler);
+    expect(manager.botManual(room.code, 'admin-1', true).ok).toBe(true);
+    scheduler.advance(BOT_MANUAL_GRACE_MS - 1);
+    expect(room.botManual).not.toBeNull();
+    scheduler.advance(1);
+    expect(room.botManual).toBeNull();
   });
 });

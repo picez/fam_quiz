@@ -110,8 +110,9 @@ export function autopilotStart(state: GameState, now: number, rng: Rng, resume?:
   }
   if (!teamsOn(state)) return startNow(state, now, resume);
   const { form, members, dice } = state.teams;
-  // Склад розподілив адмін з пульта (68): без жереба, як у ведучого-людини.
-  if (form === 'host' && options.hostTeams === true) return startNow(state, now, resume ?? state.autopilot.resume);
+  // Склад розподілив адмін з пульта (68): без жереба, як у ведучого-людини. Відкладеного resume тут немає: його лишає лише тур кубиків,
+  // а перехід на спосіб 'host' (authorTeamForm) прибирає starting і resume.
+  if (form === 'host' && options.hostTeams === true) return startNow(state, now, resume);
   if (form === 'host' || form === 'random') {
     // Розподілу ведучого немає: склад роздає жереб у мить старту, спосіб лишається тим, що вибрав автор.
     const dealt = dealTeams({ ...state, teams: { ...state.teams, form: 'random' } }, rng);

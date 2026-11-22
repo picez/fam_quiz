@@ -13,6 +13,7 @@ import {
   createBotGame,
   isAuthor,
   pilotKey,
+  autopilotDue,
   pilotTry,
   planAutopilot,
   actAnswer,
@@ -175,7 +176,7 @@ import {
   type Result,
   type TeamAct,
 } from '@quiz/engine';
-import { ANSWERER_PICKS_PER_SECOND, REACTION_GAP_MS, reactionAllowed, type Reaction, type ReactionItem, APPEAL_VOTES_PER_SECOND, AWAY_EVENTS_PER_SECOND, awayGapMs, draftQuestionType, DRAFTS_PER_SECOND, isAnswerDraft, isUnscored, SORT_TILT_GAP_MS, LIST_WORDS_PER_SECOND, MORELESS_PICKS_PER_SECOND, PUZZLE_BATCHES_PER_SECOND, JIGSAW_MOVES_PER_SECOND, SPOTDIFF_TAPS_PER_SECOND, MEMORY_FLIPS_PER_SECOND, DRAW_GUESSES_PER_SECOND, DRAW_OPS_PER_SECOND, type DrawingEvent, type DrawOp, type AckResult, type Answer, type MoreLessSide, type AnswererScope, type AppealReason, type BuffKind, type DebuffKind, type DraftValue, type DuelSide, type ErrorCode, type GameView, type Grade, type HostDrafts, type HostUndoTarget, type LifelineKind, type Phase, type PlayerView, type Question, type Quiz, type ResumeSetup, RESUME_POINTS_MAX, clamp, isObjectLike, type ContinuedView, type PlacedPrize, placedPrizeSchema, type SlotsResponse, type Role, type SortTilt, type SubmittedAnswer, type TeamForm, type ThinkWord, type ActivePerk, type NickLevel, type StickerExtra, stickerOpen, LIKE_RATE, type LikePayload, LOBBY_VISIBILITIES, lobbyPasswordSchema, type LobbySettings, type LobbyVisibility, type AchievementId, type HostLeagueView, type PlayerLeagueView, type GameXpMoment, BOT_ROOMS_MAX, BOT_USER_ID, isBotUser, type BotAction, type BotCommand, BOT_TIME_SECONDS, type AdminBotLobby } from '@quiz/shared';
+import { ANSWERER_PICKS_PER_SECOND, REACTION_GAP_MS, reactionAllowed, type Reaction, type ReactionItem, APPEAL_VOTES_PER_SECOND, AWAY_EVENTS_PER_SECOND, awayGapMs, draftQuestionType, DRAFTS_PER_SECOND, isAnswerDraft, isUnscored, SORT_TILT_GAP_MS, LIST_WORDS_PER_SECOND, MORELESS_PICKS_PER_SECOND, PUZZLE_BATCHES_PER_SECOND, JIGSAW_MOVES_PER_SECOND, SPOTDIFF_TAPS_PER_SECOND, MEMORY_FLIPS_PER_SECOND, DRAW_GUESSES_PER_SECOND, DRAW_OPS_PER_SECOND, type DrawingEvent, type DrawOp, type AckResult, type Answer, type MoreLessSide, type AnswererScope, type AppealReason, type BuffKind, type DebuffKind, type DraftValue, type DuelSide, type ErrorCode, type GameView, type Grade, type HostDrafts, type HostUndoTarget, type LifelineKind, type Phase, type PlayerView, type Question, type Quiz, type ResumeSetup, RESUME_POINTS_MAX, clamp, isObjectLike, type ContinuedView, type PlacedPrize, placedPrizeSchema, type SlotsResponse, type Role, type SortTilt, type SubmittedAnswer, type TeamForm, type ThinkWord, type ActivePerk, type NickLevel, type StickerExtra, stickerOpen, LIKE_RATE, type LikePayload, LOBBY_VISIBILITIES, lobbyPasswordSchema, type LobbySettings, type LobbyVisibility, type AchievementId, type HostLeagueView, type PlayerLeagueView, type GameXpMoment, BOT_ROOMS_MAX, BOT_USER_ID, isBotUser, type BotAction, type BotCommand, BOT_TIME_SECONDS, type AdminBotLobby, BOT_MANUAL_GRACE_MS } from '@quiz/shared';
 import type { LeagueGameResult } from '../league-store';
 import type { LikeChange, LikeKey } from '../like-store';
 import { SAVED_GAME_VERSION, type ContinueResult, type RestartInput, type SavedGameData } from './continuation';
@@ -1674,6 +1675,7 @@ export class RoomManager {
       const left = this.adminHostsOnline(room) - 1;
       if (left > 0) room.connections.set(ADMIN_HOST_KEY, left);
       else room.connections.delete(ADMIN_HOST_KEY);
+      if (left <= 0) this.watchManual(room);
       this.watchAuthor(room);
       return;
     }
@@ -2678,6 +2680,54 @@ export class RoomManager {
   }
 
   /**
+   * «Взяти керування» / «Віддати боту» (68). Немає кімнати, не бота чи не автопілот → game_not_found; зупинка → restarting;
+   * фініш → wrong_phase. on — бот не робить кроків (інший адмін може перехопити); off — бот продовжує зі свіжим відліком
+   * поточного кроку. changed — чи режим справді змінився (для журналу маршруту).
+   */
+  botManual(code: string, adminId: string, on: boolean): AckResult & { changed?: boolean } {
+    const room = this.live.get(code);
+    if (room === undefined || !isBotUser(room.hostUserId) || room.state.autopilot === undefined) return GONE;
+    if (this.isFrozen) return RESTARTING;
+    if (room.state.phase === 'finished') return { ok: false, error: 'wrong_phase' };
+    if (!on) {
+      if (room.botManual === null) return { ok: true, changed: false };
+      this.releaseManual(room);
+      return { ok: true, changed: true };
+    }
+    if (room.botManual?.adminId === adminId) return { ok: true, changed: false };
+    room.botManual = { adminId, since: this.now() };
+    // Узято з картки без жодного пульта на зв'язку — той самий відлік повернення, що й після відходу пультів.
+    this.watchManual(room);
+    this.reschedule(room);
+    this.emit(room, { type: 'changed' });
+    return { ok: true, changed: true };
+  }
+
+  /** «Керую сам» без жодного пульта адміна на зв'язку (68): за BOT_MANUAL_GRACE_MS керування саме повертається боту (без журналу). */
+  private watchManual(room: Room): void {
+    if (room.botManual === null || this.adminHostsOnline(room) > 0 || room.manualAway !== null) return;
+    room.manualAway = this.timer(room, 'manual-away', BOT_MANUAL_GRACE_MS, () => {
+      room.manualAway = null;
+      if (this.alive(room) && room.botManual !== null) this.releaseManual(room);
+    });
+  }
+
+  /** Керування — боту (68): гра йде — свіжий відлік поточного кроку від цієї миті (planAutopilot лишає at: pilotKey той самий). */
+  private releaseManual(room: Room): void {
+    room.botManual = null;
+    this.scheduler.clearTimeout(room.manualAway);
+    room.manualAway = null;
+    const { state } = room;
+    const pilot = state.autopilot;
+    if (pilot !== undefined && !state.paused && state.phase !== 'lobby' && state.phase !== 'finished') {
+      this.commit(room, { ...state, autopilot: { ...pilot, at: autopilotDue(state, this.now()) } });
+      return;
+    }
+    this.reschedule(room);
+    this.emit(room, { type: 'changed' });
+  }
+
+  /**
    * Дія з пульта адміна в кімнаті бота (68). Не кімната бота чи не автопілот → forbidden. Конфлікти з автопілотом:
    * - next, lock, skip, survey-all, bluff-all — затримка 11b (too_soon), як у ведучого; автопілот переплановує крок від нової миті;
    * - start — autopilotStart без жереба за способу 'host' (склад адміна лишається, нерозподілені — у найменшу команду);
@@ -2696,8 +2746,7 @@ export class RoomManager {
     if (paced !== undefined && !state.paused && tooSoon(state, paced, this.now() + PACE_GRACE_MS)) return { ok: false, error: 'too_soon' };
     switch (action.type) {
       case 'start':
-        if (room.challenge !== null && action.resume !== undefined) return NOT_ALLOWED;
-        return this.apply(room, autopilotStart(state, this.now(), this.rng, action.resume ?? this.carryFor(room), { hostTeams: true }));
+        return this.pilotStart(room, action.resume, true);
       case 'pause':
       case 'resume':
         return this.authorAct(room, null, { type: action.type });
@@ -2722,15 +2771,20 @@ export class RoomManager {
     }
   }
 
+  /** «Почати гру» автопілота для authorAct і adminHost; hostTeams — старт з пульта адміна (68): склад адміна без жереба. */
+  private pilotStart(room: Room, resume: ResumeSetup | undefined, hostTeams = false): AckResult {
+    // Спроба виклику (44): бали шляхом 12r не переносяться.
+    if (room.challenge !== null && resume !== undefined) return NOT_ALLOWED;
+    return this.apply(room, autopilotStart(room.state, this.now(), this.rng, resume ?? this.carryFor(room), { hostTeams }));
+  }
+
   /** Тіло дії автора (11g) для author і botAct; playerId — автор-гравець (null — адмін за бота), для kick/release. */
   private authorAct(room: Room, playerId: string | null, action: AuthorAction): AckResult {
     const state = room.state;
     // Затримки 11b для дій автора немає: жодна з них не «Далі».
     switch (action.type) {
       case 'start':
-        // Спроба виклику (44): бали шляхом 12r не переносяться.
-        if (room.challenge !== null && action.resume !== undefined) return NOT_ALLOWED;
-        return this.apply(room, autopilotStart(state, this.now(), this.rng, action.resume ?? this.carryFor(room)));
+        return this.pilotStart(room, action.resume);
       case 'pause': {
         const paused = this.apply(room, authorPause(state, this.now()));
         if (paused.ok) room.tilts.clear();
@@ -2963,7 +3017,9 @@ export class RoomManager {
       pilot.hold === 'author' &&
       state.phase !== 'lobby' &&
       state.phase !== 'finished' &&
-      (room.connections.get(pilot.authorId) ?? 0) === 0;
+      (room.connections.get(pilot.authorId) ?? 0) === 0 &&
+      // 68: у кімнаті бота «автор на зв'язку», поки відкритий хоч один пульт адміна.
+      !(isBotUser(room.hostUserId) && this.adminHostsOnline(room) > 0);
     if (!away) {
       this.scheduler.clearTimeout(room.authorAway);
       room.authorAway = null;
@@ -3035,8 +3091,8 @@ export class RoomManager {
   }
 
   private clearTimers(room: Room): void {
-    for (const handle of [room.deadline, room.pilot, room.absence, room.authorAway, room.expiry, room.holdExpiry]) this.scheduler.clearTimeout(handle);
-    room.deadline = room.pilot = room.absence = room.authorAway = room.expiry = room.holdExpiry = null;
+    for (const handle of [room.deadline, room.pilot, room.absence, room.authorAway, room.expiry, room.holdExpiry, room.manualAway]) this.scheduler.clearTimeout(handle);
+    room.deadline = room.pilot = room.absence = room.authorAway = room.expiry = room.holdExpiry = room.manualAway = null;
   }
 
   private apply(room: Room, result: Result, options?: { only?: string }): AckResult {
@@ -3097,7 +3153,8 @@ export class RoomManager {
     this.scheduler.clearTimeout(room.pilot);
     room.pilot = null;
     const pilotAt = room.state.autopilot?.at ?? null;
-    if (pilotAt !== null) {
+    // 68: «Керую сам» — бот не робить кроків; годинник рушія (deadline) іде як завжди.
+    if (pilotAt !== null && room.botManual === null) {
       room.pilot = this.timer(room, 'pilot', Math.max(0, pilotAt - this.now()), () => {
         room.pilot = null;
         room.tickedTo = Math.max(this.now(), pilotAt);
