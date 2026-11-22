@@ -62,7 +62,7 @@ function Group({ title, issues, onIssue }: { title: string; issues: QuizCheckIss
   return (
     <section className="admin-check-group">
       <h3>{title}</h3>
-      <ul className="admin-list">
+      <ul className="admin-list is-rows">
         {issues.map((issue, index) => (
           <li key={index} className="admin-card">
             <p dir="auto">{issueText(issue)}</p>

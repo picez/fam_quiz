@@ -100,9 +100,10 @@ export function Admin(): JSX.Element | null {
   if (account.status === 'loading') return null;
   if (account.status !== 'signed-in' || !account.account.admin) return <Navigate to="/" replace />;
   return (
-    <main className="app wide">
+    <main className="app wide admin-page">
       <h1 className="brand">{t('adminTitle')}</h1>
       <AdminTabs navRef={nav} />
+      <div className="admin-body">
       <Routes>
         <Route path="" element={<AdminStats />} />
         <Route path="live" element={<AdminLive />} />
@@ -126,6 +127,7 @@ export function Admin(): JSX.Element | null {
         <Route path="bot/quizzes/:id" element={<AdminBotQuizView />} />
         <Route path="*" element={<Navigate to="/admin" replace />} />
       </Routes>
+      </div>
     </main>
   );
 }

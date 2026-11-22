@@ -57,6 +57,17 @@ const open = () =>
   );
 
 describe('PublicProfile', () => {
+  it('67: the page is two profile columns like the own profile, header and showcases first, then achievements and numbers', async () => {
+    const { container } = open();
+    await screen.findByRole('button', { name: 'Поскаржитись' });
+    const main = container.querySelector('main.app.profile-main');
+    expect(main).not.toBeNull();
+    const columns = [...main!.children].filter((child) => child.classList.contains('profile-col'));
+    expect(columns).toHaveLength(2);
+    expect(columns[0]!.querySelector('.profile-hero, .profile-head')).not.toBeNull();
+    expect(columns[1]!.querySelector('.profile-section')).not.toBeNull();
+  });
+
   it('reports another profile from an account, without any extra request on opening', async () => {
     const spy = vi.spyOn(globalThis, 'fetch');
     vi.mocked(sendReport).mockResolvedValue({ ok: true });

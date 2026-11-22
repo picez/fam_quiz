@@ -96,6 +96,12 @@ afterEach(() => {
 });
 
 describe('AdminErrors', () => {
+  it('67: the error list is one row per line, not a card grid', async () => {
+    open();
+    const card = (await screen.findByText('Де: http')).closest('li') as HTMLElement;
+    expect(card.closest('ul')?.classList.contains('is-rows')).toBe(true);
+  });
+
   it('server errors: counts, times, the stack, resolve', async () => {
     open();
     expect(await screen.findByText('Де: http')).toBeTruthy();

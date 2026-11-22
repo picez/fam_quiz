@@ -1,4 +1,18 @@
 :root {
+  /* 67: ширини колонок. Брейкпойнти — сталі числа (змінні в @media не працюють): ≤ 700 — телефон, 701–1023 — планшет
+     (ширини як до 67), ≥ 1024 — ПК, ≥ 1280 — бічні панелі, ≥ 1600 — великий ПК. Токени, що до 1024 px не потрібні, мають значення ПК, щоб var() ніде не був порожнім. */
+  --w-phone: 34rem;
+  --w-tablet: 46rem;
+  --w-read: 42rem;
+  --w-form: 36rem;
+  --w-page: 72rem;
+  --w-player: 48rem;
+  --w-host: 64rem;
+  --w-editor: 68rem;
+  --w-admin: 72rem;
+  --w-stage-board: 60rem;
+  --side-w: clamp(20rem, 24vw, 28rem);
+  --card-min: 18rem;
   --menu-h: 3.75rem;
   --stage: #060505;
   --surface: #0f0b0b;
@@ -274,7 +288,7 @@ a {
   --app-pad: 1.25rem;
   padding: max(1.25rem, env(safe-area-inset-top)) var(--app-pad) max(1.5rem, env(safe-area-inset-bottom));
   margin: 0 auto;
-  max-width: 34rem;
+  max-width: var(--app-w, var(--w-phone));
 }
 
 .app.narrow {
@@ -282,7 +296,7 @@ a {
 }
 
 .app.host {
-  max-width: 46rem;
+  --app-w: var(--w-tablet);
   /* Липка панель дій (≈5rem) не має закривати рядок, до якого прокручує браузер. */
   scroll-padding-bottom: 6rem;
 }
@@ -1201,13 +1215,13 @@ button.choice {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  max-width: 34rem;
+  max-width: var(--w-phone);
   margin: 0 auto;
   padding-inline: 1.25rem;
 }
 
 .timer-sticky.is-host .timer-sticky-row {
-  max-width: 46rem;
+  max-width: var(--w-tablet);
 }
 
 .timer-sticky-left {
@@ -1512,7 +1526,7 @@ body:has(.timer-sticky) .host .live-notices {
 .stage-board {
   display: grid;
   gap: 3vh;
-  width: min(100%, 60rem);
+  width: min(100%, var(--w-stage-board));
   margin: 0 auto;
 }
 
@@ -1639,7 +1653,7 @@ body:has(.timer-sticky) .host .live-notices {
 
 .app.wide,
 .app.editor {
-  max-width: 46rem;
+  --app-w: var(--w-tablet);
 }
 
 .btn-quiet {
@@ -1882,7 +1896,7 @@ a.banner {
 /* ---------- Редактор «список і сцена» ---------- */
 
 .app.editor {
-  max-width: 68rem;
+  --app-w: var(--w-editor);
 }
 
 .editor-grid {
@@ -3729,7 +3743,13 @@ button.match-item {
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     align-items: start;
     gap: 1.25rem 2rem;
-    max-width: 64rem;
+  }
+}
+
+/* 960–1023 px — як до 67 (64 rem); від 1024 px колонку веде .app.wide (--w-page). */
+@media (min-width: 960px) and (max-width: 1023px) {
+  .app.profile-main {
+    --app-w: 64rem;
   }
 }
 
@@ -10721,7 +10741,7 @@ button.wall-tile:disabled {
 .stage-survey .survey-board {
   flex: 1 1 0;
   min-height: 0;
-  max-width: 60rem;
+  max-width: var(--w-stage-board);
 }
 
 .stage-survey .survey-board .survey-row {
@@ -10970,7 +10990,7 @@ button.wall-tile:disabled {
 .stage-bluff .bluff-board {
   flex: 1 1 0;
   min-height: 0;
-  max-width: 60rem;
+  max-width: var(--w-stage-board);
   gap: 0.25rem;
 }
 
@@ -23638,7 +23658,7 @@ input.sudoku-editor-cell:focus-visible {
 
 .quest-stage-prompt {
   margin: 0;
-  max-width: 60rem;
+  max-width: var(--w-stage-board);
   text-align: center;
   overflow-wrap: anywhere;
 }
@@ -23646,7 +23666,7 @@ input.sudoku-editor-cell:focus-visible {
 .quest-stage .quest-lock {
   --quest-cell-max: clamp(2.5rem, 6vw, 6rem);
   flex: none;
-  max-width: 60rem;
+  max-width: var(--w-stage-board);
 }
 
 .quest-stage .quest-cell {
@@ -23774,7 +23794,7 @@ input.sudoku-editor-cell:focus-visible {
   width: 100%;
   min-width: 0;
   min-height: 0;
-  max-width: 60rem;
+  max-width: var(--w-stage-board);
   margin-inline: auto;
   overflow: hidden;
   container-type: size;
@@ -27295,7 +27315,7 @@ a.library-card:focus-visible {
 
 /* Пульт: дошка в колонці ≤ 46 rem, сторінка гортається — клітинку задає лише ширина колонки. */
 .host-wordle .wordle-board {
-  --board-cell: clamp(0.85rem, calc((min(100vw, 46rem) - 6rem) / var(--boards, 1) / (var(--letters, 5) + 1.8)), 1.75rem);
+  --board-cell: clamp(0.85rem, calc((min(100vw, var(--w-tablet)) - 6rem) / var(--boards, 1) / (var(--letters, 5) + 1.8)), 1.75rem);
 }
 
 /* Ширина дошки — не менша за сітку й до частки ряду, що їй припадає (≤ 12 rem): тег і бали стають в один-два рядки,
@@ -28812,4 +28832,443 @@ details.admin-fold[open] > summary::before {
 .group-card .group-hidden {
   color: var(--signal);
   font-weight: 700;
+}
+
+/* ---------- 67: великі екрани ---------- */
+/* Тіло адмінки: те саме, що .app, — прямі діти маршруту лишаються в тому ж стовпчику з тим же проміжком. */
+.admin-body {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  min-width: 0;
+}
+
+/* Колонки пульта: нижче 1280 px обгортки не існують для верстки — flex-gap .app і порядок блоків як до 67. */
+.host-cols,
+.host-main,
+.host-side {
+  display: contents;
+}
+
+/* Брейкпойнти: ≤ 700 телефон, 701–1023 планшет (ширини як до 67), ≥ 1024 ПК, ≥ 1280 бічні панелі, ≥ 1600 великий ПК.
+   Усе нове — лише в min-width нижче: телефон і планшет не міняються. */
+@media (min-width: 1024px) {
+  :root {
+    --w-page: 72rem;
+    --w-player: 48rem;
+    --w-host: 64rem;
+    --w-editor: 80rem;
+    --w-admin: 72rem;
+    --card-min: 18rem;
+  }
+
+  .app.wide {
+    --app-w: var(--w-page);
+    --app-pad: clamp(1.25rem, 2.5vw, 2.5rem);
+  }
+
+  .app.host {
+    --app-w: var(--w-host);
+    --app-pad: clamp(1.25rem, 2.5vw, 2.5rem);
+  }
+
+  .app.player {
+    --app-w: var(--w-player);
+    --app-pad: clamp(1.25rem, 2.5vw, 2.5rem);
+  }
+
+  /* Суцільний текст і поля форм не розтягуються на всю колонку: ≈ 70 знаків у рядку. */
+  .app.wide > :is(p, .field, form),
+  .admin-body > :is(p, .field, form:not(.admin-filters)),
+  .app.host > p,
+  .host-main > p,
+  .host-side > p {
+    max-inline-size: var(--w-read);
+  }
+
+  /* Липка смужка таймера стоїть рівно над колонкою. */
+  .timer-sticky.is-host .timer-sticky-row {
+    max-width: var(--w-host);
+  }
+
+  .timer-sticky:not(.is-host) .timer-sticky-row {
+    max-width: var(--w-player);
+  }
+
+  /* Екран гравця: варіанти у два стовпці, картинки у три; поле відповіді не тягнеться на всю колонку. */
+  .app.player .choices {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .app.player .choices.has-images {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  /* Рівно чотири картинки — 2 × 2, а не 3 + 1. */
+  .app.player .choices.has-images:has(> :nth-child(4):last-child) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .app.player .field {
+    max-inline-size: var(--w-read);
+  }
+
+  /* Кнопка під полем такої ж ширини, як поле. */
+  .app.player .field + .btn {
+    max-inline-size: var(--w-read);
+  }
+
+  /* Смуга дуелі — fixed по центру вікна, а колонка вужча за вікно: довгий текст не розтягує її на весь ПК. */
+  .app.player > .duel-banner {
+    max-width: min(calc(100vw - 2rem), var(--app-w, 30rem));
+  }
+}
+
+/* Дошка wordle на пульті: клітинка від ширини колонки (на 1024–1279 пульт ще в одну колонку). */
+@media (min-width: 1024px) and (max-width: 1279px) {
+  .host-wordle .wordle-board {
+    --board-cell: clamp(0.85rem, calc((min(100vw, var(--w-host)) - 6rem) / var(--boards, 1) / (var(--letters, 5) + 1.8)), 1.75rem);
+  }
+}
+
+@media (min-width: 1280px) {
+  .host-cols {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) var(--side-w);
+    align-items: start;
+    gap: 1.25rem 2rem;
+  }
+
+  .host-main,
+  .host-side {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+    min-width: 0;
+  }
+
+  /* Лобі: у головній колонці майже нічого — не ділимо, а розкладаємо блоки лобі (гравці, хто бачить гру, команди, посилання) сіткою на всю ширину. */
+  .host-cols.is-lobby {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .host-cols.is-lobby .host-side {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 24rem), 1fr));
+    /* Панелі лобі заповнюють дірки поруч із рядками на всю ширину. */
+    grid-auto-flow: row dense;
+    align-items: start;
+    gap: 1.25rem 2rem;
+  }
+
+  /* Короткі підписи й посилання — на всю ширину сітки; список гравців — у кілька колонок. */
+  .host-cols.is-lobby .host-side > :is(p, nav, .panel:first-child, .invite-toggle) {
+    grid-column: 1 / -1;
+  }
+
+  .host-cols.is-lobby .host-side .rows {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(18rem, 1fr));
+    gap: 0.5rem 1rem;
+  }
+
+  .host-cols.is-lobby .host-side .team-forms {
+    grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+  }
+
+  /* Вузька бічна колонка: способи формування команд — в один стовпець, інакше ⓘ сусіднього способу накриває перемикач. */
+  .host-side .team-forms {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .host-wordle .wordle-board {
+    --board-cell: clamp(0.85rem, calc((min(100vw, var(--w-host)) - var(--side-w) - 2rem - 6rem) / var(--boards, 1) / (var(--letters, 5) + 1.8)), 1.75rem);
+  }
+
+  :root {
+    --w-page: 80rem;
+    --w-player: 52rem;
+    --w-host: 88rem;
+    --w-editor: 92rem;
+    --w-admin: 92rem;
+    --card-min: 20rem;
+  }
+}
+
+@media (min-width: 1600px) {
+  :root {
+    --w-page: 96rem;
+    --w-player: 70rem;
+    --w-host: 104rem;
+    --w-editor: 110rem;
+    --w-admin: 110rem;
+    --w-stage-board: 76rem;
+    --card-min: 22rem;
+  }
+
+  /* Великий монітор: гравець не лишається вузькою смужкою посередині — крупніші запитання й варіанти (≈ 1,15× і 1,1×). */
+  .app.player .question {
+    font-size: 2.3rem;
+  }
+
+  .app.player .question.is-long {
+    font-size: 1.725rem;
+  }
+
+  .app.player .question.is-xlong {
+    font-size: 1.44rem;
+  }
+
+  .app.player .choice {
+    font-size: 1.25rem;
+  }
+
+  /* Сцена: відео росте до висоти екрана, а не 960 px; тексти нагороди й печатки лишаються читабельними. */
+  .stage .question-video {
+    max-width: min(100%, calc(62vh * 16 / 9));
+  }
+
+  .stage-board.is-award .award-body {
+    max-width: min(100%, 64rem);
+  }
+
+  .truth-stage .truth-seal {
+    max-width: min(100%, 72rem);
+  }
+}
+
+/* ---------- 67: редактор вікторин ---------- */
+@media (min-width: 1280px) {
+  /* Колонка списку запитань росте разом з екраном; налаштування вікторини — у дві колонки, назва на весь рядок. */
+  .editor-grid {
+    grid-template-columns: minmax(0, clamp(19rem, 22vw, 26rem)) minmax(0, 1fr);
+  }
+
+  .editor-quiz {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
+  }
+
+  .editor-quiz > .field {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (min-width: 1600px) {
+  /* Варіанти відповіді (одна чи кілька правильних) — у дві колонки; кнопка «додати» на весь рядок. */
+  .answer-rows.option-rows {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .answer-rows.option-rows > .btn {
+    grid-column: 1 / -1;
+  }
+}
+
+/* ---------- 67: адмінка ---------- */
+@media (min-width: 1024px) {
+  .app.admin-page {
+    --app-w: var(--w-admin);
+  }
+
+  /* Списки карток — сіткою; списки-рядки (журнал, помилки, стрічка, копії) лишаються в один стовпчик. */
+  .admin-list:not(.is-rows) {
+    grid-template-columns: repeat(auto-fill, minmax(var(--card-min), 1fr));
+    align-items: start;
+  }
+}
+
+@media (min-width: 1280px) {
+  /* Вкладки збоку, вміст праворуч; заголовок — на весь рядок. */
+  .app.admin-page {
+    display: grid;
+    grid-template-columns: minmax(12rem, 15rem) minmax(0, 1fr);
+    column-gap: 2rem;
+    row-gap: 1rem;
+    align-content: start;
+  }
+
+  .admin-page > .brand {
+    grid-column: 1 / -1;
+  }
+
+  .admin-page > .admin-tabs {
+    flex-direction: column;
+    overflow-x: visible;
+    align-self: start;
+    margin-block: 0;
+  }
+
+  .admin-tabs a.btn {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  /* Пошук не тягнеться на всю колонку. */
+  .admin-search {
+    max-inline-size: var(--w-read);
+  }
+
+  /* Список користувачів — у два стовпчики рядків. */
+  .admin-user-rows {
+    grid-template-columns: repeat(auto-fill, minmax(26rem, 1fr));
+    column-gap: 2rem;
+  }
+
+  /* Картка гравця: розділи у дві колонки; шапка, огляд, об’єднання й видалення — на весь рядок. */
+  .admin-player-card {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
+  }
+
+  .admin-player-card > :not(.admin-card-section),
+  .admin-player-card > .admin-card-overview,
+  .admin-player-card > .admin-card-merge,
+  .admin-player-card > .admin-card-delete {
+    grid-column: 1 / -1;
+  }
+}
+
+/* ---------- 67: головна, списки, бібліотека, стрічка, історія ---------- */
+@media (min-width: 1024px) {
+  /* Списки карток — сіткою; висота картки своя (кнопки в картці переносяться самі). */
+  .quiz-list,
+  .library-list,
+  .feed-list {
+    grid-template-columns: repeat(auto-fill, minmax(var(--card-min), 1fr));
+    align-items: start;
+  }
+
+  /* Головна: плитки й «Приєднатися» не розлітаються на всю сторінку. */
+  .app.start {
+    --app-w: 64rem;
+  }
+
+  .start-menu {
+    grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+  }
+
+  /* Довідка: темою — сітка карток (кожна ≈ читана ширина), заголовок теми — на весь рядок; вступ і пошук тримають --w-read. */
+  .host-help > section {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(26rem, 1fr));
+    gap: 1rem;
+    align-items: start;
+  }
+
+  .host-help .help-entry {
+    margin-top: 0;
+  }
+
+  .host-help > section > h2 {
+    grid-column: 1 / -1;
+    margin-bottom: 0;
+  }
+
+  /* Кнопка «Запланувати гру» не тягнеться на всю сторінку. */
+  .app.feed-page > button {
+    align-self: flex-start;
+  }
+
+  .library-rounds {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    column-gap: 1.5rem;
+  }
+
+  .app.wide > .stats {
+    grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+  }
+}
+
+@media (min-width: 1280px) {
+  /* Завершена гра: панелі у дві колонки; шапка, вкладки й широкі таблиці — на весь рядок. */
+  .app.game-history {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-auto-flow: row dense;
+    column-gap: 1.25rem;
+    align-items: start;
+    /* .app тягнеться на всю висоту вікна: рядки сітки не розтягуються на запас. */
+    align-content: start;
+  }
+
+  .app.game-history > :is(h1, .brand, .meta, .history-tabs, .error, .wide-panel, .bar, .result-image-button) {
+    grid-column: 1 / -1;
+  }
+}
+
+/* ---------- 67: профіль, групи, друзі, призи, досягнення ---------- */
+@media (min-width: 1024px) {
+  /* Підсторінки: списки карток — сіткою (досягнення й нагороди вже мають свою auto-fill сітку). */
+  .group-cards,
+  .friend-list,
+  .group-item-list,
+  .liked-list,
+  .prize-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(var(--card-min), 1fr));
+    align-items: start;
+  }
+
+  /* Налаштування, виклик і запрошення в групу — форма й картка однієї дії: не на всю сторінку. */
+  .app.settings-page {
+    --app-w: var(--w-tablet);
+  }
+
+  .app.challenge-page,
+  .app.group-join {
+    --app-w: var(--w-form);
+  }
+}
+
+@media (min-width: 1600px) {
+  /* Великий ПК: ліворуч шапка й плитки, праворуч вітрини — ширші. */
+  .app.profile-main {
+    grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
+  }
+}
+
+@media (min-width: 1024px) {
+  /* Карта рівнів: рядки-картки в кілька колонок; поле нового друга й пошук у записах групи не тягнуться на всю сторінку. */
+  .level-map {
+    grid-template-columns: repeat(auto-fill, minmax(22rem, 1fr));
+    align-items: start;
+  }
+
+  /* Текст ліги — читана ширина; таблиця й картки лишаються на всю колонку. */
+  .group-league > p {
+    max-inline-size: var(--w-read);
+  }
+
+  .add-friend,
+  .group-items-filters input,
+  .group-items-filters select {
+    max-inline-size: var(--w-form);
+  }
+}
+
+@media (min-width: 1280px) {
+  /* Налаштування: розділи у дві колонки; шапка й рядки дій — на весь рядок. */
+  .app.settings-page {
+    --app-w: 64rem;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1.25rem 2rem;
+    align-items: start;
+    align-content: start;
+  }
+
+  .app.settings-page > :is(.profile-sub-head, .toolbar, .error, .meta) {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (min-width: 1280px) {
+  /* Вкладка «Учасники»: запрошення ліворуч, склад групи праворуч. */
+  .group-page [role='tabpanel']:has(> .group-invite-panel) {
+    display: grid;
+    grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
+    gap: 1.25rem 2rem;
+    align-items: start;
+  }
 }

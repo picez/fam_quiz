@@ -217,13 +217,13 @@ function QuizView({ loaded, mode }: { loaded: AdminQuizView; mode: Mode }): JSX.
           {listOf(() => round.categories).map((category) => (
             <section key={category.id}>
               <h3 dir="auto">{category.title}</h3>
-              <ul className="admin-list">{listOf(() => category.cells).map((cell) => card(cell.question, title))}</ul>
+              <ul className="admin-list is-rows">{listOf(() => category.cells).map((cell) => card(cell.question, title))}</ul>
             </section>
           ))}
         </>
       );
     }
-    return <ul className="admin-list">{questionsOf(round).map((question) => card(question, title))}</ul>;
+    return <ul className="admin-list is-rows">{questionsOf(round).map((question) => card(question, title))}</ul>;
   };
 
   const rounds = listOf(() => quiz.rounds);
@@ -270,7 +270,7 @@ function QuizView({ loaded, mode }: { loaded: AdminQuizView; mode: Mode }): JSX.
             {trials.length > 0 && (
               <>
                 <h3>{t('adminTrials')}</h3>
-                <ul className="admin-list">{trials.map((question) => card(question, title))}</ul>
+                <ul className="admin-list is-rows">{trials.map((question) => card(question, title))}</ul>
               </>
             )}
           </details>
@@ -281,7 +281,7 @@ function QuizView({ loaded, mode }: { loaded: AdminQuizView; mode: Mode }): JSX.
           <summary>
             <h2 className="admin-round-title">{t('adminSpares')}</h2>
           </summary>
-          <ul className="admin-list">{spares.map((question) => card(question, ''))}</ul>
+          <ul className="admin-list is-rows">{spares.map((question) => card(question, ''))}</ul>
         </details>
       )}
       {duels !== undefined && (
@@ -293,7 +293,7 @@ function QuizView({ loaded, mode }: { loaded: AdminQuizView; mode: Mode }): JSX.
           {listOf(() => duels.categories).map((category) => (
             <section key={category.id}>
               <h3 dir="auto">{category.title}</h3>
-              <ul className="admin-list">
+              <ul className="admin-list is-rows">
                 {listOf(() => category.questions).map((question) => (
                   <li key={question.id} id={`q-${question.id}`} tabIndex={-1} className="admin-card">
                     <p dir="auto">{question.text}</p>

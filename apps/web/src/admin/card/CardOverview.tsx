@@ -10,7 +10,7 @@ export function CardOverview({ detail }: { detail: AdminUserDetail }): JSX.Eleme
   const { user, card } = detail;
   const o = card.overview;
   return (
-    <CardFold title={t('adminCardOverview')} open>
+    <CardFold title={t('adminCardOverview')} open className="admin-card-overview">
       <div className="admin-card-grid">
         <Avatar profile={{ id: user.id, nickname: user.nickname, avatar: o.avatar }} size="medium" />
         <div>

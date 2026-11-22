@@ -117,6 +117,8 @@ export function Rows(props: {
   removeLabel: TextKey;
   addLabel: TextKey;
   rowClass?: (row: Row) => string;
+  /** Додатковий клас контейнера (option-rows: варіанти відповіді у дві колонки від 1600 px). */
+  className?: string;
   lead?: (row: Row, index: number) => ReactNode;
   tail?: (row: Row, index: number) => ReactNode;
   makeRow?: () => Row;
@@ -155,7 +157,7 @@ export function Rows(props: {
   };
 
   return (
-    <div className="answer-rows">
+    <div className={props.className === undefined ? 'answer-rows' : `answer-rows ${props.className}`}>
       {rows.map((row, index) => (
         <div className={`answer-row ${props.rowClass?.(row) ?? ''}`.trimEnd()} key={row.id}>
           {props.lead?.(row, index)}
@@ -376,6 +378,7 @@ function Body({ question, onChange, showPoints, cluesByHost, clouds, allowCloud,
           removeLabel="removeOption"
           addLabel="addOption"
           rowClass={(row) => (row.id === question.correctId ? 'is-correct' : '')}
+          className="option-rows"
           lead={letter}
           tail={(row, index) => (
             <>
@@ -408,6 +411,7 @@ function Body({ question, onChange, showPoints, cluesByHost, clouds, allowCloud,
           removeLabel="removeOption"
           addLabel="addOption"
           rowClass={(row) => (question.correctIds.includes(row.id) ? 'is-correct' : '')}
+          className="option-rows"
           lead={letter}
           tail={(row, index) => {
             const on = question.correctIds.includes(row.id);

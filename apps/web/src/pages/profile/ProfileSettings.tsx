@@ -35,7 +35,7 @@ export function ProfileSettings(): JSX.Element {
   };
 
   return (
-    <SubpageData state={state} title={t('profileTileSettings')}>
+    <SubpageData state={state} title={t('profileTileSettings')} className="settings-page">
       {(profile) => (
         <>
           <section className="profile-section settings-row">

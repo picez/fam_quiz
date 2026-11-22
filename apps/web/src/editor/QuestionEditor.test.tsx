@@ -136,4 +136,12 @@ describe('QuestionEditor wordle (48)', () => {
     expect(screen.queryByDisplayValue('Ягода з колючого куща')).toBeNull();
     expect(screen.getByLabelText(t('wordleWord'))).toBeTruthy();
   });
+
+  it('67: single and multiple answer options sit in an option-rows container', () => {
+    for (const type of ['single', 'multi'] as const) {
+      const { container } = render(<QuestionEditor question={newQuestion(type)} onChange={vi.fn()} types={questionTypesFor('classic')} />);
+      expect(container.querySelector('.answer-rows.option-rows'), type).not.toBeNull();
+      cleanup();
+    }
+  });
 });

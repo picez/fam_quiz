@@ -26,11 +26,11 @@ export function ProfileSubpage({ title, back = '/profile', className, children }
 }
 
 /** Спільні стани підсторінки зі своїми даними: без входу — на вхід, далі «Завантаження…», помилка або вміст. */
-export function SubpageData<T>({ state, title, children }: { state: PrivateData<T>; title: string; children: (data: T) => ReactNode }): JSX.Element {
+export function SubpageData<T>({ state, title, className, children }: { state: PrivateData<T>; title: string; className?: string; children: (data: T) => ReactNode }): JSX.Element {
   const location = useLocation();
   if (state.status === 'signed-out') return <Navigate to={loginFor(location.pathname + location.search)} replace />;
   return (
-    <ProfileSubpage title={title}>
+    <ProfileSubpage title={title} className={className}>
       {state.status === 'loading' && <p className="meta">{t('loading')}</p>}
       {state.status === 'error' && (
         <p className="error" role="alert">

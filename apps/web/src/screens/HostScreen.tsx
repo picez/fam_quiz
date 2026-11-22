@@ -673,6 +673,10 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
         <strong className="code" dir="ltr">{`${code.slice(0, 3)} ${code.slice(3)}`}</strong>
       </header>
 
+      {/* 67: від 1280 px — запитання й відповіді ліворуч, гравці, бали й посилання у бічній колонці; нижче 1280 обгортки display: contents, порядок у DOM той самий. */}
+      <div className={phase === 'lobby' ? 'host-cols is-lobby' : 'host-cols'}>
+      <div className="host-main">
+
       {view.paused && (
         <p className="banner" role="status">
           {t('paused')}
@@ -1518,7 +1522,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
         </section>
       )}
 
-      {phase === 'finished' ? (
+      {phase === 'finished' && (
         <section className="panel">
           <h2>{t('gameOver')}</h2>
           <Standings standings={view.standings} teams={view.teams} titles={view.titles} levels={view.levels} />
@@ -1554,7 +1558,11 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
           )}
           <MenuLinks role="host" />
         </section>
-      ) : teamLobby && view.teams !== null ? (
+      )}
+      </div>
+
+      <div className="host-side">
+      {phase !== 'finished' && (teamLobby && view.teams !== null ? (
         <section className="panel">
           <h2>{`${t('players')}: ${peopleCount}`}</h2>
           <HostTeams teams={view.teams} send={send} onError={setError} onKick={(member) => kick(member.id, member.nickname)} />
@@ -1610,7 +1618,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
             ))}
           </ul>
         </section>
-      )}
+      ))}
 
       {/* Підсумок раунду truth — те саме, що бачить сцена (на round_end — згорнутий, якщо його вже показано на останньому факті). */}
       {phase === 'reveal' && view.truth?.recap !== undefined && (
@@ -1651,6 +1659,8 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
         <ResumePanel code={code} info={view.resume} draft={resumeDraft} onChange={setResumeDraft} />
       )}
       {view.continued !== undefined && <SlotsPanel continued={view.continued} send={send} paused={view.paused} phase={phase} resume={view.resume} />}
+      </div>
+      </div>
 
       {error !== null && (
         <p className="error" role="alert">

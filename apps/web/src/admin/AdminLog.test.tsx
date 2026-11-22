@@ -52,6 +52,12 @@ const open = (entry = '/admin/log') =>
   );
 
 describe('AdminLog filters (63)', () => {
+  it('67: the log list is one row per line, not a card grid', async () => {
+    const { container } = open();
+    await screen.findByText(/Родина/);
+    expect(container.querySelector('ul.admin-list.is-rows')).not.toBeNull();
+  });
+
   it('filters go to the request and reset the page', async () => {
     open();
     await screen.findByText(/Родина/);

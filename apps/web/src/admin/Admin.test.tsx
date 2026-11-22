@@ -59,6 +59,16 @@ describe('Admin', () => {
     expect(await screen.findByText('головна')).toBeTruthy();
   });
 
+  it('67: the admin page has the tabs and the body as two blocks for the wide layout', async () => {
+    vi.mocked(me).mockResolvedValue(account(true));
+    vi.mocked(adminStats).mockResolvedValue({ ok: true, data: stats });
+    const { container } = open();
+    await screen.findByText('Користувачів усього');
+    const main = container.querySelector('main.admin-page')!;
+    expect(main.querySelector(':scope > nav.admin-tabs')).not.toBeNull();
+    expect(main.querySelector(':scope > .admin-body')?.textContent).toContain('Користувачів усього');
+  });
+
   it('shows the stats and the eleven section links', async () => {
     vi.mocked(me).mockResolvedValue(account(true));
     vi.mocked(adminStats).mockResolvedValue({ ok: true, data: stats });
