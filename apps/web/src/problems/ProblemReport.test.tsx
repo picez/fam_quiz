@@ -83,7 +83,7 @@ describe('ProblemReport', () => {
     fireEvent.change(screen.getByLabelText('Що сталося'), { target: { value: 'Кнопка не тисне' } });
     fireEvent.click(screen.getByRole('button', { name: 'Надіслати' }));
     await waitFor(() => expect(calls.posts).toHaveLength(1));
-    expect(calls.posts[0]).toEqual({ text: 'Кнопка не тисне', page: null });
+    expect(calls.posts[0]).toEqual({ text: 'Кнопка не тисне', page: null, game: null });
   });
 
   it('an account sees its messages and the admin reply', async () => {

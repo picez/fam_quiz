@@ -47,7 +47,7 @@ export function ProblemReport(): JSX.Element {
     setBusy(true);
     setError(null);
     setSent(false);
-    const result = await sendProblemReport({ text: text.trim(), page: attach ? pageSnapshot(from) : null });
+    const result = await sendProblemReport({ text: text.trim(), page: attach ? pageSnapshot(from) : null, game: null });
     setBusy(false);
     if (!result.ok) {
       setError(errorText(result.error));

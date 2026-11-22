@@ -42,6 +42,7 @@ const report = (over: Partial<AdminProblemReport> = {}): AdminProblemReport => (
   who: { kind: 'guest' },
   text: 'Кнопка не натискається',
   page: null,
+  game: null,
   status: 'open',
   reply: null,
   repliedAt: null,

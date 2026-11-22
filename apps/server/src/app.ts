@@ -20,6 +20,7 @@ import { registerSavedGameRoutes } from './saved-games';
 import { registerChallengeRoutes } from './challenge-routes';
 import { registerProfileRoutes } from './profile-routes';
 import { registerProblemRoutes } from './problem-routes';
+import { registerInboxRoutes } from './inbox-routes';
 import { registerPrizeRoutes } from './prize-routes';
 import { registerShowcaseRoutes } from './showcase-routes';
 import { registerAdminRoutes } from './admin-routes';
@@ -170,6 +171,7 @@ export async function buildApp(options: AppOptions) {
   await registerShowcaseRoutes(app, { db: options.db, currentUser });
   const announcements = announcementCache(options.db, () => Date.now());
   await registerProblemRoutes(app, { db: options.db, currentUser });
+  await registerInboxRoutes(app, { db: options.db, currentUser });
   await registerAnnouncementRoutes(app, { cache: announcements });
   const push = options.push === undefined ? null : createPushService({ db: options.db, ...options.push, log: (message, error) => log.error({ err: error }, message) });
   await registerAdminRoutes(app, { db: options.db, manager, adminEmails: options.adminEmails ?? new Set<string>(), currentUser, backupList: options.backupList, backups: options.backups, announcements, maxRooms, storage: imageStorage, checkFetch: options.checkFetch ?? offlineFetch, checkResolve: options.checkResolve ?? offlineResolve, push });

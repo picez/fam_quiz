@@ -25,6 +25,8 @@ const row = (over: Partial<Row> = {}): Row => ({
   url: null,
   to: { kind: 'all' },
   people: 6,
+  pushPeople: 6,
+  read: 0,
   delivered: 5,
   failed: 1,
   status: 'sent',

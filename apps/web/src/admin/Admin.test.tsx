@@ -32,7 +32,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(adminCharts).mockResolvedValue({ ok: false, error: 'offline' });
   vi.mocked(adminHealth).mockResolvedValue({ ok: false, error: 'offline' });
-  vi.mocked(adminProblemsBadge).mockResolvedValue({ ok: true, data: { errors: 0, reports: 0 } });
+  vi.mocked(adminProblemsBadge).mockResolvedValue({ ok: true, data: { errors: 0, reports: 0, complaints: 0 } });
 });
 afterEach(cleanup);
 
@@ -95,7 +95,7 @@ describe('Admin', () => {
   it('shows new errors and open reports as a badge on the errors tab', async () => {
     vi.mocked(me).mockResolvedValue(account(true));
     vi.mocked(adminStats).mockResolvedValue({ ok: true, data: stats });
-    vi.mocked(adminProblemsBadge).mockResolvedValue({ ok: true, data: { errors: 2, reports: 1 } });
+    vi.mocked(adminProblemsBadge).mockResolvedValue({ ok: true, data: { errors: 2, reports: 1, complaints: 0 } });
     open();
     const nav = await screen.findByRole('navigation', { name: 'Розділи адмінки' });
     const badge = await waitFor(() => {
@@ -111,7 +111,7 @@ describe('Admin', () => {
 
   it('drops the badge right after an error is resolved, without navigating', async () => {
     vi.mocked(me).mockResolvedValue(account(true));
-    vi.mocked(adminProblemsBadge).mockResolvedValue({ ok: true, data: { errors: 3, reports: 0 } });
+    vi.mocked(adminProblemsBadge).mockResolvedValue({ ok: true, data: { errors: 3, reports: 0, complaints: 0 } });
     vi.mocked(adminErrors).mockResolvedValue({
       ok: true,
       data: {
@@ -125,7 +125,7 @@ describe('Admin', () => {
     open('/admin/errors');
     const nav = await screen.findByRole('navigation', { name: 'Розділи адмінки' });
     await waitFor(() => expect(nav.querySelector('.menu-badge')?.textContent).toBe('3'));
-    vi.mocked(adminProblemsBadge).mockResolvedValue({ ok: true, data: { errors: 2, reports: 0 } });
+    vi.mocked(adminProblemsBadge).mockResolvedValue({ ok: true, data: { errors: 2, reports: 0, complaints: 0 } });
     fireEvent.click(await screen.findByRole('button', { name: 'Позначити як вирішене' }));
     await waitFor(() => expect(nav.querySelector('.menu-badge')?.textContent).toBe('2'));
   });
