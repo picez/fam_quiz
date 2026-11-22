@@ -6,6 +6,7 @@ import { formatDate } from '../format';
 import { errorText, t } from '../i18n';
 import { LOCALE_NAMES } from '../locales/locales';
 import { useAccount } from '../useAccount';
+import { clearMoment, readMoment } from './problem-moment';
 import { pageSnapshot } from './problem-page';
 
 type Mine = { status: 'loading' } | { status: 'ready'; items: MyProblemReport[] } | { status: 'error'; error: string };
@@ -40,6 +41,8 @@ export function ProblemReport(): JSX.Element {
   }, [accountId, reload]);
 
   const page = pageSnapshot(from);
+  // 70: момент гри, з якої людина прийшла (той самий код кімнати, не старший за 30 хв).
+  const [game] = useState(() => readMoment(from));
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
@@ -47,13 +50,14 @@ export function ProblemReport(): JSX.Element {
     setBusy(true);
     setError(null);
     setSent(false);
-    const result = await sendProblemReport({ text: text.trim(), page: attach ? pageSnapshot(from) : null, game: null });
+    const result = await sendProblemReport({ text: text.trim(), page: attach ? pageSnapshot(from) : null, game: attach ? game : null });
     setBusy(false);
     if (!result.ok) {
       setError(errorText(result.error));
       return;
     }
     setText('');
+    if (game !== null) clearMoment();
     setSent(true);
     setReload((n) => n + 1);
   };
@@ -91,6 +95,7 @@ export function ProblemReport(): JSX.Element {
         </p>
         {attach && (
           <ul className="problem-page-info">
+            {game !== null && <li dir="auto">{game.round === null || game.question === null || game.question < 0 ? t('problemPageGameLobby', { code: game.code }) : t('problemPageGame', { code: game.code, round: game.round + 1, question: game.question + 1 })}</li>}
             <li dir="auto">{t('problemPagePath', { path: page.path })}</li>
             <li dir="auto">{t('problemPageBrowser', { browser: page.browser })}</li>
             <li dir="auto">{t('problemPageScreen', { screen: page.screen })}</li>
