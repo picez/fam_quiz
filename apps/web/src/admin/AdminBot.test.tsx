@@ -26,7 +26,7 @@ const room = (over: Partial<AdminBotRoom> = {}): AdminBotRoom => ({
   hosts: 0,
   ...over,
 });
-const quiz = (over: Partial<AdminBotQuiz> = {}): AdminBotQuiz => ({ id: QUIZ_ID, title: 'Річки України', rounds: 2, questions: 10, truth: false, updatedAt: '2026-11-18T10:00:00.000Z', check: null, ...over });
+const quiz = (over: Partial<AdminBotQuiz> = {}): AdminBotQuiz => ({ id: QUIZ_ID, title: 'Річки України', rounds: 2, questions: 10, truth: false, updatedAt: '2026-11-18T10:00:00.000Z', createdAt: '2026-11-01T10:00:00.000Z', check: null, ...over });
 const bot = (over: Partial<AdminBotData> = {}): AdminBotData => ({ bot: { nickname: 'Квіз-бот', ready: true }, quizzes: [quiz()], rooms: [], roomsMax: 3, schedule: { plans: [], groups: [], max: 20 }, ...over });
 
 type Reply = { status: number; body?: unknown };
@@ -368,5 +368,30 @@ describe('AdminBot', () => {
     fireEvent.click(await within(card('123456')).findByRole('button', { name: 'Віддати боту' }));
     await waitFor(() => expect(sent('PUT', '/api/admin/bot/rooms/123456/manual')).toHaveLength(2));
     expect(sent('PUT', '/api/admin/bot/rooms/123456/manual')[1]!.body).toEqual({ on: false });
+  });
+});
+
+describe('AdminBot: dates and sort of the bot quizzes (73)', () => {
+  const OTHER = '33333333-3333-4333-8333-333333333333';
+  const two = [quiz(), quiz({ id: OTHER, title: 'Карпати', createdAt: '2026-10-01T10:00:00.000Z', updatedAt: '2026-10-01T12:00:00.000Z' })];
+  const listed = () => within(screen.getByRole('heading', { name: 'Вікторини бота' }).closest('section')!).getAllByRole('heading', { level: 3 }).map((one) => one.textContent);
+
+  it('shows the created day on a bot quiz card instead of a bare date', async () => {
+    open();
+    const item = (await screen.findByRole('heading', { name: 'Річки України' })).closest('li') as HTMLElement;
+    expect(within(item).getByText('Створено 1 листопада 2026 · змінено 18 листопада 2026')).toBeTruthy();
+    expect(within(item).queryByText('18 листопада 2026')).toBeNull();
+  });
+
+  it('sorts the bot quizzes for the view and leaves the schedule list as it came', async () => {
+    replies['GET /api/admin/bot'] = { status: 200, body: bot({ quizzes: two }) };
+    open();
+    await screen.findByRole('heading', { name: 'Карпати' });
+    expect(listed()).toEqual(['Річки України', 'Карпати']);
+    fireEvent.change(screen.getByRole('combobox', { name: t('quizSort') }), { target: { value: 'old' } });
+    expect(listed()).toEqual(['Карпати', 'Річки України']);
+    fireEvent.click(screen.getByRole('button', { name: t('adminBotPlanNew') }));
+    const pick = (await screen.findByRole('combobox', { name: t('adminBotPlanQuiz') })) as HTMLSelectElement;
+    expect([...pick.options].map((one) => one.textContent)).toEqual(['Річки України', 'Карпати']);
   });
 });

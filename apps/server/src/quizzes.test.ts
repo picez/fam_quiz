@@ -3,8 +3,8 @@ import { questionsOf, quizSchema } from '@quiz/shared';
 import { eq, sql } from 'drizzle-orm';
 import { bool, boardRound, classicRound, duels, makeQuiz, makeRoundsQuiz, single, text, truthRound, withId } from '@quiz/engine/testing';
 import { buildApp } from './app';
-import { answer, game, quiz, user, userLike } from './db/schema';
-import { createQuiz as saveQuiz, deleteQuestionAsAdmin, deleteQuiz, getQuiz, listQuizzes } from './quizzes';
+import { answer, game, quiz, quizFolder, user, userLike } from './db/schema';
+import { createQuiz as saveQuiz, deleteQuestionAsAdmin, deleteQuiz, getQuiz, listQuizzes, updateQuiz } from './quizzes';
 import { TEST_AUTH, signUp } from './testing/accounts';
 import { createTestDb, createTestDbUpTo } from './testing/test-db';
 
@@ -368,5 +368,42 @@ describe('admin reads and deletes without the owner check (21a)', () => {
     const [before] = await db.select().from(quiz).where(eq(quiz.id, locked));
     expect(await deleteQuestionAsAdmin(db, locked, 's1')).toEqual({ ok: false, error: 'question_locked' });
     expect((await db.select().from(quiz).where(eq(quiz.id, locked)))[0]).toEqual(before);
+  });
+});
+
+describe('created dates and folders on the quiz list (73)', () => {
+  async function setup() {
+    const db = await createTestDb();
+    await db.insert(user).values({ id: 'owner', name: 'Олена', email: 'olena@example.com' });
+    const [films] = await db.insert(quizFolder).values({ ownerId: 'owner', name: 'Кіно' }).returning();
+    return { db, films };
+  }
+
+  it('listQuizzes carries createdAt and folderId, still recently changed first', async () => {
+    const { db, films } = await setup();
+    const older = await saveQuiz(db, 'owner', makeQuiz([withId(single, 'q1')]));
+    const newer = await saveQuiz(db, 'owner', makeQuiz([withId(single, 'q1')]));
+    await db.update(quiz).set({ createdAt: new Date('2026-10-12T10:00:00Z'), updatedAt: new Date('2026-11-03T10:00:00Z'), folderId: films.id }).where(eq(quiz.id, older));
+    await db.update(quiz).set({ createdAt: new Date('2026-10-20T10:00:00Z'), updatedAt: new Date('2026-10-21T10:00:00Z') }).where(eq(quiz.id, newer));
+
+    const list = await listQuizzes(db, 'owner');
+
+    expect(list.map((item) => [item.id, item.createdAt, item.updatedAt, item.folderId])).toEqual([
+      [older, '2026-10-12T10:00:00.000Z', '2026-11-03T10:00:00.000Z', films.id],
+      [newer, '2026-10-20T10:00:00.000Z', '2026-10-21T10:00:00.000Z', null],
+    ]);
+  });
+
+  it('a new quiz has no folder; editing and an admin question delete keep the folder', async () => {
+    const { db, films } = await setup();
+    const id = await saveQuiz(db, 'owner', makeQuiz([withId(single, 'q1'), withId(text, 'q2')]));
+    expect((await db.select().from(quiz).where(eq(quiz.id, id)))[0]?.folderId).toBeNull();
+    await db.update(quiz).set({ folderId: films.id }).where(eq(quiz.id, id));
+
+    expect(await updateQuiz(db, 'owner', id, { ...makeQuiz([withId(single, 'q1'), withId(text, 'q2')]), title: 'Нова назва' })).toBe(true);
+    expect((await db.select().from(quiz).where(eq(quiz.id, id)))[0]).toMatchObject({ title: 'Нова назва', folderId: films.id });
+
+    expect(await deleteQuestionAsAdmin(db, id, 'q1')).toMatchObject({ ok: true });
+    expect((await db.select().from(quiz).where(eq(quiz.id, id)))[0]?.folderId).toBe(films.id);
   });
 });

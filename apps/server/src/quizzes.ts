@@ -15,6 +15,10 @@ export interface QuizSummary {
   /** Є раунд «Правда про гравця»: його запитань у questionCount немає. */
   truth: boolean;
   updatedAt: string;
+  /** 73: дата створення на картці й порядок «Спершу нові/давні». */
+  createdAt: string;
+  /** 73: особиста категорія автора; null — без категорії. */
+  folderId: string | null;
 }
 
 /**
@@ -42,6 +46,8 @@ export async function listQuizzes(db: Db, ownerId: string): Promise<QuizSummary[
     questionCount: questionsOf(row).length,
     truth: hasTruthRound(row),
     updatedAt: row.updatedAt.toISOString(),
+    createdAt: row.createdAt.toISOString(),
+    folderId: row.folderId,
   }));
 }
 

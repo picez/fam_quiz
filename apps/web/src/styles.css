@@ -29990,3 +29990,125 @@ table.sr-only td {
 .admin-group-new-item [role='alert']:empty {
   display: none;
 }
+
+/* 73: «Мої вікторини» — особисті категорії (чипи, панель керування, вибір на картці), дати й порядок. Лише свої префікси. */
+.quiz-folders {
+  display: grid;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.quiz-folder-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  min-inline-size: 0;
+}
+
+.quiz-folder-filter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  min-inline-size: 0;
+}
+
+.quiz-folder-chip {
+  max-inline-size: 100%;
+  min-height: 2.75rem;
+  padding: 0.5rem 1rem;
+  overflow-wrap: anywhere;
+  text-align: start;
+}
+
+.quiz-folder-chip[aria-pressed='true'] {
+  border-color: var(--accent);
+  background: var(--spot);
+}
+
+.quiz-folder-manage {
+  min-height: 2.75rem;
+  padding: 0.5rem 0.75rem;
+}
+
+.quiz-folder-sort select,
+.quiz-folder-pick select {
+  inline-size: 100%;
+  min-inline-size: 0;
+}
+
+.quiz-folder-pick {
+  margin-top: 0.5rem;
+}
+
+.quiz-folder-pick option {
+  overflow-wrap: anywhere;
+}
+
+.quiz-folder-manager {
+  display: grid;
+  gap: 0.75rem;
+  min-inline-size: 0;
+}
+
+.quiz-folder-manager > p {
+  margin: 0;
+}
+
+.quiz-folder-list {
+  display: grid;
+  gap: 0.75rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.quiz-folder-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: end;
+  margin: 0;
+}
+
+/* Між категоріями списку — риска: кнопки однієї не плутаються з назвою наступної. */
+.quiz-folder-list > li + li {
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--line);
+}
+
+.quiz-folder-row .quiz-folder-name {
+  flex: 1 1 12rem;
+  min-inline-size: 0;
+}
+
+.quiz-dates {
+  overflow-wrap: anywhere;
+}
+
+@media (min-width: 1024px) {
+  .quiz-folders {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: start;
+  }
+
+  .quiz-folder-sort {
+    flex-direction: row;
+    align-items: center;
+  }
+
+  .quiz-folder-sort select {
+    inline-size: auto;
+  }
+
+  .quiz-folder-manager {
+    grid-column: 1 / -1;
+    max-inline-size: var(--w-read);
+  }
+}
+
+/* 73: «Порядок» в адмінці — не на всю ширину вкладки «Бот» на ПК. */
+.admin-quiz-sort {
+  max-inline-size: 22rem;
+  margin-bottom: 0.75rem;
+}

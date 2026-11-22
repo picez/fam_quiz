@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { emptyBrief, type Answer, type Question, type RoundInfo } from '@quiz/shared';
-import { questionLabel, questionName, questionTitle, roundFacts, roundLabel, answerText, choiceLabel, choicesOf, correctPairs, correctText, formatDate, formatDay, monthText, orderLabelsText, pairTexts, pickedText, quizSizeText, secondsText, shownChoices, seenText, signed, sliderNumber } from './format';
+import { questionLabel, questionName, questionTitle, roundFacts, roundLabel, answerText, choiceLabel, choicesOf, correctPairs, correctText, formatDate, formatDay, monthText, quizDatesText, orderLabelsText, pairTexts, pickedText, quizSizeText, secondsText, shownChoices, seenText, signed, sliderNumber } from './format';
 import { activateLocaleForTests } from './i18n';
 
 const base = { id: 'q', text: '?', imageUrl: null, video: null, timeLimit: 20, points: 1000 };
@@ -218,6 +218,20 @@ describe('formatDay', () => {
 
   it('returns an empty string for something that is not a date', () => {
     expect(formatDay('нісенітниця')).toBe('');
+  });
+});
+
+describe('quizDatesText (73)', () => {
+  it('shows only the created day when the quiz changed the same Kyiv day', () => {
+    expect(quizDatesText({ createdAt: '2026-10-12T10:00:00Z', updatedAt: '2026-10-12T20:00:00Z' })).toBe('Створено 12 жовтня 2026');
+  });
+
+  it('adds the changed day when it differs', () => {
+    expect(quizDatesText({ createdAt: '2026-10-12T10:00:00Z', updatedAt: '2026-11-03T09:00:00Z' })).toBe('Створено 12 жовтня 2026 · змінено 3 листопада 2026');
+  });
+
+  it('counts the day in Kyiv time: 21:30 UTC is already the next day', () => {
+    expect(quizDatesText({ createdAt: '2026-10-12T10:00:00Z', updatedAt: '2026-10-12T21:30:00Z' })).toBe('Створено 12 жовтня 2026 · змінено 13 жовтня 2026');
   });
 });
 

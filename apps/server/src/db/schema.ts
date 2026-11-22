@@ -115,6 +115,21 @@ export const verification = pgTable('verification', {
   ...stamps,
 });
 
+/** 73: особиста категорія (папка) вікторин автора; бачить лише він. Назва унікальна без огляду на регістр. */
+export const quizFolder = pgTable(
+  'quiz_folder',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    ownerId: text('owner_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    position: integer('position').notNull().default(0),
+    ...stamps,
+  },
+  (table) => [index('quiz_folder_owner_idx').on(table.ownerId), uniqueIndex('quiz_folder_owner_name_idx').on(table.ownerId, sql`lower(${table.name})`)],
+);
+
 export const quiz = pgTable(
   'quiz',
   {
@@ -126,9 +141,11 @@ export const quiz = pgTable(
     description: text('description').notNull(),
     settings: jsonb('settings').$type<QuizSettings & { duels?: Duels; spares?: Question[] }>().notNull(),
     rounds: jsonb('rounds').$type<Round[]>().notNull(),
+    /** 73: категорія автора; видалена категорія — вікторина без категорії. */
+    folderId: uuid('folder_id').references((): AnyPgColumn => quizFolder.id, { onDelete: 'set null' }),
     ...stamps,
   },
-  (table) => [index('quiz_owner_idx').on(table.ownerId)],
+  (table) => [index('quiz_owner_idx').on(table.ownerId), index('quiz_folder_idx').on(table.folderId)],
 );
 
 /** Зігране запитання гри: раунд і id запитання в ньому. */

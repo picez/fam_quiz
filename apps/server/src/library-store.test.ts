@@ -3,7 +3,7 @@ import { blitzRound, bool, classicRound, makeRoundsQuiz, multi, numeric, order, 
 import { eq } from 'drizzle-orm';
 import { describe, expect, it } from 'vitest';
 import type { Db } from './db/client';
-import { game, libraryCopy, libraryEntry, profile, quiz, user, userBan, userLike } from './db/schema';
+import { game, libraryCopy, libraryEntry, profile, quiz, quizFolder, user, userBan, userLike } from './db/schema';
 import { appealEntry, catalog, closeEntry, copyEntry, entryDetail, escapeLike, myEntries, openEntry, visibleEntry } from './library-store';
 import { ensureProfile } from './profiles';
 import { createQuiz, getQuiz, updateQuiz } from './quizzes';
@@ -223,8 +223,12 @@ describe('library store (38g)', () => {
     const { db, olena, taras } = await setup();
     const long = 'д'.repeat(500);
     const { entryId, quizId } = await openNew(db, olena, { description: long });
+    // 73: оригінал у категорії Олени — копія все одно без категорії.
+    const [films] = await db.insert(quizFolder).values({ ownerId: olena, name: 'Кіно' }).returning();
+    await db.update(quiz).set({ folderId: films.id }).where(eq(quiz.id, quizId));
     const result = await copyEntry(db, taras, entryId, 'uk', T1);
     if (!result.ok) throw new Error(result.error);
+    expect((await db.select().from(quiz).where(eq(quiz.id, result.quizId)))[0]?.folderId).toBeNull();
     const copy = (await getQuiz(db, taras, result.quizId))!;
     const source = (await getQuiz(db, olena, quizId))!;
     expect(copy.rounds).toEqual(source.rounds);

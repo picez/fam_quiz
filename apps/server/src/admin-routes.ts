@@ -1,4 +1,4 @@
-import { ADMIN_CACHE_MS, ANNOUNCEMENT_MAX_DAYS, BOT_USER_ID, adminListQuerySchema, adminMetricsQuerySchema, adminLogFilterSchema, adminLogQuerySchema, announcementInputSchema, adminProfileActionSchema, adminQuizActionSchema, banSchema, type AdminBackupInfo, type AdminHealth, type AdminMetricPeriod, type AdminMetrics } from '@quiz/shared';
+import { ADMIN_CACHE_MS, ANNOUNCEMENT_MAX_DAYS, BOT_USER_ID, adminListQuerySchema, adminMetricsQuerySchema, adminQuizListQuerySchema, adminLogFilterSchema, adminLogQuerySchema, announcementInputSchema, adminProfileActionSchema, adminQuizActionSchema, banSchema, type AdminBackupInfo, type AdminHealth, type AdminMetricPeriod, type AdminMetrics } from '@quiz/shared';
 import { eq } from 'drizzle-orm';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { CurrentUser } from './account-routes';
@@ -287,7 +287,7 @@ export async function registerAdminRoutes(app: FastifyInstance, deps: AdminDeps)
   });
 
   app.get('/api/admin/quizzes', read, async (request, reply) => {
-    const query = adminListQuerySchema.safeParse(request.query);
+    const query = adminQuizListQuerySchema.safeParse(request.query);
     if (!query.success) return reply.code(400).send(INVALID);
     return adminQuizzes(db, query.data);
   });

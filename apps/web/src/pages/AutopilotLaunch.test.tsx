@@ -14,7 +14,7 @@ vi.mock('../api', () => ({
   createAutopilotGame: vi.fn(),
 }));
 
-const quiz = { id: 'q1', title: 'Географія', description: '', questionCount: 6, updatedAt: '2026-10-12T10:00:00.000Z' };
+const quiz = { id: 'q1', title: 'Географія', description: '', questionCount: 6, updatedAt: '2026-10-12T10:00:00.000Z', createdAt: '2026-10-12T10:00:00.000Z', folderId: null };
 
 beforeEach(() => {
   vi.clearAllMocks();

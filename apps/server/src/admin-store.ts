@@ -4,6 +4,7 @@ import {
   adminPages,
   ADMIN_PAGE_SIZE,
   ADMIN_QUERY_MAX,
+  compareQuizTitles,
   hasTruthRound,
   pageOffset,
   questionsOf,
@@ -14,8 +15,9 @@ import {
   type AdminStats,
   type AdminUserDetail,
   type AdminUserRow,
+  type QuizSort,
 } from '@quiz/shared';
-import { and, desc, eq, inArray, gt, ne, sql, type SQL } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, gt, ne, sql, type SQL } from 'drizzle-orm';
 import { isAdminEmail } from './admin';
 import { escapeLike } from './library-store';
 import type { Db } from './db/client';
@@ -164,11 +166,19 @@ export async function botQuizzes(db: Db, checker: Pick<QuizChecker, 'last'>): Pr
     questions: questionsOf(row).length,
     truth: hasTruthRound(row),
     updatedAt: iso(row.updatedAt),
+    createdAt: iso(row.createdAt),
     check: lastCheckOf(checker, row.id, row.updatedAt),
   }));
 }
 
-export async function adminQuizzes(db: Db, query: { q?: string; page: number }): Promise<AdminList<AdminQuizRow>> {
+/** 73: порядок адмінського списку; name — окремо в Node (див. нижче). */
+const QUIZ_ORDER: Record<Exclude<QuizSort, 'name'>, SQL[]> = {
+  new: [desc(quiz.createdAt), asc(quiz.id)],
+  old: [asc(quiz.createdAt), asc(quiz.id)],
+  changed: [desc(quiz.updatedAt), asc(quiz.id)],
+};
+
+export async function adminQuizzes(db: Db, query: { q?: string; page: number; sort: QuizSort }): Promise<AdminList<AdminQuizRow>> {
   const like = pattern(query.q);
   const where = like === null ? undefined : sql`(${quiz.title} ilike ${like} or ${profile.nickname} ilike ${like})`;
   const [{ n } = { n: 0 }] = await db
@@ -177,7 +187,19 @@ export async function adminQuizzes(db: Db, query: { q?: string; page: number }):
     .leftJoin(profile, eq(profile.userId, quiz.ownerId))
     .where(where);
   const total = num(n);
-  const rows = await db
+  // 73: назви за українською абеткою; колація бази ставить «є, і, ї, ґ» після «я». Тож спершу всі (id, title) за умовою,
+  // порядок у Node, далі лише id сторінки — і повні рядки для них, у порядку цього списку.
+  let pageIds: string[] | null = null;
+  if (query.sort === 'name') {
+    const titles = await db.select({ id: quiz.id, title: quiz.title }).from(quiz).leftJoin(profile, eq(profile.userId, quiz.ownerId)).where(where);
+    const start = pageOffset(query.page, ADMIN_PAGE_SIZE);
+    pageIds = titles
+      .sort(compareQuizTitles)
+      .slice(start, start + ADMIN_PAGE_SIZE)
+      .map((row) => row.id);
+    if (pageIds.length === 0) return { rows: [], total, page: query.page, pages: adminPages(total) };
+  }
+  const selected = db
     .select({
       row: quiz,
       nickname: profile.nickname,
@@ -186,11 +208,18 @@ export async function adminQuizzes(db: Db, query: { q?: string; page: number }):
       games: sql<number>`(select count(*)::int from ${game} where ${game.quizId} = ${quiz.id} and ${game.status} = 'finished')`,
     })
     .from(quiz)
-    .leftJoin(profile, eq(profile.userId, quiz.ownerId))
-    .where(where)
-    .orderBy(desc(quiz.updatedAt), quiz.id)
-    .limit(ADMIN_PAGE_SIZE)
-    .offset(pageOffset(query.page, ADMIN_PAGE_SIZE));
+    .leftJoin(profile, eq(profile.userId, quiz.ownerId));
+  let rows: Awaited<typeof selected>;
+  if (pageIds === null) {
+    rows = await selected
+      .where(where)
+      .orderBy(...QUIZ_ORDER[query.sort as Exclude<QuizSort, 'name'>])
+      .limit(ADMIN_PAGE_SIZE)
+      .offset(pageOffset(query.page, ADMIN_PAGE_SIZE));
+  } else {
+    const index = new Map(pageIds.map((id, i) => [id, i]));
+    rows = (await selected.where(inArray(quiz.id, pageIds))).sort((x, y) => index.get(x.row.id)! - index.get(y.row.id)!);
+  }
   const result: AdminQuizRow[] = [];
   for (const r of rows) {
     const nickname = r.hasProfile !== null ? (r.nickname ?? '') : ((await ensureProfile(db, r.row.ownerId))?.nickname ?? '');
@@ -203,6 +232,7 @@ export async function adminQuizzes(db: Db, query: { q?: string; page: number }):
       truth: hasTruthRound(r.row),
       games: num(r.games),
       updatedAt: iso(r.row.updatedAt),
+      createdAt: iso(r.row.createdAt),
     });
   }
   return { rows: result, total, page: query.page, pages: adminPages(total) };
