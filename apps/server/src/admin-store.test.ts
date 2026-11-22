@@ -1,9 +1,9 @@
 import { randomUUID } from 'node:crypto';
-import { BOT_USER_ID, questionsOf } from '@quiz/shared';
+import { ADMIN_PAGE_SIZE, BOT_USER_ID, questionsOf } from '@quiz/shared';
 import { bool, makeQuiz, single, text } from '@quiz/engine/testing';
 import { eq } from 'drizzle-orm';
 import { beforeAll, describe, expect, it } from 'vitest';
-import { adminQuiz, adminQuizzes, adminStats, adminUser, adminUsers, kyivMidnight } from './admin-store';
+import { adminQuiz, adminQuizzes, adminStats, botQuizzes, adminUser, adminUsers, kyivMidnight } from './admin-store';
 import { banUser } from './bans';
 import { ensureBotAccount } from './bot-account';
 import type { Db } from './db/client';
@@ -168,11 +168,11 @@ describe('admin store', () => {
     await makeGame(author, a.id, 'finished', NOW);
     await makeGame(author, a.id, 'running', null);
 
-    const byTitle = await adminQuizzes(db, { q: 'карпатські', page: 1 });
+    const byTitle = await adminQuizzes(db, { q: 'карпатські', page: 1, sort: 'changed' });
     expect(byTitle.rows).toHaveLength(1);
     expect(byTitle.rows[0]).toMatchObject({ id: a.id, games: 2, authorBanned: false, author: { id: author, nickname: 'Авторка Карпат' }, questionCount: questionsOf(a).length });
-    expect((await adminQuizzes(db, { q: 'заблокований', page: 1 })).rows.map((r) => [r.id, r.authorBanned])).toEqual([[b.id, true]]);
-    expect((await adminQuizzes(db, { q: '%', page: 1 })).total).toBeGreaterThan(1);
+    expect((await adminQuizzes(db, { q: 'заблокований', page: 1, sort: 'changed' })).rows.map((r) => [r.id, r.authorBanned])).toEqual([[b.id, true]]);
+    expect((await adminQuizzes(db, { q: '%', page: 1, sort: 'changed' })).total).toBeGreaterThan(1);
 
     const view = await adminQuiz(db, a.id);
     expect(view).toMatchObject({ id: a.id, author: { id: author, nickname: 'Авторка Карпат' }, updatedAt: '2026-11-07T09:00:00.000Z' });
@@ -199,5 +199,76 @@ describe('the bot in the admin panel (54)', () => {
     expect(list.rows.map((r) => r.id)).not.toContain(BOT_USER_ID);
     expect(list.total).toBe(1);
     expect((await adminUsers(botDb, none, { page: 1 })).total).toBe(1);
+  });
+});
+
+describe('admin quiz list: created dates and sorting (73)', () => {
+  const nothingChecked = { last: () => null };
+
+  async function seed() {
+    // Своя порожня база: порядок усього списку не залежить від інших тестів.
+    const sortDb = await createTestDb();
+    await ensureBotAccount(sortDb);
+    const olena = await person('Олена Сортова', {}, sortDb);
+    const petro = await person('Петро Сортовий', {}, sortDb);
+    const data = makeQuiz([single, text]);
+    const row = async (ownerId: string, title: string, createdAt: string, updatedAt: string) => {
+      const [made] = await sortDb
+        .insert(quiz)
+        .values({ ownerId, title, description: '', settings: data.settings, rounds: data.rounds, createdAt: at(createdAt), updatedAt: at(updatedAt) })
+        .returning();
+      return made!.id;
+    };
+    const dim = await row(olena, 'Дім', '2026-10-01T10:00:00Z', '2026-11-05T10:00:00Z');
+    const gora = await row(petro, 'Гора', '2026-10-03T10:00:00Z', '2026-10-04T10:00:00Z');
+    const ganok = await row(olena, 'Ґанок', '2026-10-02T10:00:00Z', '2026-11-06T10:00:00Z');
+    const bot = await row(BOT_USER_ID, 'Єнот і бот', '2026-10-04T10:00:00Z', '2026-10-05T10:00:00Z');
+    return { sortDb, olena, petro, dim, gora, ganok, bot };
+  }
+
+  it('new, old, changed and name (Ukrainian alphabet) give the expected order; rows carry createdAt', async () => {
+    const { sortDb, dim, gora, ganok, bot } = await seed();
+    const ids = async (sort: 'new' | 'old' | 'name' | 'changed', q?: string) => (await adminQuizzes(sortDb, { q, page: 1, sort })).rows.map((r) => r.id);
+
+    expect(await ids('new')).toEqual([bot, gora, ganok, dim]);
+    expect(await ids('old')).toEqual([dim, ganok, gora, bot]);
+    expect(await ids('changed')).toEqual([ganok, dim, bot, gora]);
+    expect(await ids('name')).toEqual([gora, ganok, dim, bot]);
+
+    const list = await adminQuizzes(sortDb, { page: 1, sort: 'name' });
+    expect(list.total).toBe(4);
+    expect(list.rows.find((r) => r.id === dim)).toMatchObject({ createdAt: '2026-10-01T10:00:00.000Z', updatedAt: '2026-11-05T10:00:00.000Z', author: { nickname: 'Олена Сортова' } });
+  });
+
+  it('name works with a search by title or nickname', async () => {
+    const { sortDb, dim, ganok, gora, bot } = await seed();
+    const ids = async (q: string) => (await adminQuizzes(sortDb, { q, page: 1, sort: 'name' })).rows.map((r) => r.id);
+    expect(await ids('олена')).toEqual([ganok, dim]);
+    expect(await ids('о')).toEqual([gora, ganok, dim, bot]);
+    expect(await ids('сортовий')).toEqual([gora]);
+    expect((await adminQuizzes(sortDb, { q: 'олена', page: 1, sort: 'name' })).total).toBe(2);
+  });
+
+  it('name over two pages: the second page continues the first without repeats', async () => {
+    const pageDb = await createTestDb();
+    const author = await person('Багато вікторин', {}, pageDb);
+    const data = makeQuiz([single]);
+    const titles = Array.from({ length: ADMIN_PAGE_SIZE + 1 }, (_, i) => `Квіз ${i + 1}`);
+    await pageDb.insert(quiz).values(titles.map((title) => ({ ownerId: author, title, description: '', settings: data.settings, rounds: data.rounds })));
+
+    const first = await adminQuizzes(pageDb, { page: 1, sort: 'name' });
+    const second = await adminQuizzes(pageDb, { page: 2, sort: 'name' });
+
+    expect(first.pages).toBe(2);
+    expect(first.rows).toHaveLength(ADMIN_PAGE_SIZE);
+    expect(second.rows).toHaveLength(1);
+    const all = [...first.rows, ...second.rows].map((r) => r.title);
+    expect(all).toEqual(titles);
+    expect(new Set([...first.rows, ...second.rows].map((r) => r.id)).size).toBe(ADMIN_PAGE_SIZE + 1);
+  });
+
+  it('bot quizzes carry createdAt', async () => {
+    const { sortDb, bot } = await seed();
+    expect(await botQuizzes(sortDb, nothingChecked)).toEqual([expect.objectContaining({ id: bot, createdAt: '2026-10-04T10:00:00.000Z', updatedAt: '2026-10-05T10:00:00.000Z' })]);
   });
 });

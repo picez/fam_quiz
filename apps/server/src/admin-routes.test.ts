@@ -7,7 +7,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import * as adminModule from './admin';
 import { buildApp } from './app';
 import { ensureBotAccount } from './bot-account';
-import { calendarEvent, prizeAward, profile, user, userBan, userTitle } from './db/schema';
+import { calendarEvent, prizeAward, profile, quiz, user, userBan, userTitle } from './db/schema';
 import { TEST_AUTH, signUp, startGame } from './testing/accounts';
 import { createQuiz } from './quizzes';
 import { createTestDb } from './testing/test-db';
@@ -101,6 +101,7 @@ describe('hiding the admin panel (Review Focus 3)', () => {
     ['POST', `/api/admin/users/${UUID}/ban`],
     ['DELETE', `/api/admin/users/${UUID}/ban`],
     ['GET', '/api/admin/quizzes?q=ab&page=1'],
+    ['GET', '/api/admin/quizzes?sort=old'],
     ['GET', `/api/admin/quizzes/${UUID}`],
     ['POST', `/api/admin/quizzes/${UUID}/check`],
     ['DELETE', `/api/admin/quizzes/${UUID}`],
@@ -289,6 +290,35 @@ describe('ban', () => {
     expect(await lastLog()).toMatchObject({ kind: 'unban', target: b.nickname });
     expect((await call('DELETE', `/api/admin/users/${b.id}/ban`, a.cookie)).statusCode).toBe(204);
     expect((await call('DELETE', `/api/admin/users/${o.id}/ban`, a.cookie)).statusCode).toBe(204);
+  });
+});
+
+describe('the admin quiz list sort (73)', () => {
+  it('sort=old orders by created date, no sort stays recently changed, an unknown sort is 400', async () => {
+    const ids: string[] = [];
+    for (const [cookie, title] of [[o.cookie, 'Сорт73 перша'], [a2.cookie, 'Сорт73 друга'], [o.cookie, 'Сорт73 третя']] as const) {
+      const saved = await call('POST', '/api/quizzes', cookie, { ...makeQuiz([single]), title });
+      ids.push((saved.json() as { id: string }).id);
+    }
+    const [first, second, third] = ids as [string, string, string];
+    await db.update(quiz).set({ createdAt: new Date('2026-10-01T10:00:00Z'), updatedAt: new Date('2026-10-02T10:00:00Z') }).where(eq(quiz.id, second));
+    await db.update(quiz).set({ createdAt: new Date('2026-10-03T10:00:00Z'), updatedAt: new Date('2026-11-20T10:00:00Z') }).where(eq(quiz.id, third));
+    await db.update(quiz).set({ createdAt: new Date('2026-10-05T10:00:00Z'), updatedAt: new Date('2026-10-06T10:00:00Z') }).where(eq(quiz.id, first));
+    const listed = async (query: string) => {
+      const response = await call('GET', `/api/admin/quizzes?q=${encodeURIComponent('Сорт73')}${query}`, a.cookie);
+      expect(response.statusCode).toBe(200);
+      return (response.json() as AdminList<{ id: string; createdAt: string }>).rows;
+    };
+
+    expect((await listed('&sort=old')).map((r) => r.id)).toEqual([second, third, first]);
+    expect((await listed('&sort=old'))[0]?.createdAt).toBe('2026-10-01T10:00:00.000Z');
+    expect((await listed('')).map((r) => r.id)).toEqual([third, first, second]);
+    expect((await listed('&sort=changed')).map((r) => r.id)).toEqual([third, first, second]);
+
+    const bad = await call('GET', '/api/admin/quizzes?sort=popular', a.cookie);
+    expect(bad.statusCode).toBe(400);
+    expect(bad.json()).toEqual({ error: 'invalid_payload' });
+    expect((await call('GET', '/api/admin/quizzes?sort=old', o.cookie)).statusCode).toBe(404);
   });
 });
 
