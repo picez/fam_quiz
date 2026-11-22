@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-/** 70: «Вхідні» на сайті — розсилки адміна й відповіді на «Щось не працює». */
+/** 70: «Вхідні» на сайті — розсилки адміна й відповіді на «Щось не працює»; 72 — «тебе додали до групи». */
 
 /** Скільки найновіших елементів показує сторінка `/inbox`. */
 export const INBOX_MAX = 50;
@@ -15,6 +15,8 @@ export type InboxItem = { id: string; at: string; read: boolean } & (
   | { kind: 'broadcast'; title: string; text: string; url: string | null }
   /** problem.text — до INBOX_QUOTE_MAX символів. */
   | { kind: 'problem_reply'; reply: string; problem: { id: string; at: string; text: string } }
+  /** 72: адмін додав людину до групи; назва — жива, з самої групи. */
+  | { kind: 'group_added'; group: { id: string; title: string } }
 );
 
 export interface InboxPage {

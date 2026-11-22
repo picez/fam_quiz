@@ -7,6 +7,8 @@
   "pushCancelledTitle": "Gra „{title}” odwołana",
   "pushFallbackBody": "Jest nowa informacja o zaplanowanej grze.",
   "pushFallbackTitle": "Quiz",
+  "pushGroupAddedBody": "Dotknij, aby otworzyć grupę.",
+  "pushGroupAddedTitle": "Dodano Cię do grupy „{title}”",
   "pushOpenedBody": "Prowadzący otworzył grę. Dotknij, żeby dołączyć.",
   "pushOpenedTitle": "Gra „{title}” się zaczęła",
   "pushProblemReplyTitle": "Odpowiedź na Twoją wiadomość",

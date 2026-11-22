@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { ADMIN_REASON_MAX, type AdminList } from './admin';
 import { FEED_KINDS, type FeedData } from './feed';
-import { GROUP_LIMITS, type GroupEmoji, type GroupItemKind, type GroupRole } from './groups';
+import { GROUP_LIMITS, groupItemInputSchema, type GroupEmoji, type GroupItemKind, type GroupRole } from './groups';
 
 /** 63: види подій стрічки, які модерує адмін (картки «вподобав» не є подіями). */
 export const ADMIN_FEED_KINDS = FEED_KINDS.filter((k): k is Exclude<(typeof FEED_KINDS)[number], 'like'> => k !== 'like');
@@ -68,3 +68,10 @@ export interface AdminGroupItem {
 }
 /** Записи — сторінками по 50, найновіші першими; адмін бачить і сюрпризи. */
 export interface AdminGroupDetail { group: AdminGroupRow; members: AdminGroupMember[]; items: AdminList<AdminGroupItem> }
+
+/** 72: адмін додає людину до групи напряму. */
+export const adminGroupMemberAddSchema = z.object({ userId: z.string().min(1).max(64) }).strict();
+/** 72: запис від Квіз-бота — та сама форма, що в учасника, але без фото й без сюрпризу. */
+export const adminGroupItemSchema = groupItemInputSchema.refine((item) => !item.surprise && item.photo === null, { message: 'admin_item_plain' });
+/** 72: pushed — у людини є підписка й push-служба є (сповіщення у «Вхідних» є завжди). */
+export interface AdminGroupMemberAdded { changed: true; pushed: boolean }

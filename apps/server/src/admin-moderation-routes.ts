@@ -1,8 +1,34 @@
-import { adminFeedQuerySchema, adminGroupDeleteSchema, adminGroupHideSchema, adminGroupOwnerSchema, adminHideSchema, adminListQuerySchema } from '@quiz/shared';
-import type { FastifyInstance, FastifyRequest, RouteShorthandOptions } from 'fastify';
+import {
+  adminFeedQuerySchema,
+  adminGroupDeleteSchema,
+  adminGroupHideSchema,
+  adminGroupItemSchema,
+  adminGroupMemberAddSchema,
+  adminGroupOwnerSchema,
+  adminHideSchema,
+  adminListQuerySchema,
+  groupReason,
+  type AdminGroupMemberAdded,
+} from '@quiz/shared';
+import type { FastifyInstance, FastifyReply, FastifyRequest, RouteShorthandOptions } from 'fastify';
+import type { z } from 'zod';
 import type { CurrentUser } from './account-routes';
 import type { AdminDeps } from './admin-routes';
-import { adminDeleteGroup, adminFeed, adminGroup, adminGroups, adminRemoveMember, adminTransferOwner, setFeedHidden, setGroupHidden, setItemHidden } from './moderation-store';
+import { ensureBotAccount } from './bot-account';
+import {
+  adminAddItem,
+  adminAddMember,
+  adminDeleteGroup,
+  adminFeed,
+  adminGroup,
+  adminGroups,
+  adminRemoveMember,
+  adminTransferOwner,
+  setFeedHidden,
+  setGroupHidden,
+  setItemHidden,
+} from './moderation-store';
+import { subscriptionsOf } from './push-store';
 
 const NOT_FOUND = { error: 'not_found' };
 const GROUP_NOT_FOUND = { error: 'group_not_found' };
@@ -16,7 +42,29 @@ interface Guards {
   adminOf: (request: FastifyRequest) => Promise<CurrentUser | null>;
 }
 
-const FAIL_STATUS = { group_not_found: 404, not_found: 404, member_not_found: 404, item_not_found: 404, owner_must_transfer: 409, group_name_mismatch: 409 } as const;
+const FAIL_STATUS = {
+  group_not_found: 404,
+  not_found: 404,
+  member_not_found: 404,
+  item_not_found: 404,
+  owner_must_transfer: 409,
+  group_name_mismatch: 409,
+  // 72: додати учасника й запис
+  user_not_found: 404,
+  member_banned: 409,
+  group_hidden: 409,
+  already_member: 409,
+  group_full: 409,
+  member_too_many_groups: 409,
+  group_items_full: 409,
+  bot_unavailable: 409,
+} as const;
+
+/** 72: 400 з причиною, якщо вона відома (як у group-routes: { error: 'invalid_payload', reason }). */
+function invalidItem(reply: FastifyReply, error: z.ZodError) {
+  const reason = groupReason(error);
+  return reply.code(400).send(reason === null ? INVALID : { ...INVALID, reason });
+}
 
 /** 63: модерація стрічки й сімейних груп; усе за воротами адмінки (не-адміну й гостю — та сама 404, що й невідомому маршруту). */
 export async function registerAdminModerationRoutes(app: FastifyInstance, deps: AdminDeps, guards: Guards): Promise<void> {
@@ -73,6 +121,38 @@ export async function registerAdminModerationRoutes(app: FastifyInstance, deps: 
     const { id, userId } = request.params;
     if (!UUID.test(id) || userId.length > USER_ID_MAX) return reply.code(404).send(NOT_FOUND);
     return answer(reply, await adminRemoveMember(db, { adminId: me.id, groupId: id, userId, now: now() }));
+  });
+
+  app.post<{ Params: { id: string } }>('/api/admin/groups/:id/members', write, async (request, reply) => {
+    const me = await adminOf(request);
+    if (me === null) return reply.code(404).send(NOT_FOUND);
+    const { id } = request.params;
+    if (!UUID.test(id)) return reply.code(404).send(NOT_FOUND);
+    const body = adminGroupMemberAddSchema.safeParse(request.body ?? {});
+    if (!body.success) return reply.code(400).send(INVALID);
+    const { userId } = body.data;
+    // 72: людина одразу в групі, сповіщення — у «Вхідних» (у тій самій транзакції); пуш — особистий, як відповідь на скаргу (64):
+    // незалежно від admin_push, у фоні, після коміту.
+    const done = await adminAddMember(db, { adminId: me.id, groupId: id, userId, now: now() });
+    if (!done.ok) return reply.code(FAIL_STATUS[done.error]).send({ error: done.error });
+    const pushed = deps.push !== null && (await subscriptionsOf(db, [userId])).length > 0;
+    deps.push?.background(deps.push.deliver([userId], { kind: 'group_added', groupId: id, title: done.groupName }));
+    return { changed: true, pushed } satisfies AdminGroupMemberAdded;
+  });
+
+  app.post<{ Params: { id: string } }>('/api/admin/groups/:id/items', write, async (request, reply) => {
+    const me = await adminOf(request);
+    if (me === null) return reply.code(404).send(NOT_FOUND);
+    const { id } = request.params;
+    if (!UUID.test(id)) return reply.code(404).send(NOT_FOUND);
+    const body = adminGroupItemSchema.safeParse(request.body ?? {});
+    if (!body.success) return invalidItem(reply, body.error);
+    // 72: автор — Квіз-бот; його рядок створюється за потреби (як у бота-ведучого), зайнята пошта бота — 409.
+    if (!(await ensureBotAccount(db))) return reply.code(409).send({ error: 'bot_unavailable' });
+    const done = await adminAddItem(db, { adminId: me.id, groupId: id, item: body.data, now: now() });
+    if (done.ok) return reply.code(201).send({ id: done.itemId });
+    if (done.error === 'about_not_member') return reply.code(400).send({ ...INVALID, reason: 'about_not_member' });
+    return reply.code(FAIL_STATUS[done.error]).send({ error: done.error });
   });
 
   app.put<{ Params: { id: string } }>('/api/admin/groups/:id/owner', write, async (request, reply) => {

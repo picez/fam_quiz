@@ -48,6 +48,11 @@ describe('logCsv (63)', () => {
     expect(last).toContain('один; два\nтри');
   });
 
+  it('a quiz-bot record line keeps its kind in the third column (72)', () => {
+    const [, row] = logCsv([entry({ kind: 'group_item_add', target: 'Оля', details: { title: 'Родина', text: 'Бабуся свистить' } })]).split('\r\n');
+    expect(row!.split(';')[2]).toBe('group_item_add');
+  });
+
   it('names the file by the Kyiv date', () => {
     expect(logFileName(new Date('2026-11-20T22:30:00Z'))).toBe('admin-log-2026-11-21.csv');
   });

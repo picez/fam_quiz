@@ -13,7 +13,7 @@ function ItemCard({ item }: { item: InboxItem }): JSX.Element {
   return (
     <li className={`inbox-item panel${item.read ? '' : ' is-new'}`}>
       <div className="inbox-head">
-        <span className="meta">{item.kind === 'broadcast' ? t('inboxFromAdmin') : t('inboxReplyTitle')}</span>
+        <span className="meta">{item.kind === 'problem_reply' ? t('inboxReplyTitle') : t('inboxFromAdmin')}</span>
         {!item.read && <span className="tag inbox-new">{t('inboxNew')}</span>}
         <time className="meta" dateTime={item.at}>
           {formatDate(item.at)}
@@ -39,7 +39,7 @@ function ItemCard({ item }: { item: InboxItem }): JSX.Element {
             </p>
           )}
         </>
-      ) : (
+      ) : item.kind === 'problem_reply' ? (
         <>
           <blockquote className="inbox-quote meta" dir="auto">
             {t('inboxYouWrote', { text: item.problem.text })}
@@ -49,6 +49,16 @@ function ItemCard({ item }: { item: InboxItem }): JSX.Element {
           </p>
           <p>
             <Link to="/report">{t('inboxAllProblems')}</Link>
+          </p>
+        </>
+      ) : (
+        // 72: адмін додав до групи; назва — жива, з самої групи.
+        <>
+          <h2 className="inbox-title" dir="auto">
+            {t('inboxGroupAdded', { title: item.group.title })}
+          </h2>
+          <p>
+            <Link to={`/profile/groups/${encodeURIComponent(item.group.id)}`}>{t('inboxGroupOpen')}</Link>
           </p>
         </>
       )}
@@ -83,7 +93,7 @@ function InboxList({ page }: { page: InboxData }): JSX.Element {
   );
 }
 
-/** «Вхідні» (/inbox, 70): розсилки адміна й відповіді на «Щось не працює»; лише акаунт. */
+/** «Вхідні» (/inbox, 70): розсилки адміна й відповіді на «Щось не працює», 72 — «тебе додали до групи»; лише акаунт. */
 export function InboxPage(): JSX.Element {
   const { key } = useLocation();
   const [attempt, setAttempt] = useState(0);

@@ -7,6 +7,8 @@
   "pushCancelledTitle": "Partita «{title}» annullata",
   "pushFallbackBody": "Ci sono novità su una partita programmata.",
   "pushFallbackTitle": "Quiz",
+  "pushGroupAddedBody": "Tocca per aprire il gruppo.",
+  "pushGroupAddedTitle": "Sei stato aggiunto al gruppo «{title}»",
   "pushOpenedBody": "Il conduttore ha aperto la partita. Tocca per partecipare.",
   "pushOpenedTitle": "La partita «{title}» è iniziata",
   "pushProblemReplyTitle": "Risposta al tuo messaggio",

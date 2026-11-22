@@ -1,4 +1,5 @@
 import {
+  BOT_USER_ID,
   GROUP_LIMITS,
   type GroupAboutStored,
   type GroupAboutView,
@@ -15,9 +16,9 @@ import { notHidden } from './feed-store';
 import { usesOf } from './group-uses';
 import { ensureProfile } from './profiles';
 
-type Tx = Parameters<Parameters<Db['transaction']>[0]>[0];
+export type Tx = Parameters<Parameters<Db['transaction']>[0]>[0];
 type Fail<E extends string> = { ok: false; error: E };
-type ItemRow = typeof groupItem.$inferSelect;
+export type ItemRow = typeof groupItem.$inferSelect;
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -64,12 +65,18 @@ async function memberCards(db: Db, groupId: string): Promise<Map<string, Profile
   return cards;
 }
 
+/** 72: картка Квіз-бота для його записів — лише коли серед рядків є запис від бота (профіль створюється за потреби). */
+async function botCard(db: Db, rows: readonly ItemRow[]): Promise<ProfileCard | null> {
+  return rows.some((row) => row.authorId === BOT_USER_ID) ? ensureProfile(db, BOT_USER_ID) : null;
+}
+
 function toView(
   row: ItemRow,
   members: Map<string, ProfileCard>,
   viewerId: string,
   role: GroupRole,
   uses: GroupItemUse[] = [],
+  bot: ProfileCard | null = null,
 ): GroupItem {
   const about: GroupAboutView[] = row.about.map((entry) => {
     if (entry.kind === 'name') return { kind: 'name', name: entry.name };
@@ -88,7 +95,8 @@ function toView(
     year: row.year,
     photo: row.photo,
     surprise: row.surprise,
-    author: row.authorId === null ? null : (members.get(row.authorId) ?? null),
+    // 72: запис від адміна — від Квіз-бота; бот не учасник, але не «вже не в групі».
+    author: row.authorId === null ? null : (members.get(row.authorId) ?? (row.authorId === BOT_USER_ID ? bot : null)),
     mine,
     canDelete: mine || role === 'owner',
     uses,
@@ -106,7 +114,8 @@ export async function listItems(db: Db, groupId: string, viewerId: string, viewe
     .orderBy(desc(groupItem.createdAt), desc(groupItem.id));
   const members = await memberCards(db, groupId);
   const uses = await usesOf(db, rows.map((row) => row.id), viewerId);
-  return rows.map((row) => toView(row, members, viewerId, viewerRole, uses.get(row.id) ?? []));
+  const bot = await botCard(db, rows);
+  return rows.map((row) => toView(row, members, viewerId, viewerRole, uses.get(row.id) ?? [], bot));
 }
 
 /**
@@ -157,6 +166,38 @@ function onlyCurrent(cards: Map<string, ProfileCard>, ids: Set<string>): Map<str
   return new Map([...cards].filter(([id]) => ids.has(id)));
 }
 
+/**
+ * Спільне тіло нового запису (72): картки до транзакції, під замком — check (група й право автора), «про кого» на мить запису,
+ * межа 500, вставка й (за потреби) рядок журналу тим самим tx.
+ */
+async function insertItem<E extends string>(
+  db: Db,
+  groupId: string,
+  authorId: string,
+  input: GroupItemInput,
+  now: Date,
+  check: (tx: Tx) => Promise<'ok' | E>,
+  log?: (tx: Tx, row: ItemRow) => Promise<void>,
+): Promise<{ ok: true; row: ItemRow; members: Map<string, ProfileCard> } | Fail<E | 'group_items_full' | 'about_not_member'>> {
+  // Картки — до транзакції: ensureProfile ходить через db, а не через tx.
+  const cards = await memberCards(db, groupId);
+  return db.transaction(async (tx) => {
+    const checked = await check(tx);
+    if (checked !== 'ok') return { ok: false as const, error: checked };
+    const members = onlyCurrent(cards, await memberIds(tx, groupId));
+    const about = storedAbout(input.about, members, []);
+    if (about === null) return { ok: false as const, error: 'about_not_member' as const };
+    const [used] = await tx.select({ n: count() }).from(groupItem).where(eq(groupItem.groupId, groupId));
+    if (Number(used?.n ?? 0) >= GROUP_LIMITS.itemsMax) return { ok: false as const, error: 'group_items_full' as const };
+    const [row] = await tx
+      .insert(groupItem)
+      .values({ groupId, authorId, ...input, about, createdAt: now, updatedAt: now })
+      .returning();
+    if (log !== undefined) await log(tx, row);
+    return { ok: true as const, row, members };
+  });
+}
+
 export async function createItem(
   db: Db,
   groupId: string,
@@ -164,24 +205,41 @@ export async function createItem(
   input: GroupItemInput,
   now: Date,
 ): Promise<{ ok: true; item: GroupItem } | Fail<'group_not_found' | 'group_items_full' | 'about_not_member'>> {
-  // Картки — до транзакції: ensureProfile ходить через db, а не через tx.
-  const cards = await memberCards(db, groupId);
-  const outcome = await db.transaction(async (tx) => {
-    if (!(await lockMember(tx, groupId, authorId))) return { ok: false, error: 'group_not_found' } as const;
-    const members = onlyCurrent(cards, await memberIds(tx, groupId));
-    const about = storedAbout(input.about, members, []);
-    if (about === null) return { ok: false, error: 'about_not_member' } as const;
-    const [used] = await tx.select({ n: count() }).from(groupItem).where(eq(groupItem.groupId, groupId));
-    if (Number(used?.n ?? 0) >= GROUP_LIMITS.itemsMax) return { ok: false, error: 'group_items_full' } as const;
-    const [row] = await tx
-      .insert(groupItem)
-      .values({ groupId, authorId, ...input, about, createdAt: now, updatedAt: now })
-      .returning();
-    return { ok: true, row, members } as const;
-  });
+  const outcome = await insertItem(db, groupId, authorId, input, now, async (tx) => ((await lockMember(tx, groupId, authorId)) ? 'ok' : 'group_not_found'));
   if (!outcome.ok) return outcome;
   // Новий запис ще ніде не використано (12l): uses порожній.
   return { ok: true, item: toView(outcome.row, outcome.members, authorId, 'member') };
+}
+
+/**
+ * 72: запис від Квіз-бота з адмінки. Група під FOR UPDATE є й не прихована; автор — BOT_USER_ID (не учасник, тож lockMember не годиться).
+ * log — рядок журналу адміна тим самим tx (group-items не залежить від адмінки); отримує й назву групи з заблокованого рядка.
+ */
+export async function createBotItem(
+  db: Db,
+  input: { groupId: string; input: GroupItemInput; now: Date; log: (tx: Tx, row: ItemRow, groupName: string) => Promise<void> },
+): Promise<{ ok: true; row: ItemRow } | Fail<'group_not_found' | 'group_hidden' | 'group_items_full' | 'about_not_member'>> {
+  let groupName = '';
+  const outcome = await insertItem(
+    db,
+    input.groupId,
+    BOT_USER_ID,
+    input.input,
+    input.now,
+    async (tx): Promise<'ok' | 'group_not_found' | 'group_hidden'> => {
+      const [group] = await tx
+        .select({ name: familyGroup.name, hiddenAt: familyGroup.hiddenAt })
+        .from(familyGroup)
+        .where(eq(familyGroup.id, input.groupId))
+        .for('update');
+      if (group === undefined) return 'group_not_found';
+      if (group.hiddenAt !== null) return 'group_hidden';
+      groupName = group.name;
+      return 'ok';
+    },
+    (tx, row) => input.log(tx, row, groupName),
+  );
+  return outcome.ok ? { ok: true, row: outcome.row } : outcome;
 }
 
 async function visibleItem(db: Db | Tx, groupId: string, itemId: string, viewerId: string): Promise<ItemRow | null> {

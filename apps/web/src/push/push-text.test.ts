@@ -49,6 +49,13 @@ describe('pushNotice', () => {
     expect(pushNotice(bare, zone, now).title).toBe('Відповідь на твоє повідомлення');
   });
 
+  it('added to a group: the group title, a tap opens the group (72)', () => {
+    const payload = { kind: 'group_added' as const, groupId: 'g1', title: 'Родина' };
+    expect(pushNotice(payload, zone, now)).toEqual({ title: 'Тебе додали до групи «Родина»', body: 'Торкнися, щоб відкрити групу.', url: '/profile/groups/g1', tag: 'group-g1' });
+    expect(pushNotice({ ...payload, locale: 'en' }, zone, now).title).toBe('You were added to the group “Родина”');
+    expect(pushNotice({ ...payload, groupId: 'a/b' }, zone, now).url).toBe('/profile/groups/a%2Fb');
+  });
+
   it("a broadcast shows the admin's words as they are", () => {
     const payload = { kind: 'broadcast' as const, broadcastId: 'B', title: 'Нова вікторина', text: 'Заходь у бібліотеку', url: '/library', locale: 'en' as const };
     expect(pushNotice(payload, zone, now)).toEqual({ title: 'Нова вікторина', body: 'Заходь у бібліотеку', url: '/library', tag: 'broadcast-B' });

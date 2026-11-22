@@ -121,7 +121,8 @@ export async function membership(db: Db, groupId: string, userId: string): Promi
   return row?.role ?? null;
 }
 
-async function peopleIn(db: Db | Tx, groupId: string): Promise<number> {
+/** 72: також для адмінки. */
+export async function peopleIn(db: Db | Tx, groupId: string): Promise<number> {
   const [row] = await db.select({ n: count() }).from(groupMember).where(eq(groupMember.groupId, groupId));
   return Number(row?.n ?? 0);
 }
@@ -133,14 +134,14 @@ async function visiblePeopleIn(db: Db, groupId: string): Promise<number> {
 
 /**
  * Замок людини на час транзакції вступу чи створення: два одночасні вступи однієї людини не перейдуть межу 10 груп.
- * Порядок усюди той самий — спершу людина, потім група.
+ * Порядок усюди той самий — спершу людина, потім група. 72: також для адмінки.
  */
-async function lockPerson(tx: Tx, userId: string): Promise<void> {
+export async function lockPerson(tx: Tx, userId: string): Promise<void> {
   await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${`groups:${userId}`}))`);
 }
 
-/** Групи людини для межі в 10; прихована адміністратором не займає місця (63; після відновлення може стати 11). */
-async function groupsOf(db: Db | Tx, userId: string): Promise<number> {
+/** Групи людини для межі в 10; прихована адміністратором не займає місця (63; після відновлення може стати 11). 72: також для адмінки. */
+export async function groupsOf(db: Db | Tx, userId: string): Promise<number> {
   const [row] = await db
     .select({ n: count() })
     .from(groupMember)

@@ -7,6 +7,8 @@
   "pushCancelledTitle": "“{title}” has been cancelled",
   "pushFallbackBody": "There's an update about a planned game.",
   "pushFallbackTitle": "Quiz",
+  "pushGroupAddedBody": "Tap to open the group.",
+  "pushGroupAddedTitle": "You were added to the group “{title}”",
   "pushOpenedBody": "The host has opened the game. Tap to join.",
   "pushOpenedTitle": "“{title}” has started",
   "pushProblemReplyTitle": "A reply to your message",

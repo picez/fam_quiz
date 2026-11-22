@@ -558,6 +558,35 @@ describe('people rules', () => {
     expect(ctx.summary).toEqual(summaryBefore);
   });
 
+  it('a group_added notice moves to the primary with its group; one for the same group in both stays in both rows (72)', async () => {
+    const { primary, secondary, ctx } = await pair();
+    // Групи чужої людини: правило груп тут ні до чого, лише рядки «Вхідних».
+    const owner = await person('Ганна');
+    const g1 = await group([{ userId: owner, role: 'owner', joinedAt: PAST }]);
+    const g2 = await group([{ userId: owner, role: 'owner', joinedAt: PAST }]);
+    await db.insert(inboxItem).values([
+      { userId: primary, kind: 'group_added', groupId: g1, createdAt: PAST, readAt: NOW },
+      { userId: secondary, kind: 'group_added', groupId: g1, createdAt: NOW },
+      { userId: secondary, kind: 'group_added', groupId: g2, createdAt: NOW },
+    ]);
+    const summaryBefore = structuredClone(ctx.summary);
+
+    await merge(ctx);
+
+    const mine = await db.select().from(inboxItem).where(eq(inboxItem.userId, primary));
+    // Кожне «тебе додали» — окрема подія: обидва рядки про g1 лишаються, group_id не губиться, позначки прочитання — свої.
+    expect(mine.map((row) => [row.kind, row.groupId, row.readAt]).sort()).toEqual(
+      [
+        ['group_added', g1, NOW],
+        ['group_added', g1, null],
+        ['group_added', g2, null],
+      ].sort(),
+    );
+    expect(mine.every((row) => row.broadcastId === null && row.problemId === null)).toBe(true);
+    expect(await db.select().from(inboxItem).where(eq(inboxItem.userId, secondary))).toEqual([]);
+    expect(ctx.summary).toEqual(summaryBefore);
+  });
+
   it('activity days of the secondary are summed into the primary, the caps of seconds and sessions hold', async () => {
     const { primary, secondary, ctx } = await pair();
     await db.insert(activityDay).values([

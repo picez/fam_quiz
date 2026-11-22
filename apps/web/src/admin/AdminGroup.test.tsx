@@ -27,9 +27,14 @@ const detail = (over: Partial<AdminGroupDetail['group']> = {}): AdminGroupDetail
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
 let current = detail();
 let deleteAnswer: () => Response = () => new Response(null, { status: 204 });
+// 72: пошук людей і відповіді на POST (додати учасника чи запис)
+let people: { id: string; nickname: string; avatar: null }[] = [];
+let postAnswer: () => Response = () => json({ changed: true });
 const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
   const method = init?.method ?? 'GET';
+  if (method === 'GET' && url.startsWith('/api/admin/bot/people')) return json(people);
   if (method === 'GET') return json(current);
+  if (method === 'POST') return postAnswer();
   if (method === 'DELETE' && url === `/api/admin/groups/${G}`) return deleteAnswer();
   if (method === 'DELETE') return json({ changed: true });
   return json({ changed: true });
@@ -141,5 +146,130 @@ describe('AdminGroup (63)', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Видалити групу' }));
     await waitFor(() => expect(alert.textContent).toBe('Назва не збігається з назвою групи.'));
     expect(screen.queryByText('список груп')).toBeNull();
+  });
+});
+
+describe('AdminGroup: adding (72)', () => {
+  const addSection = () => screen.getByRole('heading', { name: 'Додати учасника' }).closest('section')!;
+  const itemBlock = () => screen.getByRole('heading', { name: 'Новий запис' }).closest('div')!;
+  const gets = () => fetchMock.mock.calls.filter(([url, init]) => (init?.method ?? 'GET') === 'GET' && String(url).startsWith(`/api/admin/groups/${G}`)).length;
+
+  async function pickMarta() {
+    await screen.findByRole('heading', { name: '🌻 Родина Квіткових' });
+    fireEvent.change(within(addSection()).getByLabelText('Пошук за ніком'), { target: { value: 'Ма' } });
+    fireEvent.click(await within(addSection()).findByRole('button', { name: 'Марта' }));
+  }
+
+  beforeEach(() => {
+    people = [{ id: 'u9', nickname: 'Марта', avatar: null }];
+    postAnswer = () => json({ changed: true, pushed: false });
+  });
+
+  it('adds a found person after the confirmation; says the notice went to «Вхідні»; reloads and clears the pick', async () => {
+    open();
+    await screen.findByRole('heading', { name: '🌻 Родина Квіткових' });
+    const button = within(addSection()).getByRole('button', { name: 'Додати до групи' }) as HTMLButtonElement;
+    expect(button.disabled).toBe(true);
+    await pickMarta();
+    expect(button.disabled).toBe(false);
+    const before = gets();
+    fireEvent.click(button);
+    expect(window.confirm).toHaveBeenCalledWith('Додати Марта до групи «Родина Квіткових»?');
+    await waitFor(() => expect(writes()).toEqual([{ url: `/api/admin/groups/${G}/members`, method: 'POST', body: { userId: 'u9' } }]));
+    expect(await within(addSection()).findByRole('status')).toHaveProperty('textContent', 'Марта тепер у групі. Сповіщення — у «Вхідних»; пуш-сповіщень у людини немає.');
+    await waitFor(() => expect(gets()).toBe(before + 1));
+    expect(within(addSection()).queryByRole('button', { name: /Марта/ })).toBeNull();
+  });
+
+  it('with a push the status says both; a declined confirmation sends nothing', async () => {
+    postAnswer = () => json({ changed: true, pushed: true });
+    open();
+    await pickMarta();
+    vi.mocked(window.confirm).mockReturnValueOnce(false);
+    fireEvent.click(within(addSection()).getByRole('button', { name: 'Додати до групи' }));
+    expect(writes()).toEqual([]);
+    fireEvent.click(within(addSection()).getByRole('button', { name: 'Додати до групи' }));
+    await waitFor(() => expect(within(addSection()).getByRole('status').textContent).toBe('Марта тепер у групі. Сповіщення — у «Вхідних» і пушем.'));
+  });
+
+  it('a refusal shows in the section alert and reloads the card', async () => {
+    postAnswer = () => json({ error: 'already_member' }, 409);
+    open();
+    await pickMarta();
+    const before = gets();
+    fireEvent.click(within(addSection()).getByRole('button', { name: 'Додати до групи' }));
+    await waitFor(() => expect(within(addSection()).getByRole('alert').textContent).toBe('Ця людина вже в групі.'));
+    await waitFor(() => expect(gets()).toBe(before + 1));
+  });
+
+  it('a full group has no search, only the limit', async () => {
+    current = detail({ members: 30 });
+    open();
+    await screen.findByRole('heading', { name: '🌻 Родина Квіткових' });
+    expect(within(addSection()).getByText('Група повна: 30 людей.')).toBeTruthy();
+    expect(within(addSection()).queryByLabelText('Пошук за ніком')).toBeNull();
+  });
+
+  it('a new record from the bot: kind, text, «про кого» from the unbanned members, year', async () => {
+    postAnswer = () => json({ id: 'i9' }, 201);
+    open();
+    await screen.findByRole('heading', { name: '🌻 Родина Квіткових' });
+    const block = itemBlock();
+    const button = within(block).getByRole('button', { name: 'Додати запис' }) as HTMLButtonElement;
+    expect(button.disabled).toBe(true);
+    fireEvent.click(within(block).getByLabelText('Цитата'));
+    fireEvent.change(within(block).getByLabelText('Текст'), { target: { value: '  Хто рано встає, тому Бог дає  ' } });
+    // Заблокованого Богдана в «Про кого» немає.
+    expect(within(block).queryByLabelText('Богдан')).toBeNull();
+    fireEvent.click(within(block).getByLabelText('Петро'));
+    fireEvent.change(within(block).getByLabelText('Рік'), { target: { value: '19' } });
+    expect(button.disabled).toBe(true);
+    fireEvent.change(within(block).getByLabelText('Рік'), { target: { value: '1998' } });
+    expect(button.disabled).toBe(false);
+    const before = gets();
+    fireEvent.click(button);
+    await waitFor(() =>
+      expect(writes()).toEqual([
+        { url: `/api/admin/groups/${G}/items`, method: 'POST', body: { kind: 'quote', text: 'Хто рано встає, тому Бог дає', about: [{ kind: 'member', userId: 'u2' }], answer: null, year: 1998, photo: null, surprise: false } },
+      ]),
+    );
+    expect(window.confirm).not.toHaveBeenCalled();
+    await waitFor(() => expect(within(block).getByRole('status').textContent).toBe('Запис додано.'));
+    expect((within(block).getByLabelText('Текст') as HTMLTextAreaElement).value).toBe('');
+    expect((within(block).getByLabelText('Петро') as HTMLInputElement).checked).toBe(false);
+    await waitFor(() => expect(gets()).toBe(before + 1));
+  });
+
+  it('«про кого» stops at five; a server reason shows its text', async () => {
+    const many = Array.from({ length: 7 }, (_, i) => ({ id: `m${i}`, nickname: `Родич ${i}`, role: 'member' as const, joinedAt: '2026-11-15T10:00:00.000Z', banned: false }));
+    current = { ...detail(), members: many };
+    postAnswer = () => json({ error: 'invalid_payload', reason: 'item_text' }, 400);
+    open();
+    await screen.findByRole('heading', { name: '🌻 Родина Квіткових' });
+    const block = itemBlock();
+    for (let i = 0; i < 5; i++) fireEvent.click(within(block).getByLabelText(`Родич ${i}`));
+    expect((within(block).getByLabelText('Родич 5') as HTMLInputElement).disabled).toBe(true);
+    expect((within(block).getByLabelText('Родич 0') as HTMLInputElement).disabled).toBe(false);
+    fireEvent.change(within(block).getByLabelText('Текст'), { target: { value: 'Текст' } });
+    fireEvent.click(within(block).getByRole('button', { name: 'Додати запис' }));
+    await waitFor(() => expect(within(block).getByRole('alert').textContent).toBe('Текст — від 1 до 1000 символів.'));
+  });
+
+  it('500 records: no form, only the limit', async () => {
+    current = detail({ items: 500 });
+    open();
+    await screen.findByRole('heading', { name: '🌻 Родина Квіткових' });
+    expect(within(itemBlock()).getByText('У групі вже 500 записів — нового не додати.')).toBeTruthy();
+    expect(within(itemBlock()).queryByRole('button', { name: 'Додати запис' })).toBeNull();
+  });
+
+  it('a hidden group: both sections say to restore it first', async () => {
+    current = detail({ hidden: { at: '2026-11-19T10:00:00.000Z', reason: null } });
+    open();
+    await screen.findByRole('heading', { name: '🌻 Родина Квіткових' });
+    expect(within(addSection()).getByText('Групу приховано — спершу поверни її.')).toBeTruthy();
+    expect(within(itemBlock()).getByText('Групу приховано — спершу поверни її.')).toBeTruthy();
+    expect(within(addSection()).queryByLabelText('Пошук за ніком')).toBeNull();
+    expect(within(itemBlock()).queryByRole('button', { name: 'Додати запис' })).toBeNull();
   });
 });

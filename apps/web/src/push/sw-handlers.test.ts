@@ -102,6 +102,15 @@ describe('onPush', () => {
     );
   });
 
+  it('shows the added-to-a-group notice with the group link (72)', async () => {
+    const scope = fakeScope();
+    await onPush(scope, { json: () => ({ kind: 'group_added', groupId: 'g1', title: 'Родина' }) }, 'Europe/Kyiv');
+    expect(scope.registration.showNotification).toHaveBeenCalledWith(
+      'Тебе додали до групи «Родина»',
+      expect.objectContaining({ body: 'Торкнися, щоб відкрити групу.', tag: 'group-g1', data: { url: '/profile/groups/g1' } }),
+    );
+  });
+
   it('shows a generic notice for an invalid payload, keeping a string title', async () => {
     const scope = fakeScope();
     await onPush(scope, { json: () => ({ kind: 'liked', title: 'Привіт' }) }, 'Europe/Kyiv');
@@ -133,6 +142,7 @@ describe('onPush signals the open windows to refresh the inbox (70)', () => {
     for (const payload of [
       { kind: 'broadcast', broadcastId: 'B', title: 'Нова', text: 'Заходь', url: null },
       { kind: 'problem_reply', reportId: 'R', text: 'Виправили' },
+      { kind: 'group_added', groupId: 'g1', title: 'Родина' },
     ]) {
       const a = windowClient();
       const b = windowClient();
@@ -187,6 +197,11 @@ describe('isPushPayload', () => {
     expect(isPushPayload({ ...broadcast, text: undefined })).toBe(false);
     expect(isPushPayload({ ...broadcast, url: 5 })).toBe(false);
     expect(isPushPayload({ ...broadcast, broadcastId: undefined })).toBe(false);
+    // 72: тебе додали до групи
+    const added = { kind: 'group_added', groupId: 'g1', title: 'Родина' };
+    expect(isPushPayload(added)).toBe(true);
+    expect(isPushPayload({ ...added, groupId: undefined })).toBe(false);
+    expect(isPushPayload({ ...added, title: 5 })).toBe(false);
     expect(isPushPayload(null)).toBe(false);
     expect(isPushPayload('x')).toBe(false);
   });

@@ -4,7 +4,7 @@ import type { AdminBackups, AdminProblemReport, AdminProblemsBadge, AdminServerE
 import type { AchievementId, AdminBot, AdminBotHostAccess, AdminRevokeManyResult, AdminBotLobby, AdminBotPerson, AdminBotPlan, BotCommand, BotPlanInput, GameDetail, GameReplay } from '@quiz/shared';
 import type { Announcement, AnnouncementInput, AdminHealth, AdminLiveList, AdminList, AdminMetricPeriod, AdminMetrics, AdminReportItem, AdminLogExport, AdminLogGroup, AdminLogPage, AdminQuizCheck, AdminQuizRow, AdminQuizView, AdminStats, AdminUserDetail, AdminUserRow } from '@quiz/shared';
 import type { AccountMergePreview, MergeSummary } from '@quiz/shared';
-import type { AdminFeedKind, AdminFeedRow, AdminGroupDetail, AdminGroupRow } from '@quiz/shared';
+import type { AdminFeedKind, AdminFeedRow, AdminGroupDetail, AdminGroupMemberAdded, AdminGroupRow, GroupItemInput } from '@quiz/shared';
 import { fetchData, request, type ApiData, type ApiResult } from '../api';
 
 const id = encodeURIComponent;
@@ -180,5 +180,11 @@ export const removeGroupMember = (groupId: string, userId: string): Promise<ApiD
 export const passGroupOwner = (groupId: string, userId: string): Promise<ApiData<Changed>> => fetchData<Changed>(`/api/admin/groups/${id(groupId)}/owner`, { method: 'PUT', body: { userId } });
 /** `name` — назва, набрана адміном; сервер порівнює після обрізання країв, з урахуванням регістру; успіх — 204. */
 export const deleteGroupAsAdmin = (groupId: string, name: string): Promise<ApiData<object>> => fetchData<object>(`/api/admin/groups/${id(groupId)}`, { method: 'DELETE', body: { name } });
+/** 72: людина одразу в групі; pushed — пуш пішов (сповіщення у «Вхідних» є завжди). */
+export const addGroupMember = (groupId: string, userId: string): Promise<ApiData<AdminGroupMemberAdded>> =>
+  fetchData<AdminGroupMemberAdded>(`/api/admin/groups/${id(groupId)}/members`, { method: 'POST', body: { userId } });
+/** 72: запис від Квіз-бота (без фото й сюрпризу); успіх — 201 { id }. */
+export const addGroupItem = (groupId: string, item: GroupItemInput): Promise<ApiData<{ id: string }>> =>
+  fetchData<{ id: string }>(`/api/admin/groups/${id(groupId)}/items`, { method: 'POST', body: item });
 export const setGroupItemHidden = (groupId: string, itemId: string, hidden: boolean): Promise<ApiData<Changed>> =>
   fetchData<Changed>(`/api/admin/groups/${id(groupId)}/items/${id(itemId)}/hidden`, { method: 'PUT', body: { hidden } });
