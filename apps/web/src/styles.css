@@ -29315,3 +29315,58 @@ details.admin-fold[open] > summary::before {
 .admin-bot-manual {
   margin-inline-start: 0.5rem;
 }
+
+/* 70: вкладка «Звернення» в адмінці — смуга підвкладок і момент гри в картці «Щось не працює». */
+.admin-appeals {
+  display: grid;
+  gap: 1rem;
+  min-width: 0;
+}
+
+.admin-appeals-views {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.admin-appeals-views .btn {
+  flex: 1 1 auto;
+  min-height: 2.75rem;
+  padding: 0.5rem 1rem;
+  max-width: 100%;
+  white-space: normal;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.admin-appeals-views .btn[aria-current='page'] {
+  border-color: var(--paper);
+  font-weight: 700;
+}
+
+.admin-appeals .admin-card {
+  min-width: 0;
+}
+
+.admin-appeals .admin-actions .btn {
+  max-width: 100%;
+  white-space: normal;
+  text-align: center;
+}
+
+.admin-problem-game {
+  display: grid;
+  gap: 0.2rem;
+  min-width: 0;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-small);
+  overflow-wrap: anywhere;
+}
+
+.admin-problem-game p {
+  margin: 0;
+}

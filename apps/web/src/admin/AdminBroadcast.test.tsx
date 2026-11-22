@@ -71,7 +71,7 @@ const previews = () => calls.filter((call) => call.url === '/api/admin/broadcast
 
 beforeEach(() => {
   data = base();
-  preview = { status: 200, body: { people: 3 } };
+  preview = { status: 200, body: { people: 3, push: 2 } };
   sent = { status: 201, body: row({ status: 'sending', delivered: 0, failed: 0 }) };
   server();
   vi.spyOn(window, 'confirm').mockReturnValue(true);
@@ -94,7 +94,7 @@ describe('AdminBroadcast', () => {
     fireEvent.change(screen.getByRole('combobox'), { target: { value: GROUP } });
     expect((screen.getByRole('combobox') as HTMLSelectElement).selectedOptions[0]?.textContent).toContain('Малинські');
     await waitFor(() => expect(previews().at(-1)?.body).toEqual({ recipients: { kind: 'group', groupId: GROUP } }));
-    await screen.findByText('Отримають 3 людини');
+    await screen.findByText('Отримають на сайті: 3, з них сповіщенням: 2');
     const card = document.querySelector('.broadcast-preview') as HTMLElement;
     expect(within(card).getByText('Нова вікторина')).toBeTruthy();
     expect(within(card).getByText('Заходь у бібліотеку')).toBeTruthy();
@@ -115,19 +115,19 @@ describe('AdminBroadcast', () => {
     await screen.findByLabelText('Заголовок');
     fireEvent.change(titleField(), { target: { value: 'Нова вікторина' } });
     fireEvent.change(textField(), { target: { value: 'Заходь' } });
-    await screen.findByText('Отримають 3 людини');
+    await screen.findByText('Отримають на сайті: 3, з них сповіщенням: 2');
     fireEvent.click(sendButton());
     expect(window.confirm).toHaveBeenCalled();
     expect(calls.some((call) => call.url === '/api/admin/broadcasts' && call.method === 'POST')).toBe(false);
   });
 
   it('nobody disables the send', async () => {
-    preview = { status: 200, body: { people: 0 } };
+    preview = { status: 200, body: { people: 0, push: 0 } };
     open();
     await screen.findByLabelText('Заголовок');
     fireEvent.change(titleField(), { target: { value: 'Нова вікторина' } });
     fireEvent.change(textField(), { target: { value: 'Заходь' } });
-    expect(await screen.findByText('Нікому надсилати: ніхто з адресатів не ввімкнув сповіщень.')).toBeTruthy();
+    expect(await screen.findByText('Нікому надсилати: серед адресатів немає жодного акаунта.')).toBeTruthy();
     expect(previews().at(-1)?.body).toEqual({ recipients: { kind: 'all' } });
     expect(sendButton().disabled).toBe(true);
   });
@@ -142,7 +142,7 @@ describe('AdminBroadcast', () => {
     fireEvent.change(titleField(), { target: { value: 'я'.repeat(60) } });
     expect(screen.getByText('60 з 60')).toBeTruthy();
     fireEvent.change(textField(), { target: { value: 'Заходь' } });
-    await screen.findByText('Отримають 3 людини');
+    await screen.findByText('Отримають на сайті: 3, з них сповіщенням: 2');
     expect(sendButton().disabled).toBe(false);
     fireEvent.change(urlField(), { target: { value: 'http://x' } });
     expect(screen.getByText('Посилання має починатися з https:// або з /')).toBeTruthy();
@@ -161,7 +161,7 @@ describe('AdminBroadcast', () => {
     await screen.findByLabelText('Заголовок');
     fireEvent.change(titleField(), { target: { value: 'Нова вікторина' } });
     fireEvent.change(textField(), { target: { value: 'Заходь' } });
-    await screen.findByText('Отримають 3 людини');
+    await screen.findByText('Отримають на сайті: 3, з них сповіщенням: 2');
     fireEvent.click(sendButton());
     const alert = await screen.findByText(/Не частіше однієї розсилки на 10 хвилин\./);
     expect(alert.closest('[role="alert"]')).toBeTruthy();
@@ -177,7 +177,7 @@ describe('AdminBroadcast', () => {
     expect(screen.getByText(`Наступну розсилку можна о ${timeText(nextAt, viewerZone())}.`)).toBeTruthy();
     fireEvent.change(titleField(), { target: { value: 'Нова вікторина' } });
     fireEvent.change(textField(), { target: { value: 'Заходь' } });
-    await screen.findByText('Отримають 3 людини');
+    await screen.findByText('Отримають на сайті: 3, з них сповіщенням: 2');
     expect(sendButton().disabled).toBe(true);
   });
 
@@ -219,15 +219,25 @@ describe('AdminBroadcast', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Оля' }));
     await waitFor(() => expect(previews().at(-1)?.body).toEqual({ recipients: { kind: 'people', userIds: [OLIA] } }));
     expect(calls.some((call) => call.url === `/api/admin/bot/people?q=${encodeURIComponent('Ол')}`)).toBe(true);
-    expect(await screen.findByText('Отримають 3 людини')).toBeTruthy();
+    expect(await screen.findByText('Отримають на сайті: 3, з них сповіщенням: 2')).toBeTruthy();
   });
 
-  it('push off on the server shows the hint and no form', async () => {
-    data = base({ pushOn: false, rows: [row({ title: 'Давня' })] });
+  it('push off on the server still allows an inbox broadcast', async () => {
+    data = base({ pushOn: false, rows: [row({ title: 'Давня', pushPeople: 2, read: 4 })] });
     open();
-    expect(await screen.findByText('Сповіщення на сервері не налаштовано — розсилка недоступна.')).toBeTruthy();
-    expect(screen.queryByLabelText('Заголовок')).toBeNull();
-    expect(screen.queryByRole('button', { name: 'Надіслати' })).toBeNull();
+    expect(await screen.findByText('Сповіщення на сервері не налаштовано — розсилка прийде лише у «Вхідні» на сайті.')).toBeTruthy();
+    fireEvent.change(titleField(), { target: { value: 'Нова вікторина' } });
+    fireEvent.change(textField(), { target: { value: 'Заходь' } });
+    await screen.findByText('Отримають на сайті: 3, з них сповіщенням: 2');
+    expect(sendButton().disabled).toBe(false);
+    fireEvent.click(sendButton());
+    await waitFor(() => expect(calls.some((call) => call.url === '/api/admin/broadcasts' && call.method === 'POST')).toBe(true));
     expect(screen.getByText('Давня')).toBeTruthy();
+  });
+
+  it('a history row shows the inbox and push counts', async () => {
+    data = base({ rows: [row({ title: 'Давня', people: 6, pushPeople: 2, read: 4 })] });
+    open();
+    expect(await screen.findByText('У вхідних: 6, прочитали: 4; сповіщенням: 2')).toBeTruthy();
   });
 });

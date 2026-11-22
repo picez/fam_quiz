@@ -61,7 +61,7 @@ describe('AdminReports', () => {
     expect(screen.getByText('Спам × 2')).toBeTruthy();
     expect(screen.getByText('Це реклама').closest('blockquote')?.getAttribute('dir')).toBe('auto');
     expect(screen.getByText('⏳ Тимчасово приховано: скарги на перевірці')).toBeTruthy();
-    expect(screen.getByRole('link', { name: 'Переглянути вікторину' }).getAttribute('href')).toBe('/admin/reports/quiz/e1');
+    expect(screen.getByRole('link', { name: 'Переглянути вікторину' }).getAttribute('href')).toBe('/admin/appeals/complaints/quiz/e1');
     fireEvent.click(screen.getByRole('button', { name: 'Сховати вікторину' }));
     expect(window.confirm).toHaveBeenCalled();
     await waitFor(() => expect(actOnQuizReport).toHaveBeenCalledWith('e1', 'hide'));
