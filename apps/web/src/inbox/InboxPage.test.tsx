@@ -157,3 +157,15 @@ describe('InboxPage (70)', () => {
     expect(await screen.findByText('Субота')).toBeTruthy();
   });
 });
+
+describe('InboxPage: added to a group (72)', () => {
+  it('says «Тебе додали до групи» with the group title and links to the group', async () => {
+    const added: InboxItem = { id: 'g1', at: '2026-11-22T11:00:00.000Z', read: false, kind: 'group_added', group: { id: 'abc/1', title: 'Карпатські вечори' } };
+    vi.mocked(getInbox).mockResolvedValue({ ok: true, items: [added, reply], unread: 1 });
+    open();
+    const card = (await screen.findByText('Тебе додали до групи «Карпатські вечори»')).closest('li') as HTMLElement;
+    expect(card.classList.contains('is-new')).toBe(true);
+    expect(within(card).getByText('Від адміністрації')).toBeTruthy();
+    expect(within(card).getByRole('link', { name: 'Відкрити групу' }).getAttribute('href')).toBe('/profile/groups/abc%2F1');
+  });
+});
