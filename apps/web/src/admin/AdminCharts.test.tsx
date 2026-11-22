@@ -24,10 +24,15 @@ const days: AdminChartDay[] = Array.from({ length: 30 }, (_, n) => ({
 const health = (over: Partial<Health> = {}): Health => ({
   backup: { state: 'ok', at: '2026-11-16T03:00:00.000Z', bytes: 3_145_728 },
   uptimeSec: 97_200,
-  memory: { rss: 157_286_400, heapUsed: 52_428_800 },
+  memory: { rss: 157_286_400, heapUsed: 52_428_800, heapTotal: 62_914_560, external: 2_097_152 },
   rooms: 2,
   connections: 9,
   checkedAt: '2026-11-19T10:00:00.000Z',
+  server: { commit: 'abc1234', node: 'v22.11.0', startedAt: '2026-11-18T07:00:00.000Z', cpuPercent: 3.5, lagMs: { p50: 10.2, p99: 20.4, max: 35 } },
+  live: { lobby: 1, playing: 1, paused: 0, bot: 0, autopilot: 0, playersOnline: 5, playersTotal: 6, maxRooms: 500, restarting: false },
+  db: null,
+  backups: { count: 3, bytes: 9_437_184 },
+  problems: null,
   ...over,
 });
 

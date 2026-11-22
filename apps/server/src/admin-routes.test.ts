@@ -624,6 +624,74 @@ describe('charts and health (39-A3)', () => {
       await broken.app.close();
     }
   });
+
+  it('adds the server version, Node.js, live rooms, database rows, stored copies and problems; the database part is cached for a minute (71)', async () => {
+    const queries: string[] = [];
+    const own = await createTestDb({ onQuery: (query) => queries.push(query) });
+    await ensureBotAccount(own);
+    const key = 'backups/db/2026-11-16T10-05-00Z-m0040.jsonl.gz';
+    const app = await buildApp({
+      db: own,
+      auth: TEST_AUTH,
+      adminEmails: emails,
+      commit: 'abc1234def',
+      backupList: async () => [
+        { key, size: 3_500_000, lastModified: new Date('2026-11-16T10:05:00Z') },
+        { key: 'backups/db/notes.txt', size: 10, lastModified: new Date('2026-11-16T10:05:00Z') },
+      ],
+      maxRooms: 7,
+    });
+    try {
+      const signed = await signUp(app.app, 'Стан');
+      await own.update(user).set({ emailVerified: true }).where(eq(user.email, signed.email));
+      emails.add(signed.email.toLowerCase());
+      // /api/me позначає день відвідування (коли профіль уже є) — рядок activity_day.
+      await callOn(app.app, 'GET', '/api/me/profile', signed.cookie);
+      await callOn(app.app, 'GET', '/api/me', signed.cookie);
+      const health = (await callOn(app.app, 'GET', '/api/admin/health', signed.cookie)).json() as AdminHealth;
+      expect(health.server.node).toBe(process.version);
+      expect(health.server.commit).toBe('abc1234');
+      expect(Date.parse(health.server.startedAt)).toBeLessThanOrEqual(Date.now());
+      expect(health.memory.heapTotal).toBeGreaterThan(0);
+      expect(health.live).toMatchObject({ lobby: 0, playing: 0, maxRooms: 7, restarting: false });
+      expect(health.db?.rows.user).toBe(1);
+      expect(health.db?.rows.activity_day).toBe(1);
+      expect(health.backups).toEqual({ count: 1, bytes: 3_500_000 });
+      expect(health.problems).toEqual({ errors24h: 0, errorKinds24h: 0, errorsNew: 0, problemsOpen: 0, reportsOpen: 0 });
+      expect(JSON.stringify(health)).not.toContain('@');
+
+      queries.length = 0;
+      await callOn(app.app, 'GET', '/api/admin/health', signed.cookie);
+      expect(queries.filter((query) => query.includes('count(*)'))).toEqual([]);
+    } finally {
+      await app.app.close();
+    }
+  });
+
+  it('a failing database part leaves db and problems empty, the rest still answers (71)', async () => {
+    let failing = false;
+    const own = await createTestDb({
+      onQuery: (query) => {
+        if (failing && query.includes('"game_event"')) throw new Error('db down');
+      },
+    });
+    const app = await buildApp({ db: own, auth: TEST_AUTH, adminEmails: emails });
+    try {
+      const signed = await signUp(app.app, 'Збій');
+      await own.update(user).set({ emailVerified: true }).where(eq(user.email, signed.email));
+      emails.add(signed.email.toLowerCase());
+      failing = true;
+      const response = await callOn(app.app, 'GET', '/api/admin/health', signed.cookie);
+      expect(response.statusCode).toBe(200);
+      const health = response.json() as AdminHealth;
+      expect(health.db).toBeNull();
+      expect(health.problems).toBeNull();
+      expect(health.server.node).toBe(process.version);
+      expect(health.backups).toBeNull();
+    } finally {
+      await app.app.close();
+    }
+  });
 });
 
 describe('announcement (39-A5)', () => {

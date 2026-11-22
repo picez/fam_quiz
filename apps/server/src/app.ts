@@ -97,6 +97,8 @@ export interface AppOptions {
   botScheduleTicker?: boolean;
   /** Збої сервера в базу для вкладки «Збої» адмінки (64); типово ввімкнено, false — лише журнал. */
   errorLog?: boolean;
+  /** 71: коміт збірки для «Стану» адмінки (RENDER_GIT_COMMIT); без нього — «невідома (локальний запуск)». */
+  commit?: string | null;
 }
 
 const DEFAULT_MAX_ROOMS = 500;
@@ -180,7 +182,7 @@ export async function buildApp(options: AppOptions) {
   await registerInboxRoutes(app, { db: options.db, currentUser });
   await registerAnnouncementRoutes(app, { cache: announcements });
   const push = options.push === undefined ? null : createPushService({ db: options.db, ...options.push, log: (message, error) => log.error({ err: error }, message) });
-  await registerAdminRoutes(app, { db: options.db, manager, adminEmails: options.adminEmails ?? new Set<string>(), currentUser, backupList: options.backupList, backups: options.backups, announcements, maxRooms, storage: imageStorage, checkFetch: options.checkFetch ?? offlineFetch, checkResolve: options.checkResolve ?? offlineResolve, push, processStats: stats });
+  await registerAdminRoutes(app, { db: options.db, manager, adminEmails: options.adminEmails ?? new Set<string>(), currentUser, backupList: options.backupList, backups: options.backups, announcements, maxRooms, storage: imageStorage, checkFetch: options.checkFetch ?? offlineFetch, checkResolve: options.checkResolve ?? offlineResolve, push, processStats: stats, commit: options.commit ?? null });
   const invites = new Invites(manager);
   await registerInviteRoutes(app, { db: options.db, manager, invites, currentUser });
   const gate = new LobbyGate(options.db, invites, () => manager.now());

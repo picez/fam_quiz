@@ -74,20 +74,20 @@ export type AdminHealthTable = (typeof ADMIN_HEALTH_TABLES)[number];
 export interface AdminHealth {
   backup: AdminBackupInfo;
   uptimeSec: number;
-  memory: { rss: number; heapUsed: number; heapTotal?: number; external?: number };
+  memory: { rss: number; heapUsed: number; heapTotal: number; external: number };
   rooms: number;
   connections: number;
   checkedAt: string;
   /** 71: версія, Node.js, запуск, процесор і затримка циклу подій за останню хвилину (null — ще немає знімка). */
-  server?: { commit: string | null; node: string; startedAt: string; cpuPercent: number | null; lagMs: { p50: number; p99: number; max: number } | null };
+  server: { commit: string | null; node: string; startedAt: string; cpuPercent: number | null; lagMs: { p50: number; p99: number; max: number } | null };
   /** 71: живі кімнати за станом. */
-  live?: { lobby: number; playing: number; paused: number; bot: number; autopilot: number; playersOnline: number; playersTotal: number; maxRooms: number; restarting: boolean };
+  live: { lobby: number; playing: number; paused: number; bot: number; autopilot: number; playersOnline: number; playersTotal: number; maxRooms: number; restarting: boolean };
   /** 71: null — запит до бази впав, «Стан» показується й без цього. */
-  db?: { bytes: number | null; rows: Record<AdminHealthTable, number>; push: { subscriptions: number; people: number } } | null;
+  db: { bytes: number | null; rows: Record<AdminHealthTable, number>; push: { subscriptions: number; people: number } } | null;
   /** 71: копії в сховищі; null — список недоступний. */
-  backups?: { count: number; bytes: number } | null;
+  backups: { count: number; bytes: number } | null;
   /** 71: null — запит до бази впав. */
-  problems?: { errors24h: number; errorKinds24h: number; errorsNew: number; problemsOpen: number; reportsOpen: number } | null;
+  problems: { errors24h: number; errorKinds24h: number; errorsNew: number; problemsOpen: number; reportsOpen: number } | null;
 }
 export interface AdminBotQuiz { id: string; title: string; rounds: number; questions: number; truth: boolean; updatedAt: string; /** 57: лічильники останньої перевірки цієї версії; null — не перевіряли чи змінено після перевірки. */ check: { errors: number; warnings: number } | null }
 export type AdminBotStatus = 'lobby' | 'playing' | 'paused' | 'finished';

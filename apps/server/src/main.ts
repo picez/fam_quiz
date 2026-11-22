@@ -139,6 +139,8 @@ const { app, shutdown } = await buildApp({
   trustProxy: proxyTrust(process.env.TRUST_PROXY),
   // Стиснення кадрів WebSocket (30c) увімкнено; SOCKET_DEFLATE=off вимикає, якщо бракує пам'яті.
   socketDeflate: process.env.SOCKET_DEFLATE !== 'off',
+  // 71: версія для «Стану» адмінки; Render задає коміт збірки сам.
+  commit: process.env.RENDER_GIT_COMMIT ?? null,
   storage,
   // Єдине місце, де перевірка вікторин (57) ходить у справжню мережу.
   // Без закріплення адреси: другий DNS-запит fetch — прийнятий ризик, див. guardTarget у url-guard.ts.

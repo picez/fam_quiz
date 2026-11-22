@@ -5,6 +5,7 @@ import type { CurrentUser } from './account-routes';
 import type { ProcessStats } from './process-stats';
 import { isAdmin } from './admin';
 import { adminCharts } from './admin-charts';
+import { healthDb, healthProblems, liveBreakdown } from './admin-health';
 import type { PushService } from './push';
 import { registerAdminBotRoutes } from './admin-bot-routes';
 import { registerAdminBroadcastRoutes } from './admin-broadcast-routes';
@@ -56,11 +57,15 @@ export interface AdminDeps {
   push: PushService | null;
   /** 71: знімач процесора й затримки циклу подій для «Стану»; без нього — null. */
   processStats?: Pick<ProcessStats, 'snapshot'>;
+  /** 71: коміт збірки (RENDER_GIT_COMMIT); null — локальний запуск. */
+  commit?: string | null;
   now?: () => Date;
 }
 
 /** Те саме тіло, що в setNotFoundHandler для невідомого /api/...: адмінки для інших не існує. */
 const NOT_FOUND = { error: 'not_found' };
+/** 71: як довго «Стан» тримає числа з бази (рядки, розмір, збої, скарги). */
+export const HEALTH_DB_MS = 60_000;
 const INVALID = { error: 'invalid_payload' };
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const USER_ID_MAX = 64;
@@ -123,29 +128,54 @@ export async function registerAdminRoutes(app: FastifyInstance, deps: AdminDeps)
   const cacheClock = () => now().getTime();
   const charts = ttlCache(() => adminCharts(db, now()), ADMIN_CACHE_MS, cacheClock);
   // Збій списку не кешується: ttlCache не зберігає відхилений проміс, і наступний запит питає сховище знову.
-  const backups = ttlCache(async (): Promise<AdminBackupInfo> => {
-    if (deps.backupList === undefined) return { state: 'off' };
-    const newest = latestBackup(await deps.backupList());
-    if (newest === null) return { state: 'none' };
-    return { state: 'ok', at: parseBackupKey(newest.key)!.at.toISOString(), bytes: newest.size };
+  type BackupsHealth = { info: AdminBackupInfo; stored: AdminHealth['backups'] };
+  const backups = ttlCache(async (): Promise<BackupsHealth> => {
+    if (deps.backupList === undefined) return { info: { state: 'off' }, stored: null };
+    const list = await deps.backupList();
+    // 71: скільки копій у сховищі й разом їхній розмір (чужі ключі під префіксом не рахуються).
+    const copies = list.filter((object) => parseBackupKey(object.key) !== null);
+    const stored = { count: copies.length, bytes: copies.reduce((sum, object) => sum + object.size, 0) };
+    const newest = latestBackup(list);
+    if (newest === null) return { info: { state: 'none' }, stored };
+    return { info: { state: 'ok', at: parseBackupKey(newest.key)!.at.toISOString(), bytes: newest.size }, stored };
   }, ADMIN_CACHE_MS, cacheClock);
-  const backupInfo = (): Promise<AdminBackupInfo> =>
-    backups.get().catch((error: unknown): AdminBackupInfo => {
+  const backupHealth = (): Promise<BackupsHealth> =>
+    backups.get().catch((error: unknown): BackupsHealth => {
       reportError(error, { where: 'admin-health' });
-      return { state: 'error' };
+      return { info: { state: 'error' }, stored: null };
     });
+  // 71: числа з бази для «Стану» — раз на хвилину на всіх адмінів; збій не кешується, «Стан» показується без них.
+  const healthStore = ttlCache(async () => {
+    const [rows, problems] = await Promise.all([healthDb(db), healthProblems(db, now())]);
+    return { db: rows, problems };
+  }, HEALTH_DB_MS, cacheClock);
+  const healthFromDb = () =>
+    healthStore.get().catch((error: unknown) => {
+      reportError(error, { where: 'admin-health' });
+      return { db: null, problems: null };
+    });
+  const commit = deps.commit ? deps.commit.slice(0, 7) : null;
 
   app.get('/api/admin/charts', read, async () => charts.get());
 
   app.get('/api/admin/health', read, async (): Promise<AdminHealth> => {
     const usage = process.memoryUsage();
+    const [stored, fromDb] = await Promise.all([backupHealth(), healthFromDb()]);
+    const uptime = process.uptime();
+    const sample = deps.processStats?.snapshot() ?? { cpuPercent: null, lagMs: null };
+    const rooms = manager.rooms();
     return {
-      backup: await backupInfo(),
-      uptimeSec: Math.floor(process.uptime()),
-      memory: { rss: usage.rss, heapUsed: usage.heapUsed },
-      rooms: manager.rooms().filter((room) => room.state.phase !== 'finished').length,
+      backup: stored.info,
+      uptimeSec: Math.floor(uptime),
+      memory: { rss: usage.rss, heapUsed: usage.heapUsed, heapTotal: usage.heapTotal, external: usage.external },
+      rooms: rooms.filter((room) => room.state.phase !== 'finished').length,
       connections: manager.connectionCount(),
       checkedAt: now().toISOString(),
+      server: { commit, node: process.version, startedAt: new Date(Date.now() - uptime * 1000).toISOString(), cpuPercent: sample.cpuPercent, lagMs: sample.lagMs },
+      live: liveBreakdown(rooms, deps.maxRooms, manager.frozen),
+      db: fromDb.db,
+      backups: stored.stored,
+      problems: fromDb.problems,
     };
   });
 
