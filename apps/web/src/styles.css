@@ -29272,3 +29272,41 @@ details.admin-fold[open] > summary::before {
     align-items: start;
   }
 }
+
+/* 68: смуга над пультом адміна в кімнаті бота — хто веде гру; кольори зі змінних, тож світла й темна теми однакові. */
+.bot-host-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+  box-sizing: border-box;
+  width: calc(100% - 2rem);
+  max-width: var(--w-host, 64rem);
+  margin: 0.5rem auto 0;
+  padding: 0.6rem 0.9rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--paper);
+}
+
+.bot-host-state {
+  flex: 1 1 14rem;
+  min-width: 0;
+  margin: 0;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.bot-host-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 1rem;
+}
+
+.bot-host-bar .error {
+  flex: 1 1 100%;
+  margin: 0;
+}

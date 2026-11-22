@@ -5416,5 +5416,12 @@
   "err_merge_banned": "Najpierw odblokuj",
   "err_merge_live": "Ktoś z dwojga jest teraz w trwającej grze — spróbuj po grze",
   "err_merge_failed": "Nie udało się połączyć kont — nic nie zmieniono. Spróbuj ponownie.",
-  "err_email_merged": "Ten adres jest już dołączony do innego konta — zaloguj się nim i hasłem"
+  "err_email_merged": "Ten adres jest już dołączony do innego konta — zaloguj się nim i hasłem",
+  "botHostAuto": "Grę prowadzi bot — ty pomagasz: każdy przycisk działa od razu",
+  "botHostManualMine": "Ty prowadzisz: bot nie robi kroków",
+  "botHostManualOther": "Prowadzi inny admin: bot nie robi kroków",
+  "botHostTakeOver": "Przejmij prowadzenie",
+  "botHostGiveBack": "Oddaj botowi",
+  "botHostBack": "Wróć do zakładki «Bot»",
+  "botHostDenied": "To nie jest pokój bota albo nie jesteś adminem"
 }

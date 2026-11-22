@@ -5315,5 +5315,12 @@
   "err_merge_banned": "Zuerst entsperren",
   "err_merge_live": "Einer der beiden ist gerade in einem laufenden Spiel — nach dem Spiel erneut versuchen",
   "err_merge_failed": "Die Konten konnten nicht zusammengeführt werden — nichts wurde geändert. Bitte erneut versuchen.",
-  "err_email_merged": "Diese Adresse gehört schon zu einem anderen Konto — melde dich damit und deinem Passwort an"
+  "err_email_merged": "Diese Adresse gehört schon zu einem anderen Konto — melde dich damit und deinem Passwort an",
+  "botHostAuto": "Das Spiel führt der Bot — du hilfst: jede Taste wirkt sofort",
+  "botHostManualMine": "Du führst: der Bot macht keine Schritte",
+  "botHostManualOther": "Ein anderer Admin führt: der Bot macht keine Schritte",
+  "botHostTakeOver": "Steuerung übernehmen",
+  "botHostGiveBack": "An den Bot zurückgeben",
+  "botHostBack": "Zurück zum Tab „Bot“",
+  "botHostDenied": "Dieser Raum gehört nicht dem Bot oder du bist kein Admin"
 }

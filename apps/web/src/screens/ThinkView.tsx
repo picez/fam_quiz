@@ -372,7 +372,7 @@ export function HostThinkWords({ think, phase, send, onError }: { think: HostThi
  * Пульт: учасник · відповідь · «збіг»/«в безпеці»; на reveal — «Зарахувати збіг» / «Зняти збіг» → host:override { playerId, grade: 'wrong' | 'correct' }
  * і (51) «Не на тему» / «Зняти «не на тему»» → host:think-off { playerId, off } для непорожньої відповіді. Без відповіді — без кнопок.
  */
-export function HostThinkAnswers({ think, phase, send, onError }: { think: HostThink; phase: Phase; send: Send; onError?: (text: string | null) => void }) {
+export function HostThinkAnswers({ think, phase, send, onError, noOff = false }: { think: HostThink; phase: Phase; send: Send; onError?: (text: string | null) => void; /** 68: пульт адміна в кімнаті бота — без «Не на тему». */ noOff?: boolean }) {
   const busy = useRef(false);
   const run = (action: () => ReturnType<Send>) => {
     if (busy.current) return;
@@ -412,7 +412,7 @@ export function HostThinkAnswers({ think, phase, send, onError }: { think: HostT
                 {t(row.hit ? 'thinkHostMarkSafe' : 'thinkHostMarkHit')}
               </button>
             )}
-            {phase === 'reveal' && row.answer !== null && row.answer !== '' && (
+            {!noOff && phase === 'reveal' && row.answer !== null && row.answer !== '' && (
               <button type="button" className="btn btn-small" aria-label={`${t(row.off !== null ? 'thinkHostUnmarkOff' : 'thinkHostMarkOff')}: ${row.nickname}`} onClick={() => markOff(row.id, row.off === null)}>
                 {t(row.off !== null ? 'thinkHostUnmarkOff' : 'thinkHostMarkOff')}
               </button>

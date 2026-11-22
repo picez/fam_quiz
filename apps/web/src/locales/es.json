@@ -5392,5 +5392,12 @@
   "err_merge_banned": "Primero quita el bloqueo",
   "err_merge_live": "Uno de los dos está en una partida en curso — inténtalo después de la partida",
   "err_merge_failed": "No se pudieron unir las cuentas — no se cambió nada. Inténtalo de nuevo.",
-  "err_email_merged": "Esta dirección ya está unida a otra cuenta — entra con ella y tu contraseña"
+  "err_email_merged": "Esta dirección ya está unida a otra cuenta — entra con ella y tu contraseña",
+  "botHostAuto": "El bot dirige la partida — tú ayudas: cualquier botón actúa al instante",
+  "botHostManualMine": "Diriges tú: el bot no da ningún paso",
+  "botHostManualOther": "Dirige otro admin: el bot no da ningún paso",
+  "botHostTakeOver": "Tomar el control",
+  "botHostGiveBack": "Devolver al bot",
+  "botHostBack": "Volver a la pestaña «Bot»",
+  "botHostDenied": "Esta sala no es del bot o no eres admin"
 }
