@@ -29950,3 +29950,43 @@ table.sr-only th,
 table.sr-only td {
   white-space: normal;
 }
+
+/* 72: картка групи в адмінці — «Додати учасника» й «Новий запис» (від Квіз-бота). Лише свої префікси, без ширин. */
+.admin-group-new-item {
+  display: grid;
+  gap: 0.75rem;
+  margin-bottom: 1.25rem;
+  padding-bottom: 1.25rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.admin-group-new-item h3,
+.admin-group-new-item p {
+  margin: 0;
+}
+
+.admin-group-new-item fieldset {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(8rem, 1fr));
+  gap: 0 0.75rem;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.admin-group-new-item legend {
+  margin-bottom: 0.25rem;
+  padding: 0;
+  font-weight: 600;
+}
+
+.admin-group-new-item .field-check span {
+  overflow-wrap: anywhere;
+}
+
+.admin-group-add [role='status']:empty,
+.admin-group-add [role='alert']:empty,
+.admin-group-new-item [role='status']:empty,
+.admin-group-new-item [role='alert']:empty {
+  display: none;
+}
