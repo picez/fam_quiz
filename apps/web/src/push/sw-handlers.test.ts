@@ -98,7 +98,7 @@ describe('onPush', () => {
     await onPush(scope, { json: () => ({ kind: 'problem_reply', reportId: 'R', text: 'Виправили' }) }, 'Europe/Kyiv');
     expect(scope.registration.showNotification).toHaveBeenCalledWith(
       'Відповідь на твоє повідомлення',
-      expect.objectContaining({ body: 'Виправили', tag: 'problem-R', data: { url: '/report' } }),
+      expect.objectContaining({ body: 'Виправили', tag: 'problem-R', data: { url: '/inbox' } }),
     );
   });
 
@@ -123,6 +123,44 @@ describe('onPush', () => {
     await onPush(scope, { json: () => ({ kind: 'reminder', eventId: 'E', title: 'Вечір', startsAt: 'not a date' }) }, 'Europe/Kyiv');
     expect(scope.registration.showNotification).toHaveBeenCalledTimes(1);
     expect((scope.registration.showNotification.mock.calls[0] as unknown as string[])[0]).toBe('Вечір');
+  });
+});
+
+describe('onPush signals the open windows to refresh the inbox (70)', () => {
+  const windowClient = () => ({ url: 'https://quiz.test/feed', focus: vi.fn(() => Promise.resolve()), navigate: vi.fn(() => Promise.resolve()), postMessage: vi.fn() });
+
+  it('a broadcast and a problem reply post {type: quiz:inbox} to every window', async () => {
+    for (const payload of [
+      { kind: 'broadcast', broadcastId: 'B', title: 'Нова', text: 'Заходь', url: null },
+      { kind: 'problem_reply', reportId: 'R', text: 'Виправили' },
+    ]) {
+      const a = windowClient();
+      const b = windowClient();
+      const scope = fakeScope([a, b]);
+      await onPush(scope, { json: () => payload }, 'Europe/Kyiv');
+      expect(scope.clients.matchAll).toHaveBeenCalledWith({ type: 'window', includeUncontrolled: true });
+      expect(a.postMessage).toHaveBeenCalledWith({ type: 'quiz:inbox' });
+      expect(b.postMessage).toHaveBeenCalledWith({ type: 'quiz:inbox' });
+    }
+  });
+
+  it('a reminder posts nothing', async () => {
+    const client = windowClient();
+    const scope = fakeScope([client]);
+    await onPush(scope, { json: () => ({ kind: 'reminder', eventId: 'E', title: 'Вечір', startsAt: '2026-11-20T17:00:00.000Z' }) }, 'Europe/Kyiv');
+    expect(client.postMessage).not.toHaveBeenCalled();
+  });
+
+  it('a failing window does not break the notification', async () => {
+    const client = windowClient();
+    client.postMessage.mockImplementation(() => {
+      throw new Error('gone');
+    });
+    const scope = fakeScope([client]);
+    scope.clients.matchAll.mockRejectedValueOnce(new Error('no clients'));
+    await expect(onPush(scope, { json: () => ({ kind: 'problem_reply', reportId: 'R', text: 'X' }) }, 'Europe/Kyiv')).resolves.toBeUndefined();
+    expect(scope.registration.showNotification).toHaveBeenCalledTimes(1);
+    await expect(onPush(fakeScope([client]), { json: () => ({ kind: 'problem_reply', reportId: 'R', text: 'X' }) }, 'Europe/Kyiv')).resolves.toBeUndefined();
   });
 });
 

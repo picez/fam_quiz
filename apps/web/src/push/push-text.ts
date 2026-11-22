@@ -17,7 +17,7 @@ export function pushNotice(payload: PushPayload, zone: string, now: Date = new D
     return { title: payload.title, body: payload.text, url: payload.url !== null && isAnnouncementUrl(payload.url) ? payload.url : '/', tag: `broadcast-${payload.broadcastId}` };
   }
   if (payload.kind === 'problem_reply') {
-    return { title: t('pushProblemReplyTitle'), body: payload.text, url: '/report', tag: `problem-${payload.reportId}` };
+    return { title: t('pushProblemReplyTitle'), body: payload.text, url: '/inbox', tag: `problem-${payload.reportId}` };
   }
   const title = payload.title;
   if (payload.kind === 'bot') {

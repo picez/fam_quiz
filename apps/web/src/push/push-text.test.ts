@@ -44,7 +44,7 @@ describe('pushNotice', () => {
 
   it("a problem reply shows the admin's words and opens /report", () => {
     const payload = { kind: 'problem_reply' as const, reportId: 'R', text: 'Виправили, дякуємо!', locale: 'en' as const };
-    expect(pushNotice(payload, zone, now)).toEqual({ title: 'A reply to your message', body: 'Виправили, дякуємо!', url: '/report', tag: 'problem-R' });
+    expect(pushNotice(payload, zone, now)).toEqual({ title: 'A reply to your message', body: 'Виправили, дякуємо!', url: '/inbox', tag: 'problem-R' });
     const { locale: _locale, ...bare } = payload;
     expect(pushNotice(bare, zone, now).title).toBe('Відповідь на твоє повідомлення');
   });

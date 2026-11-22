@@ -127,8 +127,9 @@ export const MENU = 'nav.menu';
 export const MENU_ITEMS_23A = ['Меню', 'Стрічка', 'Мої вікторини', 'Історія', 'Профіль'];
 /** Меню адміна: шостий пункт «Адмінка». */
 export const MENU_ITEMS_ADMIN = [...MENU_ITEMS_23A, 'Адмінка'];
+/** Пункти меню без дзвіночка «Вхідних» (70). */
 export const menuLinks = async (page: Page) =>
-  (await page.locator(MENU).getByRole('link').allTextContents()).map((text) => text.replace(/^[^\p{L}]+/u, ''));
+  (await page.locator(MENU).locator('a:not(.menu-inbox)').allTextContents()).map((text) => text.replace(/^[^\p{L}]+/u, ''));
 
 /** Телефон: сторінка не гортається вбік, а нижня панель не закриває останній елемент. */
 export async function expectPhoneFit(page: Page, name: string) {

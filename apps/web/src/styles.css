@@ -29370,3 +29370,67 @@ details.admin-fold[open] > summary::before {
 .admin-problem-game p {
   margin: 0;
 }
+
+/* 70: «Вхідні» — дзвіночок у меню й сторінка /inbox. */
+.menu-inbox {
+  position: relative;
+  padding: 0.75rem 0.9rem;
+}
+
+@media (max-width: 700px) {
+  .menu .menu-inbox {
+    flex: 0 0 2.75rem;
+    min-height: calc(var(--menu-h) - 1px);
+    padding: 0;
+    font-size: 1.35rem;
+  }
+}
+
+.inbox-list {
+  display: grid;
+  gap: 0.75rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.inbox-item {
+  display: grid;
+  gap: 0.5rem;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.inbox-item.is-new {
+  border-color: var(--accent);
+}
+
+.inbox-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem 0.75rem;
+}
+
+.inbox-head time {
+  margin-inline-start: auto;
+}
+
+.inbox-title,
+.inbox-text,
+.inbox-quote {
+  margin: 0;
+}
+
+.inbox-title {
+  font-size: 1.125rem;
+}
+
+.inbox-text {
+  white-space: pre-wrap;
+}
+
+.inbox-quote {
+  padding-inline-start: 0.75rem;
+  border-inline-start: 2px solid var(--line);
+}

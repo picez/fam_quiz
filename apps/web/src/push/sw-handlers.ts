@@ -6,6 +6,8 @@ export interface SwClient {
   url: string;
   focus(): Promise<unknown>;
   navigate(url: string): Promise<unknown>;
+  /** Є в справжніх вікнах; потрібен лише для сигналу «Вхідних» (70). */
+  postMessage?(message: unknown): void;
 }
 
 export interface SwScope {
@@ -76,6 +78,24 @@ export async function onPush(scope: SwScope, data: { json(): unknown } | null, z
     badge: ICON,
     data: { url: notice.url },
   });
+  // 70: відкриті вікна перечитують бейдж «Вхідних» одразу; збій тут — не причина губити сповіщення.
+  if (isObject(raw) && (raw.kind === 'broadcast' || raw.kind === 'problem_reply')) await signalInbox(scope);
+}
+
+/** Повідомляє всім вікнам сайту, що у «Вхідних» щось з'явилося. */
+async function signalInbox(scope: SwScope): Promise<void> {
+  try {
+    const windows = await scope.clients.matchAll({ type: 'window', includeUncontrolled: true });
+    for (const client of windows) {
+      try {
+        client.postMessage?.({ type: 'quiz:inbox' });
+      } catch {
+        // вікно закрилося — решті сигнал усе одно йде
+      }
+    }
+  } catch {
+    // немає доступу до вікон — бейдж оновиться опитуванням
+  }
 }
 
 function isOtherSite(url: string, origin: string): boolean {
