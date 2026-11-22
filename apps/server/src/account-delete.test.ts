@@ -11,6 +11,7 @@ import type { PlayRef } from './db/schema';
 import {
   account,
   achievementBlock,
+  activityDay,
   adminAction,
   announcement,
   botPlan,
@@ -249,6 +250,11 @@ describe('deleteAccount', () => {
       { userId: taras, kind: 'problem_reply', problemId: answered.id, createdAt: NOW },
       { userId: olia, kind: 'broadcast', broadcastId: broadcastRow.id, createdAt: NOW },
     ]);
+    // 71: його дні активності; у Олі — свій.
+    await db.insert(activityDay).values([
+      { userId: taras, day: '2026-11-20', editorSec: 300, editorSessions: 1 },
+      { userId: olia, day: '2026-11-20' },
+    ]);
     await db.insert(serverError).values({ fingerprint: 'f', where: 'store', name: 'Error', message: 'boom', dayStart: NOW, firstAt: NOW, lastAt: NOW, status: 'resolved', resolvedBy: taras, resolvedAt: NOW });
     const oliaSaved = await seedGame(db, { hostId: olia, status: 'saved', startedAt: PAST, players: [{ userId: taras, nickname: 'Тарас', score: 0, rank: null }] });
     await db.insert(savedGame).values({ gameId: oliaSaved.gameId, data: { v: 1, playerUsers: [['p-taras', taras], ['p-olia', olia]] }, stateVersion: 22, savedAt: NOW });
@@ -282,6 +288,9 @@ describe('deleteAccount', () => {
     // 70: його «Вхідні» зникли, Олині лишилися.
     expect(await db.select().from(inboxItem).where(eq(inboxItem.userId, taras))).toEqual([]);
     expect(await db.select().from(inboxItem).where(eq(inboxItem.userId, olia))).toHaveLength(1);
+    // 71: його дні активності зникли, Олин лишився.
+    expect(await db.select().from(activityDay).where(eq(activityDay.userId, taras))).toEqual([]);
+    expect(await db.select().from(activityDay).where(eq(activityDay.userId, olia))).toHaveLength(1);
     expect((await db.select().from(savedGame).where(eq(savedGame.gameId, oliaSaved.gameId)))[0]?.data).toEqual({ v: 1, playerUsers: [['p-olia', olia]], forgotten: ['p-taras'] });
     const [room] = await db.select().from(liveRoom).where(eq(liveRoom.code, `r-${n}`));
     expect(room.data).toEqual({ playerUsers: [['p-olia', olia]], forgotten: ['p-taras'], continued: { bound: ['p-olia'], carry: null, replaces: null } });
@@ -509,7 +518,7 @@ const HANDLED = [
   'league_point.user_id', 'league_champion.user_id', 'library_entry.owner_id', 'library_copy.user_id', 'user_report.reporter_id',
   'user_report.target_user_id', 'announcement.created_by', 'bot_plan.created_by', 'push_broadcast.created_by',
   'problem_report.user_id', 'problem_report.resolved_by', 'server_error.resolved_by', 'game_event.user_id',
-  'merged_email.user_id', 'inbox_item.user_id',
+  'merged_email.user_id', 'inbox_item.user_id', 'activity_day.user_id',
 ];
 
 describe('the schema', () => {

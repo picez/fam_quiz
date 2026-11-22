@@ -1,6 +1,7 @@
 import { MERGE_LOGINS, SHOWCASE_PIN_KINDS, SHOWCASE_PIN_LIMITS, type MergeLogin } from '@quiz/shared';
 import { and, eq, inArray, or, sql } from 'drizzle-orm';
 import type { MergeRule, Tx } from './account-merge-rules';
+import { EDITOR_DAY_MAX_SEC } from './activity';
 import {
   account,
   achievementBlock,
@@ -285,6 +286,19 @@ const inboxRule: MergeRule = {
   },
 };
 
+/** 71. Дні активності: рядки S вливаються в P з підсумовуванням (стеля дня та сама), далі геть. */
+const activityDayRule: MergeRule = {
+  keys: ['activity_day.user_id'],
+  async run(tx, { primaryId: P, secondaryId: S }) {
+    await tx.execute(sql`insert into "activity_day" (user_id, day, editor_sec, editor_sessions)
+      select ${P}, day, editor_sec, editor_sessions from "activity_day" where user_id = ${S}
+      on conflict (user_id, day) do update set
+        editor_sec = least(${EDITOR_DAY_MAX_SEC}, "activity_day".editor_sec + excluded.editor_sec),
+        editor_sessions = "activity_day".editor_sessions + excluded.editor_sessions`);
+    await tx.execute(sql`delete from "activity_day" where user_id = ${S}`);
+  },
+};
+
 /** 20. Скарги: P на самого себе — геть; відкрита скарга, що повторила б відкриту скаргу P (чи на P), — рядок S геть. */
 const reportRule: MergeRule = {
   keys: ['user_report.reporter_id', 'user_report.target_user_id'],
@@ -381,6 +395,7 @@ export const PEOPLE_RULES: readonly MergeRule[] = [
   challengeRule,
   plainRule,
   inboxRule,
+  activityDayRule,
   reportRule,
   banRule,
   sessionRule,
