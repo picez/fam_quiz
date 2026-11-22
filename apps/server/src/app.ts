@@ -13,6 +13,7 @@ import { registerPushRoutes } from './push-routes';
 import { registerFeedRoutes, startFeedPrune } from './feed-routes';
 import { registerGroupRoutes } from './group-routes';
 import { registerLibraryRoutes } from './library-routes';
+import { registerQuizFolderRoutes } from './quiz-folder-routes';
 import { Invites, registerInviteRoutes } from './invites';
 import { gateStatus, LobbyGate } from './lobby-access';
 import { registerLobbyRoutes } from './lobby-routes';
@@ -190,6 +191,7 @@ export async function buildApp(options: AppOptions) {
   await registerFeedRoutes(app, { db: options.db, currentUser });
   await registerGroupRoutes(app, { db: options.db, currentUser });
   await registerLibraryRoutes(app, { db: options.db, currentUser });
+  await registerQuizFolderRoutes(app, { db: options.db, currentUser });
   await registerWordLadderRoutes(app, { nouns, currentUser });
   await registerLetterWordsRoutes(app, { nouns, currentUser });
   const notifiers = [options.calendarNotify, push?.calendarNotify].filter((n): n is CalendarNotify => n !== undefined);
