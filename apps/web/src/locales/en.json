@@ -5479,5 +5479,9 @@
   "adminHealthProblemsOpen": "Open problem reports",
   "adminHealthReportsOpen": "Open content complaints",
   "adminHealthChecked": "Checked {time}",
-  "adminHealthRefresh": "Refresh"
+  "adminHealthRefresh": "Refresh",
+  "chartWeek": "Week",
+  "chartPointsValue": "{value} pp",
+  "adminHealthRefreshing": "Refreshing…",
+  "adminHealthRefreshFailed": "Could not refresh — showing the previous data."
 }

@@ -25,7 +25,8 @@ export function niceTicks(max: number, count: number, options: { percent?: boole
     const step = PERCENT_STEPS.find((one) => 100 / one <= intervals) ?? 100;
     return { max: 100, ticks: range(100 / step + 1, step) };
   }
-  if (!(max > 0)) return { max: 1, ticks: [0, 1] };
+  // Нескінченність чи NaN не мають «гарного» кроку: цикл нижче не скінчився б.
+  if (!Number.isFinite(max) || !(max > 0)) return { max: 1, ticks: [0, 1] };
   for (let power = 1; ; power *= 10) {
     for (const factor of STEP_FACTORS) {
       const step = factor * power;
@@ -40,23 +41,52 @@ function range(length: number, step: number): number[] {
   return Array.from({ length }, (_, index) => index * step);
 }
 
+/** Значення, що малюється: скінченне й більше за нуль (NaN, нескінченність і від'ємні — як прогалина). */
+export const drawable = (value: number | null | undefined): value is number => typeof value === 'number' && Number.isFinite(value) && value > 0;
+
+/** Ширина рядка в px — оцінка з запасом (0,62 em на знак): SVG-текст до розкладки не виміряти. */
+export function textWidth(text: string, fontPx: number): number {
+  return Math.ceil([...text].length * fontPx * 0.62);
+}
+
+/** Підпис під віссю X: x — у px від лівого краю області стовпчиків. */
+export interface XLabel {
+  index: number;
+  x: number;
+  anchor: 'start' | 'middle' | 'end';
+}
+/** Найменший просвіт між рамками сусідніх підписів, px. */
+const X_LABEL_SPACE = 6;
+
 /**
- * Які стовпчики підписати під віссю X: перший і останній завжди, сусідні підписи — не ближче за `minGap` px
- * (центри стовпчиків при ширині графіка `width`). Останній замінює попередній, якщо той надто близько.
+ * Які стовпчики підписати під віссю X і де: підпис — по центру стовпчика, а крайній, що вилазить за край області
+ * (ширина `width`), притиснутий до краю (start / end). Між рамками підписів (ширина `labelWidth`) — щонайменше 6 px,
+ * центри — не ближче за `minGap`. Перший — завжди; останній — завжди, коли влазить (замінює сусідів, що заважають).
  */
-export function xLabelIndexes(count: number, width: number, minGap: number): number[] {
+export function xLabelLayout(count: number, width: number, labelWidth: number, minGap = 0): XLabel[] {
   if (count <= 0) return [];
-  if (count === 1) return [0];
   const slot = width / count;
-  const step = Math.max(1, Math.ceil(minGap / slot));
-  const out: number[] = [];
-  for (let index = 0; index < count; index += step) out.push(index);
-  const last = count - 1;
-  if (out[out.length - 1] !== last) {
-    if (out.length > 1 && (last - out[out.length - 1]!) * slot < minGap) out.pop();
-    out.push(last);
+  const half = labelWidth / 2;
+  const place = (index: number) => {
+    const centre = (index + 0.5) * slot;
+    if (centre - half < 0) return { index, x: 0, anchor: 'start' as const, left: 0, right: labelWidth };
+    if (centre + half > width) return { index, x: width, anchor: 'end' as const, left: width - labelWidth, right: width };
+    return { index, x: centre, anchor: 'middle' as const, left: centre - half, right: centre + half };
+  };
+  type Placed = ReturnType<typeof place>;
+  const fits = (before: Placed, after: Placed) => after.left >= before.right + X_LABEL_SPACE;
+  const out: Placed[] = [place(0)];
+  if (count > 1) {
+    const step = Math.max(1, Math.ceil(Math.max(minGap, labelWidth + X_LABEL_SPACE) / slot));
+    for (let index = step; index < count - 1; index += step) {
+      const next = place(index);
+      if (fits(out[out.length - 1]!, next)) out.push(next);
+    }
+    const last = place(count - 1);
+    while (out.length > 1 && !fits(out[out.length - 1]!, last)) out.pop();
+    if (fits(out[out.length - 1]!, last)) out.push(last);
   }
-  return out;
+  return out.map(({ index, x, anchor }) => ({ index, x, anchor }));
 }
 
 /** «1,2 тис.»: компактне число мовою інтерфейсу. */
@@ -79,6 +109,17 @@ export function minutesText(minutes: number): string {
 /** «50 %» мовою інтерфейсу. */
 export function percentText(value: number): string {
   return t('chartPercentValue', { value: decimalNumber(value) });
+}
+
+/** Зміна частки до попереднього, процентні пункти (до 0,1); null — одне з двох невідоме. */
+export function deltaPoints(current: number | null, previous: number | null): number | null {
+  if (current === null || previous === null) return null;
+  return Math.round((current - previous) * 10) / 10;
+}
+
+/** «10 п.п.» мовою інтерфейсу. */
+export function pointsText(value: number): string {
+  return t('chartPointsValue', { value: decimalNumber(value) });
 }
 
 /** Зміна до попереднього, % (ціле); null — попереднє нульове або невідоме. */

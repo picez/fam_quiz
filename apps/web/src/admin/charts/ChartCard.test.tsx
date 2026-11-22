@@ -48,8 +48,14 @@ describe('ChartCard', () => {
     render(<Card series={series} />);
     fireEvent.click(screen.getByRole('button', { name: 'Розгорнути «Ігри за ведучим»' }));
     const dialog = screen.getByRole('dialog');
+    fireEvent.mouseDown(dialog);
     fireEvent.click(dialog);
     expect(screen.queryByRole('dialog')).not.toBeNull();
+    // Натиск у картці, відпускання на тлі (виділяли текст) — не закриває.
+    fireEvent.mouseDown(dialog);
+    fireEvent.click(dialog.parentElement!);
+    expect(screen.queryByRole('dialog')).not.toBeNull();
+    fireEvent.mouseDown(dialog.parentElement!);
     fireEvent.click(dialog.parentElement!);
     expect(screen.queryByRole('dialog')).toBeNull();
   });

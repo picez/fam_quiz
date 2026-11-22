@@ -28,6 +28,30 @@ describe('ChartDialog', () => {
     expect(within(dialog).queryByText('Стрілки ← → — сусідні стовпчики.')).toBeNull();
   });
 
+  it('keeps Tab inside even when focus fell to the body, and makes the page behind inert and still', () => {
+    const back = createRef<HTMLButtonElement>();
+    const { container, unmount } = render(
+      <>
+        <button ref={back} type="button">
+          back
+        </button>
+        <ChartDialog title="Т" returnTo={back} onClose={() => {}}>
+          {() => null}
+        </ChartDialog>
+      </>,
+    );
+    const dialog = screen.getByRole('dialog');
+    expect(container.hasAttribute('inert')).toBe(true);
+    expect(document.body.style.overflow).toBe('hidden');
+    (document.activeElement as HTMLElement).blur();
+    expect(document.activeElement).toBe(document.body);
+    fireEvent.keyDown(document.body, { key: 'Tab' });
+    expect(dialog.contains(document.activeElement)).toBe(true);
+    unmount();
+    expect(container.hasAttribute('inert')).toBe(false);
+    expect(document.body.style.overflow).toBe('');
+  });
+
   it('closes with «Закрити» and returns focus to the given element', () => {
     const back = createRef<HTMLButtonElement>();
     const onClose = vi.fn();

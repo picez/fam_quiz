@@ -1,9 +1,15 @@
 import { describe, expect, it } from 'vitest';
-import { addDays, bucketLabel, bucketRange, compactNumber, deltaPercent, minutesText, niceTicks, percentText, xLabelIndexes } from './chart-scale';
+import { addDays, bucketLabel, bucketRange, compactNumber, deltaPercent, deltaPoints, minutesText, niceTicks, percentText, pointsText, textWidth, xLabelLayout, type XLabel } from './chart-scale';
 
 describe('niceTicks', () => {
   it('keeps a flat axis for zeros', () => {
     expect(niceTicks(0, 3)).toEqual({ max: 1, ticks: [0, 1] });
+  });
+
+  it('keeps a flat axis for infinity and NaN instead of looping forever', () => {
+    expect(niceTicks(Infinity, 3)).toEqual({ max: 1, ticks: [0, 1] });
+    expect(niceTicks(NaN, 3)).toEqual({ max: 1, ticks: [0, 1] });
+    expect(niceTicks(-5, 3)).toEqual({ max: 1, ticks: [0, 1] });
   });
 
   it('picks the smallest nice step that fits the interval count', () => {
@@ -26,25 +32,48 @@ describe('niceTicks', () => {
   });
 });
 
-describe('xLabelIndexes', () => {
-  it('labels the first and the last bar and keeps labels apart', () => {
-    const indexes = xLabelIndexes(30, 300, 56);
-    expect(indexes[0]).toBe(0);
-    expect(indexes[indexes.length - 1]).toBe(29);
-    const slot = 300 / 30;
-    for (let index = 1; index < indexes.length; index++) expect((indexes[index]! - indexes[index - 1]!) * slot).toBeGreaterThanOrEqual(56);
+/** Рамки підписів так, як їх малює SVG: start — від x праворуч, end — від x ліворуч, middle — навпіл. */
+const boxes = (labels: XLabel[], width: number) =>
+  labels.map(({ x, anchor }) => (anchor === 'start' ? [x, x + width] : anchor === 'end' ? [x - width, x] : [x - width / 2, x + width / 2]) as [number, number]);
+function expectApart(labels: XLabel[], labelWidth: number, plot: number) {
+  const list = boxes(labels, labelWidth);
+  for (const [left, right] of list) {
+    expect(left).toBeGreaterThanOrEqual(0);
+    expect(right).toBeLessThanOrEqual(plot);
+  }
+  for (let i = 1; i < list.length; i++) expect(list[i]![0] - list[i - 1]![1], `labels ${i - 1} and ${i}`).toBeGreaterThanOrEqual(6);
+}
+
+describe('xLabelLayout', () => {
+  it('labels the first and the last bar, inside the plot, and keeps label boxes apart', () => {
+    const labels = xLabelLayout(30, 300, 50, 56);
+    expect(labels[0]).toMatchObject({ index: 0, anchor: 'start', x: 0 });
+    expect(labels.at(-1)).toMatchObject({ index: 29, anchor: 'end', x: 300 });
+    expectApart(labels, 50, 300);
   });
 
-  it('labels a single bar', () => {
-    expect(xLabelIndexes(1, 300, 56)).toEqual([0]);
-    expect(xLabelIndexes(0, 300, 56)).toEqual([]);
+  it('the anchored ends get clearance from their neighbours: 30 days on a phone, in uk and in long German weeks', () => {
+    // 360 px картка ≈ 290 px області; «19 лист.» і «ab 17. Nov.» (12 px).
+    for (const label of ['19 лист.', 'з 17 лист.', 'ab 17. Nov.']) {
+      const width = textWidth(label, 12);
+      for (const count of [7, 30, 52, 90]) {
+        const labels = xLabelLayout(count, 290, width, 56);
+        expect(labels[0]!.index).toBe(0);
+        expectApart(labels, width, 290);
+      }
+    }
+  });
+
+  it('labels a single bar and none for no bars', () => {
+    expect(xLabelLayout(1, 300, 40, 56)).toEqual([{ index: 0, x: 150, anchor: 'middle' }]);
+    expect(xLabelLayout(0, 300, 40, 56)).toEqual([]);
   });
 
   it('labels every bar when there is room', () => {
     // 24 години на широкому діалозі: 1400 / 24 ≈ 58 px на стовпчик.
-    expect(xLabelIndexes(24, 1400, 56)).toEqual(Array.from({ length: 24 }, (_, index) => index));
+    expect(xLabelLayout(24, 1400, 15, 56).map((label) => label.index)).toEqual(Array.from({ length: 24 }, (_, index) => index));
     // Короткі підписи годин («09») дозволяють менший проміжок.
-    expect(xLabelIndexes(24, 900, 32)).toHaveLength(24);
+    expect(xLabelLayout(24, 900, 15, 28)).toHaveLength(24);
   });
 });
 
@@ -58,6 +87,14 @@ describe('numbers and periods', () => {
     expect(minutesText(44.6)).toBe('45 хв');
     expect(percentText(50)).toBe('50 %');
     expect(percentText(12.34)).toBe('12,3 %');
+  });
+
+  it('counts the change of a share in percentage points', () => {
+    expect(deltaPoints(60, 50)).toBe(10);
+    expect(deltaPoints(40, 50)).toBe(-10);
+    expect(deltaPoints(5, 0)).toBe(5);
+    expect(deltaPoints(null, 4)).toBeNull();
+    expect(pointsText(10)).toBe('10 п.п.');
   });
 
   it('counts the change to the previous period', () => {

@@ -8,7 +8,7 @@ import { nickText } from '../nick';
 import { adminMetrics } from './admin-api';
 import { BarChart, isEmptyChart, type ChartLabel, type ChartSeries, type ChartUnit } from './charts/BarChart';
 import { ChartCard } from './charts/ChartCard';
-import { bucketLabel, bucketRange, decimalNumber, deltaPercent, minutesText, percentText } from './charts/chart-scale';
+import { bucketLabel, bucketRange, decimalNumber, deltaPercent, deltaPoints, minutesText, percentText, pointsText } from './charts/chart-scale';
 import { HBarList, type HBarItem } from './charts/HBarList';
 import { useAdminData } from './useAdminData';
 
@@ -65,15 +65,18 @@ function kpiText(value: number | null, kind: Kind): string {
   }
 }
 
-function Delta({ now, before }: { now: number | null; before: number | null | undefined }): JSX.Element {
-  const delta = before === undefined ? null : deltaPercent(now, before);
+/** Зміна до попереднього періоду: частки (%) — у процентних пунктах, решта — відносно, у %. */
+function Delta({ now, before, kind }: { now: number | null; before: number | null | undefined; kind: Kind }): JSX.Element {
+  const points = kind === 'percent';
+  const delta = before === undefined ? null : points ? deltaPoints(now, before) : deltaPercent(now, before);
   if (delta === null) return <dd className="admin-kpi-delta">{t('adminMetricsNoPrevious')}</dd>;
   if (delta === 0) return <dd className="admin-kpi-delta">{t('adminMetricsSame')}</dd>;
   const up = delta > 0;
+  const value = points ? pointsText(Math.abs(delta)) : percentText(Math.abs(delta));
   return (
     <dd className={`admin-kpi-delta ${up ? 'is-up' : 'is-down'}`}>
       <span aria-hidden="true">{up ? '▲ ' : '▼ '}</span>
-      {t(up ? 'adminMetricsUp' : 'adminMetricsDown', { value: percentText(Math.abs(delta)) })}
+      {t(up ? 'adminMetricsUp' : 'adminMetricsDown', { value })}
     </dd>
   );
 }
@@ -85,7 +88,7 @@ function KpiTiles({ summary, previous }: { summary: AdminMetricsSummary; previou
         <div key={kpi.label} className="admin-stat">
           <dt>{t(kpi.label)}</dt>
           <dd>{kpiText(kpi.value(summary), kpi.kind)}</dd>
-          <Delta now={kpi.value(summary)} before={previous === null ? undefined : kpi.value(previous)} />
+          <Delta now={kpi.value(summary)} before={previous === null ? undefined : kpi.value(previous)} kind={kpi.kind} />
         </div>
       ))}
     </dl>
@@ -100,13 +103,15 @@ interface BarSpec {
   labels: ChartLabel[];
   average?: boolean;
   labelGap?: number;
+  /** Заголовок першого стовпця таблиці: «День» / «Тиждень» / «Година». */
+  labelHeader: string;
 }
 
 function BarCard({ spec, caption }: { spec: BarSpec; caption: string }): JSX.Element {
   const title = t(spec.title);
   return (
     <ChartCard title={title} hint={spec.hint} caption={caption} empty={isEmptyChart(spec.series)}>
-      {({ size, titleId, view }) => <BarChart title={title} titleId={titleId} labels={spec.labels} series={spec.series} unit={spec.unit} size={size} view={view} average={spec.average} labelGap={spec.labelGap} />}
+      {({ size, titleId, view }) => <BarChart title={title} titleId={titleId} labels={spec.labels} series={spec.series} unit={spec.unit} size={size} view={view} average={spec.average} labelGap={spec.labelGap} labelHeader={spec.labelHeader} />}
     </ChartCard>
   );
 }
@@ -128,7 +133,8 @@ function barSpecs(data: Metrics): BarSpec[] {
   const pick = (value: (b: AdminMetricBucket) => number | null) => data.buckets.map(value);
   const since = data.trackedSince === null ? undefined : t('chartSinceHint', { date: formatDay(`${data.trackedSince}T12:00:00Z`) });
   const series = (title: TextKey, key: string, value: (b: AdminMetricBucket) => number | null) => one(key, t(title), pick(value));
-  return [
+  const labelHeader = t(data.bucket === 'week' ? 'chartWeek' : 'adminChartDay');
+  const specs: Omit<BarSpec, 'labelHeader'>[] = [
     { title: 'adminMetricActive', hint: since, unit: 'count', labels, series: series('adminMetricActive', 'active', (b) => b.active) },
     { title: 'adminChartPlayers', unit: 'count', labels, series: series('adminChartPlayers', 'players', (b) => b.players) },
     { title: 'adminChartGames', unit: 'count', labels, series: series('adminChartGames', 'games', (b) => b.games) },
@@ -165,6 +171,7 @@ function barSpecs(data: Metrics): BarSpec[] {
       series: one('hours', t('adminMetricHours'), data.hours),
     },
   ];
+  return specs.map((spec) => ({ ...spec, labelHeader: spec.title === 'adminMetricHours' ? t('chartHour') : labelHeader }));
 }
 
 function Lists({ data, caption }: { data: Metrics; caption: string }): JSX.Element {
@@ -218,19 +225,29 @@ export function AdminMetrics(): JSX.Element {
   const last = useRef<Metrics | null>(null);
   if (state.status === 'ready') last.current = state.data;
   const data = state.status === 'ready' ? state.data : state.status === 'loading' ? last.current : null;
+  // Перемикач періоду не множить записи історії: «Назад» веде зі сторінки, а не по періодах.
   const pick = (next: AdminMetricPeriod) =>
-    setParams((prev) => {
-      const out = new URLSearchParams(prev);
-      out.set('period', String(next));
-      return out;
-    });
+    setParams(
+      (prev) => {
+        const out = new URLSearchParams(prev);
+        out.set('period', String(next));
+        return out;
+      },
+      { replace: true },
+    );
+  const loading = state.status === 'loading' && data !== null;
   const caption = t(`adminMetricsPeriod_${period}`);
   return (
     <section className="admin-metrics" aria-labelledby="admin-metrics-title" aria-busy={state.status === 'loading'}>
       <h2 id="admin-metrics-title">{t('adminMetricsTitle')}</h2>
       <PeriodPicker period={period} onPick={pick} />
+      {loading && (
+        <p className="meta admin-metrics-loading" role="status">
+          {t('loading')}
+        </p>
+      )}
       {data !== null ? (
-        <>
+        <div className={loading ? 'admin-metrics-body is-loading' : 'admin-metrics-body'}>
           <KpiTiles summary={data.summary} previous={data.previous} />
           <div className="day-bars-grid admin-metric-charts">
             {barSpecs(data).map((spec) => (
@@ -239,7 +256,7 @@ export function AdminMetrics(): JSX.Element {
           </div>
           <Lists data={data} caption={caption} />
           <p className="meta">{t('adminChartsComputed', { time: formatDate(data.computedAt) })}</p>
-        </>
+        </div>
       ) : state.status === 'error' ? (
         <>
           <p className="error" role="alert">

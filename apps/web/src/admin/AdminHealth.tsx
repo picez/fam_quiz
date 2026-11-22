@@ -64,7 +64,6 @@ function ServerGroup({ data }: { data: Health }): JSX.Element {
         <Row label="adminHealthVersion" value={server.commit ?? t('adminHealthVersionUnknown')} />
         <Row label="adminHealthNode" value={server.node} />
         <Row label="adminHealthStarted" value={t('adminHealthStartedValue', { date: formatDate(server.startedAt), uptime: uptimeText(data.uptimeSec) })} />
-        <Row label="adminHealthUptime" value={uptimeText(data.uptimeSec)} />
         <Row label="adminHealthMemory" value={t('adminHealthMemoryFull', { rss: bytesText(memory.rss), heap: bytesText(memory.heapUsed), total: bytesText(memory.heapTotal), external: bytesText(memory.external) })} />
         <Row label="adminHealthCpu" value={server.cpuPercent === null ? t('adminHealthWaiting') : t('adminHealthCpuValue', { value: decimalNumber(server.cpuPercent) })} />
         <Row label="adminHealthLag" value={server.lagMs === null ? t('adminHealthWaiting') : t('adminHealthLagValue', { p50: ms(server.lagMs.p50), p99: ms(server.lagMs.p99), max: ms(server.lagMs.max) })} />
@@ -162,10 +161,15 @@ export function AdminHealth(): JSX.Element {
           </div>
           <div className="admin-health-foot">
             <p className="meta">{t('adminHealthChecked', { time: formatDate(state.data.checkedAt) })}</p>
-            <button type="button" className="btn btn-small" onClick={state.reload}>
-              {t('adminHealthRefresh')}
+            <button type="button" className="btn btn-small" onClick={state.reload} disabled={state.busy === true} aria-busy={state.busy === true}>
+              {state.busy === true ? t('adminHealthRefreshing') : t('adminHealthRefresh')}
             </button>
           </div>
+          {state.stale === true && state.busy !== true && (
+            <p className="error" role="alert">
+              {t('adminHealthRefreshFailed')}
+            </p>
+          )}
         </>
       ) : (
         <Failed state={state} />

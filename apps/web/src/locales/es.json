@@ -5556,5 +5556,9 @@
   "adminHealthProblemsOpen": "Avisos de problemas abiertos",
   "adminHealthReportsOpen": "Quejas de contenido abiertas",
   "adminHealthChecked": "Comprobado {time}",
-  "adminHealthRefresh": "Actualizar"
+  "adminHealthRefresh": "Actualizar",
+  "chartWeek": "Semana",
+  "chartPointsValue": "{value} p. p.",
+  "adminHealthRefreshing": "Actualizando…",
+  "adminHealthRefreshFailed": "No se pudo actualizar: se muestran los datos anteriores."
 }

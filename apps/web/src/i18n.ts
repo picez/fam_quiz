@@ -5634,6 +5634,10 @@ const uk = {
   adminHealthReportsOpen: "Відкритих скарг на вміст",
   adminHealthChecked: "Перевірено {time}",
   adminHealthRefresh: "Оновити",
+  chartWeek: "Тиждень",
+  chartPointsValue: "{value} п.п.",
+  adminHealthRefreshing: "Оновлення…",
+  adminHealthRefreshFailed: "Не вдалося оновити — показано попередні дані.",
 } as const;
 
 /** uk-словник — той самий об'єкт, що читає t(); інші мови перевіряються проти нього. */

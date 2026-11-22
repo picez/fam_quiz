@@ -7,8 +7,9 @@ export type AdminData<T> =
   /** Сервер відповів «not_found»: для не-адміна адмінки не існує, веде на головну. */
   | { status: 'home' }
   | { status: 'error'; message: string }
-  /** `stale`: лише з `keep` — останнє перечитування не вдалося, показано попередні дані. */
-  | { status: 'ready'; data: T; stale?: boolean };
+  /** `stale`: лише з `keep` — останнє перечитування не вдалося, показано попередні дані.
+   * `busy`: лише з `keep` — показано попередні дані, а перечитування ще в дорозі. */
+  | { status: 'ready'; data: T; stale?: boolean; busy?: boolean };
 
 type Controls = {
   /** Перечитує тим самим ключем (кнопка «Оновити»: завжди). */
@@ -50,7 +51,7 @@ export function useAdminData<T>(load: () => Promise<ApiData<T>>, key: string, op
   }, []);
   const controls = { reload, refresh };
   const kept = options?.keep === true && state !== null && state.lastOk !== null && state.lastOk.base === key ? state.lastOk : null;
-  if (state === null || state.key !== full) return kept !== null ? { status: 'ready', data: kept.data, ...controls } : { status: 'loading', ...controls };
+  if (state === null || state.key !== full) return kept !== null ? { status: 'ready', data: kept.data, busy: true, ...controls } : { status: 'loading', ...controls };
   if (state.result.ok) return { status: 'ready', data: state.result.data, ...controls };
   if (state.result.error === 'not_found') return { status: 'home', ...controls };
   if (kept !== null) return { status: 'ready', data: kept.data, stale: true, ...controls };

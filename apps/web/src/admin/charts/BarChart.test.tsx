@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { BarChart, type BarChartProps, type ChartSeries } from './BarChart';
-import { niceTicks, xLabelIndexes } from './chart-scale';
+import { BarChart, isEmptyChart, type BarChartProps, type ChartSeries } from './BarChart';
+import { niceTicks, textWidth, xLabelLayout } from './chart-scale';
 
 const labels = (count: number) => Array.from({ length: count }, (_, n) => ({ short: `d${n}`, full: `day ${n}` }));
 const single = (values: (number | null)[]): ChartSeries[] => [{ key: 'games', label: 'Ігри', color: 1, values }];
@@ -49,7 +49,8 @@ describe('BarChart', () => {
     expect(container.querySelectorAll('.chart-grid-line')).toHaveLength(ticks.length);
     expect(ticks).toHaveLength(3);
     const xs = [...container.querySelectorAll('.chart-x')].map((node) => node.textContent);
-    expect(xs).toEqual(xLabelIndexes(30, 320 - 40, 56).map((n) => `d${n}`));
+    // Поле осі Y — за найширшим підписом («6») + 8, але не менше 28.
+    expect(xs).toEqual(xLabelLayout(30, 320 - 28, textWidth('d29', 12), 56).map(({ index }) => `d${index}`));
     expect(xs[0]).toBe('d0');
     expect(xs[xs.length - 1]).toBe('d29');
     expect(container.querySelectorAll('.chart-bar')).toHaveLength(values.filter((v) => v > 0).length);
@@ -122,6 +123,37 @@ describe('BarChart', () => {
     expect(container.querySelector('.chart-tip')?.textContent).toBe('day 23');
     fireEvent.mouseLeave(screen.getByRole('img'));
     expect(container.querySelector('.chart-tip')).toBeNull();
+  });
+
+  it('treats NaN, infinity and negative values as gaps: no bar, no "NaN", not in the total', () => {
+    const series: ChartSeries[] = [
+      { key: 'a', label: 'А', color: 1, values: [NaN, 2, -3, Infinity] },
+      { key: 'b', label: 'Б', color: 2, values: [1, 1, 1, 1] },
+    ];
+    const { container } = show({ series });
+    expect(container.textContent).not.toContain('NaN');
+    expect(container.textContent).not.toContain('∞');
+    expect([...container.querySelectorAll('.chart-bar')].map((bar) => bar.getAttribute('data-series'))).toEqual(['b', 'a', 'b', 'b', 'b']);
+    const legend = [...container.querySelectorAll('.chart-legend li')].map((li) => li.textContent);
+    expect(legend).toEqual(['А — 2', 'Б — 4']);
+    // Шкала — за сумою 3 (2 + 1), а не за нескінченністю.
+    expect([...container.querySelectorAll('.chart-svg > g > text')].map((node) => node.textContent)).toEqual(['0', '2', '4']);
+    expect(isEmptyChart([{ key: 'x', label: 'x', color: 1, values: [NaN, -1, Infinity, 0, null] }])).toBe(true);
+  });
+
+  it('heads the table with the given label', () => {
+    const { container } = show({ series: single([1, 2]), view: 'table', labelHeader: 'Тиждень' });
+    expect(container.querySelector('th')?.textContent).toBe('Тиждень');
+  });
+
+  it('makes room on the left for long y labels', () => {
+    stubWidth(400);
+    const { container } = show({ series: single([1500, 300]) });
+    const tickLabels = [...container.querySelectorAll('.chart-svg > g > text')];
+    expect(tickLabels.at(-1)!.textContent!.replace(/\s/g, ' ')).toBe('2 тис.');
+    const x = Number(tickLabels.at(-1)!.getAttribute('x'));
+    // Підпис притиснутий праворуч до x: його ширина не більша за x (не вилазить за лівий край).
+    expect(x).toBeGreaterThanOrEqual(textWidth('2 тис.', 12));
   });
 
   it('says there is no data instead of an empty frame', () => {

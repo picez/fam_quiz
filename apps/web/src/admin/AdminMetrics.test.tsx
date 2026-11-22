@@ -2,7 +2,7 @@
 import type { AdminMetricBucket, AdminMetricPeriod, AdminMetrics as Metrics, AdminMetricsSummary } from '@quiz/shared';
 import type { JSX } from 'react';
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
-import { MemoryRouter, useLocation } from 'react-router-dom';
+import { MemoryRouter, useLocation, useNavigate } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { formatDate, formatDay } from '../format';
 import { AdminMetrics, periodFrom } from './AdminMetrics';
@@ -89,11 +89,21 @@ function Where(): JSX.Element {
   return <output data-testid="where">{location.pathname + location.search}</output>;
 }
 
+function Back(): JSX.Element {
+  const navigate = useNavigate();
+  return (
+    <button type="button" onClick={() => navigate(-1)}>
+      back
+    </button>
+  );
+}
+
 const show = (path = '/admin') =>
   render(
-    <MemoryRouter initialEntries={[path]}>
+    <MemoryRouter initialEntries={['/start', path]} initialIndex={1}>
       <AdminMetrics />
       <Where />
+      <Back />
     </MemoryRouter>,
   );
 
@@ -125,11 +135,17 @@ describe('AdminMetrics', () => {
     fireEvent.click(screen.getByRole('radio', { name: '7 днів' }));
     expect(screen.getByTestId('where').textContent).toBe('/admin?period=7');
     expect(adminMetrics).toHaveBeenLastCalledWith(7);
-    // Поки читається новий період, видно попередні числа, а не «Завантаження…».
-    expect(screen.queryByText('Завантажуємо…')).toBeNull();
+    // Поки читається новий період, видно попередні числа (приглушені) і рядок «Завантажуємо…».
+    expect(document.querySelector('.admin-metrics-loading[role="status"]')!.textContent).toBe('Завантажуємо…');
     expect(tile('Ігор')).toBeTruthy();
+    expect(document.querySelector('.admin-metrics-body.is-loading')).not.toBeNull();
     await act(async () => {});
+    expect(screen.queryByText('Завантажуємо…')).toBeNull();
+    expect(document.querySelector('.admin-metrics-body.is-loading')).toBeNull();
     expect(screen.getAllByRole('img', { name: 'Активні гравці (акаунти, що зіграли гру)' })[0]!.closest('figure')!.querySelectorAll('table.sr-only tbody tr')).toHaveLength(7);
+    // Перемикач заміняє запис історії: «Назад» веде туди, звідки прийшли, а не на попередній період.
+    fireEvent.click(screen.getByRole('button', { name: 'back' }));
+    expect(screen.getByTestId('where').textContent).toBe('/start');
   });
 
   it('opens a year from the address with week labels, and falls back to 30 days for an unknown period', async () => {
@@ -174,6 +190,25 @@ describe('AdminMetrics', () => {
       'Нових вікторин',
       'Ігор Квіз-бота',
     ]);
+  });
+
+  it('shows the change of a share in percentage points, not a relative percent', async () => {
+    vi.mocked(adminMetrics).mockResolvedValue({ ok: true, data: metrics(30, { summary: summary({ completion: 60 }), previous: summary({ completion: 50 }) }) });
+    show();
+    await screen.findByText('Ігор', { selector: 'dt' });
+    expect(tile('Дограно до кінця').querySelector('.admin-kpi-delta')!.textContent).toBe('▲ більше на 10 п.п. до попереднього періоду');
+  });
+
+  it('heads the tables by day, by week for a year and by hour for the hours chart', async () => {
+    const year = show('/admin?period=365');
+    await screen.findByText('Ігор', { selector: 'dt' });
+    expect(within(screen.getByRole('table', { name: 'Ігор за день' })).getAllByRole('columnheader')[0]!.textContent).toBe('Тиждень');
+    year.unmount();
+    show();
+    await screen.findByText('Ігор', { selector: 'dt' });
+    expect(within(screen.getByRole('table', { name: 'Ігор за день' })).getAllByRole('columnheader')[0]!.textContent).toBe('День');
+    const hours = document.querySelector('.admin-metric-charts figure.chart-card:last-child table')!;
+    expect(hours.querySelector('th')!.textContent).toBe('Година');
   });
 
   it('says there is nothing to compare with and shows a dash for unknown values', async () => {

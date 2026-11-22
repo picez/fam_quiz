@@ -41,7 +41,9 @@ describe('AdminHealth', () => {
     await screen.findByText('Остання копія бази');
     expect(screen.getByRole('heading', { name: 'Стан' })).toBeTruthy();
     expect(value('Остання копія бази')).toBe(`${formatDate('2026-11-16T03:00:00.000Z')}, ${bytesText(3_145_728)}`);
-    expect(value('Сервер працює')).toBe('1 д 3 год');
+    // Час роботи — лише в рядку «Запущено», без окремого дубля.
+    expect(screen.queryByText('Сервер працює')).toBeNull();
+    expect(value('Запущено')).toContain('(працює 1 д 3 год)');
     expect(value("Пам'ять процесу")).toBe(`${bytesText(157_286_400)}; купа ${bytesText(52_428_800)} з ${bytesText(62_914_560)}; поза купою ${bytesText(2_097_152)}`);
     expect(value('Живі кімнати')).toBe('2');
     expect(value("З'єднання")).toBe('9');
@@ -149,7 +151,26 @@ describe('AdminHealth', () => {
     expect(adminHealth).toHaveBeenCalledTimes(2);
     expect(screen.queryByText('Завантажуємо…')).toBeNull();
     expect(screen.getByText('Остання копія бази')).toBeTruthy();
+    // Поки йде перечитування — кнопка показує поступ і не тиснеться вдруге.
+    const busy = screen.getByRole('button', { name: 'Оновлення…' }) as HTMLButtonElement;
+    expect(busy.disabled).toBe(true);
     await act(async () => resolve({ ok: true, data: full({ checkedAt: '2026-11-19T10:05:00.000Z' }) }));
     expect(screen.getByText(`Перевірено ${formatDate('2026-11-19T10:05:00.000Z')}`)).toBeTruthy();
+    expect((screen.getByRole('button', { name: 'Оновити' }) as HTMLButtonElement).disabled).toBe(false);
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  it('says when a refresh failed and keeps the previous numbers', async () => {
+    vi.mocked(adminHealth).mockResolvedValue({ ok: true, data: full() });
+    show(<AdminHealth />);
+    await screen.findByText('Остання копія бази');
+    vi.mocked(adminHealth).mockResolvedValue({ ok: false, error: 'offline' });
+    fireEvent.click(screen.getByRole('button', { name: 'Оновити' }));
+    expect((await screen.findByRole('alert')).textContent).toBe('Не вдалося оновити — показано попередні дані.');
+    expect(screen.getByText(`Перевірено ${formatDate('2026-11-19T10:00:00.000Z')}`)).toBeTruthy();
+    vi.mocked(adminHealth).mockResolvedValue({ ok: true, data: full() });
+    fireEvent.click(screen.getByRole('button', { name: 'Оновити' }));
+    await act(async () => {});
+    expect(screen.queryByRole('alert')).toBeNull();
   });
 });

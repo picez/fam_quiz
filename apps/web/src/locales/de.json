@@ -5479,5 +5479,9 @@
   "adminHealthProblemsOpen": "Offene Problemmeldungen",
   "adminHealthReportsOpen": "Offene Beschwerden über Inhalte",
   "adminHealthChecked": "Geprüft {time}",
-  "adminHealthRefresh": "Aktualisieren"
+  "adminHealthRefresh": "Aktualisieren",
+  "chartWeek": "Woche",
+  "chartPointsValue": "{value} Pp.",
+  "adminHealthRefreshing": "Wird aktualisiert…",
+  "adminHealthRefreshFailed": "Aktualisierung fehlgeschlagen — es werden die vorherigen Daten gezeigt."
 }

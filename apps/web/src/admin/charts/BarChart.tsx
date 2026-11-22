@@ -1,6 +1,6 @@
 import { useState, type JSX, type KeyboardEvent as ReactKeyboardEvent } from 'react';
 import { t } from '../../i18n';
-import { compactNumber, decimalNumber, minutesText, niceTicks, percentText, xLabelIndexes } from './chart-scale';
+import { compactNumber, decimalNumber, drawable, minutesText, niceTicks, percentText, textWidth, xLabelLayout } from './chart-scale';
 import { useWidth } from './useWidth';
 
 /** 71: стовпчики в реальних px (ширина — контейнер), з осями, сіткою, підказкою й таблицею тих самих чисел. */
@@ -31,11 +31,16 @@ export interface BarChartProps {
   average?: boolean;
   /** Найменша відстань між підписами осі X, px (для коротких підписів годин — менша). */
   labelGap?: number;
+  /** Заголовок першого стовпця таблиці (за замовчуванням «День»): «Тиждень», «Година». */
+  labelHeader?: string;
   view?: ChartView;
 }
 
-const LEFT = 40;
+/** Ліве поле під підписи осі Y — щонайменше стільки; ширше, коли підпис («1,5 тис.») довший. */
+const LEFT_MIN = 28;
 const BOTTOM = 22;
+/** Розмір тексту осей, px (як у styles.css: .chart-svg text і .chart-dialog .chart-svg text). */
+const FONT = { small: 12, large: 13 } as const;
 /** Над стовпчиками в діалозі — місце для чисел. */
 const TOP = { small: 8, large: 22 } as const;
 const HEIGHT_SMALL = 180;
@@ -71,19 +76,22 @@ function tickText(value: number, unit: ChartUnit): string {
   return unit === 'percent' ? percentText(value) : compactNumber(value);
 }
 
-/** Сума рядів кошика; null — у кошику немає жодного значення. */
+/** Скінченне невід'ємне — значення є (нуль теж); решта (null, NaN, нескінченність, від'ємне) — прогалина. */
+const known = (value: number | null | undefined): value is number => typeof value === 'number' && Number.isFinite(value) && value >= 0;
+
+/** Сума рядів кошика (лише те, що малюється); null — у кошику немає жодного значення. */
 function totalAt(series: ChartSeries[], index: number): number | null {
   let sum: number | null = null;
   for (const one of series) {
     const value = one.values[index];
-    if (value !== null && value !== undefined) sum = (sum ?? 0) + value;
+    if (known(value)) sum = (sum ?? 0) + (drawable(value) ? value : 0);
   }
   return sum;
 }
 
 /** Самі нулі й прогалини — малювати нічого. */
 export function isEmptyChart(series: ChartSeries[]): boolean {
-  return series.every((one) => one.values.every((value) => value === null || value === 0));
+  return series.every((one) => one.values.every((value) => !drawable(value)));
 }
 
 function largeHeight(): number {
@@ -92,14 +100,14 @@ function largeHeight(): number {
 }
 
 /** Таблиця тих самих чисел: прихована для читачів екрана в картці, видима в діалозі. */
-export function ChartTable({ title, labels, series, unit, visible }: { title: string; labels: ChartLabel[]; series: ChartSeries[]; unit: ChartUnit; visible: boolean }): JSX.Element {
+export function ChartTable({ title, labels, series, unit, visible, labelHeader }: { title: string; labels: ChartLabel[]; series: ChartSeries[]; unit: ChartUnit; visible: boolean; labelHeader?: string }): JSX.Element {
   const single = series.length === 1;
   const table = (
     <table className={visible ? 'chart-table' : 'sr-only'}>
       <caption className={visible ? 'sr-only' : undefined}>{title}</caption>
       <thead>
         <tr>
-          <th scope="col">{t('adminChartDay')}</th>
+          <th scope="col">{labelHeader ?? t('adminChartDay')}</th>
           {series.map((one) => (
             <th key={one.key} scope="col">
               {single ? t('adminChartValue') : one.label}
@@ -113,7 +121,7 @@ export function ChartTable({ title, labels, series, unit, visible }: { title: st
             <td>{label.full}</td>
             {series.map((one) => {
               const value = one.values[index];
-              return <td key={one.key}>{value === null || value === undefined ? '—' : tableText(value, unit)}</td>;
+              return <td key={one.key}>{known(value) ? tableText(value, unit) : '—'}</td>;
             })}
           </tr>
         ))}
@@ -124,14 +132,14 @@ export function ChartTable({ title, labels, series, unit, visible }: { title: st
 }
 
 export function BarChart(props: BarChartProps): JSX.Element {
-  const { title, labels, series, unit, view = 'chart' } = props;
+  const { title, labels, series, unit, view = 'chart', labelHeader } = props;
   if (isEmptyChart(series)) return <p className="meta">{t('adminChartNoData')}</p>;
-  if (view === 'table') return <ChartTable title={title} labels={labels} series={series} unit={unit} visible />;
+  if (view === 'table') return <ChartTable title={title} labels={labels} series={series} unit={unit} visible labelHeader={labelHeader} />;
   return (
     <>
       <Plot {...props} />
       {series.length > 1 && <Legend series={series} unit={unit} />}
-      <ChartTable title={title} labels={labels} series={series} unit={unit} visible={false} />
+      <ChartTable title={title} labels={labels} series={series} unit={unit} visible={false} labelHeader={labelHeader} />
     </>
   );
 }
@@ -140,7 +148,7 @@ function Legend({ series, unit }: { series: ChartSeries[]; unit: ChartUnit }): J
   return (
     <ul className="chart-legend">
       {series.map((one) => {
-        const sum = one.values.reduce<number>((acc, value) => acc + (value ?? 0), 0);
+        const sum = one.values.reduce<number>((acc, value) => acc + (drawable(value) ? value : 0), 0);
         return (
           <li key={one.key}>
             <span className={`chart-swatch is-s${one.color}`} aria-hidden="true" />
@@ -162,22 +170,25 @@ function Plot({ titleId, labels, series, unit, size, average = true, labelGap = 
   const height = size === 'large' ? largeHeight() : HEIGHT_SMALL;
   const top = TOP[size];
   const bottom = height - BOTTOM;
-  const plot = Math.max(1, width - LEFT);
-  const slot = plot / Math.max(1, count);
-  const bar = Math.max(1, slot * 0.7);
+  const font = FONT[size];
   const percent = unit === 'percent';
   const totals = labels.map((_, index) => totalAt(series, index));
   const scale = niceTicks(Math.max(0, ...totals.map((value) => value ?? 0)), TICKS[size], { percent });
+  // Поле під підписи Y — за найширшим із них, щоб «1,5 тис.» не вилазив за лівий край.
+  const left = Math.max(LEFT_MIN, Math.max(...scale.ticks.map((tick) => textWidth(tickText(tick, unit), font))) + 8);
+  const plot = Math.max(1, width - left);
+  const slot = plot / Math.max(1, count);
+  const bar = Math.max(1, slot * 0.7);
   const y = (value: number) => bottom - ((bottom - top) * Math.min(value, scale.max)) / scale.max;
   const present = totals.filter((value): value is number => value !== null);
   const mean = size === 'large' && average && !percent && present.length > 0 ? present.reduce((a, b) => a + b, 0) / present.length : null;
   const showValues = size === 'large' && slot >= VALUE_MIN_SLOT;
-  const xLabels = xLabelIndexes(count, plot, labelGap);
-  const centre = (index: number) => LEFT + (index + 0.5) * slot;
+  const xLabels = xLabelLayout(count, plot, Math.max(...labels.map((label) => textWidth(label.short, font))), labelGap);
+  const centre = (index: number) => left + (index + 0.5) * slot;
 
   const valueAt = (one: ChartSeries, index: number) => {
     const value = one.values[index];
-    return value === null || value === undefined ? '—' : chartValueText(value, unit);
+    return known(value) ? chartValueText(value, unit) : '—';
   };
   const tipLines = (index: number): string[] => (series.length === 1 ? [valueAt(series[0]!, index)] : series.map((one) => `${one.label}: ${valueAt(one, index)}`));
   const tipText = (index: number) => `${labels[index]!.full}: ${tipLines(index).join('; ')}`;
@@ -214,21 +225,21 @@ function Plot({ titleId, labels, series, unit, size, average = true, labelGap = 
       >
         {scale.ticks.map((tick) => (
           <g key={tick}>
-            <line className="chart-grid-line" x1={LEFT} x2={width} y1={Math.round(y(tick)) + 0.5} y2={Math.round(y(tick)) + 0.5} />
-            <text x={LEFT - 6} y={y(tick)} dy="0.35em" textAnchor="end">
+            <line className="chart-grid-line" x1={left} x2={width} y1={Math.round(y(tick)) + 0.5} y2={Math.round(y(tick)) + 0.5} />
+            <text x={left - 6} y={y(tick)} dy="0.35em" textAnchor="end">
               {tickText(tick, unit)}
             </text>
           </g>
         ))}
-        {active !== null && <rect className="chart-band" x={LEFT + active * slot} y={top} width={slot} height={bottom - top} />}
+        {active !== null && <rect className="chart-band" x={left + active * slot} y={top} width={slot} height={bottom - top} />}
         {labels.map((_, index) => {
           let base = 0;
-          const x = LEFT + index * slot + (slot - bar) / 2;
+          const x = left + index * slot + (slot - bar) / 2;
           return (
             <g key={index}>
               {series.map((one) => {
                 const value = one.values[index];
-                if (value === null || value === undefined || value <= 0) return null;
+                if (!drawable(value)) return null;
                 const y0 = y(base);
                 base += value;
                 const h = Math.max(1, y0 - y(base));
@@ -252,30 +263,25 @@ function Plot({ titleId, labels, series, unit, size, average = true, labelGap = 
             </g>
           );
         })}
-        <line className="chart-axis" x1={LEFT} x2={width} y1={bottom + 0.5} y2={bottom + 0.5} />
+        <line className="chart-axis" x1={left} x2={width} y1={bottom + 0.5} y2={bottom + 0.5} />
         {mean !== null && (
           <g>
-            <line className="chart-avg" x1={LEFT} x2={width} y1={y(mean)} y2={y(mean)} />
+            <line className="chart-avg" x1={left} x2={width} y1={y(mean)} y2={y(mean)} />
             <text className="chart-avg-label" x={width} y={y(mean) - 4} textAnchor="end">
               {t('chartAverage', { value: chartValueText(mean, unit === 'minutes' ? 'minutes' : 'decimal') })}
             </text>
           </g>
         )}
-        {xLabels.map((index) => {
-          const first = index === 0 && count > 1;
-          const last = index === count - 1 && count > 1;
-          const x = first ? LEFT + index * slot + (slot - bar) / 2 : last ? LEFT + index * slot + (slot + bar) / 2 : centre(index);
-          return (
-            <text key={index} className="chart-x" x={x} y={height - 6} textAnchor={first ? 'start' : last ? 'end' : 'middle'}>
-              {labels[index]!.short}
-            </text>
-          );
-        })}
+        {xLabels.map(({ index, x, anchor }) => (
+          <text key={index} className="chart-x" x={left + x} y={height - 6} textAnchor={anchor}>
+            {labels[index]!.short}
+          </text>
+        ))}
         {labels.map((_, index) => (
           <rect
             key={index}
             className="chart-hit"
-            x={LEFT + index * slot}
+            x={left + index * slot}
             y={0}
             width={slot}
             height={height}

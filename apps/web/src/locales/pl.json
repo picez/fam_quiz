@@ -5580,5 +5580,9 @@
   "adminHealthProblemsOpen": "Otwartych zgłoszeń problemów",
   "adminHealthReportsOpen": "Otwartych skarg na treści",
   "adminHealthChecked": "Sprawdzono {time}",
-  "adminHealthRefresh": "Odśwież"
+  "adminHealthRefresh": "Odśwież",
+  "chartWeek": "Tydzień",
+  "chartPointsValue": "{value} pp",
+  "adminHealthRefreshing": "Odświeżanie…",
+  "adminHealthRefreshFailed": "Nie udało się odświeżyć — pokazano poprzednie dane."
 }
