@@ -94,7 +94,7 @@ async function groupsAdmin72() {
   expect(subscribed.status(), await subscribed.text()).toBeLessThan(300);
   const banned = await admin.request.post(`${base}/api/admin/users/${tarasId}/ban`, { data: {} });
   expect(banned.status(), await banned.text()).toBeLessThan(300);
-  const created = await createGroup(db, olyaId, { name: GROUP, emoji: '🏔️', description: '' }, new Date());
+  const created = await createGroup(db, olyaId, { name: GROUP, emoji: '⛰️', description: '' }, new Date());
   expect(created.ok).toBe(true);
   const groupId = (created as { id: string }).id;
 
