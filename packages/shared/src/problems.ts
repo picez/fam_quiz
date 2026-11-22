@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { UNSTORABLE, isStorable } from './text';
 import { localeSchema } from './locale';
+import { QUESTION_TYPES } from './question-types';
 
 /** 64: збої сервера, скарги гравців і копії бази. */
 
@@ -65,10 +66,48 @@ export const problemPageSchema = z
   .strict();
 export type ProblemPage = z.infer<typeof problemPageSchema>;
 
+/** 70: момент гри у скарзі — текст запитання до 500 символів, назва раунду до 120. */
+export const PROBLEM_GAME_TEXT_MAX = 500;
+export const PROBLEM_GAME_TITLE_MAX = 120;
+/** Момент, старший за 30 хв, сторінка /report не бере. */
+export const PROBLEM_MOMENT_MAX_AGE_MS = 30 * 60_000;
+
+/** Рядок до max символів (довший відкидається), далі обрізається до keep; без нульового символу й половинок. */
+const cutText = (max: number, keep: number) =>
+  z
+    .string()
+    .max(max)
+    .refine(isStorable, UNSTORABLE)
+    .transform((s) => {
+      if (s.length <= keep) return s;
+      const code = s.charCodeAt(keep - 1);
+      return s.slice(0, code >= 0xd800 && code <= 0xdbff ? keep - 1 : keep);
+    });
+
+/** Момент гри, який бачила людина в мить кліку «Повідомити про проблему» (без відповідей). */
+export const problemGameSchema = z
+  .object({
+    code: z.string().regex(/^\d{6}$/),
+    role: z.enum(['player', 'host']),
+    phase: z.string().regex(/^[a-z_]{1,24}$/).nullable(),
+    /** 0-базовий номер раунду. */
+    round: z.number().int().min(0).max(999).nullable(),
+    roundTitle: cutText(1000, PROBLEM_GAME_TITLE_MAX).nullable(),
+    /** view.questionIndex — як бачить людина. */
+    question: z.number().int().min(-1).max(9999).nullable(),
+    type: z.enum(QUESTION_TYPES).nullable(),
+    text: cutText(4000, PROBLEM_GAME_TEXT_MAX).nullable(),
+  })
+  .strict();
+export type ProblemGameInput = z.infer<typeof problemGameSchema>;
+/** Момент, доповнений сервером з кімнати в пам'яті; кімнати немає — null. */
+export type ProblemGame = ProblemGameInput & { quizId: string | null; quizTitle: string | null };
+
 export const problemReportInputSchema = z
   .object({
     text: z.string().trim().min(1).max(PROBLEM_TEXT_MAX).refine(isStorable, UNSTORABLE),
     page: problemPageSchema.nullable().default(null),
+    game: problemGameSchema.nullable().default(null),
   })
   .strict();
 export type ProblemReportInput = z.infer<typeof problemReportInputSchema>;
@@ -112,6 +151,7 @@ export interface AdminProblemReport {
   who: ProblemAuthor;
   text: string;
   page: ProblemPage | null;
+  game: ProblemGame | null;
   status: 'open' | 'resolved';
   reply: string | null;
   repliedAt: string | null;
@@ -129,7 +169,8 @@ export interface MyProblemReport {
   repliedAt: string | null;
 }
 
-export interface AdminProblemsBadge { errors: number; reports: number }
+/** complaints — елементи черги модерації (70). */
+export interface AdminProblemsBadge { errors: number; reports: number; complaints: number }
 
 export interface AdminBackupRow { key: string; at: string; bytes: number; level: number }
 

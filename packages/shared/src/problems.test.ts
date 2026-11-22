@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   BACKUP_RESTORE_COMMANDS,
+  PROBLEM_MOMENT_MAX_AGE_MS,
   adminErrorsQuerySchema,
   adminProblemsQuerySchema,
   cleanPagePath,
@@ -12,7 +13,7 @@ describe('problem reports (64)', () => {
   const page = { path: '/play/123456?token=abc#x', browser: 'Mozilla/5.0 …', screen: '360x740', lang: 'uk', theme: 'light' };
 
   it('a problem report: text up to 1000, an optional page snapshot', () => {
-    expect(problemReportInputSchema.parse({ text: 'Не відкривається таблиця', page: null })).toEqual({ text: 'Не відкривається таблиця', page: null });
+    expect(problemReportInputSchema.parse({ text: 'Не відкривається таблиця', page: null })).toEqual({ text: 'Не відкривається таблиця', page: null, game: null });
     expect(problemReportInputSchema.parse({ text: 'Не відкривається таблиця' }).page).toBeNull();
     const withPage = problemReportInputSchema.parse({ text: 'Не відкривається таблиця', page });
     expect(withPage.page?.path).toBe('/play/123456');
@@ -28,6 +29,29 @@ describe('problem reports (64)', () => {
     expect(problemReportInputSchema.safeParse({ text: 'x', page: { ...page, lang: 'ru' } }).success).toBe(false);
     expect(problemReportInputSchema.safeParse({ text: 'x', page: { ...page, ip: '1.2.3.4' } }).success).toBe(false);
     expect(problemReportInputSchema.safeParse({ text: 'x', page: null, extra: 1 }).success).toBe(false);
+  });
+
+  it('a game moment (70): optional, cut to size, strict', () => {
+    const game = { code: '123456', role: 'player', phase: 'question', round: 1, roundTitle: 'Кіно', question: 2, type: 'single', text: 'Хто зняв фільм?' };
+    expect(problemReportInputSchema.parse({ text: 'x' }).game).toBeNull();
+    expect(problemReportInputSchema.parse({ text: 'x', game }).game).toEqual(game);
+    const empty = { code: '123456', role: 'host', phase: null, round: null, roundTitle: null, question: null, type: null, text: null };
+    expect(problemReportInputSchema.parse({ text: 'x', game: empty }).game).toEqual(empty);
+    const long = problemReportInputSchema.parse({ text: 'x', game: { ...game, roundTitle: 'р'.repeat(1000), text: 'т'.repeat(4000) } }).game;
+    expect(long?.roundTitle).toHaveLength(120);
+    expect(long?.text).toHaveLength(500);
+    expect(problemReportInputSchema.safeParse({ text: 'x', game: { ...game, roundTitle: 'р'.repeat(1001) } }).success).toBe(false);
+    expect(problemReportInputSchema.safeParse({ text: 'x', game: { ...game, text: 'т'.repeat(4001) } }).success).toBe(false);
+    expect(problemReportInputSchema.safeParse({ text: 'x', game: { ...game, code: '12345' } }).success).toBe(false);
+    expect(problemReportInputSchema.safeParse({ text: 'x', game: { ...game, code: 'abcdef' } }).success).toBe(false);
+    expect(problemReportInputSchema.safeParse({ text: 'x', game: { ...game, type: 'guess' } }).success).toBe(false);
+    expect(problemReportInputSchema.safeParse({ text: 'x', game: { ...game, role: 'stage' } }).success).toBe(false);
+    expect(problemReportInputSchema.safeParse({ text: 'x', game: { ...game, phase: 'Question!' } }).success).toBe(false);
+    expect(problemReportInputSchema.safeParse({ text: 'x', game: { ...game, question: -2 } }).success).toBe(false);
+    expect(problemReportInputSchema.safeParse({ text: 'x', game: { ...game, quizId: 'q1' } }).success).toBe(false);
+    expect(problemReportInputSchema.safeParse({ text: 'x', game: { ...game, text: 'a\u0000b' } }).success).toBe(false);
+    expect(problemReportInputSchema.safeParse({ text: 'x', game: { ...game, roundTitle: 'a\u0000b' } }).success).toBe(false);
+    expect(PROBLEM_MOMENT_MAX_AGE_MS).toBe(30 * 60_000);
   });
 
   it('cleanPagePath keeps only a site path', () => {
