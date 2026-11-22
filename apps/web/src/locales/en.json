@@ -5133,7 +5133,7 @@
   "adminBackupsRunning": "Backing up…",
   "adminBackupsNextAt": "The next backup is possible at {time}.",
   "adminBackupsLastOk": "Last attempt: succeeded {date} ({who}), {size}",
-  "adminBackupsLastFailed": "Last attempt: failed {date} ({who}) — details in the “Errors” tab.",
+  "adminBackupsLastFailed": "Last attempt: failed {date} ({who}) — details in the “Appeals” tab:",
   "adminBackupsLastLocked": "Last attempt {date}: another server instance was already backing up.",
   "adminBackupsBySchedule": "on schedule",
   "adminBackupsByAdmin": "manually",

@@ -5209,7 +5209,7 @@
   "adminBackupsRunning": "Haciendo la copia…",
   "adminBackupsNextAt": "La siguiente copia se podrá hacer a las {time}.",
   "adminBackupsLastOk": "Último intento: correcto {date} ({who}), {size}",
-  "adminBackupsLastFailed": "Último intento: fallido {date} ({who}); detalles en la pestaña «Fallos».",
+  "adminBackupsLastFailed": "Último intento: fallido {date} ({who}); detalles en la pestaña «Solicitudes»:",
   "adminBackupsLastLocked": "Último intento {date}: otra instancia del servidor ya estaba haciendo la copia.",
   "adminBackupsBySchedule": "programado",
   "adminBackupsByAdmin": "a mano",

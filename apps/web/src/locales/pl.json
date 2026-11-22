@@ -5232,7 +5232,7 @@
   "adminBackupsRunning": "Trwa robienie kopii…",
   "adminBackupsNextAt": "Następną kopię można zrobić o {time}.",
   "adminBackupsLastOk": "Ostatnia próba: udana {date} ({who}), {size}",
-  "adminBackupsLastFailed": "Ostatnia próba: nieudana {date} ({who}) — szczegóły w zakładce „Błędy”.",
+  "adminBackupsLastFailed": "Ostatnia próba: nieudana {date} ({who}) — szczegóły w zakładce „Zgłoszenia”:",
   "adminBackupsLastLocked": "Ostatnia próba {date}: kopię robiła już inna instancja serwera.",
   "adminBackupsBySchedule": "według harmonogramu",
   "adminBackupsByAdmin": "ręcznie",

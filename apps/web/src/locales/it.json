@@ -5209,7 +5209,7 @@
   "adminBackupsRunning": "Backup in corso…",
   "adminBackupsNextAt": "Il prossimo backup sarà possibile alle {time}.",
   "adminBackupsLastOk": "Ultimo tentativo: riuscito {date} ({who}), {size}",
-  "adminBackupsLastFailed": "Ultimo tentativo: non riuscito {date} ({who}); dettagli nella scheda «Errori».",
+  "adminBackupsLastFailed": "Ultimo tentativo: non riuscito {date} ({who}); dettagli nella scheda «Segnalazioni»:",
   "adminBackupsLastLocked": "Ultimo tentativo {date}: un'altra istanza del server stava già facendo il backup.",
   "adminBackupsBySchedule": "programmato",
   "adminBackupsByAdmin": "manuale",

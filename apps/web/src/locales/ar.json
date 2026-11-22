@@ -5437,7 +5437,7 @@
   "adminBackupsRunning": "جارٍ إنشاء النسخة…",
   "adminBackupsNextAt": "يمكن إنشاء النسخة التالية في {time}.",
   "adminBackupsLastOk": "آخر محاولة: نجحت {date} ({who})، {size}",
-  "adminBackupsLastFailed": "آخر محاولة: فشلت {date} ({who}) — التفاصيل في تبويب «الأعطال».",
+  "adminBackupsLastFailed": "آخر محاولة: فشلت {date} ({who}) — التفاصيل في تبويب «البلاغات»:",
   "adminBackupsLastLocked": "آخر محاولة {date}: كانت نسخة أخرى من الخادم تنشئ النسخة بالفعل.",
   "adminBackupsBySchedule": "حسب الجدول",
   "adminBackupsByAdmin": "يدويًا",

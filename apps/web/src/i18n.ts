@@ -5300,7 +5300,7 @@ const uk = {
   adminBackupsRunning: 'Копія знімається…',
   adminBackupsNextAt: 'Наступну копію можна о {time}.',
   adminBackupsLastOk: 'Остання спроба: вдалася {date} ({who}), {size}',
-  adminBackupsLastFailed: 'Остання спроба: не вдалася {date} ({who}) — подробиці у вкладці «Збої».',
+  adminBackupsLastFailed: 'Остання спроба: не вдалася {date} ({who}) — подробиці у вкладці «Звернення»:',
   adminBackupsLastLocked: 'Остання спроба {date}: копію вже знімав інший екземпляр сервера.',
   adminBackupsBySchedule: 'за розкладом',
   adminBackupsByAdmin: 'вручну',

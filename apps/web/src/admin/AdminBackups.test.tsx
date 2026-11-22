@@ -168,8 +168,8 @@ describe('AdminBackups', () => {
   it('the last failed attempt points to the errors tab', async () => {
     reads = [base({ last: { at: '2026-11-20T03:00:00.000Z', by: 'schedule', outcome: 'failed', key: null, bytes: null } })];
     open();
-    expect(await screen.findByText(`Остання спроба: не вдалася ${formatDate('2026-11-20T03:00:00.000Z')} (за розкладом) — подробиці у вкладці «Збої».`)).toBeTruthy();
-    expect(screen.getByRole('link', { name: 'Збої' }).getAttribute('href')).toBe('/admin/appeals/errors');
+    expect(await screen.findByText(`Остання спроба: не вдалася ${formatDate('2026-11-20T03:00:00.000Z')} (за розкладом) — подробиці у вкладці «Звернення»:`)).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'Збої сервера' }).getAttribute('href')).toBe('/admin/appeals/errors');
     cleanup();
     reads = [base({ last: { at: '2026-11-20T03:00:00.000Z', by: 'schedule', outcome: 'locked', key: null, bytes: null } })];
     open();

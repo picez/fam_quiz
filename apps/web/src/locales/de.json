@@ -5133,7 +5133,7 @@
   "adminBackupsRunning": "Sicherung läuft…",
   "adminBackupsNextAt": "Die nächste Sicherung ist um {time} möglich.",
   "adminBackupsLastOk": "Letzter Versuch: erfolgreich {date} ({who}), {size}",
-  "adminBackupsLastFailed": "Letzter Versuch: fehlgeschlagen {date} ({who}) — Details im Reiter „Fehler“.",
+  "adminBackupsLastFailed": "Letzter Versuch: fehlgeschlagen {date} ({who}) — Details im Reiter „Meldungen“:",
   "adminBackupsLastLocked": "Letzter Versuch {date}: eine andere Serverinstanz hat bereits gesichert.",
   "adminBackupsBySchedule": "nach Zeitplan",
   "adminBackupsByAdmin": "manuell",

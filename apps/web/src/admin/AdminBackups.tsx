@@ -151,7 +151,7 @@ export function AdminBackups(): JSX.Element {
                 {data.last.outcome === 'failed' && (
                   <>
                     {' '}
-                    <Link to="/admin/appeals/errors">{t('adminTabErrors')}</Link>
+                    <Link to="/admin/appeals/errors">{t('adminAppealsErrors')}</Link>
                   </>
                 )}
               </p>
