@@ -7,6 +7,7 @@ import { RoundBriefing } from '../screens/RoundBriefing';
 import { applyRoundTime, withDefaultMode } from './draft';
 import { QuestSettings } from './QuestSettings';
 import { SparesEditor } from './SparesEditor';
+import { NumberInput } from '../ui/NumberInput';
 
 interface Props {
   round: Round;
@@ -145,9 +146,7 @@ export function RoundSettings({ round, index, total = 0, onChange, open, onToggl
         <span>{t('sameTimeTitle')}</span>
         <label className="field">
           <span>{t('sameTimeSeconds')}</span>
-          <input
-            type="number"
-            inputMode="numeric"
+          <NumberInput
             min={LIMITS.minTime}
             max={maxSeconds}
             value={Number.isNaN(seconds) ? '' : seconds}
@@ -190,9 +189,7 @@ export function RoundSettings({ round, index, total = 0, onChange, open, onToggl
           <legend>{t('thinkSettingsLegend')}</legend>
           <label className="field">
             <span>{t('thinkLivesLabel')}</span>
-            <input
-              type="number"
-              inputMode="numeric"
+            <NumberInput
               min={LIMITS.minThinkLives}
               max={LIMITS.maxThinkLives}
               value={Number.isNaN(round.lives) ? '' : round.lives}
@@ -201,9 +198,7 @@ export function RoundSettings({ round, index, total = 0, onChange, open, onToggl
           </label>
           <label className="field">
             <span>{t('thinkPointsLabel')}</span>
-            <input
-              type="number"
-              inputMode="numeric"
+            <NumberInput
               min={0}
               max={LIMITS.maxThinkPoints}
               step={100}
@@ -234,9 +229,7 @@ export function RoundSettings({ round, index, total = 0, onChange, open, onToggl
         <>
           <label className="field">
             <span>{t('truthPointsLabel')}</span>
-            <input
-              type="number"
-              inputMode="numeric"
+            <NumberInput
               min={0}
               max={LIMITS.maxPoints}
               value={Number.isNaN(round.points) ? '' : round.points}
@@ -245,9 +238,7 @@ export function RoundSettings({ round, index, total = 0, onChange, open, onToggl
           </label>
           <label className="field">
             <span>{t('truthTimeLabel')}</span>
-            <input
-              type="number"
-              inputMode="numeric"
+            <NumberInput
               min={LIMITS.minTime}
               max={LIMITS.maxTime}
               value={Number.isNaN(round.timeLimit) ? '' : round.timeLimit}
@@ -307,9 +298,7 @@ export function RoundSettings({ round, index, total = 0, onChange, open, onToggl
           </label>
           <label className="field">
             <span>{t('betStartLabel')}</span>
-            <input
-              type="number"
-              inputMode="numeric"
+            <NumberInput
               min={1}
               max={LIMITS.maxBet}
               value={Number.isNaN(round.betStart) ? '' : round.betStart}
@@ -318,9 +307,7 @@ export function RoundSettings({ round, index, total = 0, onChange, open, onToggl
           </label>
           <label className="field">
             <span>{t('betStepLabel')}</span>
-            <input
-              type="number"
-              inputMode="numeric"
+            <NumberInput
               min={0}
               max={LIMITS.maxBet}
               value={Number.isNaN(round.betStep) ? '' : round.betStep}
@@ -329,9 +316,7 @@ export function RoundSettings({ round, index, total = 0, onChange, open, onToggl
           </label>
           <label className="field">
             <span>{t('betMaxLabel')}</span>
-            <input
-              type="number"
-              inputMode="numeric"
+            <NumberInput
               min={1}
               max={LIMITS.maxBet}
               placeholder={t('betMaxPlaceholder')}
@@ -364,9 +349,7 @@ export function RoundSettings({ round, index, total = 0, onChange, open, onToggl
           {round.bidMode === 'step' && (
             <label className="field">
               <span>{t('auctionStepLabel')}</span>
-              <input
-                type="number"
-                inputMode="numeric"
+              <NumberInput
                 min={1}
                 max={LIMITS.maxBet}
                 value={Number.isNaN(round.bidStep) ? '' : round.bidStep}
@@ -480,9 +463,7 @@ export function RoundSettings({ round, index, total = 0, onChange, open, onToggl
                   return (
                     <li className="ladder-level-row" key={step}>
                       <span className="ladder-level-n">{step + 1}</span>
-                      <input
-                        type="number"
-                        inputMode="numeric"
+                      <NumberInput
                         min={1}
                         max={LIMITS.maxLadderLevel}
                         step={50}
@@ -539,9 +520,7 @@ export function RoundSettings({ round, index, total = 0, onChange, open, onToggl
           </div>
           <label className="field">
             <span>{t('survivalSurvivors')}</span>
-            <input
-              type="number"
-              inputMode="numeric"
+            <NumberInput
               min={1}
               max={LIMITS.maxSurvivors}
               value={Number.isNaN(round.survivors) ? '' : round.survivors}
@@ -550,9 +529,7 @@ export function RoundSettings({ round, index, total = 0, onChange, open, onToggl
           </label>
           <label className="field">
             <span>{t('survivalBonusLabel')}</span>
-            <input
-              type="number"
-              inputMode="numeric"
+            <NumberInput
               min={0}
               max={LIMITS.maxPoints}
               step={50}
@@ -611,9 +588,7 @@ export function RoundSettings({ round, index, total = 0, onChange, open, onToggl
             <div className="round-streak" role="group" aria-label={t('ruleSeriesPlus')}>
               <label className="field">
                 <span>{t('ruleSeriesStep')}</span>
-                <input
-                  type="number"
-                  inputMode="numeric"
+                <NumberInput
                   min={1}
                   max={LIMITS.maxPoints}
                   value={Number.isNaN(seriesPlus.step) ? '' : seriesPlus.step}
@@ -638,9 +613,7 @@ export function RoundSettings({ round, index, total = 0, onChange, open, onToggl
             <div className="round-streak" role="group" aria-label={t('ruleSeriesMinus')}>
               <label className="field">
                 <span>{t('ruleSeriesStep')}</span>
-                <input
-                  type="number"
-                  inputMode="numeric"
+                <NumberInput
                   min={1}
                   max={LIMITS.maxPoints}
                   value={Number.isNaN(seriesMinus.step) ? '' : seriesMinus.step}
@@ -726,9 +699,7 @@ export function RoundSettings({ round, index, total = 0, onChange, open, onToggl
           </label>
           <label className="field">
             <span>{t('ruleStreakBonus')}</span>
-            <input
-              type="number"
-              inputMode="numeric"
+            <NumberInput
               min={1}
               max={streak.bonus.kind === 'percent' ? 200 : LIMITS.maxPoints}
               value={Number.isNaN(streak.bonus.value) ? '' : streak.bonus.value}

@@ -4,6 +4,7 @@ import { answerText, num, signed } from '../format';
 import { errorText, t } from '../i18n';
 import { Timer } from '../live/Timer';
 import type { Send } from '../live/types';
+import { NumberInput } from '../ui/NumberInput';
 
 /** Причина відмови ставки: «час вийшов» на торгу — це «Торг уже закрито». */
 const bidError = (code: string) => errorText(code === 'time_over' ? 'time_over:bid' : code);
@@ -94,9 +95,7 @@ export function BidForm({ auction, mine, send }: { auction: AuctionInfo; mine: P
         <div className="wager-row">
           <label className="field">
             <span className="meta">{t('auctionBidLabel')}</span>
-            <input
-              type="number"
-              inputMode="numeric"
+            <NumberInput
               dir="ltr"
               min={auction.next}
               max={mine.limit}

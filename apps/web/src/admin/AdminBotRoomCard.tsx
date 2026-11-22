@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { BOT_TEAM_FORMS, BOT_TIME_SECONDS, LIMITS, LOBBY_PASSWORD_MAX, LOBBY_PASSWORD_MIN, type AdminBotLobby, type AdminBotRoom, type AdminBotRoomPerson, type AdminBotStatus, type BotAction, type BotCommand } from '@quiz/shared';
 import { t, type TextKey } from '../i18n';
 import { nickText } from '../nick';
+import { NumberInput } from '../ui/NumberInput';
 
 const STATUS_KEY: Record<AdminBotStatus, TextKey> = {
   lobby: 'adminBotLobby',
@@ -205,8 +206,9 @@ export function AdminBotRoomCard({ room, busy, onCommand, onLobby, onManual }: {
                     )}
                     {!inLobby && (
                       <>
-                        <input
+                        <NumberInput
                           className="admin-bot-points"
+                          negative
                           inputMode="numeric"
                           aria-label={t('adminBotPointsLabel', { name: nickText(person.nickname) })}
                           placeholder={t('points')}

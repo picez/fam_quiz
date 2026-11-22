@@ -4,6 +4,7 @@ import { resumeOptions } from '../api';
 import { formatDate } from '../format';
 import { t } from '../i18n';
 import { fillFromGame, parsePoints, resumeOptionText, resumeRoundText, unmatchedIn, type ResumeDraft } from '../resume';
+import { NumberInput } from '../ui/NumberInput';
 
 type Lookup =
   | { status: 'idle' }
@@ -115,10 +116,10 @@ export function ResumePanel({ code, info, draft, onChange }: { code: string; inf
               <label htmlFor={id} className="resume-name">
                 {participant.nickname}
               </label>
-              {/* Текстове поле: «42 434» і «−500» розбирає parsePoints; числове поле браузера їх відкинуло б. */}
-              <input
+              {/* Текстове поле з повною клавіатурою: «−500» потребує мінуса; NumberInput лишає лише цифри й мінус на початку. */}
+              <NumberInput
                 id={id}
-                type="text"
+                negative
                 autoComplete="off"
                 aria-invalid={bad || undefined}
                 aria-describedby={bad ? `${id}-error` : undefined}

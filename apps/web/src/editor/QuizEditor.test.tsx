@@ -312,11 +312,12 @@ describe('QuizEditor: numbers as they are typed', () => {
     const input = screen.getByLabelText(label) as HTMLInputElement;
     for (const value of steps) {
       fireEvent.change(input, { target: { value } });
-      expect(input.value).toBe(value);
+      // Кома стає крапкою (NumberInput).
+      expect(input.value).toBe(value.replace(',', '.'));
     }
   };
 
-  it('keeps a minus sign and a decimal comma while the number is being typed', async () => {
+  it('keeps a minus sign and a decimal comma (as a dot) while the number is being typed', async () => {
     const { onSave } = open();
     fill('Назва вікторини', 'Гра');
     fill('Текст запитання', 'Число?');
@@ -331,12 +332,14 @@ describe('QuizEditor: numbers as they are typed', () => {
     expect(roundQuestions(saved(onSave).rounds[0])[0]).toMatchObject({ correct: -2.5, tolerance: 0.5, timeLimit: 45, points: 500 });
   });
 
-  it('keeps a mistyped time visible and refuses to save it', () => {
+  it('drops letters from the time and refuses to save a time out of range', () => {
     const { onSave } = open();
     fill('Назва вікторини', 'Гра');
     fill('Текст запитання', 'Так?');
     fireEvent.click(screen.getByRole('button', { name: 'так чи ні' }));
-    typeInto('Час, с', '30', '30x');
+    fill('Час, с', '30x');
+    expect((screen.getByLabelText('Час, с') as HTMLInputElement).value).toBe('30');
+    typeInto('Час, с', '3');
     click('Зберегти');
     expect(onSave).not.toHaveBeenCalled();
     expect(screen.getByRole('alert').textContent).toContain('Запитання 1: час має бути від 5 до 120 секунд');
@@ -807,10 +810,12 @@ describe('QuizEditor: cancelled drag', () => {
       open(twoQuestions());
       fireEvent.click(screen.getByText('Налаштування раунду'));
       const apply = screen.getByRole('button', { name: 'Застосувати' }) as HTMLButtonElement;
-      for (const [value, disabled] of [['4', true], ['121', true], ['120', false], ['5', false], ['7.5', true]] as const) {
+      for (const [value, disabled] of [['4', true], ['121', true], ['120', false], ['5', false], ['0', true]] as const) {
         fill('Секунд', value);
         expect(apply.disabled, value).toBe(disabled);
       }
+      fill('Секунд', '7.5');
+      expect((screen.getByLabelText('Секунд') as HTMLInputElement).value).toBe('75');
     });
   });
 
@@ -2042,12 +2047,14 @@ describe('QuizEditor: reveal, video and audio together (10b)', () => {
     expect(screen.getByLabelText('Додати аудіо')).toBeTruthy();
   });
 
-  it('junk in the zero line is flagged and blocks saving', () => {
+  it('letters never reach the zero line; a lone separator is flagged and blocks saving', () => {
     const { onSave } = open();
     fill('Назва вікторини', 'Гра');
     fill('Текст запитання', 'Скільки?');
     fireEvent.click(screen.getByRole('button', { name: 'повзунок' }));
     fill('Нуль балів далі ніж ±', 'abc');
+    expect((screen.getByLabelText('Нуль балів далі ніж ±') as HTMLInputElement).value).toBe('');
+    fill('Нуль балів далі ніж ±', '.');
     expect(screen.getByText('Впишіть число або залиште поле порожнім.')).toBeTruthy();
     click('Зберегти');
     expect(onSave).not.toHaveBeenCalled();

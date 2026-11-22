@@ -12,6 +12,7 @@ import { LobbyList } from './LobbyList';
 import { useAccount } from '../useAccount';
 import { useFeedBadge } from '../useFeedBadge';
 import { useInvites } from '../useInvites';
+import { NumberInput } from '../ui/NumberInput';
 
 /** Скільки чекати на перевірку входу, перш ніж показати гостю форму коду. */
 export const ACCOUNT_WAIT_MS = 4000;
@@ -41,12 +42,11 @@ function JoinForm({ initialCode, autoFocus = false }: { initialCode: string; aut
         <h2>{t('joinTitle')}</h2>
         <label className="field">
           <span>{t('codeLabel')}</span>
-          <input
+          <NumberInput
             className="code-input"
             dir="ltr"
             value={code}
             onChange={(event) => setCode(event.target.value)}
-            inputMode="numeric"
             autoComplete="off"
             maxLength={7}
             placeholder="000 000"
