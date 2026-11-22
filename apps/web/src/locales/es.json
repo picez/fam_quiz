@@ -5286,7 +5286,7 @@
   "adminGroupAddedNoPush": "El aviso está en su «Bandeja de entrada»; no tiene notificaciones push.",
   "adminGroupFull": "El grupo está lleno: {max} personas.",
   "adminGroupItemAddTitle": "Nueva entrada",
-  "adminGroupItemAddLead": "La entrada aparecerá en el grupo a nombre de «bot de quiz»; los miembros la verán al instante.",
+  "adminGroupItemAddLead": "La entrada aparecerá en el grupo a nombre de «Bot del quiz»; los miembros la verán al instante.",
   "adminGroupItemAbout": "Sobre quién (hasta {max})",
   "adminGroupItemAddButton": "Añadir la entrada",
   "adminGroupItemAdded": "Entrada añadida.",

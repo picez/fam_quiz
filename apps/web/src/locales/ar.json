@@ -5517,7 +5517,7 @@
   "adminGroupAddedNoPush": "الإشعار في «صندوق الوارد» لديه؛ ليست لديه إشعارات فورية.",
   "adminGroupFull": "المجموعة ممتلئة: {max} شخصًا.",
   "adminGroupItemAddTitle": "سجل جديد",
-  "adminGroupItemAddLead": "سيظهر السجل في المجموعة باسم «بوت الاختبار»؛ وسيراه الأعضاء فورًا.",
+  "adminGroupItemAddLead": "سيظهر السجل في المجموعة باسم «بوت الاختبارات»؛ وسيراه الأعضاء فورًا.",
   "adminGroupItemAbout": "عمّن (حتى {max})",
   "adminGroupItemAddButton": "إضافة السجل",
   "adminGroupItemAdded": "أُضيف السجل.",

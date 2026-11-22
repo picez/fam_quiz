@@ -5310,7 +5310,7 @@
   "adminGroupAddedNoPush": "Powiadomienie jest w «Skrzynce»; ta osoba nie ma powiadomień push.",
   "adminGroupFull": "Grupa jest pełna: {max} osób.",
   "adminGroupItemAddTitle": "Nowy wpis",
-  "adminGroupItemAddLead": "Wpis pojawi się w grupie od «Bot quizu»; członkowie zobaczą go od razu.",
+  "adminGroupItemAddLead": "Wpis pojawi się w grupie od «Quiz-bot»; członkowie zobaczą go od razu.",
   "adminGroupItemAbout": "O kim (do {max})",
   "adminGroupItemAddButton": "Dodaj wpis",
   "adminGroupItemAdded": "Wpis dodano.",
