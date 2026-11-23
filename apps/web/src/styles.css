@@ -30112,3 +30112,111 @@ table.sr-only td {
   max-inline-size: 22rem;
   margin-bottom: 0.75rem;
 }
+
+/* 74: спільний комбобокс (тип запитання, раунд). Телефон — нижній аркуш, від 600 px — список під кнопкою. */
+.combo {
+  position: relative;
+  min-inline-size: 0;
+}
+
+.combo-trigger {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  inline-size: 100%;
+  min-block-size: 2.75rem;
+  text-align: start;
+}
+
+.combo-trigger .combo-name {
+  flex: 1;
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+}
+
+.combo-popup {
+  position: fixed;
+  inset-inline: 0;
+  inset-block-end: 0;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  max-block-size: 70vh;
+  padding: 0.75rem;
+  overflow: auto;
+  background: var(--surface, #fff);
+  color: inherit;
+  border: 1px solid rgba(128, 128, 128, 0.4);
+  border-radius: 0.75rem 0.75rem 0 0;
+  box-shadow: 0 -0.5rem 1.5rem rgba(0, 0, 0, 0.25);
+}
+
+.combo-search {
+  inline-size: 100%;
+  box-sizing: border-box;
+}
+
+.combo-list {
+  outline: none;
+}
+
+.combo-group-title {
+  padding: 0.5rem 0.5rem 0.25rem;
+  font-size: 0.8rem;
+  font-weight: 700;
+  opacity: 0.7;
+}
+
+.combo-option {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-block-size: 2.75rem;
+  padding: 0.35rem 0.5rem;
+  border-radius: 0.5rem;
+  cursor: pointer;
+}
+
+.combo-option.is-active {
+  background: rgba(128, 128, 128, 0.22);
+}
+
+.combo-option.is-selected .combo-name {
+  font-weight: 700;
+}
+
+.combo-text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-inline-size: 0;
+}
+
+.combo-desc {
+  font-size: 0.8rem;
+  opacity: 0.7;
+}
+
+.combo-badge {
+  font-size: 0.8rem;
+  white-space: nowrap;
+}
+
+.combo-empty {
+  padding: 0.75rem 0.5rem;
+  opacity: 0.8;
+}
+
+@media (min-width: 600px) {
+  .combo-popup {
+    position: absolute;
+    inset-inline: auto;
+    inset-inline-start: 0;
+    inset-block-end: auto;
+    min-inline-size: 100%;
+    max-inline-size: min(28rem, 90vw);
+    border-radius: 0.75rem;
+    box-shadow: 0 0.5rem 1.5rem rgba(0, 0, 0, 0.25);
+  }
+}
