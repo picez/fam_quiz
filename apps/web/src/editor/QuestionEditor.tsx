@@ -30,6 +30,9 @@ import { GroupDraftNotes } from './group-drafts';
 import { changeType, maxTimeOf, moveItem, type QuestionType } from './draft';
 import { newId } from './new-id';
 import { NumberInput } from '../ui/NumberInput';
+import { Combobox, type ComboOption } from '../ui/Combobox';
+import { typeIcon } from '../guide-text';
+import { TYPE_GROUPS, groupedTypes } from './type-groups';
 
 interface Props {
   question: Question;
@@ -890,24 +893,21 @@ export function QuestionEditor({ question, onChange, types, showPoints = true, s
   latest.current = { question, onChange };
   // Опитування й хмара без балів: поля ціни немає, замість нього — пояснення.
   const isVote = question.type === 'poll' || question.type === 'wordcloud';
+  // Комбобокс типу: опції за групами; тип, якого немає серед дозволених, лишається видимим у кінці своєї групи.
+  const grouped = groupedTypes(types);
+  const typeGroups = grouped.map((group) => ({ id: group.id, label: t(`typeGroup_${group.id}`) }));
+  const typeOptions: ComboOption<QuestionType>[] = grouped.flatMap((group) =>
+    group.types.map((type) => ({ value: type, label: t(`type_${type}`), description: t(`typeDesc_${type}`), icon: typeIcon(type), keywords: [t(`typeShort_${type}`)], group: group.id })),
+  );
+  if (!types.includes(question.type)) {
+    const home = TYPE_GROUPS.find((group) => group.types.includes(question.type))?.id;
+    typeOptions.push({ value: question.type, label: t(`type_${question.type}`), description: t(`typeDesc_${question.type}`), icon: typeIcon(question.type), keywords: [t(`typeShort_${question.type}`)], group: home });
+  }
   return (
     <div className="question-edit">
       <GroupDraftNotes questionId={question.id} />
       <div className="with-help">
-        <div className="type-chips" role="group" aria-label={t('questionType')}>
-          {types.map((type: QuestionType) => (
-            <button
-              type="button"
-              key={type}
-              className={question.type === type ? 'chip is-on' : 'chip'}
-              aria-pressed={question.type === type}
-              title={t(`type_${type}`)}
-              onClick={() => onChange(changeType(question, type))}
-            >
-              {t(`typeShort_${type}`)}
-            </button>
-          ))}
-        </div>
+        <Combobox label={t('questionType')} value={question.type} options={typeOptions} groups={typeGroups} onChange={(type) => onChange(changeType(question, type))} />
         <HelpButton id={`question.${question.type}`} />
       </div>
 

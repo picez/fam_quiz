@@ -4,6 +4,7 @@ import type { BoardRound, Question } from '@quiz/shared';
 import { LIMITS } from '@quiz/shared';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { t } from '../i18n';
+import { chooseType, typeOptions } from './editor-testing';
 import { BoardEditor } from './BoardEditor';
 import { getGroup, getGroupItems, getGroups } from '../api';
 
@@ -126,7 +127,7 @@ describe('BoardEditor clues and pin cells (10c)', () => {
   it('a pin on a voice cell switches it to a normal phone cell and shows the note', () => {
     const onChange = vi.fn();
     const { rerender } = render(<BoardEditor round={voiceCell()} onChange={onChange} />);
-    fireEvent.click(screen.getByRole('button', { name: 'точка' }));
+    chooseType('pin');
     const next = onChange.mock.calls[0][0] as BoardRound;
     expect(next.categories[0].cells[0]).toMatchObject({ kind: 'normal', answerMode: 'phone', penalty: 'none' });
     expect(next.categories[0].cells[0].question.type).toBe('pin');
@@ -139,7 +140,7 @@ describe('BoardEditor clues and pin cells (10c)', () => {
   it('«Who am I?» on a voice cell stays voice, tells the host opens the clues and has no interval', () => {
     const onChange = vi.fn();
     const { rerender } = render(<BoardEditor round={voiceCell()} onChange={onChange} />);
-    fireEvent.click(screen.getByRole('button', { name: 'хто я?' }));
+    chooseType('clues');
     const next = onChange.mock.calls[0][0] as BoardRound;
     expect(next.categories[0].cells[0]).toMatchObject({ kind: 'normal', answerMode: 'voice' });
     rerender(<BoardEditor round={next} onChange={onChange} />);
@@ -153,7 +154,7 @@ describe('BoardEditor clues and pin cells (10c)', () => {
   it('«Who am I?» on a voice cell with «кожен сам» still says the host opens the clues (12c)', () => {
     const onChange = vi.fn();
     const { rerender } = render(<BoardEditor round={voiceCell()} onChange={onChange} />);
-    fireEvent.click(screen.getByRole('button', { name: 'хто я?' }));
+    chooseType('clues');
     let next = onChange.mock.calls.at(-1)![0] as BoardRound;
     rerender(<BoardEditor round={next} onChange={onChange} />);
     expect(screen.getByText(t('cluesVoiceHint'))).toBeTruthy();
@@ -172,7 +173,7 @@ describe('BoardEditor clues and pin cells (10c)', () => {
     const onChange = vi.fn();
     const { rerender } = render(<BoardEditor round={voiceCell()} onChange={onChange} />);
     expect(screen.getByLabelText('Тип клітинки')).toBeTruthy();
-    fireEvent.click(screen.getByRole('button', { name: 'хто я?' }));
+    chooseType('clues');
     rerender(<BoardEditor round={onChange.mock.calls[0][0] as BoardRound} onChange={onChange} />);
     expect(screen.queryByLabelText('Тип клітинки')).toBeNull();
   });
@@ -180,7 +181,7 @@ describe('BoardEditor clues and pin cells (10c)', () => {
   it('a voice clues cell keeps the hidden interval at the minimum', () => {
     const onChange = vi.fn();
     render(<BoardEditor round={voiceCell()} onChange={onChange} />);
-    fireEvent.click(screen.getByRole('button', { name: 'хто я?' }));
+    chooseType('clues');
     expect((onChange.mock.calls[0][0] as BoardRound).categories[0].cells[0].question).toMatchObject({ type: 'clues', interval: 3 });
   });
 
@@ -190,7 +191,7 @@ describe('BoardEditor clues and pin cells (10c)', () => {
     const [cell, ...cells] = first.cells;
     const onChange = vi.fn();
     render(<BoardEditor round={{ ...round, categories: [{ ...first, cells: [{ ...cell, kind: 'blitz' as const, penalty: 'all' as const }, ...cells] }, ...rest] }} onChange={onChange} />);
-    fireEvent.click(screen.getByRole('button', { name: 'точка' }));
+    chooseType('pin');
     expect((onChange.mock.calls[0][0] as BoardRound).categories[0].cells[0]).toMatchObject({ kind: 'normal', answerMode: 'phone', penalty: 'none' });
   });
 
@@ -200,7 +201,7 @@ describe('BoardEditor clues and pin cells (10c)', () => {
     const [cell, ...cells] = first.cells;
     const onChange = vi.fn();
     render(<BoardEditor round={{ ...round, categories: [{ ...first, cells: [{ ...cell, kind: 'blitz' as const, penalty: 'all' as const }, ...cells] }, ...rest] }} onChange={onChange} />);
-    fireEvent.click(screen.getByRole('button', { name: 'хто я?' }));
+    chooseType('clues');
     expect((onChange.mock.calls[0][0] as BoardRound).categories[0].cells[0]).toMatchObject({ kind: 'normal', penalty: 'none' });
   });
 });
@@ -213,8 +214,8 @@ describe('BoardEditor wall cells (10d)', () => {
     const odd = { ...round, categories: [{ ...first, cells: [{ ...cell, kind: 'blitz' as const, answerMode: 'voice' as const, penalty: 'all' as const }, ...cells] }, ...rest] };
     const onChange = vi.fn();
     const { rerender } = render(<BoardEditor round={odd} onChange={onChange} />);
-    expect(screen.queryByRole('button', { name: 'опитування' })).toBeNull();
-    fireEvent.click(screen.getByRole('button', { name: 'стіна' }));
+    expect(typeOptions()).not.toContain('poll');
+    chooseType('wall');
     const next = onChange.mock.calls[0][0] as BoardRound;
     expect(next.categories[0].cells[0]).toMatchObject({ kind: 'normal', answerMode: 'phone', penalty: 'none' });
     expect(next.categories[0].cells[0].question.type).toBe('wall');
@@ -233,7 +234,7 @@ describe('BoardEditor «100 до 1» cells (10e)', () => {
     const odd = { ...round, categories: [{ ...first, cells: [{ ...cell, kind: 'blitz' as const, answerMode: 'voice' as const, penalty: 'all' as const }, ...cells] }, ...rest] };
     const onChange = vi.fn();
     const { rerender } = render(<BoardEditor round={odd} onChange={onChange} />);
-    fireEvent.click(screen.getByRole('button', { name: '100 до 1' }));
+    chooseType('survey');
     const next = onChange.mock.calls[0][0] as BoardRound;
     expect(next.categories[0].cells[0]).toMatchObject({ kind: 'normal', answerMode: 'phone', penalty: 'none' });
     expect(next.categories[0].cells[0].question.type).toBe('survey');
@@ -267,7 +268,7 @@ describe('BoardEditor timed list cells (27c)', () => {
     const odd = { ...round, categories: [{ ...first, cells: [{ ...cell, kind: 'blitz' as const, answerMode: 'voice' as const, penalty: 'all' as const }, ...cells] }, ...rest] };
     const onChange = vi.fn();
     const { rerender } = render(<BoardEditor round={odd} onChange={onChange} />);
-    fireEvent.click(screen.getByRole('button', { name: t('typeShort_timedlist') }));
+    chooseType('timedlist');
     const next = onChange.mock.calls[0][0] as BoardRound;
     expect(next.categories[0].cells[0]).toMatchObject({ kind: 'normal', answerMode: 'phone', penalty: 'none' });
     expect(next.categories[0].cells[0].question.type).toBe('timedlist');
@@ -286,7 +287,7 @@ describe('BoardEditor letter words cells (27d)', () => {
     const odd = { ...round, categories: [{ ...first, cells: [{ ...cell, kind: 'blitz' as const, answerMode: 'voice' as const, penalty: 'all' as const }, ...cells] }, ...rest] };
     const onChange = vi.fn();
     const { rerender } = render(<BoardEditor round={odd} onChange={onChange} />);
-    fireEvent.click(screen.getByRole('button', { name: t('typeShort_letterwords') }));
+    chooseType('letterwords');
     const next = onChange.mock.calls[0][0] as BoardRound;
     expect(next.categories[0].cells[0]).toMatchObject({ kind: 'normal', answerMode: 'phone', penalty: 'none' });
     expect(next.categories[0].cells[0].question.type).toBe('letterwords');
@@ -306,7 +307,7 @@ describe('BoardEditor more or less cells (28a)', () => {
     const odd = { ...round, categories: [{ ...first, cells: [{ ...cell, kind: 'blitz' as const, answerMode: 'voice' as const, penalty: 'all' as const }, ...cells] }, ...rest] };
     const onChange = vi.fn();
     const { rerender } = render(<BoardEditor round={odd} onChange={onChange} />);
-    fireEvent.click(screen.getByRole('button', { name: t('typeShort_moreless') }));
+    chooseType('moreless');
     const next = onChange.mock.calls[0][0] as BoardRound;
     expect(next.categories[0].cells[0]).toMatchObject({ kind: 'normal', answerMode: 'phone', penalty: 'none' });
     expect(next.categories[0].cells[0].question.type).toBe('moreless');

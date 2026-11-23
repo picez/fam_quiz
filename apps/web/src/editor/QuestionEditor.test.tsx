@@ -4,12 +4,46 @@ import { useLayoutEffect } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { LIMITS, type Question } from '@quiz/shared';
 import { t } from '../i18n';
+import { chooseType, currentTypeLabel, typeOptions } from './editor-testing';
+import { groupedTypes } from './type-groups';
 import { newQuestion, questionTypesFor } from './draft';
 import { QuestionEditor } from './QuestionEditor';
 
 type Draw = Extract<Question, { type: 'drawing' }>;
 
 afterEach(cleanup);
+
+describe('QuestionEditor type combobox (74)', () => {
+  it('picks the type from a grouped combobox', () => {
+    const onChange = vi.fn();
+    render(<QuestionEditor question={newQuestion('text')} onChange={onChange} types={questionTypesFor('classic')} />);
+    expect(screen.getByRole('button', { name: `${t('questionType')}: ${t('type_text')}` })).toBeTruthy();
+    expect(currentTypeLabel()).toBe(t('type_text'));
+    expect(typeOptions()).toEqual(groupedTypes(questionTypesFor('classic')).flatMap((g) => g.types));
+    chooseType('drawing');
+    expect(onChange.mock.calls.at(-1)?.[0]).toMatchObject({ type: 'drawing' });
+  });
+
+  it('offers only the round types', () => {
+    render(<QuestionEditor question={newQuestion('single')} onChange={vi.fn()} types={questionTypesFor('blitz')} />);
+    const options = typeOptions();
+    expect(options).not.toContain('drawing');
+    expect(options).toContain('single');
+  });
+
+  it('finds a type by its short name', () => {
+    render(<QuestionEditor question={newQuestion('text')} onChange={vi.fn()} types={questionTypesFor('classic')} />);
+    fireEvent.click(screen.getByRole('button', { name: new RegExp(`^${t('questionType')}:`) }));
+    fireEvent.change(screen.getByRole('combobox', { name: t('comboSearch') }), { target: { value: t('typeShort_clues') } });
+    const shown = screen.getAllByRole('option').map((o) => o.getAttribute('data-value'));
+    expect(shown).toContain('clues');
+  });
+
+  it('keeps a type that is not allowed visible on the button', () => {
+    render(<QuestionEditor question={newQuestion('drawing')} onChange={vi.fn()} types={questionTypesFor('blitz')} />);
+    expect(currentTypeLabel()).toBe(t('type_drawing'));
+  });
+});
 
 describe('QuestionEditor drawing (28c)', () => {
   it('edits the word and spellings of a drawing', () => {
@@ -37,7 +71,7 @@ describe('QuestionEditor drawing (28c)', () => {
 
     // Чип типу «Малюнок» є в класиці.
     rerender(<QuestionEditor question={newQuestion('text')} onChange={onChange} types={questionTypesFor('classic')} />);
-    fireEvent.click(screen.getByRole('button', { name: t('typeShort_drawing') }));
+    chooseType('drawing');
     expect(onChange.mock.calls.at(-1)?.[0]).toMatchObject({ type: 'drawing' });
   });
 });

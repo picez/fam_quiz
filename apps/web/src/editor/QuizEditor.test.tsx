@@ -3,6 +3,7 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-li
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { LIMITS, quizSchema, roundQuestions, rulesOf, type BoardRound, type Question, type Quiz } from '@quiz/shared';
 import { t } from '../i18n';
+import { chooseType, currentTypeLabel, typeOptions } from './editor-testing';
 import { newBetsRound, newBlitzRound, newBoardRound, newClassicRound, newLadderRound, newQuestion, newQuiz, newSurvivalRound, newThinkRound, newTruthRound } from './draft';
 import { RoundSettings } from './RoundSettings';
 import { QuizEditor } from './QuizEditor';
@@ -105,7 +106,7 @@ describe('QuizEditor', () => {
     const { onSave } = open();
     fill('Назва вікторини', 'Гра');
     fill('Текст запитання', 'Розставте');
-    fireEvent.click(screen.getByRole('button', { name: 'порядок' }));
+    chooseType('order');
     fill('Елемент 1', 'Один');
     fill('Елемент 2', 'Два');
     fill('Елемент 3', 'Три');
@@ -131,7 +132,7 @@ describe('QuizEditor', () => {
     open(undefined, 'Немає зв’язку із сервером.');
     fill('Назва вікторини', 'Географія');
     fill('Текст запитання', 'Говерла найвища?');
-    fireEvent.click(screen.getByRole('button', { name: 'так чи ні' }));
+    chooseType('boolean');
     click('Зберегти');
     await waitFor(() => expect(screen.getByRole('alert').textContent).toContain('Немає зв’язку із сервером.'));
   });
@@ -168,7 +169,7 @@ describe('QuizEditor', () => {
     const { onSave } = open();
     fill('Назва вікторини', 'Гра');
     fill('Текст запитання', 'Яка висота Говерли?');
-    fireEvent.click(screen.getByRole('button', { name: 'число' }));
+    chooseType('numeric');
     expect((screen.getByLabelText('Текст запитання') as HTMLTextAreaElement).value).toBe('Яка висота Говерли?');
     expect(screen.queryByLabelText('Варіант 1')).toBeNull();
 
@@ -183,14 +184,14 @@ describe('QuizEditor', () => {
     const { onSave } = open();
     fill('Назва вікторини', 'Гра');
     fill('Текст запитання', 'Місто із замком Паланок?');
-    fireEvent.click(screen.getByRole('button', { name: 'текст' }));
+    chooseType('text');
     fill('Написання 1', 'Мукачево');
     click('Додати написання');
     fill('Написання 2', 'Мукачеве');
 
     click('Додати запитання');
     fill('Текст запитання', 'Із заходу на схід');
-    fireEvent.click(screen.getByRole('button', { name: 'порядок' }));
+    chooseType('order');
     fill('Елемент 1', 'Львів');
     fill('Елемент 2', 'Київ');
     fill('Елемент 3', 'Харків');
@@ -223,7 +224,7 @@ describe('QuizEditor', () => {
     const { onSave } = open();
     fill('Назва вікторини', 'Гра');
     fill('Текст запитання', 'Так?');
-    fireEvent.click(screen.getByRole('button', { name: 'так чи ні' }));
+    chooseType('boolean');
     fireEvent.click(screen.getByLabelText(/^Бали за швидкість/));
     fireEvent.click(screen.getByLabelText('Перемішувати варіанти відповідей'));
     fireEvent.change(screen.getByLabelText('Показувати рейтинг'), { target: { value: 'end' } });
@@ -254,7 +255,7 @@ describe('QuizEditor', () => {
 
     fill('Назва вікторини', 'Гра');
     fill('Текст запитання', 'Так?');
-    fireEvent.click(screen.getByRole('button', { name: 'так чи ні' }));
+    chooseType('boolean');
     click('Зберегти');
     await waitFor(() => expect(onSave).toHaveBeenCalled());
     expect(saved(onSave).settings).toEqual({ leaderboard: 'each' });
@@ -275,7 +276,7 @@ describe('QuizEditor', () => {
 
     fill('Назва вікторини', 'Гра');
     fill('Текст запитання', 'Так?');
-    fireEvent.click(screen.getByRole('button', { name: 'так чи ні' }));
+    chooseType('boolean');
     click('Зберегти');
     await waitFor(() => expect(onSave).toHaveBeenCalled());
     expect(saved(onSave).settings).toEqual({
@@ -321,7 +322,7 @@ describe('QuizEditor: numbers as they are typed', () => {
     const { onSave } = open();
     fill('Назва вікторини', 'Гра');
     fill('Текст запитання', 'Число?');
-    fireEvent.click(screen.getByRole('button', { name: 'число' }));
+    chooseType('numeric');
     typeInto('Правильне число', '', '-', '-2', '-2,', '-2,5');
     typeInto('Допустиме відхилення', '', '0', '0,', '0,5');
     typeInto('Час, с', '', '4', '45');
@@ -336,7 +337,7 @@ describe('QuizEditor: numbers as they are typed', () => {
     const { onSave } = open();
     fill('Назва вікторини', 'Гра');
     fill('Текст запитання', 'Так?');
-    fireEvent.click(screen.getByRole('button', { name: 'так чи ні' }));
+    chooseType('boolean');
     fill('Час, с', '30x');
     expect((screen.getByLabelText('Час, с') as HTMLInputElement).value).toBe('30');
     typeInto('Час, с', '3');
@@ -452,7 +453,7 @@ describe('QuizEditor: list and stage', () => {
 
   it('shows the type of each question in the list', () => {
     open();
-    click('число');
+    chooseType('numeric');
     expect(item(/Запитання 1/).textContent).toContain('число');
   });
 
@@ -537,7 +538,7 @@ describe('QuizEditor: answers on the stage', () => {
 
   it('lets several options be correct in a multi-choice question', () => {
     open();
-    click('кілька варіантів');
+    chooseType('multi');
     const mark = (n: number) => screen.getByLabelText(`Правильний: варіант ${n}`);
     fireEvent.click(mark(2));
     expect([mark(1), mark(2)].map((m) => m.getAttribute('aria-pressed'))).toEqual(['true', 'true']);
@@ -575,7 +576,7 @@ describe('QuizEditor: answers on the stage', () => {
     const { onSave } = open();
     fill('Назва вікторини', 'Гра');
     fill('Текст запитання', 'Земля пласка?');
-    click('так чи ні');
+    chooseType('boolean');
     fireEvent.click(screen.getByRole('button', { name: 'Правильна відповідь: Ні' }));
     expect(screen.getByRole('button', { name: 'Правильна відповідь: Ні' }).getAttribute('aria-pressed')).toBe('true');
     click('Зберегти');
@@ -587,7 +588,7 @@ describe('QuizEditor: answers on the stage', () => {
     const { onSave } = open();
     fill('Назва вікторини', 'Гра');
     fill('Текст запитання', 'Із заходу на схід');
-    click('порядок');
+    chooseType('order');
     fill('Елемент 1', 'Київ');
     fill('Елемент 2', 'Львів');
     fill('Елемент 3', 'Харків');
@@ -606,7 +607,7 @@ describe('QuizEditor: match questions', () => {
     const { onSave } = open();
     fill('Назва вікторини', 'Гра');
     fill('Текст запитання', 'Місто і річка');
-    click('пари');
+    chooseType('match');
     const texts: [string, string][] = [
       ['Київ', 'Дніпро'],
       ['Львів', 'Полтва'],
@@ -631,7 +632,7 @@ describe('QuizEditor: match questions', () => {
 
   it('a match question cannot have fewer than three or more than six pairs', () => {
     open();
-    click('пари');
+    chooseType('match');
     expect((screen.getByRole('button', { name: 'Прибрати пару 1' }) as HTMLButtonElement).disabled).toBe(true);
     for (let i = 0; i < 3; i += 1) click('Додати пару');
     expect((screen.getByRole('button', { name: 'Додати пару' }) as HTMLButtonElement).disabled).toBe(true);
@@ -656,7 +657,7 @@ describe('QuizEditor: question image', () => {
     const { onSave } = open();
     fill('Назва вікторини', 'Гра');
     fill('Текст запитання', 'Що на фото?');
-    fireEvent.click(screen.getByRole('button', { name: 'так чи ні' }));
+    chooseType('boolean');
     const picked = file('image/png');
     choose(picked);
 
@@ -679,7 +680,7 @@ describe('QuizEditor: question image', () => {
     const { onSave } = open();
     fill('Назва вікторини', 'Гра');
     fill('Текст запитання', 'Що на фото?');
-    fireEvent.click(screen.getByRole('button', { name: 'так чи ні' }));
+    chooseType('boolean');
     choose(file('image/png'));
     await screen.findByAltText('Зображення до запитання');
     click('Прибрати зображення');
@@ -730,12 +731,12 @@ describe('QuizEditor: question image', () => {
     const { onSave } = open();
     fill('Назва вікторини', 'Гра');
     fill('Текст запитання', 'Перше');
-    fireEvent.click(screen.getByRole('button', { name: 'так чи ні' }));
+    chooseType('boolean');
     choose(file('image/png'));
     await waitFor(() => expect(fetch).toHaveBeenCalled());
     click('Додати запитання');
     fill('Текст запитання', 'Друге');
-    fireEvent.click(screen.getByRole('button', { name: 'так чи ні' }));
+    chooseType('boolean');
     finish(new Response(JSON.stringify({ url: IMAGE }), { status: 201 }));
     await new Promise((resolve) => setTimeout(resolve, 0));
     click('Зберегти');
@@ -751,7 +752,7 @@ describe('QuizEditor: question image', () => {
     const { onSave } = open();
     fill('Назва вікторини', 'Гра');
     fill('Текст запитання', 'Що на фото?');
-    fireEvent.click(screen.getByRole('button', { name: 'так чи ні' }));
+    chooseType('boolean');
     choose(file('image/png'));
     await screen.findByAltText('Зображення до запитання');
     click('Дублювати');
@@ -768,7 +769,7 @@ describe('QuizEditor: cancelled drag', () => {
     for (const [index, text] of ['Перше', 'Друге', 'Третє'].entries()) {
       if (index > 0) click('Додати запитання');
       fill('Текст запитання', text);
-      fireEvent.click(screen.getByRole('button', { name: 'так чи ні' }));
+      chooseType('boolean');
     }
     const rows = () => screen.getAllByRole('listitem').filter((row) => row.getAttribute('draggable') === 'true');
     fireEvent.dragStart(rows()[2]);
@@ -847,9 +848,9 @@ describe('QuizEditor: cancelled drag', () => {
       click('Раунд 2');
       expect((screen.getByLabelText('Текст запитання') as HTMLTextAreaElement).value).toBe('Друге?');
 
-      fireEvent.click(screen.getByRole('button', { name: 'так чи ні' }));
+      chooseType('boolean');
       click('Раунд 1');
-      fireEvent.click(screen.getByRole('button', { name: 'так чи ні' }));
+      chooseType('boolean');
       click('Зберегти');
       await waitFor(() => expect(onSave).toHaveBeenCalled());
       const quiz = saved(onSave);
@@ -861,7 +862,7 @@ describe('QuizEditor: cancelled drag', () => {
       const { onSave } = open();
       fill('Назва вікторини', 'Гра');
       fill('Текст запитання', 'Перше?');
-      fireEvent.click(screen.getByRole('button', { name: 'так чи ні' }));
+      chooseType('boolean');
       addRound('Бліц');
       expect(roundButton('Бліц')).toBeTruthy();
       fireEvent.click(screen.getAllByText('Налаштування раунду')[0]);
@@ -869,7 +870,7 @@ describe('QuizEditor: cancelled drag', () => {
       fill('Вікно відповіді', '30');
       fill('Спроб на запитання', '2');
       fill('Текст запитання', 'Друге?');
-      fireEvent.click(screen.getByRole('button', { name: 'так чи ні' }));
+      chooseType('boolean');
       click('Зберегти');
       await waitFor(() => expect(onSave).toHaveBeenCalled());
       const quiz = saved(onSave);
@@ -887,7 +888,7 @@ describe('QuizEditor: cancelled drag', () => {
       const { onSave } = open();
       fill('Назва вікторини', 'Гра');
       fill('Текст запитання', 'Перше?');
-      fireEvent.click(screen.getByRole('button', { name: 'так чи ні' }));
+      chooseType('boolean');
       addRound('Бліц');
       fireEvent.click(screen.getAllByText('Налаштування раунду')[0]);
       expect((screen.getByLabelText('Перевірка') as HTMLSelectElement).value).toBe('auto');
@@ -902,7 +903,7 @@ describe('QuizEditor: cancelled drag', () => {
       expect(screen.queryByLabelText('Вікно відповіді')).toBeNull();
       expect(screen.queryByLabelText('Спроб на запитання')).toBeNull();
       fill('Текст запитання', 'Друге?');
-      fireEvent.click(screen.getByRole('button', { name: 'так чи ні' }));
+      chooseType('boolean');
       click('Зберегти');
       await waitFor(() => expect(onSave).toHaveBeenCalled());
       const blitz = saved(onSave).rounds[1];
@@ -948,7 +949,7 @@ describe('QuizEditor: cancelled drag', () => {
       open();
       fill('Назва вікторини', 'Гра');
       fill('Текст запитання', 'Перше?');
-      fireEvent.click(screen.getByRole('button', { name: 'так чи ні' }));
+      chooseType('boolean');
       addRound('Класичний');
       click('Раунд 1');
       click('Зберегти');
@@ -961,7 +962,7 @@ describe('QuizEditor: cancelled drag', () => {
       const { onSave } = open();
       fill('Назва вікторини', 'Гра');
       fill('Текст запитання', 'Так?');
-      fireEvent.click(screen.getByRole('button', { name: 'так чи ні' }));
+      chooseType('boolean');
       fill('Назва раунду', 'Розминка');
       fireEvent.click(screen.getByLabelText('Штраф: мінус ціна запитання за хибну відповідь'));
       fireEvent.click(screen.getByLabelText('Кнопка «частково»'));
@@ -988,7 +989,7 @@ describe('QuizEditor: cancelled drag', () => {
       const { onSave } = open();
       fill('Назва вікторини', 'Гра');
       fill('Текст запитання', 'Так?');
-      fireEvent.click(screen.getByRole('button', { name: 'так чи ні' }));
+      chooseType('boolean');
       click('Зберегти');
       await waitFor(() => expect(onSave).toHaveBeenCalled());
       expect(rulesOf(saved(onSave).rounds[0])).toEqual({ penalty: 'none', partial: null, streak: null, multiplier: 1 });
@@ -1212,7 +1213,7 @@ describe('QuizEditor: YouTube video', () => {
     const { onSave } = open();
     fill('Назва вікторини', 'Гра');
     fill('Текст запитання', 'Що за пісня?');
-    fireEvent.click(screen.getByRole('button', { name: 'так чи ні' }));
+    chooseType('boolean');
     fill(LINK, 'https://youtu.be/dQw4w9WgXcQ?t=1m30s');
     const frame = document.querySelector('iframe');
     expect(frame?.getAttribute('src')).toContain('embed/dQw4w9WgXcQ');
@@ -1228,7 +1229,7 @@ describe('QuizEditor: YouTube video', () => {
     const { onSave } = open();
     fill('Назва вікторини', 'Гра');
     fill('Текст запитання', 'Що за пісня?');
-    fireEvent.click(screen.getByRole('button', { name: 'так чи ні' }));
+    chooseType('boolean');
     fill(LINK, 'https://example.com/watch?v=dQw4w9WgXcQ');
     expect(screen.getByRole('alert').textContent).toBe('Це не посилання на відео YouTube');
     expect(document.querySelector('iframe')).toBeNull();
@@ -1281,12 +1282,12 @@ describe('QuizEditor: final round', () => {
     const { onSave } = open();
     fill('Назва вікторини', 'Гра');
     fill('Текст запитання', 'Перше?');
-    fireEvent.click(screen.getByRole('button', { name: 'так чи ні' }));
+    chooseType('boolean');
     addRound('Фінал');
     fireEvent.click(screen.getAllByText('Налаштування раунду')[0]);
     fill(t('finalTheme'), 'Космос');
     fill('Текст запитання', 'Яка планета перша від Сонця?');
-    fireEvent.click(screen.getByRole('button', { name: 'так чи ні' }));
+    chooseType('boolean');
     expect(screen.queryByLabelText(t('pointsLabel'))).toBeNull();
     expect(screen.queryByRole('button', { name: t('addQuestion') })).toBeNull();
     click('Зберегти');
@@ -1301,7 +1302,7 @@ describe('QuizEditor: final round', () => {
     const { onSave } = open();
     fill('Назва вікторини', 'Гра');
     fill('Текст запитання', 'Перше?');
-    fireEvent.click(screen.getByRole('button', { name: 'так чи ні' }));
+    chooseType('boolean');
     expect(screen.queryByLabelText(t('finalWagerMode'))).toBeNull();
     addRound('Фінал');
     fireEvent.click(screen.getAllByText('Налаштування раунду')[0]);
@@ -1313,7 +1314,7 @@ describe('QuizEditor: final round', () => {
     expect(screen.getByText(t('wagerModeBankHint'))).toBeTruthy();
     expect(screen.queryByText(t('wagerModeClassicHint'))).toBeNull();
     fill('Текст запитання', 'Яка планета перша?');
-    fireEvent.click(screen.getByRole('button', { name: 'так чи ні' }));
+    chooseType('boolean');
     click('Зберегти');
     await waitFor(() => expect(onSave).toHaveBeenCalled());
     expect(saved(onSave).rounds[1]).toMatchObject({ type: 'final', wagerMode: 'bank' });
@@ -1355,7 +1356,7 @@ describe('QuizEditor: quiz on top and round notes', () => {
     const { onSave } = open();
     fill('Назва вікторини', 'Гра');
     fill('Текст запитання', 'Перше?');
-    fireEvent.click(screen.getByRole('button', { name: 'так чи ні' }));
+    chooseType('boolean');
     expect(screen.getByText('Так гравці побачать раунд на заставці')).toBeTruthy();
     expect(screen.getByText('Відповідають усі: бали отримує кожен, хто відповів правильно.')).toBeTruthy();
     expect(screen.getByLabelText('Опис раунду для гравців').getAttribute('maxlength')).toBe('600');
@@ -1365,7 +1366,7 @@ describe('QuizEditor: quiz on top and round notes', () => {
     addRound('Бліц');
     expect(screen.getByText('Бали отримує лише той, хто першим правильно відповість.')).toBeTruthy();
     fill('Текст запитання', 'Друге?');
-    fireEvent.click(screen.getByRole('button', { name: 'так чи ні' }));
+    chooseType('boolean');
     click('Зберегти');
     await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
     expect(saved(onSave).rounds[0].description).toBe('Кіно 90-х');
@@ -1392,7 +1393,7 @@ describe('QuizEditor: chain questions', () => {
   it('creates a chain question and saves its words and hint seconds', async () => {
     const { onSave } = open();
     fill('Назва вікторини', 'Слова');
-    click('ланцюжок');
+    chooseType('chain');
     fill('Текст запитання', 'Від форелі до корабля');
     fill('Слово 1', 'Форель');
     fill('Слово 2', 'Риба');
@@ -1411,7 +1412,7 @@ describe('QuizEditor: chain questions', () => {
   it('a blitz round shows no chain chip', () => {
     open();
     addRound('Бліц');
-    expect(screen.queryByRole('button', { name: 'ланцюжок' })).toBeNull();
+    expect(typeOptions()).not.toContain('chain');
   });
 });
 
@@ -1424,7 +1425,7 @@ describe('QuizEditor: word ladder questions (26c)', () => {
     const checks = () => fetchMock.mock.calls.filter(([url]) => url === '/api/wordladder/check');
     const { onSave } = open();
     fill('Назва вікторини', 'Слова');
-    click('драбина слів');
+    chooseType('wordladder');
     fill('Текст запитання', 'Від ПОЛЕ до ТАРА');
     expect(screen.queryByLabelText('Відео з YouTube')).toBeNull();
     fill('Стартове слово', 'ПОЛЕ');
@@ -1470,7 +1471,7 @@ describe('QuizEditor: word ladder questions (26c)', () => {
     });
     vi.stubGlobal('fetch', fetchMock);
     open();
-    click('драбина слів');
+    chooseType('wordladder');
     fill('Стартове слово', 'ПОЛЕ');
     fill('Крок 1', 'ПОЛА');
     fill('Цільове слово', 'ПОРА');
@@ -1483,7 +1484,7 @@ describe('QuizEditor: word ladder questions (26c)', () => {
   it('a blitz round shows no word ladder chip', () => {
     open();
     addRound('Бліц');
-    expect(screen.queryByRole('button', { name: 'драбина слів' })).toBeNull();
+    expect(typeOptions()).not.toContain('wordladder');
   });
 });
 
@@ -1491,7 +1492,7 @@ describe('QuizEditor: sort questions', () => {
   it('the author builds a sort question', async () => {
     const { onSave } = open();
     fill('Назва вікторини', 'Сортування');
-    click('сортування');
+    chooseType('sort');
     fill('Текст запитання', 'Розкладіть');
     expect(screen.queryByLabelText('Відео з YouTube')).toBeNull();
     expect(screen.queryByLabelText(t('pointsLabel'))).toBeNull();
@@ -1530,7 +1531,7 @@ describe('QuizEditor: sort questions', () => {
   it('a sort in a final has no per-word price and no total', () => {
     open();
     addRound('Фінал');
-    click('сортування');
+    chooseType('sort');
     expect(screen.getByLabelText('Підвисання після помилки, с')).toBeTruthy();
     expect(screen.queryByLabelText('Бали за слово')).toBeNull();
     expect(screen.queryByText(/Разом до/)).toBeNull();
@@ -1538,7 +1539,7 @@ describe('QuizEditor: sort questions', () => {
 
   it('a blank per-word price shows no total', () => {
     open();
-    click('сортування');
+    chooseType('sort');
     expect(screen.getByText('Разом до 400 балів (не більше 2000)')).toBeTruthy();
     fill('Бали за слово', '');
     expect(screen.queryByText(/Разом до/)).toBeNull();
@@ -1550,7 +1551,7 @@ describe('QuizEditor: sort questions', () => {
     click('Ігрове поле');
     fireEvent.change(screen.getByLabelText('Як відповідати'), { target: { value: 'voice' } });
     expect(screen.getByLabelText('Тип клітинки')).toBeTruthy();
-    click('сортування');
+    chooseType('sort');
     expect(screen.queryByLabelText('Тип клітинки')).toBeNull();
     expect(screen.queryByLabelText('Як відповідати')).toBeNull();
     expect(screen.getByText(t('sortCellNote'))).toBeTruthy();
@@ -1559,7 +1560,7 @@ describe('QuizEditor: sort questions', () => {
 
   it('every sort input has a field wrapper', () => {
     open();
-    click('сортування');
+    chooseType('sort');
     const controls = [
       ...screen.getAllByLabelText(/^Категорія слова \d$/),
       screen.getByLabelText('Бали за слово'),
@@ -1724,11 +1725,9 @@ describe('QuizEditor hints and spares', () => {
     const section = sparesSection();
     fireEvent.click(section.getByRole('button', { name: t('addSpare') }));
     expect(section.getByRole('button', { name: /^Запасне 1 · / })).toBeTruthy();
-    const names = within(section.getByRole('group', { name: t('questionType') }))
-      .getAllByRole('button')
-      .map((b) => b.textContent);
+    const names = typeOptions(screen.getByText(t('sparesTitle'), { selector: 'summary' }).closest('details')!);
     expect(names).toHaveLength(6);
-    for (const gone of ['порядок', 'пари', 'ланцюжок', 'сортування']) expect(names.some((n) => n?.toLowerCase().includes(gone))).toBe(false);
+    for (const gone of ['order', 'match', 'chain', 'sort'] as const) expect(names).not.toContain(gone);
     expect(section.queryByLabelText(t('timeLimit'))).toBeNull();
     expect(section.queryByLabelText(t('pointsLabel'))).toBeNull();
     expect(section.queryByLabelText(t('hintLabel'))).toBeNull();
@@ -1766,7 +1765,7 @@ describe('QuizEditor hints and spares', () => {
     const field = () => screen.getByLabelText(t('hintLabel')) as HTMLTextAreaElement;
     expect(field().getAttribute('maxlength')).toBe('200');
     fireEvent.change(field(), { target: { value: 'Тече через Київ' } });
-    fireEvent.click(screen.getByRole('button', { name: 'один варіант' }));
+    chooseType('single');
     expect(field().value).toBe('Тече через Київ');
     fireEvent.change(screen.getByLabelText('Варіант 1'), { target: { value: 'А' } });
     fireEvent.change(screen.getByLabelText('Варіант 2'), { target: { value: 'Б' } });
@@ -1786,7 +1785,7 @@ describe('QuizEditor: away penalty (12e)', () => {
     const { onSave } = open();
     fill('Назва вікторини', 'Гра');
     fill('Текст запитання', 'Перше?');
-    fireEvent.click(screen.getByRole('button', { name: 'так чи ні' }));
+    chooseType('boolean');
     const box = screen.getByLabelText('Штраф за вихід із гри') as HTMLInputElement;
     expect(box.checked).toBe(false);
     expect(screen.getByText(/отримує за нього 0/)).toBeTruthy();
@@ -1801,7 +1800,7 @@ describe('QuizEditor: away penalty (12e)', () => {
     const { onSave } = open();
     fill('Назва вікторини', 'Гра');
     fill('Текст запитання', 'Перше?');
-    fireEvent.click(screen.getByRole('button', { name: 'так чи ні' }));
+    chooseType('boolean');
     fireEvent.click(screen.getByLabelText('Штраф за вихід із гри'));
     click('Зберегти');
     await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
@@ -1821,7 +1820,7 @@ describe('QuizEditor: family game (31)', () => {
     const { onSave } = open();
     fill('Назва вікторини', 'Гра');
     fill('Текст запитання', 'Перше?');
-    fireEvent.click(screen.getByRole('button', { name: 'так чи ні' }));
+    chooseType('boolean');
     const box = screen.getByRole('checkbox', { name: 'Сімейна гра' }) as HTMLInputElement;
     expect(box.checked).toBe(false);
     fireEvent.click(box);
@@ -1846,7 +1845,7 @@ describe('QuizEditor: explanations for newcomers', () => {
     const { onSave } = open();
     fill('Назва вікторини', 'Гра');
     fill('Текст запитання', 'Перше?');
-    fireEvent.click(screen.getByRole('button', { name: 'так чи ні' }));
+    chooseType('boolean');
     const box = screen.getByLabelText('Пояснення для новачків') as HTMLInputElement;
     expect(box.checked).toBe(false);
     fireEvent.click(box);
@@ -1860,7 +1859,7 @@ describe('QuizEditor: explanations for newcomers', () => {
     const { onSave } = open();
     fill('Назва вікторини', 'Гра');
     fill('Текст запитання', 'Перше?');
-    fireEvent.click(screen.getByRole('button', { name: 'так чи ні' }));
+    chooseType('boolean');
     fireEvent.click(screen.getByLabelText('Пояснення для новачків'));
     click('Зберегти');
     await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
@@ -1898,7 +1897,7 @@ describe('QuizEditor: explanations for newcomers', () => {
   it('the question ⓘ follows the chosen type', () => {
     open();
     screen.getByRole('button', { name: 'Довідка: Один правильний варіант' });
-    click('число');
+    chooseType('numeric');
     fireEvent.click(screen.getByRole('button', { name: 'Довідка: Число' }));
     screen.getByRole('dialog', { name: 'Число' });
   });
@@ -1917,7 +1916,7 @@ describe('QuizEditor: slider, audio, revealing picture (10b)', () => {
     const { onSave } = open();
     fill('Назва вікторини', 'Гра');
     fill('Текст запитання', 'У якому році?');
-    fireEvent.click(screen.getByRole('button', { name: 'повзунок' }));
+    chooseType('slider');
     fill('Мінімум', '1900');
     fill('Максимум', '2025');
     fill('Крок', '1');
@@ -1937,7 +1936,7 @@ describe('QuizEditor: slider, audio, revealing picture (10b)', () => {
     const { onSave } = open();
     fill('Назва вікторини', 'Гра');
     fill('Текст запитання', 'Скільки?');
-    fireEvent.click(screen.getByRole('button', { name: 'повзунок' }));
+    chooseType('slider');
     fill('Нуль балів далі ніж ±', '10');
     fill('Нуль балів далі ніж ±', '');
     fill('Одиниця', 'км');
@@ -1961,7 +1960,7 @@ describe('QuizEditor: slider, audio, revealing picture (10b)', () => {
   it('the picture mode is for single, text and numeric only, and goes with the picture', async () => {
     const { onSave } = open(withQuestion({ imageUrl: IMAGE, reveal: 'blur' }));
     expect(screen.queryByRole('group', { name: 'Картинка, що проявляється' })).toBeNull();
-    fireEvent.click(screen.getByRole('button', { name: 'число' }));
+    chooseType('numeric');
     expect(screen.getByRole('button', { name: 'З розмиття' }).getAttribute('aria-pressed')).toBe('true');
     fireEvent.click(screen.getByRole('button', { name: 'Звичайна' }));
     expect(screen.getByRole('button', { name: 'Звичайна' }).getAttribute('aria-pressed')).toBe('true');
@@ -1975,7 +1974,7 @@ describe('QuizEditor: slider, audio, revealing picture (10b)', () => {
 
   it('ⓘ next to the audio and the picture mode open help; the quiz does not become changed', () => {
     open(withQuestion({ imageUrl: IMAGE }));
-    fireEvent.click(screen.getByRole('button', { name: 'число' }));
+    chooseType('numeric');
     fireEvent.click(screen.getByRole('button', { name: 'Довідка: Аудіо до запитання' }));
     screen.getByRole('dialog', { name: 'Аудіо до запитання' });
     fireEvent.click(screen.getByRole('button', { name: 'Довідка: Картинка, що проявляється' }));
@@ -2051,7 +2050,7 @@ describe('QuizEditor: reveal, video and audio together (10b)', () => {
     const { onSave } = open();
     fill('Назва вікторини', 'Гра');
     fill('Текст запитання', 'Скільки?');
-    fireEvent.click(screen.getByRole('button', { name: 'повзунок' }));
+    chooseType('slider');
     fill('Нуль балів далі ніж ±', 'abc');
     expect((screen.getByLabelText('Нуль балів далі ніж ±') as HTMLInputElement).value).toBe('');
     fill('Нуль балів далі ніж ±', '.');
@@ -2066,7 +2065,7 @@ describe('QuizEditor: «Who am I?» and pins (10c)', () => {
     const { onSave } = open();
     fill('Назва вікторини', 'Гра');
     fill('Текст запитання', 'Хто я?');
-    fireEvent.click(screen.getByRole('button', { name: 'хто я?' }));
+    chooseType('clues');
     for (const n of [1, 2, 3]) fill(`Підказка ${n}`, `Ключ ${n}`);
     screen.getByLabelText('Нова підказка кожні, с');
     screen.getByText('Остання підказка відкриється на 16-й секунді з 30.');
@@ -2090,7 +2089,7 @@ describe('QuizEditor: «Who am I?» and pins (10c)', () => {
 
   it('a longer interval raises the time; a clue can move up and down', () => {
     open();
-    fireEvent.click(screen.getByRole('button', { name: 'хто я?' }));
+    chooseType('clues');
     fill('Підказка 1', 'А');
     fill('Підказка 2', 'Б');
     fireEvent.click(screen.getByRole('button', { name: 'Перемістити елемент 2 вище' }));
@@ -2103,7 +2102,7 @@ describe('QuizEditor: «Who am I?» and pins (10c)', () => {
     const { onSave } = open();
     fill('Назва вікторини', 'Гра');
     fill('Текст запитання', 'Хто я?');
-    fireEvent.click(screen.getByRole('button', { name: 'хто я?' }));
+    chooseType('clues');
     for (const n of [1, 2, 3]) fill(`Підказка ${n}`, `Ключ ${n}`);
     fill('Написання 1', 'Шевченко');
     const group = screen.getByRole('group', { name: 'Підказки відкриваються' });
@@ -2136,7 +2135,7 @@ describe('QuizEditor: «Who am I?» and pins (10c)', () => {
 
   it('clues take no video but take audio', () => {
     open();
-    fireEvent.click(screen.getByRole('button', { name: 'хто я?' }));
+    chooseType('clues');
     expect(screen.queryByLabelText('Відео з YouTube')).toBeNull();
     screen.getByText('Аудіо до запитання');
   });
@@ -2145,7 +2144,7 @@ describe('QuizEditor: «Who am I?» and pins (10c)', () => {
     const { onSave } = open();
     fill('Назва вікторини', 'Гра');
     fill('Текст запитання', 'Де?');
-    fireEvent.click(screen.getByRole('button', { name: 'точка' }));
+    chooseType('pin');
     expect(screen.queryByRole('button', { name: 'Додати зображення' })).toBeNull();
     expect(screen.queryByLabelText('Відео з YouTube')).toBeNull();
     for (const name of ['Світ', 'Європа', 'Україна', 'Своя картинка']) screen.getByRole('button', { name });
@@ -2160,8 +2159,8 @@ describe('QuizEditor: «Who am I?» and pins (10c)', () => {
   it('a blitz round offers neither clues nor pin', () => {
     open();
     addRound('Бліц');
-    expect(screen.queryByRole('button', { name: 'хто я?' })).toBeNull();
-    expect(screen.queryByRole('button', { name: 'точка' })).toBeNull();
+    expect(typeOptions()).not.toContain('clues');
+    expect(typeOptions()).not.toContain('pin');
   });
 });
 
@@ -2170,7 +2169,7 @@ describe('QuizEditor: wall, poll and word cloud (10d)', () => {
     const { onSave } = open();
     fill('Назва вікторини', 'Гра');
     fill('Текст запитання', 'Знайдіть зв’язки');
-    click('стіна');
+    chooseType('wall');
     expect(screen.getAllByRole('group', { name: /^Група \d$/ })).toHaveLength(4);
     screen.getByLabelText('Помилок до замикання');
     expect(screen.queryByLabelText('Відео з YouTube')).toBeNull();
@@ -2196,7 +2195,7 @@ describe('QuizEditor: wall, poll and word cloud (10d)', () => {
     const { onSave } = open();
     fill('Назва вікторини', 'Гра');
     fill('Текст запитання', 'Знайдіть зв’язки');
-    click('стіна');
+    chooseType('wall');
     for (let g = 1; g <= 4; g += 1) {
       fill(`Назва групи ${g}`, `З${g}`);
       const card = screen.getByRole('group', { name: `Група ${g}` });
@@ -2211,7 +2210,7 @@ describe('QuizEditor: wall, poll and word cloud (10d)', () => {
     const { onSave } = open();
     fill('Назва вікторини', 'Гра');
     fill('Текст запитання', 'Яка пора найкраща?');
-    click('опитування');
+    chooseType('poll');
     expect(screen.queryByLabelText('Бали')).toBeNull();
     expect(screen.queryByLabelText('Правильний: варіант 1')).toBeNull();
     screen.getByText(t('noPointsNote'));
@@ -2229,7 +2228,7 @@ describe('QuizEditor: wall, poll and word cloud (10d)', () => {
     const { onSave } = open();
     fill('Назва вікторини', 'Гра');
     fill('Текст запитання', 'З чим асоціюється Київ?');
-    click('хмара');
+    chooseType('wordcloud');
     expect((screen.getByLabelText('Слів від гравця') as HTMLInputElement).value).toBe('3');
     expect(screen.queryByLabelText('Бали')).toBeNull();
     screen.getByText(t('cloudHint'));
@@ -2243,9 +2242,9 @@ describe('QuizEditor: wall, poll and word cloud (10d)', () => {
 
   it('switching a poll back to a question brings the price back', () => {
     open();
-    click('опитування');
+    chooseType('poll');
     expect(screen.queryByLabelText('Бали')).toBeNull();
-    click('один варіант');
+    chooseType('single');
     expect((screen.getByLabelText('Бали') as HTMLInputElement).value).toBe('1000');
   });
 
@@ -2255,9 +2254,9 @@ describe('QuizEditor: wall, poll and word cloud (10d)', () => {
     for (const name of ['стіна', 'опитування', 'хмара']) expect(screen.queryByRole('button', { name })).toBeNull();
     click('+ Раунд');
     click('Ігрове поле');
-    screen.getByRole('button', { name: 'стіна' });
-    expect(screen.queryByRole('button', { name: 'опитування' })).toBeNull();
-    expect(screen.queryByRole('button', { name: 'хмара' })).toBeNull();
+    expect(typeOptions()).toContain('wall');
+    expect(typeOptions()).not.toContain('poll');
+    expect(typeOptions()).not.toContain('wordcloud');
   });
 });
 
@@ -2274,7 +2273,7 @@ describe('QuizEditor: «100 до 1» (10e)', () => {
     const { onSave } = open();
     fill('Назва вікторини', 'Гра');
     fill('Текст запитання', 'Назвіть фрукт');
-    click('100 до 1');
+    chooseType('survey');
     expect(screen.getAllByRole('group', { name: /^Рядок \d$/ })).toHaveLength(5);
     expect((screen.getByLabelText('Відповідей від гравця') as HTMLInputElement).value).toBe('3');
     click('Зберегти');
@@ -2301,7 +2300,7 @@ describe('QuizEditor: «100 до 1» (10e)', () => {
     const { onSave } = open();
     fill('Назва вікторини', 'Гра');
     fill('Текст запитання', 'Назвіть фрукт');
-    click('100 до 1');
+    chooseType('survey');
     fillRows(5);
     screen.getByText(/^Разом: 150 зі 100/);
     click('Зберегти');
@@ -2339,7 +2338,7 @@ describe('QuizEditor: «100 до 1» (10e)', () => {
   it('the first survey in a round without clouds has the cloud source disabled with the explanation', () => {
     open();
     fill('Текст запитання', 'Назвіть фрукт');
-    click('100 до 1');
+    chooseType('survey');
     expect((screen.getByRole('button', { name: 'Відповіді з хмари' }) as HTMLButtonElement).disabled).toBe(true);
     screen.getByText(t('surveyNoClouds'));
   });
@@ -2347,9 +2346,9 @@ describe('QuizEditor: «100 до 1» (10e)', () => {
   it('a blitz round and the final have no «100 до 1» chip', () => {
     open();
     addRound('Бліц');
-    expect(screen.queryByRole('button', { name: '100 до 1' })).toBeNull();
+    expect(typeOptions()).not.toContain('survey');
     addRound('Фінал');
-    expect(screen.queryByRole('button', { name: '100 до 1' })).toBeNull();
+    expect(typeOptions()).not.toContain('survey');
   });
 
   it('switching the type away from a cloud survey drops the cloud and the rows', () => {
@@ -2357,7 +2356,7 @@ describe('QuizEditor: «100 до 1» (10e)', () => {
     const survey = { ...newQuestion('survey'), text: 'Назвіть фрукт', cloudId: 'cloud-1', rows: [] } as Question;
     open({ ...newQuiz(), title: 'Гра', rounds: [{ ...newClassicRound(), questions: [cloud, survey] }] });
     fireEvent.click(screen.getByRole('button', { name: /Назвіть фрукт/ }));
-    click('текст');
+    chooseType('text');
     expect(screen.queryByLabelText('Хмара слів для дошки')).toBeNull();
     expect(screen.queryByRole('group', { name: /^Рядок \d$/ })).toBeNull();
   });
@@ -2368,7 +2367,7 @@ describe('QuizEditor: bluff (10f)', () => {
     const { onSave } = open();
     fill('Назва вікторини', 'Гра');
     fill('Текст запитання', 'Перший чемпіон світу … був з Уругваю');
-    click('Блеф');
+    chooseType('bluff');
     expect(screen.queryByLabelText('Відео з YouTube')).toBeNull();
     expect(screen.getAllByLabelText(/^Запасна вигадка \d$/)).toHaveLength(2);
     expect((screen.getByLabelText('Час на вигадки, с') as HTMLInputElement).value).toBe('60');
@@ -2391,7 +2390,7 @@ describe('QuizEditor: bluff (10f)', () => {
     const { onSave } = open();
     fill('Назва вікторини', 'Гра');
     fill('Текст запитання', 'Де?');
-    click('Блеф');
+    chooseType('bluff');
     fill('Правда', 'Барселона');
     fill('Запасна вигадка 1', 'барселона');
     fill('Запасна вигадка 2', 'Лондон');
@@ -2403,12 +2402,12 @@ describe('QuizEditor: bluff (10f)', () => {
   it('a blitz round and the final have no bluff chip; neither has the board', () => {
     open();
     addRound('Бліц');
-    expect(screen.queryByRole('button', { name: 'Блеф' })).toBeNull();
+    expect(typeOptions()).not.toContain('bluff');
     addRound('Фінал');
-    expect(screen.queryByRole('button', { name: 'Блеф' })).toBeNull();
+    expect(typeOptions()).not.toContain('bluff');
     click('+ Раунд');
     click('Ігрове поле');
-    expect(screen.queryByRole('button', { name: 'Блеф' })).toBeNull();
+    expect(typeOptions()).not.toContain('bluff');
   });
 });
 
@@ -2420,10 +2419,7 @@ describe('QuizEditor: wipeout round', () => {
     open();
     addRound('Ва-банк');
     expect(prices()).toEqual(['100', '200', '300', '400', '500']);
-    const names = within(screen.getByRole('group', { name: t('questionType') }))
-      .getAllByRole('button')
-      .map((b) => b.textContent);
-    expect(names).toHaveLength(5);
+    expect(typeOptions()).toHaveLength(5);
   });
 
   it('adding a question continues the price and stops at fifteen; removing stops at five', () => {
@@ -2478,7 +2474,7 @@ describe('QuizEditor: wipeout round', () => {
 describe('QuizEditor: survival round', () => {
   const removeButton = () => screen.getByRole('button', { name: /^Видалити запитання \d+$/ }) as HTMLButtonElement;
   const typeNames = (scope: HTMLElement) =>
-    within(within(scope).getByRole('group', { name: t('questionType') })).getAllByRole('button').map((b) => b.textContent);
+    typeOptions(scope);
   const settings = () => document.querySelector('.round-settings') as HTMLElement;
   const trialsBlock = () => document.querySelector('.survival-settings') as HTMLElement;
   const questionItems = () => document.querySelectorAll('.question-item');
@@ -2627,10 +2623,7 @@ describe('QuizEditor: ladder round', () => {
   it('a question has only the single type, four options without add or remove, no price and no time', () => {
     open();
     addRound('Мільйонер');
-    const names = within(screen.getByRole('group', { name: t('questionType') }))
-      .getAllByRole('button')
-      .map((b) => b.textContent);
-    expect(names).toHaveLength(1);
+    expect(typeOptions()).toHaveLength(1);
     expect(document.querySelectorAll('.answer-row')).toHaveLength(4);
     expect(screen.queryByRole('button', { name: t('addOption') })).toBeNull();
     expect(screen.queryByRole('button', { name: /^Прибрати варіант/ })).toBeNull();
@@ -2740,7 +2733,7 @@ describe('QuizEditor: team play', () => {
   const fillBasics = () => {
     fill('Назва вікторини', 'Гра');
     fill('Текст запитання', 'Перше?');
-    fireEvent.click(screen.getByRole('button', { name: 'так чи ні' }));
+    chooseType('boolean');
   };
 
   it('a quiz saved without teams has no settings.teams', async () => {
@@ -2877,7 +2870,7 @@ describe('QuizEditor: blitz series', () => {
     const view = open();
     fill('Назва вікторини', 'Гра');
     fill('Текст запитання', 'Перше?');
-    fireEvent.click(screen.getByRole('button', { name: 'так чи ні' }));
+    chooseType('boolean');
     addRound('Бліц');
     fireEvent.click(screen.getAllByText('Налаштування раунду')[0]);
     return view;
@@ -2904,7 +2897,7 @@ describe('QuizEditor: blitz series', () => {
     expect(penalty().disabled).toBe(false);
     fireEvent.click(minus());
     fill('Текст запитання', 'Друге?');
-    fireEvent.click(screen.getByRole('button', { name: 'так чи ні' }));
+    chooseType('boolean');
     click('Зберегти');
     await waitFor(() => expect(onSave).toHaveBeenCalled());
     const blitz = saved(onSave).rounds[1];
@@ -2937,7 +2930,7 @@ describe('QuizEditor: bets round (27a)', () => {
   const cut = (word: string) => fireEvent.click(within(screen.getByRole('radiogroup', { name: t('betsCutLabel') })).getByRole('radio', { name: word }));
   const fillQuestion = (text: string, word: string) => {
     fill('Текст запитання', text);
-    fireEvent.click(screen.getByRole('button', { name: 'так чи ні' }));
+    chooseType('boolean');
     cut(word);
   };
 
@@ -2945,7 +2938,7 @@ describe('QuizEditor: bets round (27a)', () => {
     const { onSave } = open();
     fill('Назва вікторини', 'Гра');
     fill('Текст запитання', 'Перше?');
-    fireEvent.click(screen.getByRole('button', { name: 'так чи ні' }));
+    chooseType('boolean');
     addRound('Ставки');
     fireEvent.click(settingsBlock());
     fill(t('betStartLabel'), '200');
@@ -2973,7 +2966,7 @@ describe('QuizEditor: bets round (27a)', () => {
     const { onSave } = open();
     fill('Назва вікторини', 'Гра');
     fill('Текст запитання', 'Перше?');
-    fireEvent.click(screen.getByRole('button', { name: 'так чи ні' }));
+    chooseType('boolean');
     addRound('Ставки');
     fireEvent.click(settingsBlock());
     fill(t('betMaxLabel'), '500');
@@ -3010,7 +3003,7 @@ describe('QuizEditor: auction round (27b)', () => {
   const cut = (word: string) => fireEvent.click(within(screen.getByRole('radiogroup', { name: t('auctionCutLabel') })).getByRole('radio', { name: word }));
   const fillQuestion = (text: string, price: string, word: string) => {
     fill('Текст запитання', text);
-    fireEvent.click(screen.getByRole('button', { name: 'так чи ні' }));
+    chooseType('boolean');
     fill(t('pointsLabel'), price);
     cut(word);
   };
@@ -3019,7 +3012,7 @@ describe('QuizEditor: auction round (27b)', () => {
     const { onSave } = open();
     fill('Назва вікторини', 'Гра');
     fill('Текст запитання', 'Перше?');
-    fireEvent.click(screen.getByRole('button', { name: 'так чи ні' }));
+    chooseType('boolean');
     addRound('Аукціон');
     fireEvent.click(settingsBlock());
     fireEvent.change(screen.getByLabelText(t('auctionModeLabel')), { target: { value: 'step' } });
@@ -3044,7 +3037,7 @@ describe('QuizEditor: auction round (27b)', () => {
     const { onSave } = open();
     fill('Назва вікторини', 'Гра');
     fill('Текст запитання', 'Перше?');
-    fireEvent.click(screen.getByRole('button', { name: 'так чи ні' }));
+    chooseType('boolean');
     addRound('Аукціон');
     fireEvent.click(settingsBlock());
     fill(t('auctionStepLabel'), '');
@@ -3059,7 +3052,7 @@ describe('QuizEditor: auction round (27b)', () => {
     const { onSave } = open();
     fill('Назва вікторини', 'Гра');
     fill('Текст запитання', 'Перше?');
-    fireEvent.click(screen.getByRole('button', { name: 'так чи ні' }));
+    chooseType('boolean');
     addRound('Аукціон');
     fireEvent.click(settingsBlock());
     fill(t('auctionStepLabel'), '75');
@@ -3079,7 +3072,7 @@ describe('QuizEditor: truth round (28b)', () => {
     const { onSave } = open();
     fill('Назва вікторини', 'Гра');
     fill('Текст запитання', 'Перше?');
-    fireEvent.click(screen.getByRole('button', { name: 'так чи ні' }));
+    chooseType('boolean');
     addRound('Правда про гравця');
     fireEvent.click(settingsBlock());
     fill(t('truthPointsLabel'), '300');
@@ -3099,7 +3092,7 @@ describe('QuizEditor: truth round (28b)', () => {
     const { onSave } = open();
     fill('Назва вікторини', 'Гра');
     fill('Текст запитання', 'Перше?');
-    fireEvent.click(screen.getByRole('button', { name: 'так чи ні' }));
+    chooseType('boolean');
     addRound('Правда про гравця');
     addRound('Правда про гравця');
     click('Зберегти');
@@ -3111,7 +3104,7 @@ describe('QuizEditor: truth round (28b)', () => {
     const { onSave } = open();
     fill('Назва вікторини', 'Гра');
     fill('Текст запитання', 'Перше?');
-    fireEvent.click(screen.getByRole('button', { name: 'так чи ні' }));
+    chooseType('boolean');
     addRound('Правда про гравця');
     fireEvent.click(settingsBlock());
     fill(t('truthTimeLabel'), '2');
@@ -3133,12 +3126,12 @@ describe('QuizEditor: puzzles round (28d)', () => {
     const { onSave } = open();
     fill('Назва вікторини', 'Гра');
     fill('Текст запитання', 'Перше?');
-    fireEvent.click(screen.getByRole('button', { name: 'так чи ні' }));
+    chooseType('boolean');
     addRound('Головоломки');
     // Типи — лише судоку й кросворд; ні підказки для бафів, ні відео.
-    expect(screen.getAllByRole('button', { pressed: true }).map((chip) => chip.textContent)).toContain(t('typeShort_sudoku'));
-    expect(screen.getByRole('button', { name: t('typeShort_crossword') })).toBeTruthy();
-    expect(screen.queryByRole('button', { name: 'так чи ні' })).toBeNull();
+    expect(currentTypeLabel()).toBe(t('type_sudoku'));
+    expect(typeOptions()).toContain('crossword');
+    expect(typeOptions()).not.toContain('boolean');
     expect(screen.queryByLabelText(t('hintLabel'))).toBeNull();
     expect(screen.getByText(t('sudokuGivenCount', { count: 16, total: 36 }))).toBeTruthy();
     fireEvent.click(settingsBlock());
@@ -3161,7 +3154,7 @@ describe('QuizEditor: timed list (27c)', () => {
     const { onSave } = open();
     fill('Назва вікторини', 'Гра');
     fill('Текст запитання', 'Назвіть планети Сонячної системи');
-    click('список на час');
+    chooseType('timedlist');
     expect(screen.getAllByRole('group', { name: /^Пункт \d+$/ })).toHaveLength(3);
     expect(screen.queryByLabelText('Відео з YouTube')).toBeNull();
     click('Зберегти');
@@ -3185,10 +3178,10 @@ describe('QuizEditor: timed list (27c)', () => {
   it('a blitz round has no list chip, the board has it', () => {
     open();
     addRound('Бліц');
-    expect(screen.queryByRole('button', { name: 'список на час' })).toBeNull();
+    expect(typeOptions()).not.toContain('timedlist');
     click('+ Раунд');
     click('Ігрове поле');
-    screen.getByRole('button', { name: 'список на час' });
+    expect(typeOptions()).toContain('timedlist');
   });
 });
 
@@ -3198,7 +3191,7 @@ describe('QuizEditor: letter words (27d)', () => {
     const { onSave } = open();
     fill('Назва вікторини', 'Гра');
     fill('Текст запитання', 'Складіть слова з літер');
-    click('слова з літер');
+    chooseType('letterwords');
     expect(screen.queryByLabelText('Відео з YouTube')).toBeNull();
     expect(screen.queryByLabelText(t('pointsLabel'))).toBeNull();
     click(t('lettersSourceFixed'));
@@ -3218,10 +3211,10 @@ describe('QuizEditor: letter words (27d)', () => {
   it('a blitz round has no letters chip, the board has it', () => {
     open();
     addRound('Бліц');
-    expect(screen.queryByRole('button', { name: 'слова з літер' })).toBeNull();
+    expect(typeOptions()).not.toContain('letterwords');
     click('+ Раунд');
     click('Ігрове поле');
-    screen.getByRole('button', { name: 'слова з літер' });
+    expect(typeOptions()).toContain('letterwords');
   });
 });
 
@@ -3230,7 +3223,7 @@ describe('QuizEditor: more or less (28a)', () => {
     const { onSave } = open();
     fill('Назва вікторини', 'Гра');
     fill('Текст запитання', 'Порівняйте');
-    click('більше чи менше');
+    chooseType('moreless');
     expect(screen.queryByLabelText('Відео з YouTube')).toBeNull();
     // Бафів у типу немає — і підказки для них теж.
     expect(screen.queryByLabelText(t('hintLabel'))).toBeNull();
@@ -3271,10 +3264,10 @@ describe('QuizEditor: more or less (28a)', () => {
   it('a blitz round has no more or less chip, the board has it', () => {
     open();
     addRound('Бліц');
-    expect(screen.queryByRole('button', { name: 'більше чи менше' })).toBeNull();
+    expect(typeOptions()).not.toContain('moreless');
     click('+ Раунд');
     click('Ігрове поле');
-    screen.getByRole('button', { name: 'більше чи менше' });
+    expect(typeOptions()).toContain('moreless');
   });
 });
 
@@ -3283,14 +3276,14 @@ describe('QuizEditor: code quest round (29g)', () => {
   const pick = (index: number) => fireEvent.click(document.querySelectorAll('.question-item')[index]!);
   const fillQuestion = (text: string) => {
     fill('Текст запитання', text);
-    fireEvent.click(screen.getByRole('button', { name: 'так чи ні' }));
+    chooseType('boolean');
   };
 
   it('creates a quest round with a code, an order, tries and a bonus', async () => {
     const { onSave } = open();
     fill('Назва вікторини', 'Гра');
     fill('Текст запитання', 'Перше?');
-    fireEvent.click(screen.getByRole('button', { name: 'так чи ні' }));
+    chooseType('boolean');
     addRound('Квест із кодом');
     fireEvent.click(settingsBlock());
     fill(t('questPromptLabel'), 'Нічний птах — символ мудрості (4 літери)');
@@ -3458,7 +3451,7 @@ describe('QuizEditor: think round (35)', () => {
     const { onSave } = open();
     fill('Назва вікторини', 'Гра');
     fill('Текст запитання', 'Перше?');
-    fireEvent.click(screen.getByRole('button', { name: 'так чи ні' }));
+    chooseType('boolean');
     addRound('Думай інакше');
     fireEvent.click(screen.getAllByText('Налаштування раунду')[0]);
     expect((screen.getByLabelText(t('thinkLivesLabel')) as HTMLInputElement).value).toBe('3');
@@ -3469,8 +3462,7 @@ describe('QuizEditor: think round (35)', () => {
     expect(document.querySelectorAll('.question-item')).toHaveLength(3);
     for (const item of document.querySelectorAll('.question-item-type')) expect(item.textContent).toBe(t('typeShort_think'));
     // Меню типу — лише «Слово на тему», ціни немає.
-    const chips = within(screen.getByRole('group', { name: t('questionType') })).getAllByRole('button');
-    expect(chips.map((chip) => chip.textContent)).toEqual([t('typeShort_think')]);
+    expect(typeOptions()).toEqual(['think']);
     expect(screen.queryByLabelText(t('pointsLabel'))).toBeNull();
     expect(screen.getByText(t('thinkNoWordsNote'))).toBeTruthy();
     fill('Текст запитання', 'Напишіть колір веселки');
