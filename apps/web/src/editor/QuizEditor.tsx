@@ -101,7 +101,9 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
   /** Панель «⚠ N» відкрита. */
   const [issuesOpen, setIssuesOpen] = useState(false);
   /** Куди прокрутити й поставити фокус після переходу до місця проблеми (селектор цілі). */
-  const [jump, setJump] = useState<{ selector: string } | null>(null);
+  /** selector — ціль; within — де вона має бути (напр. панель саме тієї клітинки): поки її немає, дочірній ще не перемкнувся. */
+  const [jump, setJump] = useState<{ selector: string; within?: string } | null>(null);
+  const issuesButtonRef = useRef<HTMLButtonElement>(null);
   const titleRef = useRef<HTMLInputElement>(null);
   const headRef = useRef<HTMLDivElement>(null);
   const [saving, setSaving] = useState(false);
@@ -185,14 +187,36 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
   const titleError = visible.shown.find(({ place }) => place.kind === 'title')?.text ?? null;
 
   // Після переходу до місця: прокрутити ціль у поле зору й поставити фокус на її перше поле.
+  // Шукаємо ціль у кадрі після коміту: дочірні (BoardEditor) перемикають клітинку у власному ефекті, тож чекаємо до кількох кадрів.
   useEffect(() => {
     if (jump === null) return;
-    setJump(null);
-    const target = document.querySelector<HTMLElement>(jump.selector);
-    if (target === null) return;
-    target.scrollIntoView?.({ block: 'center' });
-    target.querySelector<HTMLElement>('input, textarea, select')?.focus();
+    let frame = 0;
+    let tries = 0;
+    const attempt = () => {
+      const scope = jump.within === undefined ? document : document.querySelector<HTMLElement>(jump.within);
+      const target = scope?.querySelector<HTMLElement>(jump.selector) ?? (scope instanceof HTMLElement ? scope : null);
+      if (target === null) {
+        tries += 1;
+        if (tries < 10) frame = requestAnimationFrame(attempt);
+        else setJump(null);
+        return;
+      }
+      setJump(null);
+      // Згорнута картка (напр. «Медіа») — розгорнути, щоб поле було видно й у нього можна було поставити фокус.
+      if (target instanceof HTMLDetailsElement && !target.open) target.open = true;
+      target.scrollIntoView?.({ block: 'center' });
+      const field = target.matches('input, textarea, select') ? target : target.querySelector<HTMLElement>('input, textarea, select');
+      field?.focus();
+    };
+    frame = requestAnimationFrame(attempt);
+    return () => cancelAnimationFrame(frame);
   }, [jump]);
+
+  // Зауважень не лишилося: панель закрита, щоб не відкритися самій, коли вони з'являться знову.
+  const anyIssues = errors.length + reminders.length > 0;
+  useEffect(() => {
+    if (!anyIssues) setIssuesOpen(false);
+  }, [anyIssues]);
 
   // Закриття вкладки чи перезавантаження з незбереженими змінами: браузер перепитає.
   useEffect(() => {
@@ -365,12 +389,23 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
     if (card === 'duels') setDuelsOpen(true);
   };
 
+  const focusTitle = () => {
+    titleRef.current?.scrollIntoView?.({ block: 'center' });
+    titleRef.current?.focus();
+  };
+
+  /** Закриття панелі кнопкою чи Esc: фокус повертається на кнопку «⚠ N» (якщо він не пішов деінде). */
+  const closeIssues = () => {
+    setIssuesOpen(false);
+    const active = document.activeElement;
+    if (active === null || active === document.body || active.closest('.issues') !== null) issuesButtonRef.current?.focus();
+  };
+
   /** Перехід до місця проблеми чи нагадування: вкладка, раунд, запитання чи клітинка, потрібна картка. */
   const goTo = (place: IssuePlace) => {
     setIssuesOpen(false);
     if (place.kind === 'title') {
-      titleRef.current?.scrollIntoView?.({ block: 'center' });
-      titleRef.current?.focus();
+      focusTitle();
       return;
     }
     if (place.kind === 'general') {
@@ -390,10 +425,10 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
       setJump({ selector: `.editor-stage [data-card="${place.card}"]` });
     } else if (place.kind === 'cell') {
       setBoardFocus({ category: place.category, index: place.index });
-      setJump({ selector: `.editor-stage [data-card="${place.card}"]` });
+      setJump({ selector: `[data-card="${place.card}"]`, within: `.editor-stage section.board-panel[aria-label="${t('boardCellPanel', { index: place.index + 1, category: place.category + 1 })}"]` });
     } else {
       setBoardFocus({ category: place.category, index: 0 });
-      setJump({ selector: '.editor-stage' });
+      setJump({ selector: 'input.board-edit-title', within: `.editor-stage .board-column:nth-child(${place.category + 1})` });
     }
   };
 
@@ -428,6 +463,8 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
       const tabs = found.map((problem) => tabOf(problem.place));
       if (tabs.includes('rounds')) showTab('rounds');
       else if (tabs.includes('general')) showTab('general');
+      // Лише назва: показати й поставити фокус у її поле.
+      else focusTitle();
       return;
     }
     setSaveFailed(false);
@@ -486,6 +523,7 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
             <button
               type="button"
               className={errors.length > 0 ? 'btn btn-small issues-button has-errors' : 'btn btn-small issues-button'}
+              ref={issuesButtonRef}
               aria-expanded={issuesOpen}
               aria-controls="editor-issues"
               // Інакше натискання закрило б панель як «клік поза нею», а клік — одразу відкрив би знову.
@@ -496,7 +534,7 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
             </button>
           )}
           {issuesOpen && errors.length + reminders.length > 0 && (
-            <IssuesPanel id="editor-issues" errors={errors} reminders={reminders} onGo={goTo} onClose={() => setIssuesOpen(false)} />
+            <IssuesPanel id="editor-issues" errors={errors} reminders={reminders} onGo={goTo} onClose={closeIssues} />
           )}
         </div>
       </div>

@@ -3770,7 +3770,7 @@ describe('issues (74)', () => {
     expect(issuesButton().textContent).toBe('⚠ Помилок: 3 · нагадувань: 0');
   });
 
-  it('jumps from a row to the question, the cell and the round settings', () => {
+  it('jumps from a row to the question, the cell and the round settings', async () => {
     // Запитання.
     open(filled([answered('Перше?'), { ...newQuestion('single'), text: '' }]));
     fireEvent.click(itemOf(1));
@@ -3792,6 +3792,9 @@ describe('issues (74)', () => {
     open(filled([answered('Перше?')], { rounds: [{ ...newClassicRound(), questions: [answered('Перше?')] }, board] }));
     fireEvent.click(openPanel().getByRole('button', { name: /Категорія 2/ }));
     expect(screen.getByRole('region', { name: 'Клітинка 3 категорії 2' })).toBeTruthy();
+    // Фокус — у редакторі саме цієї клітинки, а не попередньої.
+    await waitFor(() => expect(document.activeElement?.closest('section.board-panel')?.getAttribute('aria-label')).toBe('Клітинка 3 категорії 2'));
+    expect((document.activeElement as HTMLTextAreaElement).value).toBe('');
     cleanup();
 
     // Налаштування раунду: рівні драбини.
@@ -3844,6 +3847,42 @@ describe('issues (74)', () => {
     expect(onSave).not.toHaveBeenCalled();
     expect(screen.getByRole('tab', { name: /Загальне/ }).getAttribute('aria-selected')).toBe('true');
     expect((document.querySelector('details.spares') as HTMLDetailsElement).open).toBe(true);
+  });
+
+  it('a jump to a media problem unfolds the media card', async () => {
+    const audio = { source: 'file' as const, url: '/uploads/cccccccccccccccc.mp3', start: 0, duration: 500 };
+    open(filled([{ ...answered('Перше?'), audio }]));
+    const media = () => document.querySelector('.editor-stage details[data-card="media"]') as HTMLDetailsElement;
+    media().open = false;
+    fireEvent(media(), new Event('toggle'));
+    expect(media().open).toBe(false);
+    fireEvent.click(openPanel().getByRole('button', { name: /аудіо/ }));
+    await waitFor(() => expect(media().open).toBe(true));
+  });
+
+  it('closing the panel returns the focus to its button; an empty list leaves it closed', () => {
+    open(filled([answered('Перше?')], { description: '' }));
+    fireEvent.click(issuesButton());
+    fireEvent.click(panel().getByRole('button', { name: t('issuesClose') }));
+    expect(document.activeElement).toBe(issuesButton());
+    fireEvent.click(issuesButton());
+    fireEvent.keyDown(document.body, { key: 'Escape' });
+    expect(document.querySelector('.issues-panel')).toBeNull();
+    expect(document.activeElement).toBe(issuesButton());
+    // Панель відкрита, зауважень не стало — і коли вони повернуться, вона сама не відкриється.
+    fireEvent.click(issuesButton());
+    openTab('general');
+    fill(t('quizDescription'), 'Про все');
+    expect(issuesButton().textContent).toBe(t('issuesNone'));
+    fill(t('quizDescription'), '');
+    expect(document.querySelector('.issues-panel')).toBeNull();
+  });
+
+  it('a save with only the title missing puts the focus into the title', () => {
+    const { onSave } = open(filled([answered('Перше?')], { title: '' }));
+    click('Зберегти');
+    expect(onSave).not.toHaveBeenCalled();
+    expect(document.activeElement).toBe(screen.getByLabelText('Назва вікторини'));
   });
 
   it('a reminder never blocks saving', async () => {
