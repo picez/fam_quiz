@@ -1826,6 +1826,17 @@ describe('StageScreen: «Як грати»', () => {
   });
 });
 
+describe('StageScreen: skip the guide vote', () => {
+  const guide = { page: 0, pages: [{ kind: 'phone' as const }] };
+  it('stage shows who wants to skip once someone voted', () => {
+    show(view({ phase: 'guide', guide: { ...guide, skip: { votes: 1, of: 3 } }, autopilot: true }));
+    expect(screen.getByText('Хочуть пропустити: 1 з 3')).toBeTruthy();
+    cleanup();
+    show(view({ phase: 'guide', guide: { ...guide, skip: { votes: 0, of: 3 } }, autopilot: true }));
+    expect(screen.queryByText(/Хочуть пропустити/)).toBeNull();
+  });
+});
+
 describe('StageScreen: explanations for newcomers', () => {
   const round: RoundInfo = { index: 0, total: 2, title: 'Поле', type: 'board', partial: false, description: '', brief: emptyBrief('board'), times: null };
   it('the intro has the round reminder only with explanations on', () => {

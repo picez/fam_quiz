@@ -30517,3 +30517,25 @@ details.editor-card > summary {
   margin: 0.25rem 0 0;
   font-size: 0.875rem;
 }
+
+/* 75: «Пропустити пояснення» — кнопка й рядок під сторінкою «Як грати»; на сцені лише рядок великим кеглем. */
+.guide-skip {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+.guide-skip-button {
+  width: 100%;
+}
+.guide-skip-button[aria-pressed='true'] {
+  opacity: 0.85;
+}
+.guide-skip-count {
+  margin: 0;
+  text-align: center;
+}
+.guide-skip.is-stage .guide-skip-count {
+  font-size: 1.5rem;
+}
