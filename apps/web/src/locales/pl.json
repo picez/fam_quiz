@@ -5644,6 +5644,7 @@
   "editorTabErrors": "Błędy: {count}",
   "requiredMark": "pole wymagane",
   "issuesButton": "⚠ Błędy: {errors} · przypomnienia: {reminders}",
+  "issuesRemindersOnly": "ⓘ Przypomnienia: {reminders}",
   "issuesNone": "✓ Wszystko wypełnione",
   "issuesTitle": "Uwagi",
   "issuesErrors": "Nie pozwolą zapisać",

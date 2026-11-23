@@ -125,6 +125,8 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
   };
   /** Клітинка поля, яку треба показати після невдалого збереження. */
   const [boardFocus, setBoardFocus] = useState<{ category: number; index: number } | null>(null);
+  /** Остання вибрана клітинка кожного поля (за id раунду): перемикання вкладок і раундів її не скидає. */
+  const boardPicks = useRef(new Map<string, { category: number; index: number }>());
   /** Запитання, яке зараз перетягують у списку. */
   const dragged = useRef<number | null>(null);
   const { rounds, settings } = quiz;
@@ -492,11 +494,12 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
 
       <section className="editor-quiz">
         <label className="field">
-          <span>{t('quizTitle')}</span>
+          <span className="is-required">{t('quizTitle')}</span>
           <input
             ref={titleRef}
             value={quiz.title}
             maxLength={120}
+            aria-required="true"
             aria-invalid={titleError !== null ? true : undefined}
             aria-describedby={titleError !== null ? 'editor-title-error' : undefined}
             onChange={(event) => {
@@ -522,7 +525,8 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
           ) : (
             <button
               type="button"
-              className={errors.length > 0 ? 'btn btn-small issues-button has-errors' : 'btn btn-small issues-button'}
+              // Червона рамка — лише коли якусь помилку вже видно (торкнуте місце; після спроби зберегти видно всі), не на свіжій вікторині.
+              className={visible.shown.length > 0 ? 'btn btn-small issues-button has-errors' : 'btn btn-small issues-button'}
               ref={issuesButtonRef}
               aria-expanded={issuesOpen}
               aria-controls="editor-issues"
@@ -530,7 +534,7 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
               onPointerDown={(event) => event.stopPropagation()}
               onClick={() => setIssuesOpen(!issuesOpen)}
             >
-              {t('issuesButton', { errors: errors.length, reminders: reminders.length })}
+              {errors.length === 0 ? t('issuesRemindersOnly', { reminders: reminders.length }) : t('issuesButton', { errors: errors.length, reminders: reminders.length })}
             </button>
           )}
           {issuesOpen && errors.length + reminders.length > 0 && (
@@ -837,6 +841,12 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
                 key={round.id}
                 round={round}
                 focus={boardFocus}
+                initialPick={boardPicks.current.get(round.id)}
+                onPick={(cell) => {
+                  boardPicks.current.set(round.id, cell);
+                  // Перехід уже виконано: інакше при наступному монтуванні поле знову стрибнуло б на стару ціль.
+                  setBoardFocus(null);
+                }}
                 roomForMore={total < LIMITS.maxQuizQuestions}
                 roomForCategory={total + LIMITS.minCategoryQuestions <= LIMITS.maxQuizQuestions}
                 swapOn={settings.buffs?.includes('swap') ?? false}

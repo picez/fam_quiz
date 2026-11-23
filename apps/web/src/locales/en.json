@@ -5543,6 +5543,7 @@
   "editorTabErrors": "Errors: {count}",
   "requiredMark": "required field",
   "issuesButton": "⚠ Errors: {errors} · reminders: {reminders}",
+  "issuesRemindersOnly": "ⓘ Reminders: {reminders}",
   "issuesNone": "✓ All filled in",
   "issuesTitle": "Remarks",
   "issuesErrors": "Will block saving",

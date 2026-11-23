@@ -548,6 +548,7 @@ const uk = {
   editorTabErrors: 'Помилок: {count}',
   requiredMark: 'обов’язкове поле',
   issuesButton: '⚠ Помилок: {errors} · нагадувань: {reminders}',
+  issuesRemindersOnly: 'ⓘ Нагадувань: {reminders}',
   issuesNone: '✓ Усе заповнено',
   issuesTitle: 'Зауваження',
   issuesErrors: 'Не дадуть зберегти',

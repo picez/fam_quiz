@@ -56,9 +56,11 @@ export function RoundStrip({ rounds, selected, onSelect, onAdd, onRename, onMove
   const options: ComboOption<string>[] = rounds.map((round, index) => {
     const notReady = round.type === 'board' ? boardReadiness(round).notReady : 0;
     const name = roundLabel(round.title, index, round.type);
+    // Без назви ім'я вже називає тип (напр. «Фінал»): не повторювати його в дужках. «Раунд N» тип не називає — лишаємо.
+    const typeShown = round.title.trim() !== '' || name === t('roundN', { index: index + 1 });
     return {
       value: round.id,
-      label: `${index + 1} · ${name} (${t(ROUND_NAMES[round.type])})`,
+      label: `${index + 1} · ${name}${typeShown ? ` (${t(ROUND_NAMES[round.type])})` : ''}`,
       icon: ROUND_ICONS[round.type],
       ...(notReady > 0 ? { badge: countText('boardNotReady', notReady, { count: notReady }) } : {}),
       ...(flagged?.has(index) ? { note: t('markError') } : {}),

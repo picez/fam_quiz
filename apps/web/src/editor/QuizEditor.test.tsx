@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { LIMITS, quizSchema, roundQuestions, rulesOf, type BoardRound, type Question, type Quiz } from '@quiz/shared';
 import { t } from '../i18n';
 import { chooseRound, chooseType, currentTypeLabel, openTab, roundAction, roundNames, showProblems, typeOptions } from './editor-testing';
-import { newBetsRound, newBlitzRound, newBoardRound, newClassicRound, newLadderRound, newQuestion, newQuiz, newSurvivalRound, newThinkRound, newTruthRound } from './draft';
+import { newBetsRound, newBlitzRound, newBoardRound, newClassicRound, newFinalRound, newLadderRound, newQuestion, newQuiz, newSurvivalRound, newThinkRound, newTruthRound } from './draft';
 import { RoundSettings } from './RoundSettings';
 import { QuizEditor } from './QuizEditor';
 import { getGroup, getGroupItems, getGroups } from '../api';
@@ -1193,6 +1193,8 @@ describe('QuizEditor board focus and limits', () => {
   it('does not jump back to the old problem cell after switching rounds', () => {
     open(brokenBoard());
     click('Зберегти');
+    // Автор сам вибрав іншу клітинку: повернення до поля відкриває її, а не стару проблемну (74: вибір запам'ятовується).
+    fireEvent.click(screen.getByRole('button', { name: /^Категорія 1, клітинка 1:/ }));
     chooseRound('Раунд 2');
     chooseRound('Ігрове поле');
     expect(screen.getByRole('region', { name: 'Клітинка 1 категорії 1' })).toBeTruthy();
@@ -2886,6 +2888,12 @@ describe('round bar (74)', () => {
     expect((screen.getByLabelText('Текст запитання') as HTMLTextAreaElement).value).toBe('Друге?');
   });
 
+  it('does not repeat the type of an untitled round in brackets', () => {
+    open({ ...newQuiz(), title: 'Гра', rounds: [newClassicRound(), newFinalRound()] });
+    chooseRound('Фінал');
+    expect(screen.getByRole('button', { name: 'Раунд: 2 · Фінал' })).toBeTruthy();
+  });
+
   it('shows the not-ready badge of a board round', () => {
     open({ ...newQuiz(), title: 'Гра', rounds: [newBoardRound(), newClassicRound()] });
     fireEvent.click(screen.getByRole('button', { name: /^Раунд: / }));
@@ -3760,6 +3768,43 @@ describe('issues (74)', () => {
     open();
     expect(issuesButton().textContent).toBe('⚠ Помилок: 2 · нагадувань: 1');
     expect(document.querySelector('.has-error')).toBeNull();
+    // Лічильник на свіжій вікторині теж не червоний (§6): рамка — лише коли помилку вже видно.
+    expect(issuesButton().classList.contains('has-errors')).toBe(false);
+    click('Зберегти');
+    expect(issuesButton().classList.contains('has-errors')).toBe(true);
+  });
+
+  it('turns the counter red once a touched place shows its error', () => {
+    open(filled([answered('Перше?')]));
+    fill('Назва вікторини', '');
+    expect(issuesButton().classList.contains('has-errors')).toBe(false);
+    fireEvent.blur(screen.getByLabelText('Назва вікторини'));
+    expect(issuesButton().classList.contains('has-errors')).toBe(true);
+  });
+
+  it('shows only reminders, neutral, when there are no errors', () => {
+    open(filled([answered('Перше?')], { description: '' }));
+    expect(issuesButton().textContent).toBe('ⓘ Нагадувань: 1');
+    expect(issuesButton().classList.contains('has-errors')).toBe(false);
+  });
+
+  it('marks the quiz title as required', () => {
+    open();
+    const input = screen.getByLabelText('Назва вікторини');
+    expect(input.getAttribute('aria-required')).toBe('true');
+    expect(input.closest('label')!.querySelector('.is-required')).not.toBeNull();
+  });
+
+  it('keeps the picked board cell when switching tabs and rounds', () => {
+    open({ ...newQuiz(), title: 'Гра', rounds: [newBoardRound(), newClassicRound()] });
+    fireEvent.click(screen.getAllByRole('button', { name: /^Категорія 2, / })[1]!);
+    expect(screen.getByRole('region', { name: 'Клітинка 2 категорії 2' })).toBeTruthy();
+    openTab('general');
+    openTab('rounds');
+    expect(screen.getByRole('region', { name: 'Клітинка 2 категорії 2' })).toBeTruthy();
+    chooseRound('Раунд 2');
+    chooseRound('Ігрове поле');
+    expect(screen.getByRole('region', { name: 'Клітинка 2 категорії 2' })).toBeTruthy();
   });
 
   it('says everything is filled in when nothing is left', () => {

@@ -5543,6 +5543,7 @@
   "editorTabErrors": "Fehler: {count}",
   "requiredMark": "Pflichtfeld",
   "issuesButton": "⚠ Fehler: {errors} · Hinweise: {reminders}",
+  "issuesRemindersOnly": "ⓘ Hinweise: {reminders}",
   "issuesNone": "✓ Alles ausgefüllt",
   "issuesTitle": "Anmerkungen",
   "issuesErrors": "Verhindern das Speichern",

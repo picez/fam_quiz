@@ -168,7 +168,9 @@ async function editor50() {
   const warning = host.getByText(LEAK50, exact);
   await warning.waitFor();
   expect(await host.getByRole('button', { name: 'Зберегти', ...exact }).isEnabled(), 'save with a leaking hint').toBe(true);
-  expect(await host.locator('.problems').count(), 'a blocking problem for a leaking hint').toBe(0);
+  // Підказка, що видає слово, — лише нагадування: лічильник без помилок і не червоний.
+  expect(await host.locator('.issues-button').getAttribute('class'), 'a blocking problem for a leaking hint').not.toContain('has-errors');
+  expect((await host.locator('.issues-button').textContent())?.trim(), 'no errors for a leaking hint').toMatch(/^ⓘ Нагадувань: \d+$/);
   await host.setViewportSize({ width: 360, height: 800 });
   await field(host, HINT_FIELD50).scrollIntoViewIfNeeded();
   expect(await noSideScroll(host), 'the editor scrolls sideways at 360 px').toBe(true);

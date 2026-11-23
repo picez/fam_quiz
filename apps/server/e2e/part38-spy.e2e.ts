@@ -254,7 +254,7 @@ async function editor38() {
   // ── Вимкнули команди — зберігається. ──
   await editorTab(host, 'Загальне');
   await teams.getByRole('checkbox', { name: 'Грати командами', ...exact }).uncheck();
-  await expect.poll(async () => (await host.locator('.issues-button').textContent()) ?? '', POLL).toMatch(/Помилок: 0|Усе заповнено/);
+  await expect.poll(async () => (await host.locator('.issues-button').textContent()) ?? '', POLL).toMatch(/^ⓘ Нагадувань: \d+$|Усе заповнено/);
   await click(host, 'Зберегти');
   await host.getByRole('heading', { name: 'Шпигун 38' }).waitFor();
 

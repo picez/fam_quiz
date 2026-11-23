@@ -5620,6 +5620,7 @@
   "editorTabErrors": "Errores: {count}",
   "requiredMark": "campo obligatorio",
   "issuesButton": "⚠ Errores: {errors} · recordatorios: {reminders}",
+  "issuesRemindersOnly": "ⓘ Recordatorios: {reminders}",
   "issuesNone": "✓ Todo completado",
   "issuesTitle": "Observaciones",
   "issuesErrors": "Impedirán guardar",

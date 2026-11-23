@@ -44,6 +44,7 @@ async function layout74() {
   expect(marta.url(), 'no tab in the URL by default').not.toContain('tab=');
   expect((await issuesButton(marta).textContent())?.trim()).toBe('⚠ Помилок: 2 · нагадувань: 1');
   expect(await marta.locator('.has-error').count(), 'no red on a fresh quiz').toBe(0);
+  expect(await issuesButton(marta).getAttribute('class'), 'the counter is not red on a fresh quiz').not.toContain('has-errors');
   expect(await marta.locator('.field-error, .card-error').count(), 'no inline errors on a fresh quiz').toBe(0);
   await expectNoSideScroll(marta, '74-editor-360');
 
@@ -147,7 +148,8 @@ async function layout74() {
   await questionText(marta).fill('Яка ріка тече через Київ?');
   await field(marta, 'Варіант 1').fill('Дніпро');
   await field(marta, 'Варіант 2').fill('Дунай');
-  await expect.poll(async () => (await issuesButton(marta).textContent())?.trim(), POLL).toBe('⚠ Помилок: 0 · нагадувань: 2');
+  await expect.poll(async () => (await issuesButton(marta).textContent())?.trim(), POLL).toBe('ⓘ Нагадувань: 2');
+  expect(await issuesButton(marta).getAttribute('class'), 'reminders only are not red').not.toContain('has-errors');
   await click(marta, 'Зберегти');
   await marta.waitForURL(`${base}/quizzes`);
   const row = marta.locator('ul.quiz-list > li', { has: marta.getByRole('heading', { name: 'Ріки 74', ...exact }) });

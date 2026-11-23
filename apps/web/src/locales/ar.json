@@ -5851,6 +5851,7 @@
   "editorTabErrors": "الأخطاء: {count}",
   "requiredMark": "حقل مطلوب",
   "issuesButton": "⚠ الأخطاء: {errors} · التذكيرات: {reminders}",
+  "issuesRemindersOnly": "ⓘ التذكيرات: {reminders}",
   "issuesNone": "✓ كل شيء مكتمل",
   "issuesTitle": "ملاحظات",
   "issuesErrors": "ستمنع الحفظ",

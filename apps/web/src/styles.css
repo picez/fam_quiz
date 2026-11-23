@@ -2333,44 +2333,6 @@ a.banner {
   margin-bottom: 0.75rem;
 }
 
-.round-tabs {
-  display: flex;
-  gap: 0.375rem;
-  overflow-x: auto;
-}
-
-/* Три крапки — лише на назві: значок «не готові» завжди видно повністю. */
-.round-tab {
-  display: inline-flex;
-  flex: none;
-  align-items: center;
-  gap: 0.375rem;
-  max-width: 14rem;
-  overflow: visible;
-  white-space: nowrap;
-}
-
-.round-tab-name {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.round-tab.is-on {
-  border-color: var(--amber);
-  color: var(--amber);
-}
-
-/* Власна плашка: не зливається з жовтою рамкою й текстом вибраної вкладки. */
-.round-tab-badge {
-  flex: none;
-  padding: 0.0625rem 0.375rem;
-  border-radius: 999px;
-  background: var(--pending);
-  color: var(--stage);
-  font-size: 0.75rem;
-}
-
 .round-settings {
   margin-bottom: 0.75rem;
 }
@@ -30115,7 +30077,20 @@ table.sr-only td {
   gap: 0.5rem;
   inline-size: 100%;
   min-block-size: 2.75rem;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: inherit;
+  font: inherit;
   text-align: start;
+  cursor: pointer;
+}
+
+.combo-trigger:focus-visible {
+  border-color: var(--amber);
+  outline: 2px solid var(--amber);
+  outline-offset: 1px;
 }
 
 .combo-trigger .combo-name {
@@ -30147,6 +30122,20 @@ table.sr-only td {
 .combo-search {
   inline-size: 100%;
   box-sizing: border-box;
+  min-block-size: 2.75rem;
+  padding: 0.5rem 0.75rem;
+  border: 2px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--paper);
+  font: inherit;
+  /* Не менше 16 px: інакше iOS збільшує сторінку при фокусі. */
+  font-size: max(1rem, 16px);
+}
+
+.combo-search:focus-visible {
+  border-color: var(--amber);
+  outline: none;
 }
 
 .combo-list {
@@ -30209,7 +30198,8 @@ table.sr-only td {
     inset-inline: auto;
     inset-inline-start: 0;
     inset-block-end: auto;
-    min-inline-size: 100%;
+    /* Не вужчий за 20rem: назви типів не переносяться в бічній колонці. */
+    min-inline-size: max(100%, 20rem);
     max-inline-size: min(28rem, calc(100vw - 1rem));
     border-radius: var(--radius);
     box-shadow: 0 0.5rem 1.5rem rgba(0, 0, 0, 0.25);
@@ -30383,19 +30373,31 @@ details.editor-card > summary {
   text-align: start;
 }
 
-/* Шестірня: summary виглядає кнопкою; розгорнутий вміст займає наступний рядок. */
+/* Шестірня: згорнута — лише кнопка-summary (без рамки «.rules» навколо, щоб не було подвійної);
+   розгорнута — панель на всю ширину наступного рядка, а шестірня лишається біля правого краю, як у згорнутої. */
 .round-bar-row .round-settings {
   flex: 0 0 auto;
   margin-bottom: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
 }
 
 .round-bar-row details.round-settings[open] {
   flex-basis: 100%;
+  padding: 0.5rem 0.875rem 0.875rem;
+  border: 1px solid var(--line);
+  background: var(--surface);
+}
+
+.round-bar-row details.round-settings[open] > summary {
+  justify-self: end;
 }
 
 .round-bar-row .round-settings > summary {
   display: inline-flex;
   align-items: center;
+  gap: 0.375rem;
   min-block-size: 2.25rem;
   padding: 0.25rem 0.75rem;
   border: 1px solid var(--line);

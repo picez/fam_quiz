@@ -33,6 +33,10 @@ interface Props {
   onCellEdit?: (questionId: string) => void;
   /** Автор покинув клітинку: вибрав іншу клітинку чи категорію, або поле розмонтовано. */
   onCellLeave?: (questionId: string) => void;
+  /** Клітинка, вибрана тут минулого разу: повернення на вкладку чи раунд відкриває її знову (74). */
+  initialPick?: { category: number; index: number };
+  /** Автор вибрав клітинку (і при монтуванні — початкову). */
+  onPick?: (cell: { category: number; index: number }) => void;
 }
 
 const markText = (mark: CellMark) => (mark === 'x2' ? t('boardMarkX2') : mark === 'x3' ? t('boardMarkX3') : '');
@@ -60,12 +64,15 @@ function cellPatch(question: Question): Partial<BoardCell> {
   return { question };
 }
 
-export function BoardEditor({ round, onChange, focus = null, roomForMore = true, roomForCategory = true, swapOn = false, legacySpares = false, likes, cellIssue, onCellEdit, onCellLeave }: Props) {
+export function BoardEditor({ round, onChange, focus = null, roomForMore = true, roomForCategory = true, swapOn = false, legacySpares = false, likes, cellIssue, onCellEdit, onCellLeave, initialPick, onPick }: Props) {
   const { categories } = round;
-  const [picked, setPicked] = useState({ category: 0, index: 0 });
+  const [picked, setPicked] = useState(() => focus ?? initialPick ?? { category: 0, index: 0 });
   useEffect(() => {
     if (focus !== null) setPicked(focus);
   }, [focus]);
+  const pickRef = useRef(onPick);
+  pickRef.current = onPick;
+  useEffect(() => pickRef.current?.(picked), [picked]);
 
   const category = Math.min(picked.category, categories.length - 1);
   const { cells } = categories[category];

@@ -419,7 +419,7 @@ async function editor39() {
 
   // ── 0 — ставок немає, зберігається. ──
   await betField().fill('0');
-  await expect.poll(async () => (await host.locator('.issues-button').textContent()) ?? '', POLL).toMatch(/Помилок: 0|Усе заповнено/);
+  await expect.poll(async () => (await host.locator('.issues-button').textContent()) ?? '', POLL).toMatch(/^ⓘ Нагадувань: \d+$|Усе заповнено/);
   await click(host, 'Зберегти');
   await host.waitForURL(/\/quizzes$/);
   expect((await stored())?.betStake, 'a zero bet stake').toBe(0);
