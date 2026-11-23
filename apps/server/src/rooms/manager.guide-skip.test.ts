@@ -71,7 +71,13 @@ describe('guide skip vote (75)', () => {
     const four = guided();
     expect(four.manager.guideVote(four.room, four.others[0].playerId, true)).toEqual({ ok: true });
     expect(four.room.state.phase).toBe('guide');
+    // Голос, що дає більшість, — одна розсилка, і вже з intro: без проміжної guide з N голосами.
+    const phases: string[] = [];
+    four.manager.onEvent((r, event) => {
+      if (event.type === 'changed') phases.push(r.state.phase);
+    });
     expect(four.manager.guideVote(four.room, four.authorId, true)).toEqual({ ok: true });
+    expect(phases).toEqual(['intro']);
     expect(four.room.state.phase).toBe('intro');
     expect(four.room.state.splash?.kind).toBe(live.state.splash?.kind);
     expect(four.room.guideVotes.size).toBe(0);
@@ -148,6 +154,10 @@ describe('guide skip vote (75)', () => {
     expect(bot.state.phase).toBe('guide');
     expect(bots.guideVote(bot, ids[0], true)).toEqual({ ok: true });
     expect(bot.state.phase).toBe('guide');
+    // Пульт адміна (вигляд host) рядка голосування не має, хоч голос уже є.
+    const hostGuide = bots.view(bot, { role: 'host', playerId: null })?.guide;
+    expect(hostGuide).toBeTruthy();
+    expect(hostGuide).not.toHaveProperty('skip');
     expect(bots.adminHost(bot, { type: 'guide-skip' })).toEqual({ ok: true });
     expect(bot.state.phase).toBe('intro');
     expect(bot.guideVotes.size).toBe(0);
@@ -211,7 +221,10 @@ describe('guide skip vote (75)', () => {
     expect(back.guideVotes).toBeInstanceOf(Set);
     expect(back.guideVotes.size).toBe(0);
     for (const identity of [author, ...others.map((o) => o.identity)]) next.connect(back, identity);
-    if (back.state.paused) expect(next.author(back, authorId, { type: 'resume' })).toEqual({ ok: true });
+    // Піднята зі знімка кімната стоїть на паузі, доки автор не зніме її.
+    expect(back.state.paused).toBe(true);
+    expect(next.author(back, authorId, { type: 'resume' })).toEqual({ ok: true });
+    expect(back.state.paused).toBe(false);
     expect(skipOf(next, back, others[0].identity)).toEqual({ votes: 0, of: 3, mine: false });
     expect(next.guideVote(back, others[0].playerId, true)).toEqual({ ok: true });
     expect(back.state.phase).toBe('guide');

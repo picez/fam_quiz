@@ -1904,8 +1904,9 @@ export class RoomManager {
     if (room.guideVotes.has(playerId) === skip) return { ok: true };
     if (skip) room.guideVotes.add(playerId);
     else room.guideVotes.delete(playerId);
-    this.emit(room, { type: 'changed' });
+    // Спершу більшість: голос, що її дає, одразу веде на intro — без зайвої розсилки guide з N голосами.
     this.settleGuideVotes(room);
+    if (room.state.phase === 'guide') this.emit(room, { type: 'changed' });
     return { ok: true };
   }
 
