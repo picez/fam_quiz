@@ -3,7 +3,7 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-li
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { LIMITS, quizSchema, roundQuestions, rulesOf, type BoardRound, type Question, type Quiz } from '@quiz/shared';
 import { t } from '../i18n';
-import { chooseRound, chooseType, currentTypeLabel, openTab, roundAction, roundNames, typeOptions } from './editor-testing';
+import { chooseRound, chooseType, currentTypeLabel, openTab, roundAction, roundNames, showProblems, typeOptions } from './editor-testing';
 import { newBetsRound, newBlitzRound, newBoardRound, newClassicRound, newLadderRound, newQuestion, newQuiz, newSurvivalRound, newThinkRound, newTruthRound } from './draft';
 import { RoundSettings } from './RoundSettings';
 import { QuizEditor } from './QuizEditor';
@@ -127,7 +127,7 @@ describe('QuizEditor', () => {
     fill('Назва вікторини', 'Географія');
     click('Зберегти');
     expect(onSave).not.toHaveBeenCalled();
-    expect(screen.getByRole('alert').textContent).toContain('Запитання 1: впишіть текст запитання.');
+    expect(showProblems()).toContain('Запитання 1: впишіть текст запитання.');
   });
 
   it('shows an error returned by the save', async () => {
@@ -352,7 +352,7 @@ describe('QuizEditor: numbers as they are typed', () => {
     typeInto('Час, с', '3');
     click('Зберегти');
     expect(onSave).not.toHaveBeenCalled();
-    expect(screen.getByRole('alert').textContent).toContain('Запитання 1: час має бути від 5 до 120 секунд');
+    expect(showProblems()).toContain('Запитання 1: час має бути від 5 до 120 секунд');
   });
 });
 
@@ -374,7 +374,8 @@ describe('QuizEditor: problems and unsaved work', () => {
     click('Зберегти');
     expect(onSave).not.toHaveBeenCalled();
     const alert = screen.getByRole('alert');
-    expect(alert.textContent).toContain('Запитання 2: впишіть текст запитання.');
+    expect(alert.textContent).toContain('Не збережено — помилок: 1.');
+    expect(showProblems()).toContain('Запитання 2: впишіть текст запитання.');
     expect(alert.closest('footer')).not.toBeNull();
     expect((screen.getByLabelText('Текст запитання') as HTMLTextAreaElement).value).toBe('');
   });
@@ -961,9 +962,9 @@ describe('QuizEditor: cancelled drag', () => {
       addRound('Класичний');
       chooseRound('Раунд 1');
       click('Зберегти');
-      expect(screen.getByRole('alert').textContent).toContain('Раунд 2: Запитання 1: впишіть текст запитання.');
+      expect(showProblems()).toContain('Раунд 2: Запитання 1: впишіть текст запитання.');
       expect(screen.getByRole('button', { name: /^Раунд: 2 · Раунд 2/ })).toBeTruthy();
-      expect(screen.getByRole('button', { name: /Запитання 1/ }).getAttribute('aria-current')).toBe('true');
+      expect(screen.getByRole('button', { name: /^Запитання 1 / }).getAttribute('aria-current')).toBe('true');
     });
 
     it('edits the rules of a round and saves them', async () => {
@@ -1162,7 +1163,7 @@ describe('QuizEditor board rounds', () => {
     expect(screen.queryByRole('button', { name: 'Додати запитання' })).toBeNull();
     fill('Назва вікторини', 'Гра');
     click('Зберегти');
-    expect(screen.getByRole('alert').textContent).toContain('Категорія 1: немає назви.');
+    expect(showProblems()).toContain('Категорія 1: немає назви.');
   });
 });
 
@@ -1453,6 +1454,7 @@ describe('QuizEditor: word ladder questions (26c)', () => {
     await new Promise((resolve) => setTimeout(resolve, 800));
     expect(checks()).toHaveLength(0);
     click('Зберегти');
+    showProblems();
     await waitFor(() => expect(screen.getAllByText(t('problemWordLadderStep', { index: 1 })).length).toBeGreaterThan(0));
     expect(onSave).not.toHaveBeenCalled();
 
@@ -1659,7 +1661,7 @@ describe('QuizEditor duels', () => {
     fillPool();
     fill('Запитань за дуель', '4');
     click('Зберегти');
-    await waitFor(() => expect(document.querySelector('.problems')).not.toBeNull());
+    await waitFor(() => expect(showProblems()).not.toBe(''));
     expect(document.querySelector('.problems')!.textContent).toContain('Дуелі, «Столиці»: замало запитань — потрібно щонайменше 4.');
     expect((screen.getByText('Дуелі', { selector: '.editor-card-title' }).closest('details') as HTMLDetailsElement).open).toBe(true);
     expect(onSave).not.toHaveBeenCalled();
@@ -1672,7 +1674,7 @@ describe('QuizEditor duels', () => {
     fireEvent.click(duelsToggle());
     fillPool();
     click('Зберегти');
-    await waitFor(() => expect(document.querySelector('.problems')).not.toBeNull());
+    await waitFor(() => expect(showProblems()).not.toBe(''));
     expect(document.querySelector('.problems')!.textContent).toContain(t('problemDuelUnreachable', { needed: 1 }));
     expect((screen.getByText('Дуелі', { selector: '.editor-card-title' }).closest('details') as HTMLDetailsElement).open).toBe(true);
     expect(onSave).not.toHaveBeenCalled();
@@ -1730,7 +1732,7 @@ describe('QuizEditor hints and spares', () => {
     expect(buffs().getAllByRole('checkbox').filter((box) => (box as HTMLInputElement).checked)).toHaveLength(14);
     expect(screen.getByText(t('powersSwapNeedsSpares'))).toBeTruthy();
     click('Зберегти');
-    await waitFor(() => expect(document.querySelector('.problems')).not.toBeNull());
+    await waitFor(() => expect(showProblems()).not.toBe(''));
     expect(onSave).not.toHaveBeenCalled();
     expect(document.querySelector('.problems')!.textContent).toContain(t('problemSparesEmpty'));
     expect((screen.getByText(t('sparesTitle'), { selector: '.editor-card-title' }).closest('details') as HTMLDetailsElement).open).toBe(true);
@@ -1776,7 +1778,7 @@ describe('QuizEditor hints and spares', () => {
     const { onSave } = open({ ...quiz, settings: { ...quiz.settings, buffs: ['swap'] } });
     click('Зберегти');
     expect(onSave).not.toHaveBeenCalled();
-    expect(screen.getByRole('alert').textContent).toContain(t('problemSparesEmpty'));
+    expect(showProblems()).toContain(t('problemSparesEmpty'));
   });
 
   it('a question hint is optional; an empty one is not saved', async () => {
@@ -2203,6 +2205,7 @@ describe('QuizEditor: wall, poll and word cloud (10d)', () => {
     screen.getByLabelText('Помилок до замикання');
     expect(screen.queryByLabelText('Відео з YouTube')).toBeNull();
     click('Зберегти');
+    showProblems();
     await waitFor(() => expect(screen.getAllByText(t('problemWallEmpty', { index: 1 })).length).toBeGreaterThan(0));
     expect(onSave).not.toHaveBeenCalled();
     for (let g = 1; g <= 4; g += 1) {
@@ -2231,6 +2234,7 @@ describe('QuizEditor: wall, poll and word cloud (10d)', () => {
       for (let k = 1; k <= 4; k += 1) fireEvent.change(within(card).getByLabelText(`Плитка ${k}`), { target: { value: g === 2 && k === 1 ? ' т11 ' : `Т${g}${k}` } });
     }
     click('Зберегти');
+    showProblems();
     await waitFor(() => expect(screen.getAllByText(t('problemWallDuplicate', { index: 1, tile: 'т11' })).length).toBeGreaterThan(0));
     expect(onSave).not.toHaveBeenCalled();
   });
@@ -2306,6 +2310,7 @@ describe('QuizEditor: «100 до 1» (10e)', () => {
     expect(screen.getAllByRole('group', { name: /^Рядок \d$/ })).toHaveLength(5);
     expect((screen.getByLabelText('Відповідей від гравця') as HTMLInputElement).value).toBe('3');
     click('Зберегти');
+    showProblems();
     await waitFor(() => expect(screen.getAllByText(t('problemSurveyRows', { index: 1, surveyMin: 4 })).length).toBeGreaterThan(0));
     expect(onSave).not.toHaveBeenCalled();
     fillRows(4);
@@ -2333,6 +2338,7 @@ describe('QuizEditor: «100 до 1» (10e)', () => {
     fillRows(5);
     screen.getByText(/^Разом: 150 зі 100/);
     click('Зберегти');
+    showProblems();
     await waitFor(() => expect(screen.getAllByText(t('problemSurveyTotal', { index: 1, total: 150 })).length).toBeGreaterThan(0));
     expect(onSave).not.toHaveBeenCalled();
   });
@@ -2360,6 +2366,7 @@ describe('QuizEditor: «100 до 1» (10e)', () => {
     const quiz = { ...newQuiz(), title: 'Гра', rounds: [{ ...newClassicRound(), questions: [survey, cloud] }] };
     const { onSave } = open(quiz);
     click('Зберегти');
+    showProblems();
     await waitFor(() => expect(screen.getAllByText(t('problemSurveyCloud', { index: 1 })).length).toBeGreaterThan(0));
     expect(onSave).not.toHaveBeenCalled();
   });
@@ -2403,6 +2410,7 @@ describe('QuizEditor: bluff (10f)', () => {
     expect((screen.getByLabelText('Час на вибір, с') as HTMLInputElement).value).toBe('30');
     expect(screen.queryByLabelText('Час, с')).toBeNull();
     click('Зберегти');
+    showProblems();
     await waitFor(() => expect(screen.getAllByText(t('problemBluffTruth', { index: 1 })).length).toBeGreaterThan(0));
     expect(onSave).not.toHaveBeenCalled();
     fill('Правда', 'Барселона');
@@ -2424,6 +2432,7 @@ describe('QuizEditor: bluff (10f)', () => {
     fill('Запасна вигадка 1', 'барселона');
     fill('Запасна вигадка 2', 'Лондон');
     click('Зберегти');
+    showProblems();
     await waitFor(() => expect(screen.getAllByText(t('problemBluffSpareTruth', { index: 1, text: 'барселона' })).length).toBeGreaterThan(0));
     expect(onSave).not.toHaveBeenCalled();
   });
@@ -2495,7 +2504,7 @@ describe('QuizEditor: wipeout round', () => {
     fill('Назва вікторини', 'Т');
     addRound('Ва-банк');
     click('Зберегти');
-    await waitFor(() => expect(document.querySelector('.problems')).not.toBeNull());
+    await waitFor(() => expect(showProblems()).not.toBe(''));
     expect(onSave).not.toHaveBeenCalled();
   });
 });
@@ -2739,7 +2748,7 @@ describe('QuizEditor: ladder round', () => {
     fireEvent.change(field(t('ladderLevel', { n: 2 })), { target: { value: '100' } });
     click('Зберегти');
     expect(onSave).not.toHaveBeenCalled();
-    expect(document.querySelector('.problems')?.textContent).toContain(t('problemLadderLevels', { max: 10000 }));
+    expect(showProblems()).toContain(t('problemLadderLevels', { max: 10000 }));
     expect((settings() as HTMLDetailsElement).open).toBe(true);
   });
 
@@ -2809,6 +2818,7 @@ describe('QuizEditor: team play', () => {
     fireEvent.click(screen.getByLabelText('Грати командами'));
     fill('Назва команди 2', '  червоні ');
     click('Зберегти');
+    showProblems();
     expect(await screen.findByText(t('problemTeamNames'))).toBeTruthy();
     fill('Назва команди 2', '');
     click('Зберегти');
@@ -3048,6 +3058,7 @@ describe('QuizEditor: bets round (27a)', () => {
     fillQuestion('Яка гора найвища', t('betsCutNone'));
     click('Зберегти');
     expect(onSave).not.toHaveBeenCalled();
+    showProblems();
     expect(screen.getByText(t('problemBetsMax', { min: 400, max: 300 }), { exact: false })).toBeTruthy();
     fill(t('betMaxLabel'), '600');
     click('Зберегти');
@@ -3193,6 +3204,7 @@ describe('QuizEditor: truth round (28b)', () => {
     addRound('Правда про гравця');
     addRound('Правда про гравця');
     click('Зберегти');
+    showProblems();
     await waitFor(() => expect(screen.getAllByText(new RegExp(t('problemTruthOnce'))).length).toBeGreaterThan(0));
     expect(onSave).not.toHaveBeenCalled();
   });
@@ -3207,6 +3219,7 @@ describe('QuizEditor: truth round (28b)', () => {
     fill(t('truthTimeLabel'), '2');
     click('Зберегти');
     const problem = t('problemTruthNumbers', { max: LIMITS.maxPoints, min: LIMITS.minTime, maxTime: LIMITS.maxTime });
+    showProblems();
     await waitFor(() => expect(screen.getAllByText(new RegExp(problem.slice(0, 20))).length).toBeGreaterThan(0));
     expect(screen.queryByText(new RegExp(t('problemRules').slice(0, 20)))).toBeNull();
     expect(onSave).not.toHaveBeenCalled();
@@ -3255,6 +3268,7 @@ describe('QuizEditor: timed list (27c)', () => {
     expect(screen.getAllByRole('group', { name: /^Пункт \d+$/ })).toHaveLength(3);
     expect(screen.queryByLabelText('Відео з YouTube')).toBeNull();
     click('Зберегти');
+    showProblems();
     await waitFor(() => expect(screen.getAllByText(t('problemListItems', { index: 1, min: 3, max: 30 })).length).toBeGreaterThan(0));
     expect(onSave).not.toHaveBeenCalled();
     for (let n = 1; n <= 3; n += 1) fireEvent.change(itemInput(n), { target: { value: planets[n - 1] } });
@@ -3293,6 +3307,7 @@ describe('QuizEditor: letter words (27d)', () => {
     expect(screen.queryByLabelText(t('pointsLabel'))).toBeNull();
     click(t('lettersSourceFixed'));
     click('Зберегти');
+    showProblems();
     await waitFor(() => expect(screen.getAllByText(t('problemLettersSet', { index: 1, min: 4, max: 12 })).length).toBeGreaterThan(0));
     expect(onSave).not.toHaveBeenCalled();
     fill(t('lettersOwn'), ' морква острів ');
@@ -3332,6 +3347,7 @@ describe('QuizEditor: more or less (28a)', () => {
       ['Що глибше?', 'Світязь', '58 м', 'Синевир', '22 м', 'a'],
     ];
     click('Зберегти');
+    showProblems();
     await waitFor(() => expect(screen.getAllByText(t('problemMoreLessEmpty', { index: 1 })).length).toBeGreaterThan(0));
     expect(onSave).not.toHaveBeenCalled();
     rows.forEach(([prompt, a, av, b, bv, correct], at) => {
@@ -3697,5 +3713,143 @@ describe('tabs (74)', () => {
     click('Зберегти');
     await waitFor(() => expect(onSave).toHaveBeenCalled());
     expect(saved(onSave).description).toBe('Про річки');
+  });
+});
+
+describe('issues (74)', () => {
+  const issuesButton = () => document.querySelector('.issues-button') as HTMLElement;
+  const panel = () => within(screen.getByRole('region', { name: t('issuesTitle') }));
+  const openPanel = () => {
+    if (document.querySelector('.issues-panel') === null) fireEvent.click(issuesButton());
+    return panel();
+  };
+  const badge = (tab: 'general' | 'rounds') => document.getElementById(`editor-tab-${tab}`)!.querySelector('.editor-tab-badge');
+  const itemOf = (index: number) => screen.getByRole('button', { name: new RegExp(`^Запитання ${index} `) });
+  const answered = (text: string): Question => {
+    const q = newQuestion('single');
+    if (q.type !== 'single') throw new Error('single');
+    return { ...q, text, options: q.options.map((o, k) => ({ ...o, text: `В${k}` })) };
+  };
+  const filled = (questions: Question[], extra: Partial<Quiz> = {}): Quiz => ({ ...newQuiz(), title: 'Гра', description: 'Про все', rounds: [{ ...newClassicRound(), questions }], ...extra });
+
+  it('counts all errors and reminders in the header from the start without red', () => {
+    open();
+    expect(issuesButton().textContent).toBe('⚠ Помилок: 2 · нагадувань: 1');
+    expect(document.querySelector('.has-error')).toBeNull();
+  });
+
+  it('says everything is filled in when nothing is left', () => {
+    open(filled([answered('Перше?')]));
+    expect(issuesButton().textContent).toBe(t('issuesNone'));
+    expect(issuesButton().getAttribute('aria-disabled')).toBe('true');
+    fireEvent.click(issuesButton());
+    expect(document.querySelector('.issues-panel')).toBeNull();
+  });
+
+  it('badges each tab with its own errors', () => {
+    const quiz = filled([answered('Перше?')]);
+    open({ ...quiz, rounds: [...quiz.rounds, { ...newClassicRound(), questions: [answered('Друге?')] }] });
+    expect(badge('general')).toBeNull();
+    expect(badge('rounds')).toBeNull();
+    fill('Назва вікторини', '');
+    openTab('general');
+    fireEvent.click(screen.getByLabelText('Дуелі між гравцями'));
+    const section = within(screen.getByText('Дуелі', { selector: '.editor-card-title' }).closest('details')!);
+    const set = (label: string, value: string) => fireEvent.change(section.getByLabelText(label), { target: { value } });
+    set('Назва категорії', 'Столиці');
+    for (let i = 1; i <= 3; i += 1) set(`Запитання ${i}`, `Столиця ${i}?`);
+    for (const input of section.getAllByLabelText('Написання 1')) fireEvent.change(input, { target: { value: 'Київ' } });
+    fill('Запитань за дуель', '4');
+    openTab('rounds');
+    click('Додати запитання');
+    expect(badge('general')!.getAttribute('aria-label')).toBe('Помилок: 1');
+    expect(badge('general')!.textContent).toBe('⚠1');
+    expect(badge('rounds')!.getAttribute('aria-label')).toBe('Помилок: 1');
+    expect(issuesButton().textContent).toBe('⚠ Помилок: 3 · нагадувань: 0');
+  });
+
+  it('jumps from a row to the question, the cell and the round settings', () => {
+    // Запитання.
+    open(filled([answered('Перше?'), { ...newQuestion('single'), text: '' }]));
+    fireEvent.click(itemOf(1));
+    fireEvent.click(openPanel().getByRole('button', { name: 'Запитання 2: впишіть текст запитання.' }));
+    expect(itemOf(2).getAttribute('aria-current')).toBe('true');
+    expect(document.querySelector('.issues-panel')).toBeNull();
+    cleanup();
+
+    // Клітинка дошки в іншому раунді.
+    const board = newBoardRound();
+    board.categories.forEach((category, ci) => {
+      category.title = `Тема ${ci + 1}`;
+      category.cells.forEach((cell, i) => {
+        const q = cell.question;
+        if (q.type === 'single') cell.question = { ...q, text: `Питання ${ci}${i}`, options: q.options.map((o, k) => ({ ...o, text: `В${k}` })) };
+      });
+    });
+    board.categories[1].cells[2].question = { ...board.categories[1].cells[2].question, text: '' };
+    open(filled([answered('Перше?')], { rounds: [{ ...newClassicRound(), questions: [answered('Перше?')] }, board] }));
+    fireEvent.click(openPanel().getByRole('button', { name: /Категорія 2/ }));
+    expect(screen.getByRole('region', { name: 'Клітинка 3 категорії 2' })).toBeTruthy();
+    cleanup();
+
+    // Налаштування раунду: рівні драбини.
+    const ladder = newLadderRound();
+    const ladderQuestions = ladder.questions.map((q, i) => (q.type === 'single' ? { ...q, text: `Q${i}`, options: q.options.map((o, k) => ({ ...o, text: `V${k}` })) } : q));
+    open({ ...newQuiz(), title: 'Т', description: 'Про все', rounds: [{ ...ladder, questions: ladderQuestions, levels: ladder.levels.map(() => 100) }] });
+    expect((document.querySelector('details.round-settings') as HTMLDetailsElement).open).toBe(false);
+    fireEvent.click(openPanel().getByRole('button', { name: t('problemLadderLevels', { max: 10000 }) }));
+    expect((document.querySelector('details.round-settings') as HTMLDetailsElement).open).toBe(true);
+    cleanup();
+
+    // Дуелі — на вкладці «Загальне».
+    const quiz = filled([answered('Перше?')]);
+    open({ ...quiz, rounds: [...quiz.rounds, { ...newClassicRound(), questions: [answered('Друге?')] }] });
+    openTab('general');
+    fireEvent.click(screen.getByLabelText('Дуелі між гравцями'));
+    openTab('rounds');
+    fireEvent.click(openPanel().getAllByRole('button', { name: /^Дуелі/ })[0]);
+    expect(screen.getByRole('tab', { name: /Загальне/ }).getAttribute('aria-selected')).toBe('true');
+    expect((document.querySelector('details.duels') as HTMLDetailsElement).open).toBe(true);
+  });
+
+  it('the issues list follows a removed question', () => {
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    open(filled([answered('Перше?'), { ...newQuestion('single'), text: '' }, answered('Третє?')]));
+    expect(openPanel().getByRole('button', { name: 'Запитання 2: впишіть текст запитання.' })).toBeTruthy();
+    fireEvent.click(itemOf(1));
+    click('Видалити запитання 1');
+    fireEvent.click(itemOf(2));
+    expect(panel().queryByRole('button', { name: 'Запитання 2: впишіть текст запитання.' })).toBeNull();
+    fireEvent.click(panel().getByRole('button', { name: 'Запитання 1: впишіть текст запитання.' }));
+    expect(itemOf(1).getAttribute('aria-current')).toBe('true');
+  });
+
+  it('a failed save shows one line with a show button and opens the place of the first problem', () => {
+    const { onSave } = open(filled([answered('Перше?'), { ...newQuestion('single'), text: '' }]));
+    fireEvent.click(itemOf(1));
+    click('Зберегти');
+    expect(onSave).not.toHaveBeenCalled();
+    expect(screen.getByRole('alert').textContent).toContain('Не збережено — помилок: 1.');
+    expect(document.querySelector('.issues-panel')).toBeNull();
+    expect(showProblems()).toContain('Запитання 2: впишіть текст запитання.');
+    expect(itemOf(2).getAttribute('aria-current')).toBe('true');
+  });
+
+  it('a failed save on a general problem switches to the general tab and opens its card', () => {
+    const quiz = filled([answered('Перше?')]);
+    const { onSave } = open({ ...quiz, settings: { ...quiz.settings, buffs: ['swap'] } });
+    click('Зберегти');
+    expect(onSave).not.toHaveBeenCalled();
+    expect(screen.getByRole('tab', { name: /Загальне/ }).getAttribute('aria-selected')).toBe('true');
+    expect((document.querySelector('details.spares') as HTMLDetailsElement).open).toBe(true);
+  });
+
+  it('a reminder never blocks saving', async () => {
+    const { onSave } = open(filled([{ ...answered('Перше?'), timeLimit: 15 }], { description: '' }));
+    click('Зберегти');
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+    const notes = openPanel();
+    expect(document.querySelector('.issues-panel ul.reminders')!.textContent).toContain('таймер 15 с');
+    expect(notes.getByRole('button', { name: t('reminderNoDescription') })).toBeTruthy();
   });
 });

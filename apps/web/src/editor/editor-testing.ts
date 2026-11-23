@@ -73,3 +73,12 @@ export function roundAction(name: string): void {
   if (menuButton.getAttribute('aria-expanded') !== 'true') fireEvent.click(menuButton);
   fireEvent.click(screen.getByRole('menuitem', { name }));
 }
+
+/** Клікає «Показати» в нижній панелі (або кнопку в шапці) і повертає текст ul.problems панелі. */
+export function showProblems(): string {
+  if (document.querySelector('.issues-panel') === null) {
+    const show = screen.queryByRole('button', { name: t('saveBlockedShow') });
+    fireEvent.click(show ?? (document.querySelector('.issues-button') as HTMLElement));
+  }
+  return document.querySelector('.issues-panel ul.problems')?.textContent ?? '';
+}

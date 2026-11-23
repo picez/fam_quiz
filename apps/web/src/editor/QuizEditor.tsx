@@ -1,6 +1,8 @@
 import { LIMITS, allowedBuffs, questionsOf, roundQuestions, roundTrials, type Question, type QuestionBankItem, type Quiz, type QuizLikes, type Round } from '@quiz/shared';
-import { useEffect, useRef, useState } from 'react';
+import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { EditorCard } from './EditorCard';
+import { IssuesPanel } from './IssuesPanel';
+import { remindersOf } from './reminders';
 import { generalSummaries } from './summaries';
 import { questionName } from '../format';
 import { t } from '../i18n';
@@ -32,7 +34,10 @@ import {
   newClassicRound,
   newQuestion,
   placedPoints,
-  problemsOf,
+  placedProblemsOf,
+  tabOf,
+  type GeneralCard,
+  type IssuePlace,
   questionTypesFor,
   roundCapacity,
   swapGaps,
@@ -88,7 +93,16 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
   /** Панель «Банк запитань» відкрита (38f). */
   const [bankOpen, setBankOpen] = useState(false);
   const groupDrafts = useGroupDrafts();
-  const [problems, setProblems] = useState<string[]>([]);
+  /** Остання спроба зберегти не вдалася через помилки: у нижній панелі рядок «Не збережено». */
+  const [saveFailed, setSaveFailed] = useState(false);
+  /** Помилка сервера з onSave. */
+  const [serverError, setServerError] = useState<string | null>(null);
+  /** Панель «⚠ N» відкрита. */
+  const [issuesOpen, setIssuesOpen] = useState(false);
+  /** Куди прокрутити й поставити фокус після переходу до місця проблеми (селектор цілі). */
+  const [jump, setJump] = useState<{ selector: string } | null>(null);
+  const titleRef = useRef<HTMLInputElement>(null);
+  const headRef = useRef<HTMLDivElement>(null);
   const [saving, setSaving] = useState(false);
   /** Розділ «Дуелі» розгорнуто: автором або помилкою в ньому. */
   const [duelsOpen, setDuelsOpen] = useState(false);
@@ -115,6 +129,21 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
   const questions: Question[] = round.type === 'board' || round.type === 'truth' ? [] : round.questions;
   const current = questions[Math.min(selected, questions.length - 1)];
   const last = questions.length - 1;
+  // Живий підрахунок: від відкладеної копії, щоб набір тексту у великій вікторині не гальмував.
+  const deferredQuiz = useDeferredValue(quiz);
+  const errors = useMemo(() => placedProblemsOf(deferredQuiz), [deferredQuiz]);
+  const reminders = useMemo(() => remindersOf(deferredQuiz), [deferredQuiz]);
+  const tabErrors = (id: EditorTab) => errors.filter((problem) => tabOf(problem.place) === id).length;
+
+  // Після переходу до місця: прокрутити ціль у поле зору й поставити фокус на її перше поле.
+  useEffect(() => {
+    if (jump === null) return;
+    setJump(null);
+    const target = document.querySelector<HTMLElement>(jump.selector);
+    if (target === null) return;
+    target.scrollIntoView?.({ block: 'center' });
+    target.querySelector<HTMLElement>('input, textarea, select')?.focus();
+  }, [jump]);
 
   // Закриття вкладки чи перезавантаження з незбереженими змінами: браузер перепитає.
   useEffect(() => {
@@ -127,7 +156,8 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
   const update = (next: Quiz) => {
     setQuiz(next);
     setDirty(true);
-    setProblems([]);
+    setSaveFailed(false);
+    setServerError(null);
     onDraft?.(next);
   };
   const setRounds = (next: Quiz['rounds']) => update({ ...quiz, rounds: next });
@@ -266,28 +296,65 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
     selectRound(Math.max(0, index === rounds.length - 1 ? index - 1 : index));
   };
 
+  /** Відкриває розділ «Загального» з цією карткою (згортані — розгортає). */
+  const openGeneralCard = (card: GeneralCard) => {
+    if (card === 'powers') setPowersOpen(true);
+    if (card === 'spares') setSparesOpen(true);
+    if (card === 'duels') setDuelsOpen(true);
+  };
+
+  /** Перехід до місця проблеми чи нагадування: вкладка, раунд, запитання чи клітинка, потрібна картка. */
+  const goTo = (place: IssuePlace) => {
+    setIssuesOpen(false);
+    if (place.kind === 'title') {
+      titleRef.current?.scrollIntoView?.({ block: 'center' });
+      titleRef.current?.focus();
+      return;
+    }
+    if (place.kind === 'general') {
+      showTab('general');
+      openGeneralCard(place.card);
+      setJump({ selector: `#editor-card-${place.card}` });
+      return;
+    }
+    showTab('rounds');
+    if (place.kind === 'quiz') return;
+    selectRound(Math.min(place.round, rounds.length - 1));
+    if (place.kind === 'round') {
+      if (place.settings) setSettingsOpen(true);
+      setJump({ selector: '.round-bar-row' });
+    } else if (place.kind === 'question') {
+      setSelected(place.question);
+      setJump({ selector: `.editor-stage [data-card="${place.card}"]` });
+    } else if (place.kind === 'cell') {
+      setBoardFocus({ category: place.category, index: place.index });
+      setJump({ selector: `.editor-stage [data-card="${place.card}"]` });
+    } else {
+      setBoardFocus({ category: place.category, index: 0 });
+      setJump({ selector: '.editor-stage' });
+    }
+  };
+
+  /** «Показати» в нижній панелі: відкриває панель і прокручує шапку в поле зору. */
+  const showIssues = () => {
+    setIssuesOpen(true);
+    headRef.current?.scrollIntoView?.({ block: 'nearest' });
+  };
+
   const cancel = () => {
     if (dirty && !window.confirm(t('discardConfirm'))) return;
     onCancel();
   };
 
   const save = async () => {
-    const found = problemsOf(quiz);
-    setProblems(found);
+    const found = placedProblemsOf(quiz);
+    setServerError(null);
     if (found.length > 0) {
-      if (found.some((problem) => problem.startsWith(t('duelsTitle')))) setDuelsOpen(true);
-      // Помилка в питанні на виживання лежить у налаштуваннях раунду: відкриваємо їх.
-      const trialPrefix = t('problemSurvivalTrial', { index: 0, problem: '' }).split('0')[0];
-      if (found.some((problem) => problem.includes(trialPrefix) || problem.includes(t('problemSurvivalTrials')))) setSettingsOpen(true);
-      // Суми рівнів і неспалимі лежать у налаштуваннях раунду.
-      if (found.some((problem) => problem.includes(t('problemLadderLevels', { max: LIMITS.maxLadderLevel })) || problem.includes(t('problemLadderSafe')))) setSettingsOpen(true);
-      // Ставки: найбільша ставка й числа лежать у налаштуваннях раунду.
-      const betsMaxPrefix = t('problemBetsMax', { min: 0, max: 0 }).split('0')[0];
-      if (found.some((problem) => problem.includes(betsMaxPrefix) || problem.includes(t('problemRules')))) setSettingsOpen(true);
-      // Ціна й таймер «Правди про гравця» — у налаштуваннях раунду.
-      if (found.some((problem) => problem.includes(t('problemTruthNumbers', { max: LIMITS.maxPoints, min: LIMITS.minTime, maxTime: LIMITS.maxTime })))) setSettingsOpen(true);
-      const sparePrefixes = [t('sparesTitle'), t('problemSparesEmpty'), t('spareN', { index: '' }).trim()];
-      if (found.some((problem) => sparePrefixes.some((prefix) => problem.startsWith(prefix)))) setSparesOpen(true);
+      setSaveFailed(true);
+      for (const { place } of found) {
+        if (place.kind === 'general') openGeneralCard(place.card);
+        if (place.kind === 'round' && place.settings) setSettingsOpen(true);
+      }
       // Показати запитання, яке треба виправити: воно може бути далеко у списку.
       const broken = firstProblem(quiz);
       if (broken !== null) {
@@ -295,13 +362,17 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
         setSelected(broken.question);
         setBoardFocus(broken.cell === null ? null : { ...broken.cell });
       }
+      const tabs = found.map((problem) => tabOf(problem.place));
+      if (tabs.includes('rounds')) showTab('rounds');
+      else if (tabs.includes('general')) showTab('general');
       return;
     }
+    setSaveFailed(false);
     setSaving(true);
     const error = await onSave(cleaned(quiz));
     setSaving(false);
     if (error === null) setDirty(false);
-    else setProblems([error]);
+    else setServerError(error);
   };
 
   return (
@@ -322,9 +393,34 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
       <section className="editor-quiz">
         <label className="field">
           <span>{t('quizTitle')}</span>
-          <input value={quiz.title} maxLength={120} onChange={(event) => update({ ...quiz, title: event.target.value })} />
+          <input ref={titleRef} value={quiz.title} maxLength={120} onChange={(event) => update({ ...quiz, title: event.target.value })} />
         </label>
       </section>
+
+      <div className="issues-bar" ref={headRef}>
+        <div className="issues">
+          {errors.length + reminders.length === 0 ? (
+            <button type="button" className="btn btn-small issues-button is-clear" aria-disabled="true">
+              {t('issuesNone')}
+            </button>
+          ) : (
+            <button
+              type="button"
+              className={errors.length > 0 ? 'btn btn-small issues-button has-errors' : 'btn btn-small issues-button'}
+              aria-expanded={issuesOpen}
+              aria-controls="editor-issues"
+              // Інакше натискання закрило б панель як «клік поза нею», а клік — одразу відкрив би знову.
+              onPointerDown={(event) => event.stopPropagation()}
+              onClick={() => setIssuesOpen(!issuesOpen)}
+            >
+              {t('issuesButton', { errors: errors.length, reminders: reminders.length })}
+            </button>
+          )}
+          {issuesOpen && errors.length + reminders.length > 0 && (
+            <IssuesPanel id="editor-issues" errors={errors} reminders={reminders} onGo={goTo} onClose={() => setIssuesOpen(false)} />
+          )}
+        </div>
+      </div>
 
       <div className="editor-tabs" role="tablist" aria-label={t('editorTabs')}>
         {(['general', 'rounds'] as const).map((id) => (
@@ -339,6 +435,11 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
             onClick={() => showTab(id)}
           >
             {t(id === 'general' ? 'editorTabGeneral' : 'editorTabRounds')}
+            {tabErrors(id) > 0 && (
+              <span className="editor-tab-badge" role="img" aria-label={t('editorTabErrors', { count: tabErrors(id) })}>
+                {`⚠${tabErrors(id)}`}
+              </span>
+            )}
           </button>
         ))}
       </div>
@@ -660,13 +761,18 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
 
       {/* Повідомлення живуть у закріпленій панелі: їх видно, хоч би де була прокрутка. */}
       <footer className="actions">
-        {problems.length > 0 && (
-          <ul className="error problems" role="alert">
-            {problems.map((problem) => (
-              <li key={problem}>{problem}</li>
-            ))}
-          </ul>
-        )}
+        {saveFailed && errors.length > 0 ? (
+          <p className="error" role="alert">
+            {t('saveBlocked', { count: errors.length })}{' '}
+            <button type="button" className="btn btn-small btn-quiet" onClick={showIssues}>
+              {t('saveBlockedShow')}
+            </button>
+          </p>
+        ) : serverError !== null ? (
+          <p className="error" role="alert">
+            {serverError}
+          </p>
+        ) : null}
         <button type="button" className="btn" onClick={cancel}>
           {t('cancel')}
         </button>
