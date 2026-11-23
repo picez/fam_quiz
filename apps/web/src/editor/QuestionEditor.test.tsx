@@ -37,6 +37,7 @@ describe('QuestionEditor type combobox (74)', () => {
     fireEvent.change(screen.getByRole('combobox', { name: t('comboSearch') }), { target: { value: t('typeShort_clues') } });
     const shown = screen.getAllByRole('option').map((o) => o.getAttribute('data-value'));
     expect(shown).toContain('clues');
+    expect(shown).not.toContain('single');
   });
 
   it('keeps a type that is not allowed visible on the button', () => {
@@ -200,7 +201,11 @@ describe('QuestionEditor cards (74)', () => {
     const media = container.querySelector<HTMLDetailsElement>('details[data-card="media"]')!;
     expect(media.open).toBe(false);
     expect(media.querySelector('summary')!.textContent).toContain(t('cardMediaAdd'));
-    rerender(<QuestionEditor question={{ ...newQuestion('single'), imageUrl: 'https://x/i.png' }} onChange={vi.fn()} types={questionTypesFor('classic')} />);
+    // Те саме запитання отримало медіа: картка розгортається.
+    const same = newQuestion('single');
+    rerender(<QuestionEditor question={same} onChange={vi.fn()} types={questionTypesFor('classic')} />);
+    expect(container.querySelector<HTMLDetailsElement>('details[data-card="media"]')!.open).toBe(false);
+    rerender(<QuestionEditor question={{ ...same, imageUrl: 'https://x/i.png' }} onChange={vi.fn()} types={questionTypesFor('classic')} />);
     const opened = container.querySelector<HTMLDetailsElement>('details[data-card="media"]')!;
     expect(opened.open).toBe(true);
     expect(opened.querySelector('summary')!.textContent).toContain(t('cardMediaImage'));

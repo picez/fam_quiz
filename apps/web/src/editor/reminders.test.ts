@@ -70,6 +70,12 @@ describe('remindersOf (74)', () => {
     expect(remindersOf(quiz).map((r) => r.place)).toContainEqual({ kind: 'round', round: 0, settings: true });
   });
 
+  it('skips survival trial timers when the trial is luck', () => {
+    const round = newSurvivalRound();
+    const quiz = { ...withQuestions([]), rounds: [{ ...round, trial: 'luck' as const, trials: [timed('single', 10)] }] };
+    expect(remindersOf(quiz).map((r) => r.place)).not.toContainEqual({ kind: 'round', round: 0, settings: true });
+  });
+
   it('never blocks saving', () => {
     const quiz = { ...withQuestions([{ ...timed('text', 10), text: 'Q', accepted: ['a'] } as Question], ''), title: 'Назва' };
     expect(remindersOf(quiz).length).toBeGreaterThan(0);

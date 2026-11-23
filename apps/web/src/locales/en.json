@@ -5608,7 +5608,7 @@
   "typeDesc_survey": "Guess the most popular answers of a survey.",
   "typeDesc_bluff": "Invent a fake answer and find the truth.",
   "typeDesc_spy": "Everyone sees the word except the spy; find them.",
-  "typeDesc_thinkalike": "Write a word, like the majority.",
+  "typeDesc_thinkalike": "Guess the word most players will write.",
   "typeDesc_think": "A word on the topic, but not the one the host picked.",
   "typeDesc_crossword": "Fill in words from the clues.",
   "typeDesc_sudoku": "Fill the 6×6 grid without repeats.",

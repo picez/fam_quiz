@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState, type KeyboardEvent } from 'react';
+import { useCallback, useEffect, useId, useRef, useState, type KeyboardEvent } from 'react';
 import { LIMITS, ROUND_TYPES, type Round } from '@quiz/shared';
 import { roundLabel } from '../format';
 import { HelpButton } from '../help/HelpButton';
@@ -30,8 +30,24 @@ export function RoundStrip({ rounds, selected, onSelect, onAdd, onRename, onMove
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
-  const closeMenu = useCallback(() => setMenuOpen(false), []);
+  const addButtonRef = useRef<HTMLButtonElement>(null);
+  const menuId = useId();
+  /** Закриває меню; якщо фокус був усередині меню (Esc), повертає його на «⋯». */
+  const closeMenu = useCallback(() => {
+    setMenuOpen(false);
+    if (document.activeElement?.closest('[role="menu"]') && menuRef.current?.contains(document.activeElement)) menuButtonRef.current?.focus();
+  }, []);
   useDismiss(menuRef, menuOpen, closeMenu);
+  // Меню відкрилося: фокус на перший доступний пункт.
+  useEffect(() => {
+    if (menuOpen) menuRef.current?.querySelector<HTMLButtonElement>('button[role="menuitem"]:not(:disabled)')?.focus();
+  }, [menuOpen]);
+  // Після видалення раунду «⋯» зникає разом із фокусом: переносимо його на «+ Раунд».
+  const hadMenu = useRef(several);
+  useEffect(() => {
+    if (hadMenu.current && !several && (document.activeElement === document.body || document.activeElement === null)) addButtonRef.current?.focus();
+    hadMenu.current = several;
+  }, [several]);
   const add = (type: Round['type']) => {
     setChoosing(false);
     onAdd(type);
@@ -81,7 +97,7 @@ export function RoundStrip({ rounds, selected, onSelect, onAdd, onRename, onMove
         />
       )}
       <div className="toolbar">
-        <button type="button" className="btn btn-small" disabled={rounds.length >= LIMITS.maxRounds} onClick={() => setChoosing(!choosing)}>
+        <button type="button" ref={addButtonRef} className="btn btn-small" disabled={rounds.length >= LIMITS.maxRounds} onClick={() => setChoosing(!choosing)}>
           {t('addRound')}
         </button>
         {choosing && rounds.length < LIMITS.maxRounds && (
@@ -105,12 +121,18 @@ export function RoundStrip({ rounds, selected, onSelect, onAdd, onRename, onMove
               aria-label={t('roundMenu')}
               aria-haspopup="menu"
               aria-expanded={menuOpen}
+              aria-controls={menuOpen ? menuId : undefined}
               onClick={() => setMenuOpen(!menuOpen)}
+              onKeyDown={(event) => {
+                if (event.key !== 'ArrowDown') return;
+                event.preventDefault();
+                setMenuOpen(true);
+              }}
             >
               ⋯
             </button>
             {menuOpen && (
-              <div className="round-menu" role="menu" aria-label={t('roundMenu')} onKeyDown={onMenuKey}>
+              <div className="round-menu" id={menuId} role="menu" aria-label={t('roundMenu')} onKeyDown={onMenuKey}>
                 <button type="button" role="menuitem" className="btn btn-small" onClick={act(() => onRename(selected))}>
                   {t('renameRound')}
                 </button>

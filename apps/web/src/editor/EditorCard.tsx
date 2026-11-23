@@ -35,8 +35,9 @@ export function EditorCard({ card, title, required = false, summary, error, note
         <summary className="editor-card-head">
           <span className={titleClass}>{title}</span>
           {summary ? <span className="editor-card-summary">{summary}</span> : null}
+          {error && !fold.open ? <span className="error card-error">{error}</span> : null}
         </summary>
-        {extra}
+        {fold.open ? extra : note ? <p className="meta card-note">{note}</p> : null}
         {children}
       </details>
     );

@@ -2920,6 +2920,28 @@ describe('round bar (74)', () => {
     expect(screen.queryByRole('menu')).toBeNull();
   });
 
+  it('moves focus into the ⋯ menu, opens it with ArrowDown and returns focus on Escape', () => {
+    open(twoRounds());
+    const button = screen.getByRole('button', { name: t('roundMenu') });
+    button.focus();
+    fireEvent.keyDown(button, { key: 'ArrowDown' });
+    const menu = screen.getByRole('menu');
+    expect(button.getAttribute('aria-controls')).toBe(menu.id);
+    // Раунд 1: «вище» вимкнено, тож перший доступний пункт — «Перейменувати».
+    expect(document.activeElement).toBe(screen.getByRole('menuitem', { name: t('renameRound') }));
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(screen.queryByRole('menu')).toBeNull();
+    expect(document.activeElement).toBe(button);
+  });
+
+  it('puts focus on the add-round button when removing a round leaves one', () => {
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    open(twoRounds());
+    roundAction('Видалити раунд');
+    expect(screen.queryByRole('button', { name: t('roundMenu') })).toBeNull();
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: t('addRound') }));
+  });
+
   it('opens the round settings from the gear next to the round picker', () => {
     open(twoRounds());
     const summary = screen.getByText('Налаштування раунду').closest('summary')!;

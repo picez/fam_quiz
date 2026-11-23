@@ -3,7 +3,7 @@ import { t } from '../i18n';
 import type { QuestionType } from './draft';
 import type { EditorTab } from './QuizEditor';
 
-/** The type button (first in scope). */
+/** Кнопка типу (перша в межах scope). */
 function typeButton(scope: HTMLElement): HTMLElement {
   const found = within(scope).getAllByRole('button', { name: new RegExp(`^${t('questionType')}:`) });
   return found[0]!;

@@ -49,7 +49,7 @@ export function remindersOf(quiz: Quiz): Reminder[] {
         if (!timeFieldShown(question, layout) || question.timeLimit >= REMINDER_MIN_TIME) return;
         reminders.push({ text: where(timer(question.timeLimit, index + 1)), place: { kind: 'question', round: roundIndex, question: index, card: 'time' } });
       });
-      if (round.type === 'survival') {
+      if (round.type === 'survival' && round.trial !== 'luck') {
         round.trials.forEach((trial, index) => {
           if (!timeFieldShown(trial, DEFAULT_LAYOUT) || trial.timeLimit >= REMINDER_MIN_TIME) return;
           reminders.push({ text: where(timer(trial.timeLimit, index + 1)), place: { kind: 'round', round: roundIndex, settings: true } });

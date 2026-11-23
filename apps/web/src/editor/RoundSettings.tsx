@@ -124,8 +124,8 @@ export function RoundSettings({ round, index, total = 0, onChange, open, onToggl
       </summary>
       {errors.length > 0 && (
         <ul className="error settings-errors">
-          {errors.map((text) => (
-            <li key={text}>{text}</li>
+          {errors.map((text, at) => (
+            <li key={at}>{text}</li>
           ))}
         </ul>
       )}

@@ -5685,7 +5685,7 @@
   "typeDesc_survey": "Adivinar las respuestas más populares de una encuesta.",
   "typeDesc_bluff": "Inventar una respuesta falsa y encontrar la verdad.",
   "typeDesc_spy": "Todos ven la palabra menos el espía; encontrarlo.",
-  "typeDesc_thinkalike": "Escribir una palabra, como la mayoría.",
+  "typeDesc_thinkalike": "Adivinar la palabra que escribirá la mayoría de jugadores.",
   "typeDesc_think": "Una palabra del tema, pero no la que eligió el anfitrión.",
   "typeDesc_crossword": "Escribir palabras según las pistas.",
   "typeDesc_sudoku": "Rellenar la cuadrícula de 6×6 sin repeticiones.",

@@ -5709,7 +5709,7 @@
   "typeDesc_survey": "Odgadnąć najpopularniejsze odpowiedzi ankiety.",
   "typeDesc_bluff": "Wymyślić fałszywą odpowiedź i znaleźć prawdę.",
   "typeDesc_spy": "Wszyscy widzą słowo oprócz szpiega; znaleźć go.",
-  "typeDesc_thinkalike": "Napisać słowo, jak większość.",
+  "typeDesc_thinkalike": "Zgadnąć słowo, które napisze większość graczy.",
   "typeDesc_think": "Słowo na temat, ale nie to, które wybrał prowadzący.",
   "typeDesc_crossword": "Wpisać słowa według podpowiedzi.",
   "typeDesc_sudoku": "Wypełnić siatkę 6×6 bez powtórzeń.",
