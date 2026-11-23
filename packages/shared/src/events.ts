@@ -239,6 +239,8 @@ export const declareSchema = z.object({ opponentId: playerId });
 export const duelPickSchema = z.object({ categoryId: id64 });
 /** Ставка на дуелянта (39): бік або null — зняти ставку. */
 export const duelBetSchema = z.object({ side: z.enum(['challenger', 'opponent']).nullable() });
+/** 75: голос за пропуск «Як грати» (true) чи зняти його (false). */
+export const guideSkipSchema = z.object({ skip: z.boolean() }).strict();
 /** Відповідь дуелянта; перевіряє рушій, як у типі text. */
 export const duelAnswerSchema = z.object({
   text: z.string().trim().min(1).max(LIMITS.answerText).refine(isStorable, UNSTORABLE),
@@ -339,6 +341,8 @@ export interface ClientToServerEvents {
   'draw:sync': (ack: Ack) => void;
   /** «Хто я?» у власному темпі (12c): відкрити наступну підказку собі (у командній грі — команді). */
   'player:clue': (ack: Ack) => void;
+  /** 75: голос за пропуск «Як грати» (true) чи зняти його (false); лише автопілот, етап guide. Помилки: not_allowed, wrong_phase, paused, not_found. */
+  'player:guide-skip': (payload: z.infer<typeof guideSkipSchema>, ack: Ack) => void;
   'player:sort': (payload: z.infer<typeof sortSchema>, ack: Ack) => void;
   /** Сортування: нахил картки, поки її тягнуть (11d); у стан гри не йде. */
   'player:sort-tilt': (payload: z.infer<typeof sortTiltSchema>, ack: Ack) => void;

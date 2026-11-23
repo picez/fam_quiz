@@ -1,8 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import { answerSchema } from './answer';
 import { botCommandSchema } from './bot';
-import { adjustSchema, wagerSchema } from './events';
+import { adjustSchema, guideSkipSchema, wagerSchema } from './events';
 import { adminXpSchema } from './player-card';
+
+describe('guide skip payload (75)', () => {
+  it('takes a strict boolean', () => {
+    expect(guideSkipSchema.safeParse({ skip: true }).success).toBe(true);
+    expect(guideSkipSchema.safeParse({ skip: false }).success).toBe(true);
+    for (const bad of [{}, { skip: 'yes' }, { skip: true, x: 1 }]) expect(guideSkipSchema.safeParse(bad).success).toBe(false);
+  });
+});
 
 const JUNK = ['300', '3e2', '', 'abc', null, true, Number.NaN, Number.POSITIVE_INFINITY, 1.5, [300], { amount: 300 }];
 

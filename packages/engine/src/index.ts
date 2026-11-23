@@ -64,3 +64,4 @@ export * from './saved';
 export * from './autopilot';
 export * from './away';
 export * from './appeal';
+export * from './guide-skip';

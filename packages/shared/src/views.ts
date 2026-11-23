@@ -2275,10 +2275,18 @@ export interface OwnFacts {
   game: GameCard | null;
 }
 
+/** 75: голосування «Пропустити пояснення» в грі з автопілотом; ставить сервер, рушій ключа не ставить. mine — лише в зрізі гравця. */
+export interface GuideSkipView {
+  votes: number;
+  of: number;
+  mine?: boolean;
+}
+
 /** «Як грати»: поточна сторінка й усі сторінки цієї вікторини. */
 export interface GuideView {
   page: number;
   pages: GuidePage[];
+  skip?: GuideSkipView;
 }
 
 /** Заставка переходу: вид і час сервера початку й кінця; клієнт показує її, поки годинник сервера < until. */
