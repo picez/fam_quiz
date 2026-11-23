@@ -2075,16 +2075,6 @@ a.banner {
   font-weight: 700;
 }
 
-/* Картка запитання повторює те, що побачать гравці: світло софіта, питання, варіанти. */
-.stage-card {
-  display: grid;
-  gap: 0.75rem;
-  padding: 1.25rem;
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  background: radial-gradient(120% 90% at 50% -10%, var(--spot), transparent 60%), var(--panel);
-}
-
 .question-field > span {
   color: var(--dim);
   font-size: 0.8125rem;
@@ -30223,5 +30213,67 @@ table.sr-only td {
     max-inline-size: min(28rem, calc(100vw - 1rem));
     border-radius: var(--radius);
     box-shadow: 0 0.5rem 1.5rem rgba(0, 0, 0, 0.25);
+  }
+}
+
+/* 74: картки редактора запитання — «Запитання», «Медіа», «Відповіді», «Час і бали». */
+.editor-card {
+  display: grid;
+  gap: 0.75rem;
+  min-inline-size: 0;
+  padding: 1rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel);
+}
+
+/* Перша картка повторює те, що побачать гравці: світло софіта над запитанням. */
+.editor-card[data-card='question'] {
+  background: radial-gradient(120% 90% at 50% -10%, var(--spot), transparent 60%), var(--panel);
+}
+
+.editor-card.has-error {
+  border-color: var(--signal);
+}
+
+.editor-card-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.75rem;
+  align-items: baseline;
+}
+
+details.editor-card > summary {
+  cursor: pointer;
+}
+
+.editor-card-title {
+  margin: 0;
+  font-size: 0.9375rem;
+  font-weight: 700;
+}
+
+.editor-card-summary {
+  color: var(--dim);
+  font-size: 0.875rem;
+}
+
+.card-error {
+  margin: 0;
+}
+
+.card-note {
+  margin: 0;
+}
+
+/* Зірочка лише для ока: у доступне ім'я й textContent вона не потрапляє. */
+.is-required::after {
+  content: ' *' / '';
+  color: var(--signal);
+}
+
+@media (min-width: 600px) {
+  .editor-card {
+    padding: 1.25rem;
   }
 }

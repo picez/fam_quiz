@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { useLayoutEffect } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { LIMITS, type Question } from '@quiz/shared';
@@ -177,5 +177,67 @@ describe('QuestionEditor wordle (48)', () => {
       expect(container.querySelector('.answer-rows.option-rows'), type).not.toBeNull();
       cleanup();
     }
+  });
+});
+
+describe('QuestionEditor cards (74)', () => {
+  const card = (root: HTMLElement, name: string) => root.querySelector<HTMLElement>(`[data-card="${name}"]`);
+
+  it('groups the fields into cards in the agreed order', () => {
+    const { container } = render(<QuestionEditor question={newQuestion('single')} onChange={vi.fn()} types={questionTypesFor('classic')} />);
+    expect([...container.querySelectorAll<HTMLElement>('[data-card]')].map((el) => el.dataset.card)).toEqual(['question', 'media', 'answers', 'time']);
+    const question = card(container, 'question')!;
+    expect(question.contains(screen.getByLabelText(t('questionText')))).toBe(true);
+    expect(question.contains(screen.getByLabelText(t('hintLabel')))).toBe(true);
+    expect(card(container, 'answers')!.contains(screen.getByLabelText(t('optionN', { index: 1 })))).toBe(true);
+    const time = card(container, 'time')!;
+    expect(time.contains(screen.getByLabelText(t('timeLimit')))).toBe(true);
+    expect(time.contains(screen.getByLabelText(t('pointsLabel')))).toBe(true);
+  });
+
+  it('folds the media card while the question has no media and names what is inside', () => {
+    const { container, rerender } = render(<QuestionEditor question={newQuestion('single')} onChange={vi.fn()} types={questionTypesFor('classic')} />);
+    const media = container.querySelector<HTMLDetailsElement>('details[data-card="media"]')!;
+    expect(media.open).toBe(false);
+    expect(media.querySelector('summary')!.textContent).toContain(t('cardMediaAdd'));
+    rerender(<QuestionEditor question={{ ...newQuestion('single'), imageUrl: 'https://x/i.png' }} onChange={vi.fn()} types={questionTypesFor('classic')} />);
+    const opened = container.querySelector<HTMLDetailsElement>('details[data-card="media"]')!;
+    expect(opened.open).toBe(true);
+    expect(opened.querySelector('summary')!.textContent).toContain(t('cardMediaImage'));
+  });
+
+  it('keeps the cover image of a melody and the sound of a pin in the answers card', () => {
+    const { container } = render(<QuestionEditor question={newQuestion('melody')} onChange={vi.fn()} types={questionTypesFor('classic')} />);
+    expect(card(container, 'media')).toBeNull();
+    expect(within(card(container, 'answers')!).getByText(t('addImage'))).toBeTruthy();
+    cleanup();
+    const pin = render(<QuestionEditor question={newQuestion('pin')} onChange={vi.fn()} types={questionTypesFor('classic')} />);
+    expect(card(pin.container, 'media')).toBeNull();
+    expect(card(pin.container, 'answers')!.querySelector('.audio-field')).not.toBeNull();
+  });
+
+  it('marks the question text and the answers as required without changing their names', () => {
+    const { container } = render(<QuestionEditor question={newQuestion('single')} onChange={vi.fn()} types={questionTypesFor('classic')} />);
+    expect(card(container, 'question')!.querySelector('.editor-card-title.is-required')).not.toBeNull();
+    expect(card(container, 'answers')!.querySelector('.editor-card-title.is-required')).not.toBeNull();
+    expect(card(container, 'time')!.querySelector('.is-required')).toBeNull();
+    const text = screen.getByLabelText(t('questionText'), { exact: true });
+    expect(text.getAttribute('aria-required')).toBe('true');
+  });
+
+  it('shows a grey timer reminder under a short timer and none when the timer is hidden', () => {
+    const short = { ...newQuestion('single'), timeLimit: 15 } as Question;
+    const { container, rerender } = render(<QuestionEditor question={short} onChange={vi.fn()} types={questionTypesFor('classic')} />);
+    expect(card(container, 'time')!.textContent).toContain(t('reminderTimerInline', { min: 25 }));
+    rerender(<QuestionEditor question={short} onChange={vi.fn()} types={questionTypesFor('classic')} showTime={false} />);
+    expect(container.textContent).not.toContain(t('reminderTimerInline', { min: 25 }));
+  });
+
+  it('puts an issue text into its card', () => {
+    const { container } = render(<QuestionEditor question={newQuestion('single')} onChange={vi.fn()} types={questionTypesFor('classic')} issue={{ card: 'answers', text: 'X' }} />);
+    const answers = card(container, 'answers')!;
+    expect(answers.classList.contains('has-error')).toBe(true);
+    expect(answers.textContent).toContain('X');
+    expect(container.querySelectorAll('.has-error')).toHaveLength(1);
   });
 });
