@@ -7,7 +7,7 @@ import { expect, it } from 'vitest';
 import ar from '../../web/src/locales/ar.json';
 import es from '../../web/src/locales/es.json';
 import { ukMessages } from '../../web/src/i18n';
-import { open, click, liveRow, field, arrange, join, openRoundSettings, bodyText, expectNoSideScroll, register, noSideScroll, yOf, POLL, type Box, overlaps, expectApart, wipeWithMouse, sortZone, sortCard, sortZoneBoxes, sortBy, duelAnswer, answerAll, socketFrames, duelButton, frame, label, join22a } from './helpers/common';
+import { open, click, liveRow, field, arrange, join, openRoundSettings, bodyText, expectNoSideScroll, register, noSideScroll, yOf, POLL, type Box, overlaps, expectApart, wipeWithMouse, sortZone, sortCard, sortZoneBoxes, sortBy, duelAnswer, answerAll, socketFrames, duelButton, frame, label, join22a, openGeneralFold, showProblems, pickRound } from './helpers/common';
 import { avatarPng, exact, base, problems, pages, ARTIFACTS, rigged, snapshot, afterSplash, shot, useE2eServer } from './helpers/setup';
 
 /**
@@ -1431,7 +1431,7 @@ async function bankGame() {
   // Редактор: у фіналі «Космос» тип ставок стає «Спільний банк», з'являється підказка.
   await host.goto(`${base}/quizzes`);
   await host.locator('.quiz-list li', { hasText: 'Банк' }).getByRole('link', { name: 'Редагувати' }).click();
-  await host.getByRole('button', { name: 'Космос', ...exact }).click();
+  await pickRound(host, 'Космос');
   await openRoundSettings(host);
   const mode = host.locator('label.field', { hasText: 'Тип ставок' }).locator('select');
   expect(await mode.inputValue()).toBe('classic');
@@ -1834,7 +1834,7 @@ async function sortGame() {
   await expectNoSideScroll(host, 'sort7f-editor-375');
   await host.setViewportSize({ width: 1280, height: 900 });
   // Клітинка поля з сортуванням: ціна — найбільша сума (4 × 50), без перемикачів типу й способу.
-  await host.getByRole('button', { name: 'Поле', ...exact }).click();
+  await pickRound(host, 'Поле');
   await host.getByRole('button', { name: /^Категорія 2, клітинка 3: 200 ×2, / }).click();
   await host.getByText('Сортує лише той, хто вибрав клітинку, з телефона. Бали — за кожне відсортоване слово.', exact).waitFor();
   expect(await host.locator('label.field', { hasText: 'Тип клітинки' }).count()).toBe(0);
@@ -2236,14 +2236,14 @@ async function duelGame() {
   // Редактор: розділ «Дуелі» з пулом; 4 запитання за дуель не зберігаються.
   await host.goto(`${base}/quizzes`);
   await host.locator('.quiz-list li', { hasText: 'Дуелі' }).getByRole('link', { name: 'Редагувати' }).click();
-  await host.locator('details.duels > summary').click();
+  await openGeneralFold(host, 'duels');
   expect(await field(host, 'Запитань за дуель').inputValue()).toBe('2');
   expect(await field(host, 'Ставка: програвший віддає переможцю').inputValue()).toBe('300');
   await host.getByRole('button', { name: 'Столиці · 3 запитання', ...exact }).waitFor();
   await host.getByRole('button', { name: 'Хімія · 3 запитання', ...exact }).waitFor();
   await field(host, 'Запитань за дуель').fill('4');
   await click(host, 'Зберегти');
-  await host.locator('.problems', { hasText: 'Дуелі, «Столиці»: замало запитань — потрібно щонайменше 4.' }).waitFor();
+  await (await showProblems(host)).filter({ hasText: 'Дуелі, «Столиці»: замало запитань — потрібно щонайменше 4.' }).waitFor();
   expect(host.url()).not.toMatch(/\/quizzes$/);
   await field(host, 'Запитань за дуель').fill('2');
   await shot(host, 'duel7g-editor');

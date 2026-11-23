@@ -2,7 +2,7 @@ import { blitzRound, classicRound, finalRound, ladderRound, makeRoundsQuiz, sing
 import { DEFAULT_RULES } from '@quiz/shared';
 import { type Page } from 'playwright-core';
 import { expect, it } from 'vitest';
-import { open, click, field, join, openRoundSettings, bodyText, expectNoSideScroll, stat, register, POLL, socketFrames, takeBuff, tapBuff, pickOption, numericAnswer, vote, RESTARTING_TEXT, toNextQuestion, framesBeforeReveal, totalOf, expectStageFits, expectStageInView, writeLie, pickBluff, decide, choiceOf, sideRow, NL, framesUntilNextReveal, survivalGroupOf, podiumScore, openTrialLeaks, pickTeamOn, stageTeam, sentFrames, teamRowOf, teamTotal, frame } from './helpers/common';
+import { open, click, field, join, openRoundSettings, bodyText, expectNoSideScroll, stat, register, POLL, socketFrames, takeBuff, tapBuff, pickOption, numericAnswer, vote, RESTARTING_TEXT, toNextQuestion, framesBeforeReveal, totalOf, expectStageFits, expectStageInView, writeLie, pickBluff, decide, choiceOf, sideRow, NL, framesUntilNextReveal, survivalGroupOf, podiumScore, openTrialLeaks, pickTeamOn, stageTeam, sentFrames, teamRowOf, teamTotal, frame, roundAction, pickRound, typeOptions, roundNames, editorTab } from './helpers/common';
 import { exact, ctx, base, problems, rigged, snapshot, afterSplash, shot, restart, flags, useE2eServer } from './helpers/setup';
 
 /**
@@ -398,7 +398,7 @@ async function wipeoutGame() {
   await host.goto(`${base}/quizzes`);
   await host.locator('.quiz-list li', { hasText: 'Ва-банк 10g' }).getByRole('link', { name: 'Редагувати' }).click();
   await host.locator('main.editor').waitFor();
-  await host.locator('.round-tab', { hasText: 'Драбина' }).click();
+  await pickRound(host, 'Драбина');
   await expect.poll(() => host.locator('.question-list .question-item-price').allTextContents()).toEqual(['100', '200', '300', '400', '500']);
   await openRoundSettings(host);
   const settingsPanel = host.locator('details.round-settings');
@@ -406,7 +406,7 @@ async function wipeoutGame() {
   await settingsPanel.locator('.with-help button').first().waitFor();
   expect(await settingsPanel.getByLabel(/Штраф|Мінус за помилку/).count(), 'no penalty rule in a wipeout').toBe(0);
   await shot(host, 'p10g-editor-wipeout');
-  expect(await host.getByRole('group', { name: 'Тип запитання', ...exact }).getByRole('button').count(), 'five question types').toBe(5);
+  expect((await typeOptions(host.locator('.editor-stage'))).length, 'five question types').toBe(5);
 
   await click(host, '+ Раунд');
   await click(host, 'Ва-банк');
@@ -414,9 +414,9 @@ async function wipeoutGame() {
   await shot(host, 'p10g-editor-new-wipeout');
   await click(host, 'Додати запитання');
   await expect.poll(() => host.locator('.question-list .question-item-price').allTextContents()).toEqual(['100', '200', '300', '400', '500', '600']);
-  await click(host, 'Видалити раунд');
-  await host.locator('.round-tab', { hasText: 'Драбина' }).click();
-  expect(await host.locator('.round-tab').count()).toBe(3);
+  await roundAction(host, 'Видалити раунд');
+  await pickRound(host, 'Драбина');
+  expect(await roundNames(host)).toEqual(['Розминка', 'Драбина', 'Після драбини']);
 
   await host.setViewportSize({ width: 375, height: 812 });
   await settingsPanel.scrollIntoViewIfNeeded();
@@ -687,7 +687,9 @@ async function survivalGame() {
   expect(await settings.getByText(/^Питання \d+ ·/).count(), 'one survival question').toBe(1);
   await host.locator('details.round-settings').getByLabel(/^Штраф/).waitFor();
   await shot(host, 'p10h-editor-survival');
-  for (const group of await host.getByRole('group', { name: 'Тип запитання', ...exact }).all()) expect(await group.getByRole('button').count(), 'five question types').toBe(5);
+  const typeCombos = host.locator('.combo:has(> button.combo-trigger[aria-label^="Тип запитання:"])');
+  expect(await typeCombos.count(), 'a question and a survival question').toBeGreaterThan(1);
+  for (let index = 0; index < (await typeCombos.count()); index++) expect((await typeOptions(typeCombos.nth(index).locator('..'))).length, 'five question types').toBe(5);
 
   await click(host, '+ Раунд');
   await click(host, 'Вибування');
@@ -697,7 +699,7 @@ async function survivalGame() {
   await shot(host, 'p10h-editor-new-survival');
   await host.locator('.survival-settings').getByRole('radio', { name: 'Удача (троє дверей)', ...exact }).check();
   await host.locator('.survival-settings').getByText('З удачею ці питання не потрібні.', exact).waitFor();
-  await click(host, 'Видалити раунд');
+  await roundAction(host, 'Видалити раунд');
   await expect.poll(() => host.locator('.question-list .question-item').count(), POLL).toBe(5);
 
   await host.setViewportSize({ width: 375, height: 812 });
@@ -1013,7 +1015,7 @@ async function ladderGame() {
   await host.goto(`${base}/quizzes`);
   await host.locator('.quiz-list li', { hasText: 'Мільйонер 10i' }).getByRole('link', { name: 'Редагувати' }).click();
   await host.locator('main.editor').waitFor();
-  await host.locator('.round-tab', { hasText: 'Драбина Олі' }).click();
+  await pickRound(host, 'Драбина Олі');
   await expect.poll(() => host.locator('.question-list .question-item').count(), POLL).toBe(5);
   expect(await host.locator('.question-list .question-item-price').nth(2).innerText(), 'a safe step has a mark in the list').toContain('1000');
   await openRoundSettings(host);
@@ -1031,18 +1033,18 @@ async function ladderGame() {
   await shot(host, 'p10i-editor-ladder');
   expect(await host.getByRole('button', { name: 'Додати варіант', ...exact }).count(), 'exactly four options, no add button').toBe(0);
   expect(await host.getByLabel(/^Варіант \d$/).count(), 'four options').toBe(4);
-  expect(await host.getByRole('group', { name: 'Тип запитання', ...exact }).getByRole('button').count(), 'only «один варіант»').toBe(1);
+  expect(await typeOptions(host.locator('.editor-stage')), 'only «один варіант»').toEqual(['single']);
 
   await click(host, '+ Раунд');
   await click(host, 'Мільйонер');
   await expect.poll(() => host.locator('.question-list .question-item').count(), POLL).toBe(5);
-  await expect.poll(() => host.locator('.round-tab').count(), POLL).toBe(3);
+  await expect.poll(async () => (await roundNames(host)).length, POLL).toBe(3);
   await openRoundSettings(host);
   await host.locator('.ladder-settings').waitFor();
   await shot(host, 'p10i-editor-new-ladder');
-  await click(host, 'Видалити раунд');
-  await expect.poll(() => host.locator('.round-tab').count(), POLL).toBe(2);
-  await host.locator('.round-tab', { hasText: 'Драбина Олі' }).click();
+  await roundAction(host, 'Видалити раунд');
+  await expect.poll(async () => (await roundNames(host)).length, POLL).toBe(2);
+  await pickRound(host, 'Драбина Олі');
   await expect.poll(() => host.locator('.question-list .question-item').count(), POLL).toBe(5);
 
   await host.setViewportSize({ width: 375, height: 812 });
@@ -1349,8 +1351,8 @@ async function teamsGame() {
   await host.goto(`${base}/quizzes`);
   await host.locator('.quiz-list li', { hasText: 'Команди 10j' }).getByRole('link', { name: 'Редагувати' }).click();
   await host.locator('main.editor').waitFor();
-  const teamsBlock = host.locator('details.teams');
-  await teamsBlock.locator('summary').click();
+  await editorTab(host, 'Загальне');
+  const teamsBlock = host.locator('section.editor-card.teams');
   expect(await teamsBlock.getByRole('checkbox', { name: 'Грати командами', ...exact }).isChecked(), 'team play is on').toBe(true);
   await teamsBlock.getByText('Команд: 2', exact).waitFor();
   expect(await field(host, 'Назва команди 1').inputValue()).toBe('Червоні');

@@ -2,7 +2,7 @@ import { classicRound, makeRoundsQuiz, single, withId, withPoints } from '@quiz/
 import { type Locator, type Page } from 'playwright-core';
 import { type Socket } from 'socket.io-client';
 import { expect, it } from 'vitest';
-import { open, click, field, join, expectNoSideScroll, register, POLL, socketFrames, RESTARTING_TEXT, NL, sleep, step27a, phoneScore27a, reveal28a, pilotPlayer, pilotSocket, frame, emitOk, expectGap, createAutopilot, duelButton, duelAnswer, answerAll, slowSocket, pickTeamOn, teamRowOf, expectApart, type Pilot } from './helpers/common';
+import { open, click, field, join, expectNoSideScroll, register, POLL, socketFrames, RESTARTING_TEXT, NL, sleep, step27a, phoneScore27a, reveal28a, pilotPlayer, pilotSocket, frame, emitOk, expectGap, createAutopilot, duelButton, duelAnswer, answerAll, slowSocket, pickTeamOn, teamRowOf, expectApart, type Pilot, showProblems, openGeneralFold } from './helpers/common';
 import { exact, base, problems, snapshot, afterSplash, shot, restart, flags, useE2eServer } from './helpers/setup';
 
 /**
@@ -380,9 +380,7 @@ async function editor39() {
     await host.goto(`${base}/quizzes`);
     await host.locator('.quiz-list li', { hasText: 'Ставки 39 редактор' }).getByRole('link', { name: 'Редагувати' }).click();
     await host.locator('main.editor').waitFor();
-    const section = host.locator('details.duels');
-    if ((await section.getAttribute('open')) === null) await section.locator('summary').click();
-    return section;
+    return openGeneralFold(host, 'duels');
   };
 
   // ── Увімкнули дуелі: поле ставки інших — 100, підказка поруч. ──
@@ -414,14 +412,14 @@ async function editor39() {
   await expect.poll(() => betField().inputValue(), POLL).toBe('100');
   await betField().fill('5001');
   await click(host, 'Зберегти');
-  await host.locator('.problems', { hasText: 'Дуелі: запитань за дуель — від 1 до 7, час — від 5 до 120 с, ставка — від 0 до 5000.' }).waitFor();
+  await (await showProblems(host)).filter({ hasText: 'Дуелі: запитань за дуель — від 1 до 7, час — від 5 до 120 с, ставка — від 0 до 5000.' }).waitFor();
   expect(host.url(), 'a 5001 bet stake was saved').not.toMatch(/\/quizzes$/);
   expect((await stored())?.betStake, 'the stored bet stake after a refused save').toBe(100);
   await shot(host, 'bets39-editor-5001');
 
   // ── 0 — ставок немає, зберігається. ──
   await betField().fill('0');
-  await expect.poll(() => host.locator('.problems', { hasText: 'Дуелі: запитань за дуель' }).count(), POLL).toBe(0);
+  await expect.poll(async () => (await host.locator('.issues-button').textContent()) ?? '', POLL).toMatch(/Помилок: 0|Усе заповнено/);
   await click(host, 'Зберегти');
   await host.waitForURL(/\/quizzes$/);
   expect((await stored())?.betStake, 'a zero bet stake').toBe(0);

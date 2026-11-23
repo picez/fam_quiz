@@ -1,7 +1,7 @@
 import { makeQuiz, single } from '@quiz/engine/testing';
 import { type Page } from 'playwright-core';
 import { expect, it } from 'vitest';
-import { open, click, liveRow, field, questionText, connect, seconds, arrange, homeCodeField, join, openRoundSettings, bodyText, expectNoSideScroll, MENU, MENU_ITEMS_23A, menuLinks, expectPhoneFit, stat, register, myId, noSideScroll, frame, openProfileTile, label } from './helpers/common';
+import { open, click, liveRow, field, questionText, connect, seconds, arrange, homeCodeField, join, openRoundSettings, bodyText, expectNoSideScroll, MENU, MENU_ITEMS_23A, menuLinks, expectPhoneFit, stat, register, myId, noSideScroll, frame, openProfileTile, label, pickType, roundAction, openMedia, pickRound } from './helpers/common';
 import { avatarPng, exact, BROKEN_VIDEO, browser, base, problems, rigged, snapshot, shot, useE2eServer } from './helpers/setup';
 
 /**
@@ -44,6 +44,7 @@ async function scenario() {
   await field(host, 'Назва вікторини').fill('Наскрізна вікторина');
 
   await questionText(host).fill('Столиця України?');
+  await openMedia(host);
   await host.getByRole('button', { name: 'Додати зображення', ...exact }).setInputFiles({ name: 'map.png', mimeType: 'image/png', buffer: PIXEL });
   await host.getByAltText('Зображення до запитання').waitFor();
   await field(host, 'Варіант 1').fill('Львів');
@@ -51,7 +52,7 @@ async function scenario() {
   await field(host, 'Правильний: варіант 2').click();
 
   await click(host, 'Додати запитання');
-  await click(host, 'кілька варіантів');
+  await pickType(host, 'multi');
   await questionText(host).fill('Які міста стоять на Дніпрі?');
   await field(host, 'Варіант 1').click();
   // Третій варіант з'являється після Enter в останньому рядку.
@@ -66,27 +67,27 @@ async function scenario() {
   }
 
   await click(host, 'Додати запитання');
-  await click(host, 'так чи ні');
+  await pickType(host, 'boolean');
   await questionText(host).fill('Говерла є найвищою горою України?');
   await click(host, 'Правильна відповідь: Так');
 
   await click(host, 'Додати запитання');
-  await click(host, 'текст');
+  await pickType(host, 'text');
   await questionText(host).fill('Яке місто називають перлиною біля моря?');
   await field(host, 'Написання 1').fill('Одеса');
 
   await click(host, 'Додати запитання');
-  await click(host, 'число');
+  await pickType(host, 'numeric');
   await questionText(host).fill('Скільки областей в Україні?');
   await field(host, 'Правильне число').fill('24');
 
   await click(host, 'Додати запитання');
-  await click(host, 'порядок');
+  await pickType(host, 'order');
   await questionText(host).fill('Розставте від найменшого до найбільшого');
   for (const [index, item] of ['Один', 'Два', 'Три'].entries()) await field(host, `Елемент ${index + 1}`).fill(item);
 
   await click(host, 'Додати запитання');
-  await click(host, 'пари');
+  await pickType(host, 'match');
   await questionText(host).fill('З’єднайте місто з річкою');
   for (const [index, [l, r]] of [['Київ', 'Дніпро'], ['Львів', 'Полтва'], ['Ужгород', LONG_RIGHT]].entries()) {
     await field(host, `Ліворуч ${index + 1}`).fill(l);
@@ -307,7 +308,7 @@ async function twoRounds() {
   await field(host, 'Варіант 2').fill('Київ');
   await field(host, 'Правильний: варіант 2').click();
   await click(host, 'Додати запитання');
-  await click(host, 'так чи ні');
+  await pickType(host, 'boolean');
   await questionText(host).fill('Говерла є найвищою горою України?');
   await click(host, 'Правильна відповідь: Так');
 
@@ -330,7 +331,7 @@ async function twoRounds() {
   await field(host, 'Варіант 2').fill('Дунай');
   await field(host, 'Правильний: варіант 1').click();
   await click(host, 'Додати запитання');
-  await click(host, 'так чи ні');
+  await pickType(host, 'boolean');
   await questionText(host).fill('Карпати в Україні?');
   await click(host, 'Правильна відповідь: Так');
 
@@ -447,8 +448,8 @@ async function blitzGame() {
   // Додаємо бліц, а початковий класичний раунд видаляємо: лишається один раунд бліцу.
   await click(host, '+ Раунд');
   await click(host, 'Бліц');
-  await host.getByRole('button', { name: 'Раунд 1', ...exact }).click();
-  await click(host, 'Видалити раунд');
+  await pickRound(host, 'Раунд 1');
+  await roundAction(host, 'Видалити раунд');
 
   await openRoundSettings(host);
   await field(host, 'Штраф: мінус ціна запитання за хибну відповідь').check();
@@ -462,7 +463,7 @@ async function blitzGame() {
   await field(host, 'Варіант 2').fill('Київ');
   await field(host, 'Правильний: варіант 2').click();
   await click(host, 'Додати запитання');
-  await click(host, 'один варіант');
+  await pickType(host, 'single');
   await questionText(host).fill('Найбільша річка України?');
   await field(host, 'Варіант 1').fill('Дніпро');
   await field(host, 'Варіант 2').fill('Дунай');
@@ -585,8 +586,8 @@ async function boardGame() {
   // Додаємо поле, а початковий класичний раунд видаляємо: лишається один раунд поля.
   await click(host, '+ Раунд');
   await click(host, 'Ігрове поле');
-  await host.getByRole('button', { name: 'Раунд 1', ...exact }).click();
-  await click(host, 'Видалити раунд');
+  await pickRound(host, 'Раунд 1');
+  await roundAction(host, 'Видалити раунд');
 
   await openRoundSettings(host);
   await host.locator('label.field', { hasText: 'Спосіб відповіді' }).locator('select').selectOption('phone');
@@ -793,8 +794,8 @@ async function mixedBoard() {
 
   await click(host, '+ Раунд');
   await click(host, 'Ігрове поле');
-  await host.getByRole('button', { name: 'Раунд 1', ...exact }).click();
-  await click(host, 'Видалити раунд');
+  await pickRound(host, 'Раунд 1');
+  await roundAction(host, 'Видалити раунд');
 
   await openRoundSettings(host);
   await host.locator('label.field', { hasText: 'Спосіб відповіді' }).locator('select').selectOption('phone');
@@ -1018,6 +1019,7 @@ async function videoGame() {
   await field(host, 'Варіант 1').fill('Rick Astley');
   await field(host, 'Варіант 2').fill('Sting');
   await field(host, 'Правильний: варіант 1').click();
+  await openMedia(host);
   await field(host, 'Відео з YouTube').fill('https://www.example.com/x');
   await host.getByText('Це не посилання на відео YouTube').waitFor();
   await field(host, 'Відео з YouTube').fill('https://youtu.be/dQw4w9WgXcQ?t=1m30s');
@@ -1031,9 +1033,10 @@ async function videoGame() {
 
   // Запитання 2: так чи ні з відео, яке не відтворюється.
   await click(host, 'Додати запитання');
-  await click(host, 'так чи ні');
+  await pickType(host, 'boolean');
   await questionText(host).fill('Так чи ні?');
   await click(host, 'Правильна відповідь: Так');
+  await openMedia(host);
   await field(host, 'Відео з YouTube').fill(`https://www.youtube.com/watch?v=${BROKEN_VIDEO}`);
 
   // «Однаковий час» запитання з відео пропускає: поле часу в першому так і не з'являється.
@@ -1143,6 +1146,7 @@ async function finalGame() {
   await field(host, 'Варіант 1').fill('Сатурн');
   await field(host, 'Варіант 2').fill('Юпітер');
   await field(host, 'Правильний: варіант 2').click();
+  await openMedia(host);
   await field(host, 'Відео з YouTube').fill('https://youtu.be/dQw4w9WgXcQ');
   expect(await host.getByLabel('Бали', exact).count()).toBe(0);
   expect(await host.getByLabel('Час, с', exact).count()).toBe(0);
@@ -1469,7 +1473,7 @@ async function chainGame() {
   await field(host, 'Назва вікторини').fill('Ланцюжок');
 
   // Редактор: ланцюжок з п'яти слів, підказка 5 с, час 60 с, відео немає.
-  await click(host, 'ланцюжок');
+  await pickType(host, 'chain');
   await questionText(host).fill('Від форелі до корабля');
   await field(host, 'Слово 1').fill('Форель');
   await field(host, 'Слово 2').fill('Риба');

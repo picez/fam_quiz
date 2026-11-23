@@ -5,7 +5,7 @@ import { wordlePoints } from '@quiz/shared';
 import { type Locator, type Page } from 'playwright-core';
 import { type Socket } from 'socket.io-client';
 import { expect, it } from 'vitest';
-import { open, click, field, questionText, join, register, POLL, socketFrames, RESTARTING_TEXT, NL, sleep, step27a, next27a, phoneScore27a, toWinners27c, reveal28a, pickTeamOn, seconds, pilotPlayer, frame, emitOk, stateViews, launchBot11h, type Pilot } from './helpers/common';
+import { open, click, field, questionText, join, register, POLL, socketFrames, RESTARTING_TEXT, NL, sleep, step27a, next27a, phoneScore27a, toWinners27c, reveal28a, pickTeamOn, seconds, pilotPlayer, frame, emitOk, stateViews, launchBot11h, type Pilot, pickType, typeOptions, roundAction } from './helpers/common';
 import { exact, base, problems, snapshot, afterSplash, noSplashLayer, shot, restart, flags, useE2eServer, ARTIFACTS } from './helpers/setup';
 
 /**
@@ -431,9 +431,9 @@ async function editor48() {
   await field(host, 'Назва вікторини').fill('Вгадай слово 48');
 
   // ── Класика: «Вгадай слово» у меню; поля тексту немає (61), 120 с. ──
-  const types = host.getByRole('group', { name: 'Тип запитання', ...exact });
-  expect(await types.getByRole('button', { name: 'Вгадай слово', ...exact }).count(), 'wordle in the classic menu').toBe(1);
-  await types.getByRole('button', { name: 'Вгадай слово', ...exact }).click();
+  const types = host.locator('.editor-stage');
+  expect((await typeOptions(types)).includes('wordle'), 'wordle in the classic menu').toBe(true);
+  await pickType(types, 'wordle');
   await field(host, 'Слово').waitFor();
   expect(await questionText(host).count(), '61: a question text field for a wordle').toBe(0);
   await expect.poll(() => field(host, 'Час, с').inputValue(), POLL).toBe('120');
@@ -452,9 +452,9 @@ async function editor48() {
   // ── Бліц: «Вгадай слово» в меню немає; раунд прибрано. ──
   await click(host, '+ Раунд');
   await click(host, 'Бліц');
-  await types.getByRole('button', { name: 'один варіант', ...exact }).waitFor();
-  expect(await types.getByRole('button', { name: 'Вгадай слово', ...exact }).count(), 'wordle in the blitz menu').toBe(0);
-  await click(host, 'Видалити раунд');
+  await expect.poll(async () => (await typeOptions(types)).includes('single'), POLL).toBe(true);
+  expect((await typeOptions(types)).includes('wordle'), 'wordle in the blitz menu').toBe(false);
+  await roundAction(host, 'Видалити раунд');
 
   // ── Слово зі словника: «Літер: 5», зберігається. ──
   await field(host, 'Слово').fill('колос');

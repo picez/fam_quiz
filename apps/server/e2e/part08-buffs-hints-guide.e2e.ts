@@ -2,7 +2,7 @@ import { blitzRound, bool as boolQ, boardRound, classicRound, duels as duelPool,
 import { DEFAULT_RULES } from '@quiz/shared';
 import { type Page } from 'playwright-core';
 import { expect, it } from 'vitest';
-import { open, click, field, seconds, arrange, join, bodyText, expectNoSideScroll, register, noSideScroll, yOf, duelAnswer, duelButton, buffButton, takeBuff, tapBuff, pickOption, numericAnswer, boxOf, textAnswer, vote, splashOn, guideOn, label } from './helpers/common';
+import { open, click, field, seconds, arrange, join, bodyText, expectNoSideScroll, register, noSideScroll, yOf, duelAnswer, duelButton, buffButton, takeBuff, tapBuff, pickOption, numericAnswer, boxOf, textAnswer, vote, splashOn, guideOn, label, pickType, openGeneralFold, showProblems, editorTab } from './helpers/common';
 import { exact, base, problems, pages, rigged, snapshot, afterSplash, shot, useE2eServer } from './helpers/setup';
 
 /**
@@ -68,7 +68,7 @@ async function buffsGame() {
   // Редактор: розділ «Бафи й дебафи» з чинними значеннями; «Жодного» / «Усі» / знову два дебафи.
   await host.goto(`${base}/quizzes`);
   await host.locator('.quiz-list li', { hasText: 'Бафи' }).getByRole('link', { name: 'Редагувати' }).click();
-  await host.locator('details.powers > summary').click();
+  await openGeneralFold(host, 'powers');
   const debuffGroup = host.locator('fieldset.powers-group').nth(0);
   const buffGroup = host.locator('fieldset.powers-group').nth(1);
   const box = (group: typeof debuffGroup, name: string) => group.locator('label.powers-item', { hasText: name }).locator('input');
@@ -390,7 +390,7 @@ async function sparesGame() {
   await host.locator('label.hint-field', { hasText: "Підказка (необов'язково)" }).first().waitFor();
   expect(await host.locator('.hint-field textarea').first().inputValue()).toBe('Тече через Київ');
   await shot(host, 'buff8b-editor-hint');
-  await host.locator('details.powers > summary').click();
+  await openGeneralFold(host, 'powers');
   const buffGroup = host.locator('fieldset.powers-group').nth(1);
   expect(await buffGroup.getByText('скоро').count()).toBe(0);
   for (const item of await buffGroup.locator('label.powers-item input').all()) expect(await item.isDisabled()).toBe(false);
@@ -399,21 +399,21 @@ async function sparesGame() {
   const sparesBox = host.locator('details.spares');
   expect(await sparesBox.getAttribute('open')).toBeNull();
   await click(host, 'Зберегти');
-  await host.getByText('Заміна запитання: додайте запасні запитання.', exact).waitFor();
+  await (await showProblems(host)).getByText('Заміна запитання: додайте запасні запитання.', exact).waitFor();
   await expect.poll(() => sparesBox.getAttribute('open')).not.toBeNull();
   expect(host.url()).not.toMatch(/\/quizzes$/);
   await shot(host, 'buff8b-editor-empty');
   const spareText = sparesBox.locator('.question-field textarea');
   await sparesBox.getByRole('button', { name: 'Додати запасне', ...exact }).click();
-  await sparesBox.getByRole('button', { name: 'так чи ні', ...exact }).click();
+  await pickType(sparesBox, 'boolean');
   await spareText.fill('Чорне море солоніше за Азовське?');
   await sparesBox.getByRole('button', { name: 'Правильна відповідь: Так', ...exact }).click();
   await sparesBox.getByRole('button', { name: 'Додати запасне', ...exact }).click();
-  await sparesBox.getByRole('button', { name: 'текст', ...exact }).click();
+  await pickType(sparesBox, 'text');
   await spareText.fill('Столиця Буковини?');
   await sparesBox.getByLabel('Написання 1', exact).fill('Чернівці');
   await sparesBox.getByRole('button', { name: 'Додати запасне', ...exact }).click();
-  await sparesBox.getByRole('button', { name: 'число', ...exact }).click();
+  await pickType(sparesBox, 'numeric');
   await spareText.fill('Скільки днів у високосному році?');
   await sparesBox.getByLabel('Правильне число', exact).fill('366');
   for (const label of ['Запасне 1 · так чи ні', 'Запасне 2 · текст', 'Запасне 3 · число']) await sparesBox.getByRole('button', { name: label, ...exact }).waitFor();
@@ -1002,7 +1002,7 @@ async function newcomersGame() {
   // 1. Редактор: у «Правилах гри» прапорець «Пояснення для новачків» увімкнений.
   await host.goto(`${base}/quizzes`);
   await host.locator('.quiz-list li', { hasText: 'Для новачків' }).getByRole('link', { name: 'Редагувати' }).click();
-  await host.locator('details.rules > summary', { hasText: 'Правила гри' }).click();
+  await editorTab(host, 'Загальне');
   const flag = host.locator('label.field-check', { hasText: 'Пояснення для новачків' }).locator('input');
   expect(await flag.isChecked(), 'the newcomers flag').toBe(true);
   await shot(host, 'guide8d-editor');

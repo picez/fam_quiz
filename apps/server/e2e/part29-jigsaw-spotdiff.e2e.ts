@@ -5,7 +5,7 @@ import { jigsawTabs } from '@quiz/shared';
 import { type BrowserContext, type Page } from 'playwright-core';
 import { io as connectSocket, type Socket } from 'socket.io-client';
 import { expect, it } from 'vitest';
-import { open, click, field, questionText, join, expectNoSideScroll, register, POLL, socketFrames, RESTARTING_TEXT, NL, pickTeamOn, stageTeam, sleep, frame, stateViews, step27a, next27a, phoneScore27a, select27b, toWinners27c, reveal28a, done28d, png29d } from './helpers/common';
+import { open, click, field, questionText, join, expectNoSideScroll, register, POLL, socketFrames, RESTARTING_TEXT, NL, pickTeamOn, stageTeam, sleep, frame, stateViews, step27a, next27a, phoneScore27a, select27b, toWinners27c, reveal28a, done28d, png29d, pickType, typeOptions, roundAction, editorTab } from './helpers/common';
 import { exact, base, problems, pages, ARTIFACTS, snapshot, afterSplash, shot, restart, flags, useE2eServer } from './helpers/setup';
 
 /**
@@ -242,8 +242,9 @@ async function jigsawGame29c() {
   await register(host, 'host', 'Ірина Ведуча', 'host29c@example.com');
   await host.getByRole('link', { name: 'Нова вікторина' }).click();
   await field(host, 'Назва вікторини').fill('Пазл 29c');
-  await host.locator('details.rules').first().locator('summary').click();
+  await editorTab(host, 'Загальне');
   await select27b(host, 'Показувати рейтинг', 'end');
+  await editorTab(host, 'Раунди й запитання');
   await questionText(host).fill('Столиця України?');
   await field(host, 'Варіант 1').fill('Львів');
   await field(host, 'Варіант 2').fill('Київ');
@@ -252,8 +253,8 @@ async function jigsawGame29c() {
 
   await click(host, '+ Раунд');
   await click(host, 'Класичний');
-  const types = host.getByRole('group', { name: 'Тип запитання', ...exact });
-  await types.getByRole('button', { name: 'пазл', ...exact }).click();
+  const types = host.locator('.editor-stage');
+  await pickType(types, 'jigsaw');
   expect(await questionText(host).inputValue(), 'the default jigsaw text').toBe('Складіть пазл.');
   const grid = host.locator('.jigsaw-editor-pieces output');
   const slider = host.locator('.jigsaw-editor-pieces input[type="range"]');
@@ -295,11 +296,11 @@ async function jigsawGame29c() {
 
   await click(host, '+ Раунд');
   await click(host, 'Головоломки');
-  await types.getByRole('button', { name: 'судоку', ...exact }).waitFor();
-  expect(await types.getByRole('button', { name: 'пазл', ...exact }).count(), 'a jigsaw in the puzzles round').toBe(1);
+  await expect.poll(async () => (await typeOptions(types)).includes('sudoku'), POLL).toBe(true);
+  expect((await typeOptions(types)).includes('jigsaw'), 'a jigsaw in the puzzles round').toBe(true);
   await field(host, 'Час, с').fill('60');
   await click(host, 'Додати запитання');
-  await types.getByRole('button', { name: 'пазл', ...exact }).click();
+  await pickType(types, 'jigsaw');
   await uploadPhoto29c(host);
   await slider.fill('6');
   await expect.poll(() => grid.textContent(), POLL).toBe('3×2 = 6');
@@ -307,9 +308,9 @@ async function jigsawGame29c() {
 
   await click(host, '+ Раунд');
   await click(host, 'Бліц');
-  await types.getByRole('button', { name: 'один варіант', ...exact }).waitFor();
-  expect(await types.getByRole('button', { name: 'пазл', ...exact }).count(), 'a jigsaw in the blitz menu').toBe(0);
-  await click(host, 'Видалити раунд');
+  await expect.poll(async () => (await typeOptions(types)).includes('single'), POLL).toBe(true);
+  expect((await typeOptions(types)).includes('jigsaw'), 'a jigsaw in the blitz menu').toBe(false);
+  await roundAction(host, 'Видалити раунд');
   await click(host, 'Зберегти');
   await host.getByRole('heading', { name: 'Пазл 29c' }).waitFor();
 
@@ -1036,8 +1037,9 @@ async function spotdiffGame29d() {
   await register(host, 'host', 'Ірина Ведуча', 'host29d@example.com');
   await host.getByRole('link', { name: 'Нова вікторина' }).click();
   await field(host, 'Назва вікторини').fill('Відмінності 29d');
-  await host.locator('details.rules').first().locator('summary').click();
+  await editorTab(host, 'Загальне');
   await select27b(host, 'Показувати рейтинг', 'end');
+  await editorTab(host, 'Раунди й запитання');
   await questionText(host).fill('Столиця України?');
   await field(host, 'Варіант 1').fill('Львів');
   await field(host, 'Варіант 2').fill('Київ');
@@ -1046,8 +1048,8 @@ async function spotdiffGame29d() {
 
   await click(host, '+ Раунд');
   await click(host, 'Класичний');
-  const types = host.getByRole('group', { name: 'Тип запитання', ...exact });
-  await types.getByRole('button', { name: 'відмінності', ...exact }).click();
+  const types = host.locator('.editor-stage');
+  await pickType(types, 'spotdiff');
   expect(await field(host, 'Час, с').inputValue(), 'the default spotdiff time').toBe('90');
   await expect.poll(() => field(host, 'Бали').inputValue(), POLL).toBe('300');
   expect(await host.getByLabel('Відео з YouTube', exact).count(), 'a spotdiff has no video').toBe(0);
@@ -1069,7 +1071,7 @@ async function spotdiffGame29d() {
 
   // Окреме чернеткове запитання: десять кіл, одинадцяте не ставиться; потім запитання видаляється.
   await click(host, 'Додати запитання');
-  await types.getByRole('button', { name: 'відмінності', ...exact }).click();
+  await pickType(types, 'spotdiff');
   await questionText(host).fill('Чернетка');
   await uploadPics29d(host);
   for (let k = 0; k < 10; k++) await placeCircle29d(host, 0.1 + 0.2 * (k % 5), k < 5 ? 0.2 : 0.8);
@@ -1083,11 +1085,11 @@ async function spotdiffGame29d() {
 
   await click(host, '+ Раунд');
   await click(host, 'Головоломки');
-  await types.getByRole('button', { name: 'судоку', ...exact }).waitFor();
-  expect(await types.getByRole('button', { name: 'відмінності', ...exact }).count(), 'a spotdiff in the puzzles round').toBe(1);
+  await expect.poll(async () => (await typeOptions(types)).includes('sudoku'), POLL).toBe(true);
+  expect((await typeOptions(types)).includes('spotdiff'), 'a spotdiff in the puzzles round').toBe(true);
   await field(host, 'Час, с').fill('60');
   await click(host, 'Додати запитання');
-  await types.getByRole('button', { name: 'відмінності', ...exact }).click();
+  await pickType(types, 'spotdiff');
   await questionText(host).fill('Знайдіть дві відмінності');
   await uploadPics29d(host, 2);
   for (const spot of SPOTS29D.slice(0, 2)) await placeCircle29d(host, spot.x, spot.y);
@@ -1095,9 +1097,9 @@ async function spotdiffGame29d() {
 
   await click(host, '+ Раунд');
   await click(host, 'Бліц');
-  await types.getByRole('button', { name: 'один варіант', ...exact }).waitFor();
-  expect(await types.getByRole('button', { name: 'відмінності', ...exact }).count(), 'a spotdiff in the blitz menu').toBe(0);
-  await click(host, 'Видалити раунд');
+  await expect.poll(async () => (await typeOptions(types)).includes('single'), POLL).toBe(true);
+  expect((await typeOptions(types)).includes('spotdiff'), 'a spotdiff in the blitz menu').toBe(false);
+  await roundAction(host, 'Видалити раунд');
   await click(host, 'Зберегти');
   await host.getByRole('heading', { name: 'Відмінності 29d' }).waitFor();
 

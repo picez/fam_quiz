@@ -2,7 +2,7 @@ import { classicRound, makeRoundsQuiz } from '@quiz/engine/testing';
 import { type Locator, type Page } from 'playwright-core';
 import { io as connectSocket, type Socket } from 'socket.io-client';
 import { expect, it } from 'vitest';
-import { open, click, field, questionText, join, expectNoSideScroll, register, POLL, socketFrames, RESTARTING_TEXT, NL, pickTeamOn, stageTeam, sleep, step27a, phoneScore27a, toWinners27c, reveal28a, textAnswer } from './helpers/common';
+import { open, click, field, questionText, join, expectNoSideScroll, register, POLL, socketFrames, RESTARTING_TEXT, NL, pickTeamOn, stageTeam, sleep, step27a, phoneScore27a, toWinners27c, reveal28a, textAnswer, pickType, typeOptions, roundAction, showProblems } from './helpers/common';
 import { exact, base, problems, snapshot, afterSplash, shot, restart, flags, useE2eServer } from './helpers/setup';
 
 /**
@@ -198,7 +198,7 @@ async function editor37() {
   await field(host, 'Назва вікторини').fill('Крок 37');
 
   // ── «Більше чи менше»: три порівняння, перше 100, «Крок» 50 → 100/150/200; 3-є вручну 500; «+ Порівняння» → 550; разом 1300. ──
-  await click(host, 'більше чи менше');
+  await pickType(host, 'moreless');
   await questionText(host).fill('Порівняйте пари');
   expect(await host.getByRole('group', { name: /^Порівняння \d+$/ }).count(), 'three blank comparisons').toBe(3);
   for (const [at, pair] of PAIRS37.slice(0, 3).entries()) await fillPair37(host, at + 1, pair);
@@ -217,7 +217,7 @@ async function editor37() {
 
   // ── Числове: «Не перебільш» ховає «Допустиме відхилення»; вимкнули — поле знову є. ──
   await click(host, 'Додати запитання');
-  await click(host, 'число');
+  await pickType(host, 'numeric');
   await questionText(host).fill(NUMERIC_TEXT37);
   await field(host, 'Правильне число').fill('88');
   await field(host, 'Час, с').fill('30');
@@ -230,10 +230,10 @@ async function editor37() {
   await host.getByLabel('Не перебільш', exact).check();
 
   // ── «Думай як усі» в меню класики: типовий текст і 30 с. ──
-  const types = host.getByRole('group', { name: 'Тип запитання', ...exact });
+  const types = host.locator('.editor-stage');
   await click(host, 'Додати запитання');
-  expect(await types.getByRole('button', { name: 'Як усі', ...exact }).count(), 'thinkalike in the classic menu').toBe(1);
-  await types.getByRole('button', { name: 'Як усі', ...exact }).click();
+  expect((await typeOptions(types)).includes('thinkalike'), 'thinkalike in the classic menu').toBe(true);
+  await pickType(types, 'thinkalike');
   await expect.poll(() => questionText(host).inputValue(), POLL).toBe(ALIKE_TEXT37);
   await expect.poll(() => field(host, 'Час, с').inputValue(), POLL).toBe('30');
   await host.getByText('Тема — у тексті запитання. Схожі слова програма об’єднає сама; на розкритті ви зможете виправити групи.', exact).waitFor();
@@ -241,15 +241,15 @@ async function editor37() {
   // ── Бліц: «Як усі» в меню немає; числове з «Не перебільш» — проблема місця. ──
   await click(host, '+ Раунд');
   await click(host, 'Бліц');
-  await types.getByRole('button', { name: 'один варіант', ...exact }).waitFor();
-  expect(await types.getByRole('button', { name: 'Як усі', ...exact }).count(), 'thinkalike in the blitz menu').toBe(0);
-  await types.getByRole('button', { name: 'число', ...exact }).click();
+  await expect.poll(async () => (await typeOptions(types)).includes('single'), POLL).toBe(true);
+  expect((await typeOptions(types)).includes('thinkalike'), 'thinkalike in the blitz menu').toBe(false);
+  await pickType(types, 'numeric');
   await questionText(host).fill('Скільки струн у скрипки?');
   await field(host, 'Правильне число').fill('4');
   await host.getByLabel('Не перебільш', exact).check();
   await click(host, 'Зберегти');
-  await host.locator('.problems', { hasText: /«Не перебільш» — лише в класичному раунді\./ }).waitFor();
-  await click(host, 'Видалити раунд');
+  await (await showProblems(host)).filter({ hasText: /«Не перебільш» — лише в класичному раунді\./ }).waitFor();
+  await roundAction(host, 'Видалити раунд');
   await click(host, 'Зберегти');
   await host.getByRole('heading', { name: 'Крок 37' }).waitFor();
 

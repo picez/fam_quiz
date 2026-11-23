@@ -5,7 +5,7 @@ import { type Socket } from 'socket.io-client';
 import { expect, it } from 'vitest';
 import es from '../../web/src/locales/es.json';
 import { ukMessages } from '../../web/src/i18n';
-import { open, click, field, questionText, join, openRoundSettings, bodyText, expectNoSideScroll, register, POLL, socketFrames, NL, pickTeamOn, sleep, pilotPlayer, frame, emitOk, stateViews, join22a, step27a, next27a, phoneScore27a, select27b, reveal28a, writeWord35, hostWords35, hearts35 } from './helpers/common';
+import { open, click, field, questionText, join, openRoundSettings, bodyText, expectNoSideScroll, register, POLL, socketFrames, NL, pickTeamOn, sleep, pilotPlayer, frame, emitOk, stateViews, join22a, step27a, next27a, phoneScore27a, select27b, reveal28a, writeWord35, hostWords35, hearts35, roundAction, editorTab, pickRound } from './helpers/common';
 import { exact, base, problems, snapshot, afterSplash, shot, useE2eServer } from './helpers/setup';
 
 /**
@@ -94,14 +94,15 @@ async function thinkGame35() {
   await register(host, 'host', 'Ірина Ведуча', 'host35@example.com');
   await host.getByRole('link', { name: 'Нова вікторина' }).click();
   await field(host, 'Назва вікторини').fill('Думай інакше 35');
-  await host.locator('details.rules').first().locator('summary').click();
+  await editorTab(host, 'Загальне');
   await select27b(host, 'Показувати рейтинг', 'end');
+  await editorTab(host, 'Раунди й запитання');
   await click(host, '+ Раунд');
   await click(host, 'Думай інакше');
-  // Класичний раунд нової вікторини не потрібен: лишається лише «Думай інакше» (з одним раундом смуги вкладок немає).
-  await host.locator('.round-tab').first().click();
-  await click(host, 'Видалити раунд');
-  await expect.poll(() => host.locator('.round-tab').count(), POLL).toBe(0);
+  // Класичний раунд нової вікторини не потрібен: лишається лише «Думай інакше» (з одним раундом вибору раунду немає).
+  await pickRound(host, 'Раунд 1');
+  await roundAction(host, 'Видалити раунд');
+  await expect.poll(() => host.locator('.combo.round-pick').count(), POLL).toBe(0);
   await openRoundSettings(host);
   await field(host, 'Життя на старті').fill('2');
   await field(host, 'Бали за 1-ше місце').fill('3000');

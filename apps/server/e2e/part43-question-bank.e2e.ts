@@ -1,7 +1,7 @@
 import { blitzRound, classicRound, ladderRound, makeRoundsQuiz } from '@quiz/engine/testing';
 import { type Locator, type Page } from 'playwright-core';
 import { expect, it } from 'vitest';
-import { expectNoSideScroll, join, open, pickOption, register } from './helpers/common';
+import { expectNoSideScroll, join, open, pickOption, register, pickRound } from './helpers/common';
 import { afterSplash, avatarPng, base, exact, problems, shot, snapshot, useE2eServer } from './helpers/setup';
 
 /**
@@ -106,7 +106,7 @@ async function questionBank43() {
 
   // ── 3. Панель: на весь екран, обидві вікторини автора, чужої немає. ──
   await author.goto(`${base}/quizzes/${mix}`);
-  await author.getByRole('button', { name: 'Класика', ...exact }).click();
+  await pickRound(author, 'Класика');
   const bankButton = author.getByRole('button', { name: '📚 З банку запитань', ...exact });
   const dialog = author.getByRole('dialog', { name: 'Банк запитань', ...exact });
   const items = dialog.locator('.question-bank-item');
@@ -176,7 +176,7 @@ async function questionBank43() {
   await expect.poll(() => list.count()).toBe(4);
 
   // ── 6. Бліц: недопустимих типів у фільтрі немає, їх запитань теж. ──
-  await author.getByRole('button', { name: 'Бліц', ...exact }).click();
+  await pickRound(author, 'Бліц');
   await bankButton.click();
   await dialog.waitFor();
   await items.first().waitFor();
@@ -191,7 +191,7 @@ async function questionBank43() {
   await dialog.waitFor({ state: 'detached' });
 
   // ── 6b. «Мільйонер» на 14 з 15: запитання з 3 варіантами вимкнене з причиною; позначено 2 — «Вміщається ще 1». ──
-  await author.getByRole('button', { name: 'Мільйонер', ...exact }).click();
+  await pickRound(author, 'Мільйонер');
   await bankButton.click();
   await dialog.waitFor();
   await items.first().waitFor();

@@ -5,7 +5,7 @@ import { LIMITS } from '@quiz/shared';
 import { type Page } from 'playwright-core';
 import { expect, it } from 'vitest';
 import es from '../../web/src/locales/es.json';
-import { open, click, liveRow, field, questionText, join, openRoundSettings, bodyText, expectNoSideScroll, register, POLL, socketFrames, NL, pickTeamOn, stageTeam, sleep, join22a, step27a, next27a, phoneScore27a, select27b, toWinners27c } from './helpers/common';
+import { open, click, liveRow, field, questionText, join, openRoundSettings, bodyText, expectNoSideScroll, register, POLL, socketFrames, NL, pickTeamOn, stageTeam, sleep, join22a, step27a, next27a, phoneScore27a, select27b, toWinners27c, pickType, editorTab } from './helpers/common';
 import { exact, base, problems, snapshot, afterSplash, shot, useE2eServer } from './helpers/setup';
 
 /**
@@ -47,7 +47,7 @@ async function betsGame27a() {
   await field(host, 'Правильний: варіант 2').click();
   await field(host, 'Бали').fill('500');
   await click(host, 'Додати запитання');
-  await click(host, 'текст');
+  await pickType(host, 'text');
   await questionText(host).fill('Столиця Франції?');
   await field(host, 'Написання 1').fill('Париж');
   await field(host, 'Бали').fill('300');
@@ -72,14 +72,14 @@ async function betsGame27a() {
   await host.getByText('Під час ставок видно: «Яке місто»', exact).waitFor();
   // Б2: так/ні, правильна «ні», нічого не видно.
   await click(host, 'Додати запитання');
-  await click(host, 'так чи ні');
+  await pickType(host, 'boolean');
   await questionText(host).fill('Чи є кит рибою?');
   await click(host, 'Правильна відповідь: Ні');
   await host.getByRole('radio', { name: 'Нічого', ...exact }).click();
   await host.getByText('Під час ставок видно лише тему раунду й номер запитання', exact).waitFor();
   // Б3: число, видно весь текст.
   await click(host, 'Додати запитання');
-  await click(host, 'число');
+  await pickType(host, 'numeric');
   await questionText(host).fill('Скільки ніг у павука?');
   await field(host, 'Правильне число').fill('8');
   await host.getByRole('radio', { name: 'Увесь текст', ...exact }).click();
@@ -310,8 +310,9 @@ async function auctionGame27b() {
   await register(host, 'host', 'Ірина Ведуча', 'host27b@example.com');
   await host.getByRole('link', { name: 'Нова вікторина' }).click();
   await field(host, 'Назва вікторини').fill('Аукціон 27b');
-  await host.locator('details.rules').first().locator('summary').click();
+  await editorTab(host, 'Загальне');
   await select27b(host, 'Показувати рейтинг', 'end');
+  await editorTab(host, 'Раунди й запитання');
   await openRoundSettings(host);
   await field(host, 'Бали за швидкість: швидша правильна відповідь дає більше').setChecked(false);
   await questionText(host).fill('Яка планета найбільша?');
@@ -320,7 +321,7 @@ async function auctionGame27b() {
   await field(host, 'Правильний: варіант 2').click();
   await field(host, 'Бали').fill('500');
   await click(host, 'Додати запитання');
-  await click(host, 'текст');
+  await pickType(host, 'text');
   await questionText(host).fill('Столиця Франції?');
   await field(host, 'Написання 1').fill('Париж');
   await field(host, 'Бали').fill('300');
@@ -347,7 +348,7 @@ async function auctionGame27b() {
   await host.getByText('Під час торгу видно: «Яке місто»', exact).waitFor();
   // А2: так/ні, правильна «ні», нічого не видно.
   await click(host, 'Додати запитання');
-  await click(host, 'так чи ні');
+  await pickType(host, 'boolean');
   await questionText(host).fill('Чи є кит рибою?');
   await click(host, 'Правильна відповідь: Ні');
   await field(host, 'Бали').fill('300');
@@ -355,7 +356,7 @@ async function auctionGame27b() {
   await host.getByText('Під час торгу видно лише тему раунду, номер і ціну запитання', exact).waitFor();
   // А3: число, видно весь текст.
   await click(host, 'Додати запитання');
-  await click(host, 'число');
+  await pickType(host, 'numeric');
   await questionText(host).fill('Скільки ніг у павука?');
   await field(host, 'Правильне число').fill('8');
   await field(host, 'Бали').fill('200');
@@ -370,7 +371,7 @@ async function auctionGame27b() {
   expect(await field(host, 'Крок ставки').count(), 'the step field in the free mode').toBe(0);
   await select27b(host, 'Що втрачає той, хто помилився', 'bid_price');
   // Б1: текст, видно «Столиця».
-  await click(host, 'текст');
+  await pickType(host, 'text');
   await questionText(host).fill('Столиця Японії?');
   await field(host, 'Написання 1').fill('Токіо');
   await field(host, 'Бали').fill('300');
@@ -696,7 +697,7 @@ async function timedListGame27c() {
   await register(host, 'host', 'Ірина Ведуча', 'host27c@example.com');
   await host.getByRole('link', { name: 'Нова вікторина' }).click();
   await field(host, 'Назва вікторини').fill('Список 27c');
-  await click(host, 'список на час');
+  await pickType(host, 'timedlist');
   await questionText(host).fill('Планети Сонячної системи');
   expect(await host.getByLabel('Відео з YouTube', exact).count(), 'a timed list has no video').toBe(0);
   expect(await listItemInput27c(host, 3).count(), 'three blank items to start').toBe(1);
@@ -710,7 +711,7 @@ async function timedListGame27c() {
   await field(host, 'Час, с').fill('90');
 
   await click(host, 'Додати запитання');
-  await click(host, 'список на час');
+  await pickType(host, 'timedlist');
   await questionText(host).fill('Кольори веселки');
   // Сьомий пункт спершу — «синій» удруге: збереження називає проблему.
   await fillList27c(host, [...RAINBOW27C.slice(0, 6), 'синій']);
@@ -1120,7 +1121,7 @@ async function letterWordsGame27d() {
   await register(host, 'host', 'Ірина Ведуча', 'host27d@example.com');
   await host.getByRole('link', { name: 'Нова вікторина' }).click();
   await field(host, 'Назва вікторини').fill('Слова 27d');
-  await click(host, 'слова з літер');
+  await pickType(host, 'letterwords');
   await questionText(host).fill('Складіть якнайбільше слів');
   expect(await host.getByLabel('Відео з YouTube', exact).count(), 'letter words have no video').toBe(0);
   expect(await field(host, 'Скільки літер').inputValue(), 'a random set of 9 by default').toBe('9');
@@ -1139,7 +1140,7 @@ async function letterWordsGame27d() {
   await shot(host, 'letterwords27d-editor');
 
   await click(host, 'Додати запитання');
-  await click(host, 'слова з літер');
+  await pickType(host, 'letterwords');
   await questionText(host).fill('Кожна літера — бали');
   await click(host, 'Свій набір');
   // «abc» — не українські літери: збереження називає проблему.
@@ -1153,7 +1154,7 @@ async function letterWordsGame27d() {
   await field(host, 'Час, с').fill('60');
 
   await click(host, 'Додати запитання');
-  await click(host, 'слова з літер');
+  await pickType(host, 'letterwords');
   await questionText(host).fill('Найдовше слово');
   await field(host, 'Скільки літер').fill('9');
   await click(host, 'Найдовше слово');

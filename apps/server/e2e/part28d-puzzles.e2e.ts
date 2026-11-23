@@ -3,7 +3,7 @@ import { countSudoku, crosswordCells, generateSudoku, layoutCrossword, pickKeyCe
 import { type Locator, type Page } from 'playwright-core';
 import { io as connectSocket, type Socket } from 'socket.io-client';
 import { expect, it } from 'vitest';
-import { open, click, liveRow, field, questionText, join, expectNoSideScroll, register, POLL, socketFrames, RESTARTING_TEXT, NL, pickTeamOn, stageTeam, sleep, stateViews, label, step27a, next27a, phoneScore27a, select27b, toWinners27c, reveal28a, writeFact28b, hostAuthor28b, pickName28b, done28d } from './helpers/common';
+import { open, click, liveRow, field, questionText, join, expectNoSideScroll, register, POLL, socketFrames, RESTARTING_TEXT, NL, pickTeamOn, stageTeam, sleep, stateViews, label, step27a, next27a, phoneScore27a, select27b, toWinners27c, reveal28a, writeFact28b, hostAuthor28b, pickName28b, done28d, pickType, typeOptions, roundAction, editorTab, pickRound } from './helpers/common';
 import { exact, base, problems, snapshot, afterSplash, shot, restart, flags, useE2eServer } from './helpers/setup';
 
 /**
@@ -226,16 +226,17 @@ async function puzzlesGame28d() {
   await register(host, 'host', 'Ірина Ведуча', 'host28d@example.com');
   await host.getByRole('link', { name: 'Нова вікторина' }).click();
   await field(host, 'Назва вікторини').fill('Головоломки 28d');
-  await host.locator('details.rules').first().locator('summary').click();
+  await editorTab(host, 'Загальне');
   await select27b(host, 'Показувати рейтинг', 'end');
+  await editorTab(host, 'Раунди й запитання');
   await click(host, '+ Раунд');
   await click(host, 'Головоломки');
-  await host.getByRole('button', { name: 'Раунд 1', ...exact }).click();
-  await click(host, 'Видалити раунд');
-  const types = host.getByRole('group', { name: 'Тип запитання', ...exact });
-  await types.getByRole('button', { name: 'кросворд', ...exact }).waitFor();
-  expect(await types.getByRole('button', { name: 'судоку', ...exact }).count(), 'sudoku in the puzzles round').toBe(1);
-  expect(await types.getByRole('button', { name: 'один варіант', ...exact }).count(), 'a single choice in the puzzles round').toBe(0);
+  await pickRound(host, 'Раунд 1');
+  await roundAction(host, 'Видалити раунд');
+  const types = host.locator('.editor-stage');
+  await expect.poll(async () => (await typeOptions(types)).includes('crossword'), POLL).toBe(true);
+  expect((await typeOptions(types)).includes('sudoku'), 'sudoku in the puzzles round').toBe(true);
+  expect((await typeOptions(types)).includes('single'), 'a single choice in the puzzles round').toBe(false);
 
   // Запитання 1: «Згенерувати» — легко, потім середньо й нова сітка; 60 с.
   expect(await field(host, 'Згенерувати').isChecked(), 'a new sudoku is generated').toBe(true);
@@ -277,7 +278,7 @@ async function puzzlesGame28d() {
 
   // Запитання 3: «Увесь кросворд» із шести слів; прев'ю складається саме.
   await click(host, 'Додати запитання');
-  await types.getByRole('button', { name: 'кросворд', ...exact }).click();
+  await pickType(types, 'crossword');
   expect(await questionText(host).inputValue(), 'the default text after switching to a crossword').toBe('Розгадайте кросворд.');
   await fillWords28d(host, WORDS28D);
   expect(await field(host, 'Увесь кросворд').isChecked(), 'the full mode by default').toBe(true);
@@ -293,7 +294,7 @@ async function puzzlesGame28d() {
 
   // Запитання 4: «Ключове слово»: «футбол» — бракує літер, «ліс» — три ключові клітинки.
   await click(host, 'Додати запитання');
-  await types.getByRole('button', { name: 'кросворд', ...exact }).click();
+  await pickType(types, 'crossword');
   await fillWords28d(host, KEY_WORDS28D);
   await field(host, 'Ключове слово').check();
   await field(host, 'Слово-ключ').fill('футбол');

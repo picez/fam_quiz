@@ -3,7 +3,7 @@ import { DEFAULT_RULES } from '@quiz/shared';
 import { PIN_PLACES } from '../scripts/pin-places';
 import { type Page } from 'playwright-core';
 import { expect, it } from 'vitest';
-import { open, click, field, seconds, join, bodyText, expectNoSideScroll, register, POLL, socketFrames, silentMp3, scoreOf, toNextQuestion, clueTexts, framesBeforeReveal, totalOf, expectStageFits, fillSurvey, answerSurvey, frame } from './helpers/common';
+import { open, click, field, seconds, join, bodyText, expectNoSideScroll, register, POLL, socketFrames, silentMp3, scoreOf, toNextQuestion, clueTexts, framesBeforeReveal, totalOf, expectStageFits, fillSurvey, answerSurvey, frame, openGeneralFold, editorTab, pickRound, showProblems, closeProblems } from './helpers/common';
 import { avatarPng, exact, base, problems, snapshot, afterSplash, shot, useE2eServer } from './helpers/setup';
 
 /**
@@ -80,7 +80,7 @@ async function hostHelpGame() {
   expect(await host.locator('main.editor').getByRole('link', { name: 'Довідка ведучого', ...exact }).getAttribute('target')).toBe('_blank');
   const dialog = (name: string) => host.getByRole('dialog', { name, ...exact });
 
-  await host.locator('details.rules').first().locator('summary').click();
+  await editorTab(host, 'Загальне');
   await host.getByRole('button', { name: 'Довідка: Показувати рейтинг', ...exact }).click();
   await dialog('Показувати рейтинг').waitFor();
   await dialog('Показувати рейтинг').getByText(/Лише в кінці гри/).first().waitFor();
@@ -89,7 +89,7 @@ async function hostHelpGame() {
   await dialog('Показувати рейтинг').waitFor({ state: 'detached' });
   expect(await host.evaluate("document.activeElement?.getAttribute('aria-label')")).toBe('Довідка: Показувати рейтинг');
 
-  await host.locator('details.powers > summary').click();
+  await openGeneralFold(host, 'powers');
   await host.getByRole('button', { name: 'Довідка: Заміна запитання', ...exact }).click();
   const buffDialog = dialog('Заміна запитання');
   await buffDialog.waitFor();
@@ -101,7 +101,8 @@ async function hostHelpGame() {
   await host.keyboard.press('Escape');
   await buffDialog.waitFor({ state: 'detached' });
 
-  await host.locator('.round-tabs').getByRole('button', { name: 'Поле', ...exact }).click();
+  await editorTab(host, 'Раунди й запитання');
+  await pickRound(host, 'Поле');
   await host.getByRole('button', { name: /^Категорія 1, клітинка 1: 100 бліц/ }).click();
   await host.getByRole('button', { name: 'Довідка: Бліц-клітинка', ...exact }).first().click();
   await dialog('Бліц-клітинка').getByText(/Мінус для всіх/).first().waitFor();
@@ -117,7 +118,7 @@ async function hostHelpGame() {
   await dialog('Фінал').waitFor({ state: 'detached' });
 
   await host.setViewportSize({ width: 375, height: 812 });
-  await host.locator('.round-tabs').getByRole('button', { name: 'Розминка', ...exact }).click();
+  await pickRound(host, 'Розминка');
   await host.getByRole('button', { name: 'Довідка: Один правильний варіант', ...exact }).click();
   const sheet = dialog('Один правильний варіант');
   await sheet.waitFor();
@@ -285,7 +286,7 @@ async function sliderAudioRevealGame() {
   await shot(host, 'p10b-editor-slider');
   await field(host, 'Мінімум').fill('100');
   await click(host, 'Зберегти');
-  await host.locator('ul.problems').getByText('повзунок — перевірте мінімум, максимум і крок', { exact: false }).waitFor();
+  await (await showProblems(host)).getByText('повзунок — перевірте мінімум, максимум і крок', { exact: false }).waitFor();
   await field(host, 'Мінімум').fill('0');
 
   await host.getByRole('button', { name: /^Запитання 4 / }).click();
@@ -551,8 +552,9 @@ async function cluesPinGame() {
 
   await field(host, 'Нуль балів далі ніж, %').fill('2');
   await click(host, 'Зберегти');
-  await host.locator('ul.problems').getByText('радіус нуля має бути більшим', { exact: false }).waitFor();
+  await (await showProblems(host)).getByText('радіус нуля має бути більшим', { exact: false }).waitFor();
   await field(host, 'Нуль балів далі ніж, %').fill('15');
+  await closeProblems(host);
 
   await host.setViewportSize({ width: 375, height: 812 });
   await click(host, 'Попереднє запитання');
@@ -772,8 +774,9 @@ async function wallPollCloudGame() {
   const second = host.getByRole('group', { name: 'Група 2', ...exact });
   await second.getByLabel('Плитка 1', exact).fill('Дніпро');
   await click(host, 'Зберегти');
-  await host.locator('ul.problems').getByText('плитка «дніпро» повторюється', { exact: false }).waitFor();
+  await (await showProblems(host)).getByText('плитка «дніпро» повторюється', { exact: false }).waitFor();
   await second.getByLabel('Плитка 1', exact).fill('Говерла');
+  await closeProblems(host);
 
   await host.setViewportSize({ width: 375, height: 812 });
   await host.locator('.wall-group-edit').last().scrollIntoViewIfNeeded();

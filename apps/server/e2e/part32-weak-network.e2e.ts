@@ -3,7 +3,7 @@ import type { Question, Quiz } from '@quiz/shared';
 import { type Page } from 'playwright-core';
 import { expect, it } from 'vitest';
 import { ukMessages } from '../../web/src/i18n';
-import { open, click, join, expectNoSideScroll, register, liveRow, pickOption, scoreOf, slowSocket, waitForServiceWorker, reveal28a, next27a, POLL, sleep, type SocketControl } from './helpers/common';
+import { open, click, join, expectNoSideScroll, register, liveRow, pickOption, scoreOf, slowSocket, waitForServiceWorker, reveal28a, next27a, POLL, sleep, type SocketControl, openMedia } from './helpers/common';
 import { exact, base, ctx, flags, snapshot, afterSplash, shot, useE2eServer } from './helpers/setup';
 
 /**
@@ -330,6 +330,7 @@ async function photoShrink32() {
   const page = await open('p32-photo', 1280, 900);
   await register(page, 'menu', 'Марко Фото', 'photo32@example.com');
   await page.goto(`${base}/quizzes/new`);
+  await openMedia(page);
   const input = page.getByLabel('Додати зображення', exact);
   await input.waitFor({ state: 'attached' });
   // «Фото з телефона»: 4000×3000 JPEG із шумом і градієнтами, кілька мегабайтів.
