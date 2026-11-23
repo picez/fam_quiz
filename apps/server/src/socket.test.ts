@@ -3083,3 +3083,34 @@ describe('lighter snapshots (30c)', () => {
     expect(again.states).toBe(1);
   });
 });
+
+describe('guide skip vote over sockets (75)', () => {
+  it('players of an autopilot game vote over player:guide-skip; the stage sees the count; a majority starts the round', async () => {
+    const account = await signUp(ctx.app, 'Марта');
+    const quiz = makeRoundsQuiz([classicRound('r1', [single])], { newcomers: true });
+    const saved = await ctx.app.inject({ method: 'POST', url: '/api/quizzes', payload: quiz, headers: { cookie: account.cookie } });
+    const { id: quizId } = saved.json() as { id: string };
+    const created = await ctx.app.inject({ method: 'POST', url: '/api/games', payload: { quizId, autopilot: true, nickname: 'Марта' }, headers: { cookie: account.cookie } });
+    const game = created.json() as { code: string; token: string; playerId: string; stageToken: string };
+    // Троє людей: один голос — ще не більшість (треба 2).
+    const tarasJoin = await join(game.code, 'Тарас');
+    const iraJoin = await join(game.code, 'Іра');
+    const author = open({ code: game.code, role: 'player', token: game.token });
+    const taras = open({ code: game.code, role: 'player', token: tarasJoin.token });
+    const ira = open({ code: game.code, role: 'player', token: iraJoin.token });
+    const stage = open({ code: game.code, role: 'stage', token: game.stageToken });
+    await until(stage, (view) => view.role === 'stage' && view.players.filter((p) => p.connected).length === 3);
+    expect(await send(author, 'host:start')).toEqual({ ok: true });
+    await until(taras, inPhase('guide'));
+    expect(await send(stage, 'player:guide-skip', { skip: true })).toEqual({ ok: false, error: 'forbidden' });
+    expect(await send(taras, 'player:guide-skip', { skip: 'x' })).toEqual({ ok: false, error: 'invalid_payload' });
+    expect(await send(taras, 'player:guide-skip', { skip: true })).toEqual({ ok: true });
+    const mine = await until(taras, (view) => view.guide?.skip?.votes === 1);
+    expect(mine.guide?.skip).toEqual({ votes: 1, of: 3, mine: true });
+    expect((await until(author, (view) => view.guide?.skip?.votes === 1)).guide?.skip).toEqual({ votes: 1, of: 3, mine: false });
+    expect((await until(stage, (view) => view.guide?.skip?.votes === 1)).guide?.skip).toEqual({ votes: 1, of: 3 });
+    expect(await send(author, 'player:guide-skip', { skip: true })).toEqual({ ok: true });
+    await until(ira, inPhase('intro'));
+    await until(stage, inPhase('intro'));
+  });
+});
