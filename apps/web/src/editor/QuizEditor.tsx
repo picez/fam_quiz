@@ -1,8 +1,9 @@
 import { LIMITS, allowedBuffs, questionsOf, roundQuestions, roundTrials, type Question, type QuestionBankItem, type Quiz, type QuizLikes, type Round } from '@quiz/shared';
-import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
+import { useDeferredValue, useEffect, useMemo, useReducer, useRef, useState, type FocusEvent } from 'react';
 import { EditorCard } from './EditorCard';
 import { IssuesPanel } from './IssuesPanel';
 import { remindersOf } from './reminders';
+import { isTouched, touchKey, touchReducer, UNTOUCHED } from './touched';
 import { generalSummaries } from './summaries';
 import { questionName } from '../format';
 import { t } from '../i18n';
@@ -115,6 +116,8 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
   const currentTab = tab ?? ownTab;
   /** Єдиний спосіб перемкнути вкладку: і внутрішній стан, і адреса. */
   const showTab = (next: EditorTab) => {
+    leaveQuestion();
+    if (currentTab === 'general' && next !== 'general') touch({ type: 'leave', key: touchKey.general });
     setOwnTab(next);
     onTabChange?.(next);
   };
@@ -134,6 +137,52 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
   const errors = useMemo(() => placedProblemsOf(deferredQuiz), [deferredQuiz]);
   const reminders = useMemo(() => remindersOf(deferredQuiz), [deferredQuiz]);
   const tabErrors = (id: EditorTab) => errors.filter((problem) => tabOf(problem.place) === id).length;
+  /** «Торкнуті» місця: червоне видно лише там, де автор щось змінив і вийшов, або після спроби зберегти. */
+  const [touched, touch] = useReducer(touchReducer, UNTOUCHED);
+  const visible = useMemo(() => {
+    const seen = (key: string) => isTouched(touched, key);
+    const roundTouched = (r: number) => {
+      const target = deferredQuiz.rounds[r];
+      if (target === undefined) return false;
+      return seen(touchKey.round(target.id)) || [...roundQuestions(target), ...roundTrials(target)].some((q) => seen(touchKey.question(q.id)));
+    };
+    const shown = errors.filter(({ place }) => {
+      if (place.kind === 'title') return seen(touchKey.title);
+      if (place.kind === 'general') return seen(touchKey.general);
+      if (place.kind === 'quiz') return touched.all;
+      if (place.kind === 'question' || place.kind === 'cell') {
+        const id = questionIdAt(deferredQuiz, place);
+        return id !== null && seen(touchKey.question(id));
+      }
+      return roundTouched(place.round);
+    });
+    /** id запитань і клітинок із видимою помилкою. */
+    const questionIds = new Set<string>();
+    for (const { place } of shown) {
+      const id = place.kind === 'question' || place.kind === 'cell' ? questionIdAt(deferredQuiz, place) : null;
+      if (id !== null) questionIds.add(id);
+    }
+    const softIds = new Set<string>();
+    for (const { place } of reminders) {
+      const id = place.kind === 'question' || place.kind === 'cell' ? questionIdAt(deferredQuiz, place) : null;
+      if (id !== null) softIds.add(id);
+    }
+    const flagged = new Set(shown.flatMap(({ place }) => ('round' in place ? [place.round] : [])));
+    return { shown, questionIds, softIds, flagged };
+  }, [errors, reminders, touched, deferredQuiz]);
+  /** Перша видима помилка запитання чи клітинки з цим id. */
+  const issueOf = (questionId: string) => {
+    for (const { text, place } of visible.shown) {
+      if ((place.kind === 'question' || place.kind === 'cell') && questionIdAt(deferredQuiz, place) === questionId) return { card: place.card, text };
+    }
+    return null;
+  };
+  const generalError = (card: GeneralCard) => {
+    const texts = visible.shown.filter(({ place }) => place.kind === 'general' && place.card === card).map((problem) => problem.text);
+    return texts.length === 0 ? null : texts.slice(0, 3).join('; ');
+  };
+  const settingsErrors = visible.shown.filter(({ place }) => place.kind === 'round' && place.settings && place.round === ri).map((problem) => problem.text);
+  const titleError = visible.shown.find(({ place }) => place.kind === 'title')?.text ?? null;
 
   // Після переходу до місця: прокрутити ціль у поле зору й поставити фокус на її перше поле.
   useEffect(() => {
@@ -189,7 +238,16 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
   };
   const setSettings = (patch: Partial<Quiz['settings']>) => update({ ...quiz, settings: { ...settings, ...patch } });
 
+  /** Автор покинув поточне запитання (інше запитання, раунд, вкладка, перенесення): змінене стає «торкнутим». */
+  const leaveQuestion = () => {
+    if (current !== undefined) touch({ type: 'leave', key: touchKey.question(current.id) });
+  };
+  /** Фокус вийшов за межі контейнера (не на інше його поле). */
+  const focusLeft = (event: FocusEvent<HTMLElement>, container: Element | null) =>
+    container !== null && !(event.relatedTarget instanceof Node && container.contains(event.relatedTarget));
+
   const select = (index: number) => {
+    leaveQuestion();
     setSelected(index);
     setListOpen(false);
   };
@@ -198,6 +256,7 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
   const move = (from: number, to: number) => {
     const next = moveItem(questions, from, to);
     if (next === questions) return;
+    leaveQuestion();
     const picked = questions[selected];
     setQuestions(next);
     setSelected(next.indexOf(picked));
@@ -206,6 +265,7 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
   const remove = () => {
     const hasText = current.text.trim() !== '';
     if (hasText && !window.confirm(t('removeQuestionConfirm', { index: selected + 1 }))) return;
+    leaveQuestion();
     const rest = questions.filter((_, index) => index !== selected);
     if (round.type === 'ladder') setRound(resizeLadder({ ...round, questions: rest }, rest.length, selected));
     else setQuestions(rest);
@@ -258,6 +318,8 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
   };
 
   const selectRound = (index: number) => {
+    leaveQuestion();
+    touch({ type: 'leave', key: touchKey.round(round.id) });
     setRoundIndex(index);
     setSelected(0);
     setBoardFocus(null);
@@ -351,6 +413,7 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
     setServerError(null);
     if (found.length > 0) {
       setSaveFailed(true);
+      touch({ type: 'all' });
       for (const { place } of found) {
         if (place.kind === 'general') openGeneralCard(place.card);
         if (place.kind === 'round' && place.settings) setSettingsOpen(true);
@@ -393,8 +456,24 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
       <section className="editor-quiz">
         <label className="field">
           <span>{t('quizTitle')}</span>
-          <input ref={titleRef} value={quiz.title} maxLength={120} onChange={(event) => update({ ...quiz, title: event.target.value })} />
+          <input
+            ref={titleRef}
+            value={quiz.title}
+            maxLength={120}
+            aria-invalid={titleError !== null ? true : undefined}
+            aria-describedby={titleError !== null ? 'editor-title-error' : undefined}
+            onChange={(event) => {
+              touch({ type: 'edit', key: touchKey.title });
+              update({ ...quiz, title: event.target.value });
+            }}
+            onBlur={() => touch({ type: 'leave', key: touchKey.title })}
+          />
         </label>
+        {titleError !== null && (
+          <p className="error field-error" id="editor-title-error">
+            {titleError}
+          </p>
+        )}
       </section>
 
       <div className="issues-bar" ref={headRef}>
@@ -445,8 +524,17 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
       </div>
 
       {currentTab === 'general' ? (
-        <div className="editor-general" role="tabpanel" id="editor-panel-general" aria-labelledby="editor-tab-general">
-          <EditorCard card="about" id="editor-card-about" title={t('cardAbout')}>
+        <div
+          className="editor-general"
+          role="tabpanel"
+          id="editor-panel-general"
+          aria-labelledby="editor-tab-general"
+          onChange={() => touch({ type: 'edit', key: touchKey.general })}
+          onBlur={(event) => {
+            if (focusLeft(event, event.currentTarget)) touch({ type: 'leave', key: touchKey.general });
+          }}
+        >
+          <EditorCard card="about" id="editor-card-about" error={generalError('about')} title={t('cardAbout')}>
             <label className="field">
               <span>{t('quizDescription')}</span>
               <textarea
@@ -458,7 +546,7 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
             </label>
           </EditorCard>
 
-          <EditorCard card="rules" id="editor-card-rules" title={t('cardRules')} className="rules">
+          <EditorCard card="rules" id="editor-card-rules" error={generalError('rules')} title={t('cardRules')} className="rules">
             <div className="with-help">
               <label className="field">
                 <span>{t('leaderboardLabel')}</span>
@@ -498,15 +586,15 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
             <p className="meta">{t('awayPenaltyHint')}</p>
           </EditorCard>
 
-          <EditorCard card="teams" id="editor-card-teams" title={t('teamsTitle')} className="teams">
+          <EditorCard card="teams" id="editor-card-teams" error={generalError('teams')} title={t('teamsTitle')} className="teams">
             <TeamsEditor teams={settings.teams} onChange={setTeams} />
           </EditorCard>
 
-          <EditorCard card="powers" id="editor-card-powers" title={t('powersTitle')} className="rules powers" summary={summaries.powers} fold={{ open: powersOpen, onToggle: setPowersOpen }}>
+          <EditorCard card="powers" id="editor-card-powers" error={generalError('powers')} title={t('powersTitle')} className="rules powers" summary={summaries.powers} fold={{ open: powersOpen, onToggle: setPowersOpen }}>
             <PowersEditor settings={settings} family={settings.family === true} spares={quiz.spares} gaps={gaps} onChange={(powers) => setSettings(powers)} />
           </EditorCard>
 
-          <EditorCard card="spares" id="editor-card-spares" title={t('sparesTitle')} className="rules spares" summary={summaries.spares} fold={{ open: sparesOpen, onToggle: setSparesOpen }}>
+          <EditorCard card="spares" id="editor-card-spares" error={generalError('spares')} title={t('sparesTitle')} className="rules spares" summary={summaries.spares} fold={{ open: sparesOpen, onToggle: setSparesOpen }}>
             <p className="meta with-help">
               <span>{t('sparesTitle')}</span>
               <HelpButton id="setting.spares" />
@@ -521,7 +609,7 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
             />
           </EditorCard>
 
-          <EditorCard card="duels" id="editor-card-duels" title={t('duelsTitle')} className="rules duels" summary={summaries.duels} fold={{ open: duelsOpen, onToggle: setDuelsOpen }}>
+          <EditorCard card="duels" id="editor-card-duels" error={generalError('duels')} title={t('duelsTitle')} className="rules duels" summary={summaries.duels} fold={{ open: duelsOpen, onToggle: setDuelsOpen }}>
             <p className="meta with-help">
               <span>{t('duelsTitle')}</span>
               <HelpButton id="setting.duels" />
@@ -538,7 +626,13 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
         </div>
       ) : (
         <div role="tabpanel" id="editor-panel-rounds" aria-labelledby="editor-tab-rounds">
-        <div className="round-bar-row">
+        <div
+          className="round-bar-row"
+          onBlur={(event) => {
+            const details = event.target instanceof Element ? event.target.closest('details.round-settings') : null;
+            if (focusLeft(event, details)) touch({ type: 'leave', key: touchKey.round(round.id) });
+          }}
+        >
         <RoundStrip
           rounds={rounds}
           selected={ri}
@@ -547,8 +641,18 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
           onRename={renameRound}
           onMove={moveRound}
           onRemove={removeRound}
+          flagged={visible.flagged}
         />
-        <RoundSettings round={round} index={ri + 1} total={total} buffs={allowedBuffs(quiz)} lastRound={ri === rounds.length - 1} onChange={setRound} open={settingsOpen} onToggle={setSettingsOpen} />
+        <RoundSettings round={round} index={ri + 1} total={total} buffs={allowedBuffs(quiz)} lastRound={ri === rounds.length - 1}
+          onChange={(next) => {
+            touch({ type: 'edit', key: touchKey.round(round.id) });
+            setRound(next);
+          }}
+          open={settingsOpen}
+          onToggle={setSettingsOpen}
+          flagged={settingsErrors.length > 0}
+          errors={settingsErrors}
+        />
         </div>
 
         <div className="editor-grid">
@@ -596,6 +700,9 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
                     // 61: «Вгадай слово» без тексту зветься словом («Вгадай слово: ОЖИНА»), поки слова немає — типом.
                     const name = question.type === 'wordle' ? (question.word.trim() === '' ? t('type_wordle') : questionName(question)) : question.text;
                     const text = name.trim() === '' ? t('untitled') : name;
+                    // ⚠ — видима помилка; ⓘ — лише нагадування (їх видно завжди, вони не червоні).
+                    const mark = visible.questionIds.has(question.id) ? 'is-error' : visible.softIds.has(question.id) ? 'is-soft' : null;
+                    const markId = `question-mark-${question.id}`;
                     return (
                       <li
                         key={question.id}
@@ -618,6 +725,7 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
                           type="button"
                           className="question-item"
                           aria-current={index === selected}
+                          aria-describedby={mark !== null ? markId : undefined}
                           aria-label={`${t('questionN', { index: index + 1 })} ${text}`}
                           onClick={() => select(index)}
                         >
@@ -635,6 +743,11 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
                             </span>
                           )}
                           <span className="question-item-type">{t(`typeShort_${question.type}`)}</span>
+                          {mark !== null && (
+                            <span className={`question-item-mark ${mark}`} id={markId} role="img" aria-label={t(mark === 'is-error' ? 'markError' : 'markReminder')}>
+                              {mark === 'is-error' ? '⚠' : 'ⓘ'}
+                            </span>
+                          )}
                         </button>
                       </li>
                     );
@@ -690,6 +803,9 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
                 roomForCategory={total + LIMITS.minCategoryQuestions <= LIMITS.maxQuizQuestions}
                 swapOn={settings.buffs?.includes('swap') ?? false}
                 legacySpares={gaps.legacyBoard}
+                cellIssue={issueOf}
+                onCellEdit={(id) => touch({ type: 'edit', key: touchKey.question(id) })}
+                onCellLeave={(id) => touch({ type: 'leave', key: touchKey.question(id) })}
                 onChange={setRound}
               />
             </section>
@@ -706,7 +822,11 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
                 clouds={cloudSources(quiz, ri, Math.min(selected, questions.length - 1))}
                 allowCloud={round.type === 'classic'}
                 betsCut={round.type === 'bets' ? true : round.type === 'auction' ? 'auction' : false}
-                onChange={(next) => setQuestions(questions.map((question, index) => (index === selected ? next : question)))}
+                issue={issueOf(current.id)}
+                onChange={(next) => {
+                  touch({ type: 'edit', key: touchKey.question(current.id) });
+                  setQuestions(questions.map((question, index) => (index === selected ? next : question)));
+                }}
               />
               {round.type !== 'final' && (
               <div className="toolbar">
@@ -782,4 +902,12 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
       </footer>
     </main>
   );
+}
+
+/** id запитання чи клітинки, на яку вказує місце; null — місця вже немає. */
+function questionIdAt(quiz: Quiz, place: Extract<IssuePlace, { kind: 'question' | 'cell' }>): string | null {
+  const target = quiz.rounds[place.round];
+  if (target === undefined) return null;
+  if (place.kind === 'cell') return target.type === 'board' ? (target.categories[place.category]?.cells[place.index]?.question.id ?? null) : null;
+  return target.type === 'board' || target.type === 'truth' ? null : (target.questions[place.question]?.id ?? null);
 }

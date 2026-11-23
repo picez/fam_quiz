@@ -30495,3 +30495,23 @@ details.editor-card > summary {
   font-size: 0.8125rem;
   font-weight: 600;
 }
+
+/* Позначки в списку запитань (74): ⚠ — видима помилка, ⓘ — лише нагадування. */
+.question-item-mark {
+  flex: none;
+  font-size: 0.875rem;
+  line-height: 1;
+}
+
+.question-item-mark.is-error {
+  color: var(--wrong);
+}
+
+.question-item-mark.is-soft {
+  color: var(--dim);
+}
+
+.field-error {
+  margin: 0.25rem 0 0;
+  font-size: 0.875rem;
+}

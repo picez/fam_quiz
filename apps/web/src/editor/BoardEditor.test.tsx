@@ -2,6 +2,7 @@
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import type { BoardRound, Question } from '@quiz/shared';
 import { LIMITS } from '@quiz/shared';
+import { useState } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { t } from '../i18n';
 import { chooseType, typeOptions } from './editor-testing';
@@ -440,5 +441,42 @@ describe('BoardEditor: «Із групи» in a cell (12l)', () => {
     vi.spyOn(window, 'confirm').mockReturnValue(false);
     const onChange = await pick(/^Хто я\?/);
     expect(onChange).not.toHaveBeenCalled();
+  });
+});
+
+describe('BoardEditor touched cells (74)', () => {
+  it('a board cell turns red only after leaving it', () => {
+    const left: string[] = [];
+    const edited = new Set<string>();
+    /** Обгортка-тест: клітинку з порожнім текстом позначає лише після зміни й виходу з неї. */
+    function Harness() {
+      const [round, setRound] = useState(boardWith(0));
+      const [touched, setTouched] = useState<ReadonlySet<string>>(new Set());
+      const cellIssue = (id: string) => {
+        const cell = round.categories.flatMap((c) => c.cells).find((c) => c.question.id === id);
+        return touched.has(id) && cell !== undefined && cell.question.text === '' ? { card: 'question' as const, text: 'Порожньо' } : null;
+      };
+      return (
+        <BoardEditor
+          round={round}
+          onChange={setRound}
+          cellIssue={cellIssue}
+          onCellEdit={(id) => edited.add(id)}
+          onCellLeave={(id) => {
+            left.push(id);
+            if (edited.has(id)) setTouched((prev) => new Set(prev).add(id));
+          }}
+        />
+      );
+    }
+    render(<Harness />);
+    fireEvent.change(screen.getByLabelText('Варіант 1'), { target: { value: 'Так' } });
+    expect(document.querySelector('.has-error')).toBeNull();
+    fireEvent.click(screen.getAllByRole('button', { name: /^Категорія 2/ })[0]);
+    expect(left).toHaveLength(1);
+    expect(edited.has(left[0])).toBe(true);
+    expect(document.querySelector('.has-error')).toBeNull();
+    fireEvent.click(screen.getAllByRole('button', { name: /^Категорія 1/ })[0]);
+    expect(document.querySelector('[data-card="question"].has-error')!.textContent).toContain('Порожньо');
   });
 });

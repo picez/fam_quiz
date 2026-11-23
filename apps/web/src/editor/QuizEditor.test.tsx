@@ -2819,10 +2819,11 @@ describe('QuizEditor: team play', () => {
     fill('Назва команди 2', '  червоні ');
     click('Зберегти');
     showProblems();
-    expect(await screen.findByText(t('problemTeamNames'))).toBeTruthy();
+    // Текст — і в панелі, і в картці «Командна гра» (після спроби зберегти торкнуте все).
+    expect(await screen.findAllByText(t('problemTeamNames'))).toHaveLength(2);
     fill('Назва команди 2', '');
     click('Зберегти');
-    expect(await screen.findByText(t('problemTeamName'))).toBeTruthy();
+    expect(await screen.findAllByText(t('problemTeamName'))).toHaveLength(2);
     expect(onSave).not.toHaveBeenCalled();
   });
 });
@@ -3059,7 +3060,8 @@ describe('QuizEditor: bets round (27a)', () => {
     click('Зберегти');
     expect(onSave).not.toHaveBeenCalled();
     showProblems();
-    expect(screen.getByText(t('problemBetsMax', { min: 400, max: 300 }), { exact: false })).toBeTruthy();
+    // Текст — і в панелі, і вгорі розгорнутих налаштувань раунду.
+    expect(screen.getAllByText(t('problemBetsMax', { min: 400, max: 300 }), { exact: false })).toHaveLength(2);
     fill(t('betMaxLabel'), '600');
     click('Зберегти');
     await waitFor(() => expect(onSave).toHaveBeenCalled());
@@ -3851,5 +3853,90 @@ describe('issues (74)', () => {
     const notes = openPanel();
     expect(document.querySelector('.issues-panel ul.reminders')!.textContent).toContain('таймер 15 с');
     expect(notes.getByRole('button', { name: t('reminderNoDescription') })).toBeTruthy();
+  });
+});
+
+describe('touched (74)', () => {
+  const itemOf = (index: number) => screen.getByRole('button', { name: new RegExp(`^Запитання ${index} `) });
+  const markOf = (index: number, kind: 'is-error' | 'is-soft') => itemOf(index).querySelector(`.question-item-mark.${kind}`);
+  const answered = (text: string): Question => {
+    const q = newQuestion('single');
+    if (q.type !== 'single') throw new Error('single');
+    return { ...q, text, options: q.options.map((o, k) => ({ ...o, text: `В${k}` })) };
+  };
+  const filled = (questions: Question[]): Quiz => ({ ...newQuiz(), title: 'Гра', description: 'Про все', rounds: [{ ...newClassicRound(), questions }] });
+  const noRed = () => {
+    expect(document.querySelector('.has-error')).toBeNull();
+    expect(document.querySelector('.question-item-mark.is-error')).toBeNull();
+    expect(document.querySelector('[aria-invalid="true"]')).toBeNull();
+  };
+
+  it('a fresh empty question has no red until it is left', () => {
+    open();
+    noRed();
+    fill('Варіант 1', 'Львів');
+    noRed();
+    click('Додати запитання');
+    expect(markOf(1, 'is-error')!.textContent).toBe('⚠');
+    expect(markOf(1, 'is-error')!.getAttribute('aria-label')).toBe(t('markError'));
+    expect(markOf(2, 'is-error')).toBeNull();
+    expect(document.querySelector('[data-card="question"].has-error')).toBeNull();
+    fireEvent.click(itemOf(1));
+    expect(document.querySelector('[data-card="question"].has-error')!.textContent).toContain('Запитання 1: впишіть текст запитання.');
+  });
+
+  it('marks the question touched when the round changes', () => {
+    open({ ...newQuiz(), title: 'Гра', rounds: [newClassicRound(), { ...newClassicRound(), questions: [answered('Друге?')] }] });
+    const [first, second] = roundNames();
+    fill('Варіант 1', 'Львів');
+    chooseRound(second);
+    fireEvent.click(screen.getAllByRole('button', { name: new RegExp(`^${t('roundPick')}:`) })[0]);
+    const flagged = screen.getByRole('option', { name: /є помилка/ });
+    expect(flagged.dataset.name).toBe(first);
+    chooseRound(first);
+    expect(markOf(1, 'is-error')).toBeTruthy();
+  });
+
+  it('shows every error after a save attempt', () => {
+    const { onSave } = open();
+    click('Додати запитання');
+    noRed();
+    click('Зберегти');
+    expect(onSave).not.toHaveBeenCalled();
+    expect(markOf(1, 'is-error')).toBeTruthy();
+    expect(markOf(2, 'is-error')).toBeTruthy();
+    expect(screen.getByLabelText('Назва вікторини').getAttribute('aria-invalid')).toBe('true');
+    expect(document.querySelector('p.field-error')!.textContent).toBe(t('problemTitle'));
+  });
+
+  it('shows the title error after the title loses focus', () => {
+    open();
+    fill('Назва вікторини', 'Гра');
+    fill('Назва вікторини', '');
+    expect(document.querySelector('p.field-error')).toBeNull();
+    fireEvent.blur(screen.getByLabelText('Назва вікторини'));
+    expect(document.querySelector('p.field-error')!.textContent).toBe(t('problemTitle'));
+    expect(screen.getByLabelText('Назва вікторини').getAttribute('aria-invalid')).toBe('true');
+  });
+
+  it('shows a general card error once the general tab is left', () => {
+    open(filled([answered('Перше?')]));
+    openTab('general');
+    const box = screen.getByLabelText('Дуелі між гравцями');
+    fireEvent.click(box);
+    expect(document.querySelector('details.duels .card-error')).toBeNull();
+    fireEvent.focusOut(box);
+    expect(document.querySelector('details.duels .card-error')!.textContent).not.toBe('');
+  });
+
+  it('marks a question with only reminders softly', () => {
+    open(filled([{ ...answered('Перше?'), timeLimit: 15 }]));
+    const label = itemOf(1).getAttribute('aria-label');
+    expect(label).toBe('Запитання 1 Перше?');
+    const mark = markOf(1, 'is-soft')!;
+    expect(mark.textContent).toBe('ⓘ');
+    expect(mark.getAttribute('aria-label')).toBe(t('markReminder'));
+    expect(itemOf(1).getAttribute('aria-describedby')).toBe(mark.id);
+    expect(markOf(1, 'is-error')).toBeNull();
   });
 });

@@ -25,6 +25,8 @@ interface Props {
   lastRound?: boolean;
   /** У налаштуванні є видима помилка: ⚠ у summary. */
   flagged?: boolean;
+  /** Видимі («торкнуті») помилки налаштувань — списком угорі розгортки (74). */
+  errors?: readonly string[];
 }
 
 /** З якої довжини лічильник опису жовтіє (11a). */
@@ -80,7 +82,7 @@ const toMultiplier = (value: string): RoundRules['multiplier'] => (value === '3'
  * Налаштування одного раунду: назва, опис для гравців, перемішування варіантів і правила підрахунку (штраф, серії, множник);
  * класичному додатково бали за швидкість і «частково», бліцу — вікно відповіді, спроби й спосіб перевірки, полю — спосіб відповіді й перевірки та «частково». В кінці — попередній перегляд заставки з поясненням правил. Згорнуті, доки їх не відкриють.
  */
-export function RoundSettings({ round, index, total = 0, onChange, open, onToggle, buffs = [], lastRound = false, flagged = false }: Props) {
+export function RoundSettings({ round, index, total = 0, onChange, open, onToggle, buffs = [], lastRound = false, flagged = false, errors = [] }: Props) {
   const countId = useId();
   const fieldId = useId();
   const offtopicHintId = useId();
@@ -120,6 +122,13 @@ export function RoundSettings({ round, index, total = 0, onChange, open, onToggl
           </span>
         )}
       </summary>
+      {errors.length > 0 && (
+        <ul className="error settings-errors">
+          {errors.map((text) => (
+            <li key={text}>{text}</li>
+          ))}
+        </ul>
+      )}
       <p className="meta with-help">
         <span>{t(ROUND_NAMES[round.type])}</span>
         <HelpButton id={`round.${round.type}`} />

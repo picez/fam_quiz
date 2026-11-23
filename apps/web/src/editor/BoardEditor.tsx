@@ -1,7 +1,7 @@
 import { ANSWER_MODES, CELL_KINDS, CELL_PENALTIES, LIMITS, boardCells, cellAnswerMode, questionPrice, type AnswerMode, type BoardCategory, type BoardCell, type BoardRound, type CellKind, type CellMark, type CellPenalty, type Question } from '@quiz/shared';
 import { LikeCount } from './LikeCount';
 import { HelpButton } from '../help/HelpButton';
-import { useEffect, useId, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { countText, t, type TextKey } from '../i18n';
 import { booleanCounts, boardReadiness, cellState, fitCell, moveItem, newBoardCategory, newBoardQuestion, questionTypesFor } from './draft';
 import { GroupPicker } from '../groups/GroupPicker';
@@ -9,6 +9,7 @@ import type { GroupDraft } from '../groups/templates';
 import { useGroupDrafts } from './group-drafts';
 import { newId } from './new-id';
 import { QuestionEditor } from './QuestionEditor';
+import type { QuestionCard } from './question-layout';
 import { SparesEditor } from './SparesEditor';
 
 interface Props {
@@ -26,6 +27,12 @@ interface Props {
   legacySpares?: boolean;
   /** Лайки запитань за id. */
   likes?: Record<string, number>;
+  /** Помилка клітинки з цим запитанням — уже з урахуванням «торкнутості» (74). */
+  cellIssue?: (questionId: string) => { card: QuestionCard; text: string } | null;
+  /** Автор змінив клітинку. */
+  onCellEdit?: (questionId: string) => void;
+  /** Автор покинув клітинку: вибрав іншу клітинку чи категорію, або поле розмонтовано. */
+  onCellLeave?: (questionId: string) => void;
 }
 
 const markText = (mark: CellMark) => (mark === 'x2' ? t('boardMarkX2') : mark === 'x3' ? t('boardMarkX3') : '');
@@ -53,7 +60,7 @@ function cellPatch(question: Question): Partial<BoardCell> {
   return { question };
 }
 
-export function BoardEditor({ round, onChange, focus = null, roomForMore = true, roomForCategory = true, swapOn = false, legacySpares = false, likes }: Props) {
+export function BoardEditor({ round, onChange, focus = null, roomForMore = true, roomForCategory = true, swapOn = false, legacySpares = false, likes, cellIssue, onCellEdit, onCellLeave }: Props) {
   const { categories } = round;
   const [picked, setPicked] = useState({ category: 0, index: 0 });
   useEffect(() => {
@@ -64,6 +71,11 @@ export function BoardEditor({ round, onChange, focus = null, roomForMore = true,
   const { cells } = categories[category];
   const index = Math.min(picked.index, cells.length - 1);
   const current = cells[index];
+  // Вихід із клітинки: щойно вибрано інше запитання (чи поле зникло), попереднє стає «торкнутим», якщо його змінювали.
+  const leaveRef = useRef(onCellLeave);
+  leaveRef.current = onCellLeave;
+  const currentId = current.question.id;
+  useEffect(() => () => leaveRef.current?.(currentId), [currentId]);
   const hintId = useId();
   const [pickerOpen, setPickerOpen] = useState(false);
   const groupDrafts = useGroupDrafts();
@@ -84,7 +96,8 @@ export function BoardEditor({ round, onChange, focus = null, roomForMore = true,
   const setCategory = (at: number, patch: Partial<BoardCategory>) =>
     setCategories(categories.map((c, i) => (i === at ? { ...c, ...patch } : c)));
   const setCells = (at: number, next: BoardCell[]) => setCategory(at, { cells: next });
-  const setCell = (patch: Partial<BoardCell>) =>
+  const setCell = (patch: Partial<BoardCell>) => {
+    onCellEdit?.(current.question.id);
     setCells(
       category,
       cells.map((cell, i) => {
@@ -92,6 +105,7 @@ export function BoardEditor({ round, onChange, focus = null, roomForMore = true,
         return fitCell(round, { ...cell, ...patch });
       }),
     );
+  };
 
   const addCategory = () => {
     setCategories([...categories, newBoardCategory(round.answerMode)]);
@@ -309,6 +323,7 @@ export function BoardEditor({ round, onChange, focus = null, roomForMore = true,
           types={questionTypesFor('board')}
           showReveal={current.kind === 'normal' && cellAnswerMode(round, current) === 'phone'}
           cluesByHost={cellAnswerMode(round, current) === 'voice'}
+          issue={cellIssue?.(current.question.id) ?? null}
           onChange={(question) => setCell(cellPatch(question))}
         />
         <div className="toolbar">
