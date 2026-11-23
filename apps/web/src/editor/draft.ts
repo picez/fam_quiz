@@ -96,6 +96,8 @@ import {
 } from '@quiz/shared';
 import { t, type TextKey } from '../i18n';
 import { newId } from './new-id';
+import { cardOfProblem } from './problem-cards';
+import type { QuestionCard } from './question-layout';
 
 export { QUESTION_TYPES, type QuestionType };
 
@@ -1714,6 +1716,24 @@ export interface ProblemPlace {
   cell: { category: number; index: number } | null;
 }
 
+/** Картка вкладки «Загальне». */
+export type GeneralCard = 'about' | 'rules' | 'teams' | 'powers' | 'spares' | 'duels';
+
+/** Де виправити проблему (74): назва, картка «Загального», раунд, запитання, клітинка, категорія чи вікторина загалом. */
+export type IssuePlace =
+  | { kind: 'title' }
+  | { kind: 'general'; card: GeneralCard }
+  | { kind: 'round'; round: number; settings: boolean }
+  | { kind: 'question'; round: number; question: number; card: QuestionCard }
+  | { kind: 'cell'; round: number; category: number; index: number; card: QuestionCard }
+  | { kind: 'category'; round: number; category: number }
+  | { kind: 'quiz' };
+
+export interface PlacedProblem {
+  text: string;
+  place: IssuePlace;
+}
+
 const wholeBet = (value: number, min: number) => Number.isInteger(value) && value >= min && value <= LIMITS.maxBet;
 /** Стартова ставка, крок чи найбільша ставка поза межами. */
 const betsNumbersBroken = (round: BetsRound) => !wholeBet(round.betStart, 1) || !wholeBet(round.betStep, 0) || (round.betMax !== null && !wholeBet(round.betMax, 1));
@@ -1976,169 +1996,188 @@ function spareProblems(spares: Question[]): string[] {
   return problems;
 }
 
-/** Що заважає зберегти вікторину; порожній список означає, що все гаразд. */
-export function problemsOf(quiz: Quiz): string[] {
+/** Що заважає зберегти вікторину, кожне — з місцем, де його виправити; порожній список означає, що все гаразд. */
+export function placedProblemsOf(quiz: Quiz): PlacedProblem[] {
   const draft = cleaned(quiz);
-  const problems: string[] = [];
-  if (draft.title === '') problems.push(t('problemTitle'));
+  const problems: PlacedProblem[] = [];
+  const push = (text: string, place: IssuePlace) => problems.push({ text, place });
+  const general = (card: GeneralCard): IssuePlace => ({ kind: 'general', card });
+  if (draft.title === '') push(t('problemTitle'), { kind: 'title' });
   const several = draft.rounds.length > 1;
   draft.rounds.forEach((round, roundIndex) => {
     // З кількома раундами кожне повідомлення каже, у якому раунді шукати.
     const where = (text: string) => (several ? `${t('problemRound', { round: roundIndex + 1 })} ${text}` : text);
-    if (round.type !== 'final' && !(round.type === 'blitz' ? blitzRulesSchema : roundRulesSchema).safeParse(rulesOf(round)).success) problems.push(where(t('problemRules')));
+    // Налаштування раунду (⚙) і сам раунд (кількість і типи запитань).
+    const settings: IssuePlace = { kind: 'round', round: roundIndex, settings: true };
+    const whole: IssuePlace = { kind: 'round', round: roundIndex, settings: false };
+    const categoryPlace = (categoryIndex: number): IssuePlace => ({ kind: 'category', round: roundIndex, category: categoryIndex });
+    // Межу ставок (betsCut) задають у картці «Запитання» першого запитання без неї.
+    const firstWithoutCut = (questions: readonly Question[]): IssuePlace => ({ kind: 'question', round: roundIndex, question: Math.max(0, questions.findIndex((question) => question.betsCut === undefined)), card: 'question' });
+    if (round.type !== 'final' && !(round.type === 'blitz' ? blitzRulesSchema : roundRulesSchema).safeParse(rulesOf(round)).success) push(where(t('problemRules')), settings);
     if (round.type === 'board') {
       round.categories.forEach((category, categoryIndex) => {
-        if (category.title === '') problems.push(where(t('problemCategoryNoTitle', { category: categoryIndex + 1 })));
+        if (category.title === '') push(where(t('problemCategoryNoTitle', { category: categoryIndex + 1 })), categoryPlace(categoryIndex));
         const name = category.title === '' ? t('boardCategoryPlaceholder', { index: categoryIndex + 1 }) : category.title;
         (category.spares ?? []).forEach((spare, index) => {
           const key = spareKey(spare);
           if (key === null) return;
           const problem = problemText(key, index + 1, spare).replace(/^[^:]*:\s*/, '');
-          problems.push(where(t('problemCategorySpare', { category: name, index: index + 1, problem })));
+          push(where(t('problemCategorySpare', { category: name, index: index + 1, problem })), categoryPlace(categoryIndex));
         });
         category.cells.forEach((cell, index) => {
           const key = cellIssue(round, cell);
-          if (key !== null) problems.push(where(cellProblem(categoryIndex + 1, index + 1, key, cell.question)));
+          if (key !== null) push(where(cellProblem(categoryIndex + 1, index + 1, key, cell.question)), { kind: 'cell', round: roundIndex, category: categoryIndex, index, card: cardOfProblem(key, cell.question) });
         });
       });
       for (const issue of boardRoundIssues(round)) {
-        problems.push(where(t(issue === 'too_many_questions' ? 'problemBoardTooMany' : 'problemGeneric', { index: 1 })));
+        push(where(t(issue === 'too_many_questions' ? 'problemBoardTooMany' : 'problemGeneric', { index: 1 })), whole);
       }
       return;
     }
     if (round.type === 'truth') {
-      if (draft.rounds.findIndex((r) => r.type === 'truth') !== roundIndex) problems.push(where(t('problemTruthOnce')));
-      if (truthNumbersBroken(round)) problems.push(where(t('problemTruthNumbers', { max: LIMITS.maxPoints, min: LIMITS.minTime, maxTime: LIMITS.maxTime })));
+      if (draft.rounds.findIndex((r) => r.type === 'truth') !== roundIndex) push(where(t('problemTruthOnce')), whole);
+      if (truthNumbersBroken(round)) push(where(t('problemTruthNumbers', { max: LIMITS.maxPoints, min: LIMITS.minTime, maxTime: LIMITS.maxTime })), settings);
       return;
     }
     if (round.type === 'bets') {
-      if (betsNumbersBroken(round)) problems.push(where(t('problemRules')));
+      if (betsNumbersBroken(round)) push(where(t('problemRules')), settings);
       else if (betsRoundIssue(round, round.questions.length) !== null) {
-        problems.push(where(t('problemBetsMax', { min: betMinimum(round, round.questions.length - 1), max: round.betMax ?? 0 })));
+        push(where(t('problemBetsMax', { min: betMinimum(round, round.questions.length - 1), max: round.betMax ?? 0 })), settings);
       }
-      if (round.questions.some((question) => question.betsCut === undefined)) problems.push(where(t('problemBetsCut')));
+      if (round.questions.some((question) => question.betsCut === undefined)) push(where(t('problemBetsCut')), firstWithoutCut(round.questions));
     }
     if (round.type === 'auction') {
-      if (auctionNumbersBroken(round)) problems.push(where(t('problemRules')));
-      if (round.questions.some((question) => question.betsCut === undefined)) problems.push(where(t('problemAuctionCut')));
+      if (auctionNumbersBroken(round)) push(where(t('problemRules')), settings);
+      if (round.questions.some((question) => question.betsCut === undefined)) push(where(t('problemAuctionCut')), firstWithoutCut(round.questions));
     }
     if (round.type === 'quest') {
       for (const key of questIssues(round, draft)) {
-        problems.push(where(key === 'problemQuestCode' ? t(key, { min: LIMITS.minQuestCode, max: LIMITS.maxQuestCode }) : key === 'problemQuestShort' ? t(key, { length: Math.max(Array.from(round.code).length, LIMITS.minQuestCode) }) : t(key)));
+        push(where(key === 'problemQuestCode' ? t(key, { min: LIMITS.minQuestCode, max: LIMITS.maxQuestCode }) : key === 'problemQuestShort' ? t(key, { length: Math.max(Array.from(round.code).length, LIMITS.minQuestCode) }) : t(key)), key === 'problemQuestShort' || key === 'problemQuestType' ? whole : settings);
       }
     }
     if (round.type === 'think') {
       if (round.questions.length < LIMITS.minThinkQuestions || round.questions.length > LIMITS.maxThinkQuestions) {
-        problems.push(where(t('problemThinkCount', { min: LIMITS.minThinkQuestions, max: LIMITS.maxThinkQuestions })));
+        push(where(t('problemThinkCount', { min: LIMITS.minThinkQuestions, max: LIMITS.maxThinkQuestions })), whole);
       }
-      if (thinkNumbersBroken(round)) problems.push(where(t('problemThinkNumbers', { min: LIMITS.minThinkLives, max: LIMITS.maxThinkLives, points: LIMITS.maxThinkPoints })));
-      if (round.questions.some((question) => question.type !== 'think')) problems.push(where(t('problemThinkType')));
+      if (thinkNumbersBroken(round)) push(where(t('problemThinkNumbers', { min: LIMITS.minThinkLives, max: LIMITS.maxThinkLives, points: LIMITS.maxThinkPoints })), settings);
+      if (round.questions.some((question) => question.type !== 'think')) push(where(t('problemThinkType')), whole);
     }
     if (round.type === 'wipeout') {
-      if (round.questions.length < LIMITS.minWipeoutQuestions) problems.push(where(t('problemWipeoutFew', { min: LIMITS.minWipeoutQuestions })));
-      if (round.questions.length > LIMITS.maxWipeoutQuestions) problems.push(where(t('problemWipeoutMany', { max: LIMITS.maxWipeoutQuestions })));
+      if (round.questions.length < LIMITS.minWipeoutQuestions) push(where(t('problemWipeoutFew', { min: LIMITS.minWipeoutQuestions })), whole);
+      if (round.questions.length > LIMITS.maxWipeoutQuestions) push(where(t('problemWipeoutMany', { max: LIMITS.maxWipeoutQuestions })), whole);
       const allowed: readonly string[] = WIPEOUT_TYPES;
-      if (round.questions.some((question) => !allowed.includes(question.type))) problems.push(where(t('problemWipeoutType')));
+      if (round.questions.some((question) => !allowed.includes(question.type))) push(where(t('problemWipeoutType')), whole);
     }
     if (round.type === 'survival') {
-      if (round.questions.length < LIMITS.minSurvivalQuestions) problems.push(where(t('problemSurvivalFew', { min: LIMITS.minSurvivalQuestions })));
-      if (round.questions.length > LIMITS.maxSurvivalQuestions) problems.push(where(t('problemSurvivalMany', { max: LIMITS.maxSurvivalQuestions })));
+      if (round.questions.length < LIMITS.minSurvivalQuestions) push(where(t('problemSurvivalFew', { min: LIMITS.minSurvivalQuestions })), whole);
+      if (round.questions.length > LIMITS.maxSurvivalQuestions) push(where(t('problemSurvivalMany', { max: LIMITS.maxSurvivalQuestions })), whole);
       const allowed: readonly string[] = SURVIVAL_TYPES;
       // Для «удачі» порожні питання на виживання не рахуються: вони не потрібні й не зберігаються.
       const trials = round.trial === 'luck' ? round.trials.filter((trial) => trial.text.trim() !== '') : round.trials;
-      if ([...round.questions, ...trials].some((question) => !allowed.includes(question.type))) problems.push(where(t('problemSurvivalType')));
+      if ([...round.questions, ...trials].some((question) => !allowed.includes(question.type))) push(where(t('problemSurvivalType')), whole);
       if (!Number.isInteger(round.survivors) || round.survivors < 1 || round.survivors > LIMITS.maxSurvivors) {
-        problems.push(where(t('problemSurvivors', { max: LIMITS.maxSurvivors })));
+        push(where(t('problemSurvivors', { max: LIMITS.maxSurvivors })), settings);
       }
       if (!Number.isInteger(round.bonus) || round.bonus < 0 || round.bonus > LIMITS.maxPoints) {
-        problems.push(where(t('problemSurvivalBonus', { max: LIMITS.maxPoints })));
+        push(where(t('problemSurvivalBonus', { max: LIMITS.maxPoints })), settings);
       }
-      if (round.trial === 'question' && round.trials.length === 0) problems.push(where(t('problemSurvivalTrials')));
+      if (round.trial === 'question' && round.trials.length === 0) push(where(t('problemSurvivalTrials')), settings);
       round.trials.forEach((trial, index) => {
         if (round.trial === 'luck' && trial.text.trim() === '') return;
         const key = problemKey(trial, roundPlace(draft, roundIndex, 0));
         if (key === null) return;
         // «Запитання N: текст» → «Питання на виживання N: текст».
         const problem = problemText(key, index + 1, trial).replace(/^[^:]*:\s*/, '');
-        problems.push(where(t('problemSurvivalTrial', { index: index + 1, problem })));
+        push(where(t('problemSurvivalTrial', { index: index + 1, problem })), settings);
       });
     }
     if (round.type === 'ladder') {
-      if (round.questions.length < LIMITS.minLadderQuestions) problems.push(where(t('problemLadderFew', { min: LIMITS.minLadderQuestions })));
-      if (round.questions.length > LIMITS.maxLadderQuestions) problems.push(where(t('problemLadderMany', { max: LIMITS.maxLadderQuestions })));
+      if (round.questions.length < LIMITS.minLadderQuestions) push(where(t('problemLadderFew', { min: LIMITS.minLadderQuestions })), whole);
+      if (round.questions.length > LIMITS.maxLadderQuestions) push(where(t('problemLadderMany', { max: LIMITS.maxLadderQuestions })), whole);
       if (round.questions.some((question) => question.type !== 'single' || question.options.length !== LIMITS.ladderOptions)) {
-        problems.push(where(t('problemLadderType')));
+        push(where(t('problemLadderType')), whole);
       }
       const levelsBad =
         round.levels.length !== round.questions.length ||
         round.levels.some((level, i) => !Number.isInteger(level) || level < 1 || level > LIMITS.maxLadderLevel || (i > 0 && level <= round.levels[i - 1]));
-      if (levelsBad) problems.push(where(t('problemLadderLevels', { max: LIMITS.maxLadderLevel })));
+      if (levelsBad) push(where(t('problemLadderLevels', { max: LIMITS.maxLadderLevel })), settings);
       if (new Set(round.safe).size !== round.safe.length || round.safe.some((s) => s >= round.questions.length - 1)) {
-        problems.push(where(t('problemLadderSafe')));
+        push(where(t('problemLadderSafe')), settings);
       }
     }
     round.questions.forEach((question, index) => {
       const key = problemKey(question, roundPlace(draft, roundIndex, index));
-      if (key !== null) problems.push(where(problemText(key, index + 1, question)));
+      if (key !== null) push(where(problemText(key, index + 1, question)), { kind: 'question', round: roundIndex, question: index, card: cardOfProblem(key, question) });
     });
   });
-  if (draft.duels !== undefined) problems.push(...duelProblems(draft.duels));
-  if (draft.spares !== undefined) problems.push(...spareProblems(draft.spares));
-  if (draft.settings.buffs?.includes('swap') && draft.spares === undefined && categorySparesOf(draft).length === 0) problems.push(t('problemSparesEmpty'));
+  if (draft.duels !== undefined) for (const text of duelProblems(draft.duels)) push(text, general('duels'));
+  if (draft.spares !== undefined) for (const text of spareProblems(draft.spares)) push(text, general('spares'));
+  if (draft.settings.buffs?.includes('swap') && draft.spares === undefined && categorySparesOf(draft).length === 0) push(t('problemSparesEmpty'), general('spares'));
   const teams = draft.settings.teams;
   const teamNames = teams?.names ?? [];
-  if (teamNames.some((name) => name.trim() === '')) problems.push(t('problemTeamName'));
-  else if (teamNames.some((name) => !isStorable(name))) problems.push(t('problemTeamUnstorable'));
-  else if (teams && teamNames.length !== teams.count) problems.push(t('problemTeamCount'));
-  else if (new Set(teamNames.map(answerKey)).size < teamNames.length) problems.push(t('problemTeamNames'));
+  if (teamNames.some((name) => name.trim() === '')) push(t('problemTeamName'), general('teams'));
+  else if (teamNames.some((name) => !isStorable(name))) push(t('problemTeamUnstorable'), general('teams'));
+  else if (teams && teamNames.length !== teams.count) push(t('problemTeamCount'), general('teams'));
+  else if (new Set(teamNames.map(answerKey)).size < teamNames.length) push(t('problemTeamNames'), general('teams'));
   // «Шпигун» не грається командами (spy_teams схеми): запуск недоступний, поки є команди й хоч одне таке запитання.
   if (teams) {
     const spyAt = draft.rounds.flatMap((round) => [...roundQuestions(round), ...(round.type === 'survival' ? round.trials : [])]).findIndex((question) => question.type === 'spy');
-    if (spyAt >= 0) problems.push(t('problemSpyTeams', { index: spyAt + 1 }));
+    if (spyAt >= 0) push(t('problemSpyTeams', { index: spyAt + 1 }), general('teams'));
   }
   const prices = Object.values(draft.settings.debuffPrices ?? {});
   if (prices.some((price) => !Number.isInteger(price) || price < LIMITS.minDebuffPrice || price > LIMITS.maxDebuffPrice)) {
-    problems.push(t('problemDebuffPrice', { min: LIMITS.minDebuffPrice, max: LIMITS.maxDebuffPrice }));
+    push(t('problemDebuffPrice', { min: LIMITS.minDebuffPrice, max: LIMITS.maxDebuffPrice }), general('powers'));
   }
   // Та сама умова, що в грі: без досить запитань до межі кнопка дуелі не з’явиться ніколи.
   const shortfall = duelShortfall(draft);
-  if (shortfall !== null) problems.push(t('problemDuelUnreachable', { needed: shortfall }));
+  if (shortfall !== null) push(t('problemDuelUnreachable', { needed: shortfall }), general('duels'));
   // Остання перевірка тією самою схемою, що й на сервері; коди помилок дуелей читаються як речення.
   if (problems.length === 0) {
     const parsed = quizSchema.safeParse(draft);
     if (!parsed.success) {
       const messages = parsed.error.issues.map((issue) => issue.message);
-      if (messages.includes('duel_category_short')) problems.push(t('problemDuelShortAny'));
-      if (messages.includes('duplicate_duel_ids')) problems.push(t('problemDuelDuplicate'));
-      if (messages.includes('wipeout_type')) problems.push(t('problemWipeoutType'));
-      if (messages.includes('too_many_questions')) problems.push(t('problemQuizTooMany', { max: LIMITS.maxQuizQuestions }));
-      if (messages.includes('duplicate_question_ids') || messages.includes('duplicate_round_ids')) problems.push(t('problemDuplicateIds'));
-      if (messages.includes('survival_type')) problems.push(t('problemSurvivalType'));
-      if (messages.includes('ladder_type')) problems.push(t('problemLadderType'));
-      if (messages.includes('ladder_lifelines')) problems.push(t('problemLadderLifelines'));
-      if (messages.includes('ladder_levels')) problems.push(t('problemLadderLevels', { max: LIMITS.maxLadderLevel }));
-      if (messages.includes('ladder_safe')) problems.push(t('problemLadderSafe'));
-      if (messages.includes('survival_trials')) problems.push(t('problemSurvivalTrials'));
-      if (messages.includes('survival_trial_media')) problems.push(t('problemSurvivalTrialMedia'));
-      if (messages.includes('spare_type')) problems.push(t('problemSpareType'));
-      if (messages.includes('puzzle_place')) problems.push(t('problemPuzzlePlace', { index: 1 }));
-      if (messages.includes('quest_code')) problems.push(t('problemQuestCode', { min: LIMITS.minQuestCode, max: LIMITS.maxQuestCode }));
-      if (messages.includes('quest_order')) problems.push(t('problemQuestOrder'));
-      if (messages.includes('quest_buff')) problems.push(t('problemQuestBuff'));
-      if (messages.includes('quest_type')) problems.push(t('problemQuestType'));
-      if (messages.includes('think_type') || messages.includes('think_round')) problems.push(t('problemThinkType'));
-      if (messages.includes('think_words_dup')) problems.push(t('problemThinkWordsDup', { index: 1 }));
-      if (messages.includes('think_word_empty')) problems.push(t('problemThinkWordEmpty', { index: 1 }));
-      if (messages.includes('puzzles_type')) problems.push(t('problemPuzzlesType', { index: 1 }));
-      if (messages.includes('spare_video')) problems.push(t('problemSpareVideo'));
-      if (messages.includes('duplicate_spare_ids')) problems.push(t('problemSpareDuplicate'));
-      if (messages.includes('spares_empty')) problems.push(t('problemSparesEmpty'));
-      if (messages.includes('team_names')) problems.push(t('problemTeamCount'));
-      if (messages.includes('buff_unavailable') || messages.includes('duplicate_powers')) problems.push(t('problemPowers'));
-      if (problems.length === 0) problems.push(t('problemGeneric', { index: 1 }));
+      if (messages.includes('duel_category_short')) push(t('problemDuelShortAny'), general('duels'));
+      if (messages.includes('duplicate_duel_ids')) push(t('problemDuelDuplicate'), general('duels'));
+      if (messages.includes('wipeout_type')) push(t('problemWipeoutType'), { kind: 'quiz' });
+      if (messages.includes('too_many_questions')) push(t('problemQuizTooMany', { max: LIMITS.maxQuizQuestions }), { kind: 'quiz' });
+      if (messages.includes('duplicate_question_ids') || messages.includes('duplicate_round_ids')) push(t('problemDuplicateIds'), { kind: 'quiz' });
+      if (messages.includes('survival_type')) push(t('problemSurvivalType'), { kind: 'quiz' });
+      if (messages.includes('ladder_type')) push(t('problemLadderType'), { kind: 'quiz' });
+      if (messages.includes('ladder_lifelines')) push(t('problemLadderLifelines'), { kind: 'quiz' });
+      if (messages.includes('ladder_levels')) push(t('problemLadderLevels', { max: LIMITS.maxLadderLevel }), { kind: 'quiz' });
+      if (messages.includes('ladder_safe')) push(t('problemLadderSafe'), { kind: 'quiz' });
+      if (messages.includes('survival_trials')) push(t('problemSurvivalTrials'), { kind: 'quiz' });
+      if (messages.includes('survival_trial_media')) push(t('problemSurvivalTrialMedia'), { kind: 'quiz' });
+      if (messages.includes('spare_type')) push(t('problemSpareType'), general('spares'));
+      if (messages.includes('puzzle_place')) push(t('problemPuzzlePlace', { index: 1 }), { kind: 'quiz' });
+      if (messages.includes('quest_code')) push(t('problemQuestCode', { min: LIMITS.minQuestCode, max: LIMITS.maxQuestCode }), { kind: 'quiz' });
+      if (messages.includes('quest_order')) push(t('problemQuestOrder'), { kind: 'quiz' });
+      if (messages.includes('quest_buff')) push(t('problemQuestBuff'), { kind: 'quiz' });
+      if (messages.includes('quest_type')) push(t('problemQuestType'), { kind: 'quiz' });
+      if (messages.includes('think_type') || messages.includes('think_round')) push(t('problemThinkType'), { kind: 'quiz' });
+      if (messages.includes('think_words_dup')) push(t('problemThinkWordsDup', { index: 1 }), { kind: 'quiz' });
+      if (messages.includes('think_word_empty')) push(t('problemThinkWordEmpty', { index: 1 }), { kind: 'quiz' });
+      if (messages.includes('puzzles_type')) push(t('problemPuzzlesType', { index: 1 }), { kind: 'quiz' });
+      if (messages.includes('spare_video')) push(t('problemSpareVideo'), general('spares'));
+      if (messages.includes('duplicate_spare_ids')) push(t('problemSpareDuplicate'), general('spares'));
+      if (messages.includes('spares_empty')) push(t('problemSparesEmpty'), general('spares'));
+      if (messages.includes('team_names')) push(t('problemTeamCount'), general('teams'));
+      if (messages.includes('buff_unavailable') || messages.includes('duplicate_powers')) push(t('problemPowers'), general('powers'));
+      if (problems.length === 0) push(t('problemGeneric', { index: 1 }), { kind: 'quiz' });
     }
   }
   return problems;
+}
+
+/** Що заважає зберегти вікторину; порожній список означає, що все гаразд. */
+export function problemsOf(quiz: Quiz): string[] {
+  return placedProblemsOf(quiz).map((problem) => problem.text);
+}
+
+/** Вкладка, на якій видно місце; null — назва (над вкладками). */
+export function tabOf(place: IssuePlace): 'general' | 'rounds' | null {
+  if (place.kind === 'title') return null;
+  return place.kind === 'general' ? 'general' : 'rounds';
 }
 
 export interface SwapGaps {

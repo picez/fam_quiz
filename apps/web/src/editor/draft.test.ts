@@ -6,7 +6,7 @@ import { QUEST_TYPES, type QuestRound } from '@quiz/shared';
 import { newId } from './new-id';
 import { DEFAULT_RULES, LADDER_PRESETS, LIFELINES, LIMITS, ladderPresetSafe, type LadderRound, duelShortfall, duelThreshold, WIPEOUT_TYPES, SURVIVAL_TYPES, rulesOf, boardCells, quizSchema, roundSchema, questionSchema, isPuzzle, ROUND_TYPES, EMPTY_SUDOKU, generateSudoku, layoutCrossword, pickKeyCells, questionsOf, roundQuestions, type BoardRound, type ClassicRound, type Question, type Quiz, type Round, type Duels } from '@quiz/shared';
 import { t } from '../i18n';
-import { QUESTION_TYPES, boardReadiness, cellState, cloudSources, questionTypesFor, applyRoundTime, steppedPoints, changeType, cleaned, fitCell, duplicateQuestion, firstProblem, moveItem, newBlitzRound, newBoardCategory, newBoardQuestion, newBoardRound, withDefaultMode, newClassicRound, newFinalRound, newBetsRound, newAuctionRound, newTruthRound, newPuzzlesRound, cleanedQuestion, newWipeoutRound, newSurvivalRound, newLadderRound, resizeLadder, newWipeoutQuestion, newQuestion, newQuiz, roundCapacity, bankCopy, problemsOf, newDuels, newSpare, swapGaps, minTimeOf, maxTimeOf, spyHintLeaks } from './draft';
+import { QUESTION_TYPES, boardReadiness, cellState, cloudSources, questionTypesFor, applyRoundTime, steppedPoints, changeType, cleaned, fitCell, duplicateQuestion, firstProblem, moveItem, newBlitzRound, newBoardCategory, newBoardQuestion, newBoardRound, withDefaultMode, newClassicRound, newFinalRound, newBetsRound, newAuctionRound, newTruthRound, newPuzzlesRound, cleanedQuestion, newWipeoutRound, newSurvivalRound, newLadderRound, resizeLadder, newWipeoutQuestion, newQuestion, newQuiz, roundCapacity, bankCopy, problemsOf, placedProblemsOf, tabOf, newDuels, newSpare, swapGaps, minTimeOf, maxTimeOf, spyHintLeaks } from './draft';
 
 /** Заповнює порожні поля нового запитання так, як це зробив би користувач. */
 function filled(question: Question): Question {
@@ -3933,5 +3933,102 @@ describe('truth preset fakes in the editor (52)', () => {
     expect(loadDraft('tf2')!.rounds[0]).not.toHaveProperty('fakes');
     sessionStorage.setItem('quiz:draft:tf3', JSON.stringify(quizOf(withFakes(['Раз', 5, null, 'Два']))));
     expect(loadDraft('tf3')!.rounds[0]).toMatchObject({ fakes: ['Раз', 'Два'] });
+  });
+});
+
+describe('placedProblemsOf (74)', () => {
+  const named = (rounds: Round[], patch: Partial<Quiz> = {}): Quiz => ({ ...newQuiz(), title: 'Гра', rounds, ...patch });
+  const ladderBase = () => {
+    const base = newLadderRound();
+    return { ...base, questions: base.questions.map(filled) };
+  };
+  const survivalBase = () => {
+    const base = newSurvivalRound();
+    return { ...base, questions: base.questions.map(filled) };
+  };
+  const brokenBoard = (): BoardRound => {
+    const board = filledBoard();
+    const [first, ...rest] = board.categories;
+    const cell = first.cells[0];
+    const blank = cell.question.type === 'single' ? { ...cell.question, options: cell.question.options.map((o) => ({ ...o, text: '' })) } : cell.question;
+    return { ...board, categories: [{ ...first, title: '', cells: [{ ...cell, question: blank }, ...first.cells.slice(1)] }, ...rest] };
+  };
+
+  it('gives the same texts in the same order as problemsOf', () => {
+    const spy = filled(newQuestion('spy'));
+    const fixtures: Quiz[] = [
+      // Класика без назви з порожнім і незаповненим запитаннями.
+      { ...quizWith(filled(newQuestion('single')), newQuestion('single'), newQuestion('text')), title: '' },
+      // Дошка з порожньою категорією й клітинкою (і цілком порожня).
+      boardQuiz(brokenBoard()),
+      boardQuiz(newBoardRound()),
+      // Ставки: максимум нижче мінімуму й запитання без межі.
+      named([{ ...newBetsRound(), betMax: 300, questions: [filled(newQuestion('single')), { ...filled(newQuestion('single')), betsCut: 1 }, filled(newQuestion('text'))] }]),
+      // Виживання з порожнім питанням на виживання й зламаними числами.
+      named([{ ...survivalBase(), survivors: 0, bonus: -1, trials: [newQuestion('single')] }]),
+      // Драбина з поганими рівнями й безпечним верхом.
+      named([{ ...ladderBase(), levels: [100, 300, 300, 3000, 10000], safe: [4] }]),
+      // Дуелі з порожніми запитаннями, кілька раундів — тексти з префіксом раунду.
+      { ...withDuels(newDuels()), title: '' },
+      // Запасні й команди зі шпигуном.
+      { ...quizWith(filled(newQuestion('single')), spy), spares: [newSpare(), filled(newSpare())], settings: { ...newQuiz().settings, teams: { count: 2, names: ['Лиси', ' '] } } },
+      { ...quizWith(spy), settings: { ...newQuiz().settings, teams: { count: 2, names: ['Лиси', 'Вовки'] }, debuffPrices: { freeze: 0 } as never } },
+    ];
+    for (const quiz of fixtures) {
+      const texts = problemsOf(quiz);
+      expect(texts.length).toBeGreaterThan(0);
+      expect(placedProblemsOf(quiz).map((p) => p.text)).toEqual(texts);
+    }
+  });
+
+  it('places question, cell, category, round settings and general problems', () => {
+    const duels = fillDuels(newDuels());
+    const short: Duels = { ...duels, categories: [{ ...duels.categories[0], questions: duels.categories[0].questions.slice(0, 2) }] };
+    const quiz: Quiz = {
+      ...newQuiz(),
+      title: '',
+      rounds: [
+        { ...newClassicRound(), questions: [filled(newQuestion('single')), newQuestion('single')] },
+        brokenBoard(),
+        { ...ladderBase(), levels: [100, 300, 300, 3000, 10000] },
+      ],
+      duels: short,
+    };
+    const places = placedProblemsOf(quiz).map((p) => p.place);
+    expect(places[0]).toEqual({ kind: 'title' });
+    expect(places).toContainEqual({ kind: 'question', round: 0, question: 1, card: 'question' });
+    expect(places).toContainEqual({ kind: 'category', round: 1, category: 0 });
+    expect(places).toContainEqual({ kind: 'cell', round: 1, category: 0, index: 0, card: 'answers' });
+    expect(places).toContainEqual({ kind: 'round', round: 2, settings: true });
+    expect(places).toContainEqual({ kind: 'general', card: 'duels' });
+    // Інших місць тут немає.
+    expect(places.every((place) => ['title', 'question', 'category', 'cell', 'round', 'general'].includes(place.kind))).toBe(true);
+  });
+
+  it('points a missing bets cut at the first question without one', () => {
+    const quiz = named([{ ...newBetsRound(), questions: [{ ...filled(newQuestion('single')), betsCut: 1 }, filled(newQuestion('single')), filled(newQuestion('text'))] }]);
+    expect(placedProblemsOf(quiz)).toEqual([{ text: t('problemBetsCut'), place: { kind: 'question', round: 0, question: 1, card: 'question' } }]);
+    const auction = named([{ ...newAuctionRound(), questions: [filled(newQuestion('single'))] }]);
+    expect(placedProblemsOf(auction)).toEqual([{ text: t('problemAuctionCut'), place: { kind: 'question', round: 0, question: 0, card: 'question' } }]);
+  });
+
+  it('places round settings apart from the round itself', () => {
+    const quiz = named([{ ...ladderBase(), questions: ladderBase().questions.slice(0, 4), levels: [100, 300, 1000, 3000] }]);
+    expect(placedProblemsOf(quiz)).toContainEqual({ text: t('problemLadderFew', { min: LIMITS.minLadderQuestions }), place: { kind: 'round', round: 0, settings: false } });
+    const survival = named([{ ...survivalBase(), survivors: 0, trials: [] }]);
+    expect(placedProblemsOf(survival).map((p) => p.place)).toEqual([
+      { kind: 'round', round: 0, settings: true },
+      { kind: 'round', round: 0, settings: true },
+    ]);
+  });
+
+  it('names the tab of every place', () => {
+    expect(tabOf({ kind: 'title' })).toBeNull();
+    expect(tabOf({ kind: 'general', card: 'teams' })).toBe('general');
+    expect(tabOf({ kind: 'round', round: 0, settings: true })).toBe('rounds');
+    expect(tabOf({ kind: 'question', round: 0, question: 0, card: 'time' })).toBe('rounds');
+    expect(tabOf({ kind: 'cell', round: 0, category: 0, index: 0, card: 'answers' })).toBe('rounds');
+    expect(tabOf({ kind: 'category', round: 0, category: 0 })).toBe('rounds');
+    expect(tabOf({ kind: 'quiz' })).toBe('rounds');
   });
 });
