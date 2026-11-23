@@ -4,7 +4,7 @@ import { classicRound, makeRoundsQuiz } from '@quiz/engine/testing';
 import { DEFAULT_RULES } from '@quiz/shared';
 import { type Locator, type Page } from 'playwright-core';
 import { expect, it } from 'vitest';
-import { open, click, liveRow, field, arrange, join, bodyText, expectNoSideScroll, register, POLL, socketFrames, pickOption, HEADER_ONE_LINE, scoreOf, toNextQuestion, clueTexts, expectStageInView, writeLie, pickBluff, NL, scoreCells, breakdownTexts, sleep, frame, stateViews, undoRows, revealLine, squash } from './helpers/common';
+import { open, click, liveRow, field, arrange, join, bodyText, expectNoSideScroll, register, POLL, socketFrames, pickOption, HEADER_ONE_LINE, scoreOf, toNextQuestion, clueTexts, expectStageInView, writeLie, pickBluff, NL, scoreCells, breakdownTexts, sleep, frame, stateViews, undoRows, revealLine, squash, editorTab } from './helpers/common';
 import { exact, base, problems, ARTIFACTS, snapshot, afterSplash, shot, useE2eServer } from './helpers/setup';
 
 /**
@@ -1133,7 +1133,7 @@ async function away12e() {
   await host.goto(`${base}/quizzes`);
   await host.locator('.quiz-list li', { hasText: 'Антигугл 12e' }).getByRole('link', { name: 'Редагувати' }).click();
   await host.locator('main.editor').waitFor();
-  await host.locator('details.rules').first().locator('summary').click();
+  await editorTab(host, 'Загальне');
   const penaltySwitch = host.getByLabel('Штраф за вихід із гри', exact);
   await penaltySwitch.waitFor();
   expect(await penaltySwitch.isChecked()).toBe(true);

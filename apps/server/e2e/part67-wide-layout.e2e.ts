@@ -7,7 +7,7 @@ import { classicRound, makeRoundsQuiz, multi, numeric, single, text } from '@qui
 import { eq } from 'drizzle-orm';
 import { adminEmails } from '../src/config';
 import { calendarEvent, user } from '../src/db/schema';
-import { open, register, join, click, field, png29d, step27a, reveal28a, next27a, pilotPlayer, emitOk, myId, pickOption, expectPhoneFit } from './helpers/common';
+import { open, register, join, click, field, png29d, step27a, reveal28a, next27a, pilotPlayer, emitOk, myId, pickOption, expectPhoneFit, editorTab } from './helpers/common';
 import { exact, base, ARTIFACTS, shot, snapshot, afterSplash, useE2eServer, ctx, db, flags, relisten } from './helpers/setup';
 
 /**
@@ -396,9 +396,8 @@ async function editor67() {
   await wide67(author, 'editor67', async ({ tag }) => {
     const geometry = (await author.evaluate(`(() => {
       const box = (selector) => { const el = document.querySelector(selector); if (!el) return null; const r = el.getBoundingClientRect(); return { x: r.x, y: r.y, w: r.width, right: r.right }; };
-      const rules = [...document.querySelectorAll('.editor-quiz > details.rules')].slice(0, 2).map((el) => el.getBoundingClientRect());
-      return { main: box('main'), side: box('.editor-side'), stage: box('.editor-stage'), nav: box('.question-nav'), rowY: rules.map((r) => r.y), rowX: rules.map((r) => r.x) };
-    })()`)) as { main: { w: number }; side: { x: number; w: number }; stage: { x: number; w: number }; nav: { w: number } | null; rowY: number[]; rowX: number[] };
+      return { main: box('main'), side: box('.editor-side'), stage: box('.editor-stage'), nav: box('.question-nav') };
+    })()`)) as { main: { w: number }; side: { x: number; w: number }; stage: { x: number; w: number }; nav: { w: number } | null };
     if (tag === '375') {
       expect(geometry.main.w, 'editor 375').toBe(375);
       expect(geometry.nav!.w, 'editor 375: the question switcher is shown').toBeGreaterThan(0);
@@ -406,9 +405,15 @@ async function editor67() {
     }
     expect(geometry.main.w, `editor ${tag}`).toBeGreaterThan(1088);
     expect(geometry.stage.x, `editor ${tag}: the list is on the left`).toBeGreaterThan(geometry.side.x + geometry.side.w - 1);
-    expect(Math.abs(geometry.rowY[1]! - geometry.rowY[0]!), `editor ${tag}: settings in two columns`).toBeLessThanOrEqual(1);
-    expect(geometry.rowX[1]!, `editor ${tag}: the second settings block is to the right`).toBeGreaterThan(geometry.rowX[0]! + 100);
     if (tag === '1920') expect(geometry.side.w, 'editor 1920: the list column is 26 rem at most').toBeLessThanOrEqual(416 + 1);
+    // 74: налаштування вікторини — картки вкладки «Загальне», перші дві в одному рядку.
+    await editorTab(author, 'Загальне');
+    const rules = (await author.evaluate(`[...document.querySelectorAll('.editor-general > .editor-card')].slice(0, 2).map((el) => { const r = el.getBoundingClientRect(); return { x: r.x, y: r.y }; })`)) as { x: number; y: number }[];
+    expect(rules.length, `editor ${tag}: two general cards`).toBe(2);
+    expect(Math.abs(rules[1]!.y - rules[0]!.y), `editor ${tag}: settings in two columns`).toBeLessThanOrEqual(1);
+    expect(rules[1]!.x, `editor ${tag}: the second settings block is to the right`).toBeGreaterThan(rules[0]!.x + 100);
+    expect(await author.evaluate('document.documentElement.scrollWidth <= innerWidth'), `editor ${tag}: general tab horizontal scroll`).toBe(true);
+    await editorTab(author, 'Раунди й запитання');
   });
 }
 

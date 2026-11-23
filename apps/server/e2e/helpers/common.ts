@@ -1,5 +1,5 @@
 import { deflateSync } from 'node:zlib';
-import { type PlayerView, type StateMeta } from '@quiz/shared';
+import { type PlayerView, type QuestionType, type StateMeta } from '@quiz/shared';
 import { type Locator, type Page, type WebSocketRoute } from 'playwright-core';
 import { io as connectSocket, type Socket } from 'socket.io-client';
 import { expect } from 'vitest';
@@ -100,7 +100,128 @@ export async function join(page: Page, code: string, nickname: string, viaHome: 
 /** Відкриває згорнуті «Налаштування раунду», якщо вони ще закриті. */
 export async function openRoundSettings(page: Page) {
   const panel = page.locator('details.round-settings');
-  if ((await panel.getAttribute('open')) === null) await panel.locator('summary').click();
+  // 74: усередині можуть бути власні згортані картки (медіа питання на виживання) — лише свій summary.
+  if ((await panel.getAttribute('open')) === null) await panel.locator(':scope > summary').click();
+}
+
+/** 74: корінь комбобокса «Тип запитання» (перший у scope: на полі — клітинка, а не запасні категорії). */
+const typeCombo = (scope: Page | Locator) => scope.locator('.combo:has(> button.combo-trigger[aria-label^="Тип запитання:"])').first();
+
+/** 74: відкриває список комбобокса, якщо він ще закритий. */
+async function openCombo(combo: Locator): Promise<void> {
+  const trigger = combo.locator(':scope > button.combo-trigger');
+  if ((await trigger.getAttribute('aria-expanded')) !== 'true') await trigger.click();
+  await combo.locator('[role="listbox"]').waitFor();
+}
+
+/** 74: закриває список Esc і чекає, поки він зникне. */
+async function closeCombo(combo: Locator): Promise<void> {
+  if ((await combo.locator('[role="listbox"]').count()) === 0) return;
+  await combo.locator('.combo-search').press('Escape');
+  await combo.locator('[role="listbox"]').waitFor({ state: 'detached' });
+}
+
+/** 74: вибирає тип запитання в першому комбобоксі «Тип запитання» у scope (за data-value) і чекає закриття списку. */
+export async function pickType(scope: Page | Locator, type: QuestionType): Promise<void> {
+  const combo = typeCombo(scope);
+  await openCombo(combo);
+  await combo.locator(`[role="option"][data-value="${type}"]`).click();
+  await combo.locator('[role="listbox"]').waitFor({ state: 'detached' });
+}
+
+/** 74: типи, які пропонує перший комбобокс «Тип запитання» у scope (data-value у порядку показу); список закривається Esc. */
+export async function typeOptions(scope: Page | Locator): Promise<string[]> {
+  const combo = typeCombo(scope);
+  await openCombo(combo);
+  const values = await combo.locator('[role="option"]').evaluateAll((els) => els.map((el) => (el as HTMLElement).dataset.value ?? ''));
+  await closeCombo(combo);
+  return values;
+}
+
+/** 74: комбобокс вибору раунду (є лише з кількома раундами). */
+const roundCombo = (page: Page) => page.locator('.combo.round-pick');
+
+/** 74: вибирає раунд за назвою (data-name — назва без номера й типу). */
+export async function pickRound(page: Page, name: string): Promise<void> {
+  await closeProblems(page);
+  const combo = roundCombo(page);
+  await openCombo(combo);
+  await combo.locator(`[role="option"][data-name="${name}"]`).click();
+  await combo.locator('[role="listbox"]').waitFor({ state: 'detached' });
+}
+
+/** 74: назви раундів у списку вибору (порожньо, якщо раунд один); список закривається Esc. */
+export async function roundNames(page: Page): Promise<string[]> {
+  const combo = roundCombo(page);
+  if ((await combo.count()) === 0) return [];
+  await openCombo(combo);
+  const names = await combo.locator('[role="option"]').evaluateAll((els) => els.map((el) => (el as HTMLElement).dataset.name ?? ''));
+  await closeCombo(combo);
+  return names;
+}
+
+/** 74: значок раунду в списку вибору («2 не готові»); null — значка немає. */
+export async function roundBadge(page: Page, name: string): Promise<string | null> {
+  const combo = roundCombo(page);
+  await openCombo(combo);
+  const badge = combo.locator(`[role="option"][data-name="${name}"] .combo-badge`);
+  const text = (await badge.count()) === 0 ? null : ((await badge.textContent())?.trim() ?? null);
+  await closeCombo(combo);
+  return text;
+}
+
+/** 74: дія з вибраним раундом через меню «⋯» (пункт за доступним ім'ям: «Перейменувати», «Раунд 2 вище», «Видалити раунд»…). */
+export async function roundAction(page: Page, name: string): Promise<void> {
+  // Відкрита панель зауважень лежить над смугою раунду.
+  await closeProblems(page);
+  const menuButton = page.getByRole('button', { name: 'Дії з раундом', ...exact });
+  if ((await menuButton.getAttribute('aria-expanded')) !== 'true') await menuButton.click();
+  await page.getByRole('menuitem', { name, ...exact }).click();
+}
+
+/** 74: перемикає вкладку редактора й чекає її панелі. */
+export async function editorTab(page: Page, tab: 'Загальне' | 'Раунди й запитання'): Promise<void> {
+  await closeProblems(page);
+  const id = tab === 'Загальне' ? 'general' : 'rounds';
+  const button = page.locator(`#editor-tab-${id}`);
+  if ((await button.getAttribute('aria-selected')) !== 'true') await button.click();
+  await page.locator(`#editor-panel-${id}`).waitFor();
+}
+
+/** 74: вкладка «Загальне» і розгорнута згортана картка («Бафи й дебафи», «Запасні запитання», «Дуелі»); повертає її. */
+export async function openGeneralFold(page: Page, kind: 'powers' | 'spares' | 'duels'): Promise<Locator> {
+  await editorTab(page, 'Загальне');
+  const card = page.locator(`details.${kind}`);
+  if ((await card.getAttribute('open')) === null) await card.locator(':scope > summary').click();
+  await page.locator(`details.${kind}[open]`).waitFor();
+  return card;
+}
+
+/** 74: розгортає згорнуту картку «Медіа» запитання (перша в scope), якщо вона закрита. */
+export async function openMedia(scope: Page | Locator): Promise<void> {
+  const card = scope.locator('details[data-card="media"]').first();
+  if ((await card.getAttribute('open')) === null) await card.locator(':scope > summary').click();
+  await scope.locator('details[data-card="media"][open]').first().waitFor();
+}
+
+/** 74: відкриває панель зауважень («Показати» після невдалого збереження або кнопка «⚠» у шапці) і повертає її список помилок. */
+export async function showProblems(page: Page): Promise<Locator> {
+  const panel = page.locator('.issues-panel');
+  if ((await panel.count()) === 0) {
+    const show = page.locator('footer.actions').getByRole('button', { name: 'Показати', ...exact });
+    if ((await show.count()) > 0) await show.click();
+    else await page.locator('.issues-button').click();
+    await panel.waitFor();
+  }
+  return panel.locator('ul.problems');
+}
+
+/** 74: закриває панель зауважень (вона лежить над сторінкою й може накривати кнопки). */
+export async function closeProblems(page: Page): Promise<void> {
+  const panel = page.locator('.issues-panel');
+  if ((await panel.count()) === 0) return;
+  await panel.getByRole('button', { name: 'Закрити', ...exact }).click();
+  await panel.waitFor({ state: 'detached' });
 }
 
 /** 69: розділ картки гравця в адмінці за заголовком; закритий розгортає й чекає відкриття. */

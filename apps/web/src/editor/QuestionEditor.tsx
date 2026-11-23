@@ -1,5 +1,5 @@
-import { LIMITS, REVEAL_TYPES, isPuzzle, type CluePace, type Question, type RevealMode } from '@quiz/shared';
-import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
+import { LIMITS, type CluePace, type Question, type RevealMode } from '@quiz/shared';
+import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { LETTERS, sliderValueText } from '../format';
 import { HelpButton } from '../help/HelpButton';
 import { countText, t, type TextKey } from '../i18n';
@@ -27,9 +27,14 @@ import { WallEditor } from './WallEditor';
 import { WordLadderEditor } from './WordLadderEditor';
 import { WordleEditor } from './WordleEditor';
 import { GroupDraftNotes } from './group-drafts';
-import { changeType, maxTimeOf, moveItem, type QuestionType } from './draft';
+import { changeType, moveItem, type QuestionType } from './draft';
 import { newId } from './new-id';
 import { NumberInput } from '../ui/NumberInput';
+import { Combobox, type ComboOption } from '../ui/Combobox';
+import { typeIcon } from '../guide-text';
+import { TYPE_GROUPS, groupedTypes } from './type-groups';
+import { EditorCard } from './EditorCard';
+import { MEDIA_NATIVE, REMINDER_MIN_TIME, hasMedia, hintShown, isVote, mediaFields, mediaSummary, noTimerHintShown, pointsFieldShown, timeFieldShown, type LayoutFlags, type QuestionCard } from './question-layout';
 
 interface Props {
   question: Question;
@@ -58,6 +63,8 @@ interface Props {
   fixedOptions?: number;
   /** Раунд «Ставки»: під текстом вибір, скільки слів видно під час ставок. */
   betsCut?: boolean | 'auction';
+  /** Проблема цього запитання і картка, де її показати (74); 'type' — під вибором типу. */
+  issue?: { card: QuestionCard; text: string } | null;
 }
 
 interface Row {
@@ -135,7 +142,8 @@ export function Rows(props: {
   /** Рядок, у який треба поставити курсор після наступного перемалювання. */
   const focusNext = useRef<number | null>(null);
 
-  useEffect(() => {
+  // useLayoutEffect: курсор переходить у новий рядок до наступного натискання, навіть коли React відкладає звичайні ефекти.
+  useLayoutEffect(() => {
     if (focusNext.current === null) return;
     inputs.current[focusNext.current]?.focus();
     focusNext.current = null;
@@ -871,12 +879,6 @@ function Body({ question, onChange, showPoints, cluesByHost, clouds, allowCloud,
   }
 }
 
-/** Чи час у межах (у головоломок — власна межа); поки ні, поле часу видно й для запитання з відео, щоб автор міг його виправити. */
-function timeInLimits(question: Question): boolean {
-  const { timeLimit } = question;
-  return Number.isInteger(timeLimit) && timeLimit >= LIMITS.minTime && timeLimit <= maxTimeOf(question);
-}
-
 /** Режим картинки, що проявляється; undefined («Звичайна») прибирає ключ. */
 function setReveal(question: Question, onChange: (next: Question) => void, mode: RevealMode | undefined) {
   const { reveal: _old, ...rest } = question;
@@ -884,148 +886,193 @@ function setReveal(question: Question, onChange: (next: Question) => void, mode:
 }
 
 /** Одне запитання у вигляді, близькому до того, що бачать гравці, з редагуванням на місці. */
-export function QuestionEditor({ question, onChange, types, showPoints = true, showHint = true, showTime = true, showVideo = true, showAudio = true, showReveal = false, cluesByHost = false, clouds = [], allowCloud = false, fixedOptions, betsCut = false }: Props) {
+export function QuestionEditor({ question, onChange, types, showPoints = true, showHint = true, showTime = true, showVideo = true, showAudio = true, showReveal = false, cluesByHost = false, clouds = [], allowCloud = false, fixedOptions, betsCut = false, issue = null }: Props) {
   // Зображення завантажується не миттєво: до того часу текст запитання могли змінити.
   const latest = useRef({ question, onChange });
   latest.current = { question, onChange };
-  // Опитування й хмара без балів: поля ціни немає, замість нього — пояснення.
-  const isVote = question.type === 'poll' || question.type === 'wordcloud';
+  const flags: LayoutFlags = { showPoints, showHint, showTime, showVideo, showAudio, showReveal };
+  const fields = mediaFields(question, flags);
+  // Картка «Медіа» згорнута, поки медіа немає; щойно воно з'явилося — розгортається. Нове запитання — заново від його медіа.
+  const media = hasMedia(question);
+  const [fold, setFold] = useState(() => ({ id: question.id, media, open: media }));
+  if (fold.id !== question.id || fold.media !== media) {
+    setFold({ id: question.id, media, open: fold.id !== question.id ? media : media || fold.open });
+  }
+  // Комбобокс типу: опції за групами; тип, якого немає серед дозволених, лишається видимим у кінці своєї групи.
+  const grouped = groupedTypes(types);
+  const typeGroups = grouped.map((group) => ({ id: group.id, label: t(`typeGroup_${group.id}`) }));
+  const typeOptions: ComboOption<QuestionType>[] = grouped.flatMap((group) =>
+    group.types.map((type) => ({ value: type, label: t(`type_${type}`), description: t(`typeDesc_${type}`), icon: typeIcon(type), keywords: [t(`typeShort_${type}`)], group: group.id })),
+  );
+  if (!types.includes(question.type)) {
+    const home = TYPE_GROUPS.find((group) => group.types.includes(question.type))?.id;
+    typeOptions.push({ value: question.type, label: t(`type_${question.type}`), description: t(`typeDesc_${question.type}`), icon: typeIcon(question.type), keywords: [t(`typeShort_${question.type}`)], group: home });
+  }
+  const errorOf = (card: QuestionCard) => (issue !== null && issue.card === card ? issue.text : null);
+
+  // Поля медіа — у тому самому порядку, що й раніше: картинка, проявлення, відео, аудіо.
+  const mediaNodes = (
+    <>
+      {/* Основою точки керує PinEditor: мапа чи власна картинка. */}
+      {fields.image && (
+        <ImageField
+          url={question.imageUrl}
+          onChange={(imageUrl) => {
+            // Режим проявлення живе лише разом із картинкою.
+            const { reveal: _reveal, ...rest } = latest.current.question;
+            latest.current.onChange((imageUrl === null ? { ...rest, imageUrl } : { ...latest.current.question, imageUrl }) as Question);
+          }}
+        />
+      )}
+      {fields.reveal && (
+        <div className="with-help">
+          <div className="reveal-modes" role="group" aria-label={t('revealLabel')}>
+            {([undefined, 'pixels', 'blur'] as const).map((mode) => (
+              <button
+                type="button"
+                key={mode ?? 'none'}
+                className={question.reveal === mode ? 'chip is-on' : 'chip'}
+                aria-pressed={question.reveal === mode}
+                onClick={() => setReveal(question, onChange, mode)}
+              >
+                {t(mode === undefined ? 'revealNone' : mode === 'pixels' ? 'revealPixels' : 'revealBlur')}
+              </button>
+            ))}
+          </div>
+          <HelpButton id="setting.reveal" />
+        </div>
+      )}
+      {fields.video && (
+        <VideoField
+          key={question.id}
+          video={question.video}
+          onChange={(video) => {
+            // Картинка, що проявляється, не живе разом із відео.
+            const { reveal: _reveal, ...rest } = latest.current.question;
+            latest.current.onChange((video === null ? { ...latest.current.question, video } : { ...rest, video }) as Question);
+          }}
+          onAudioOnly={
+            showAudio
+              ? (video) =>
+                  latest.current.onChange({
+                    ...latest.current.question,
+                    video: null,
+                    audio: { source: 'youtube', id: video.id, start: video.start, duration: LIMITS.defaultAudioSeconds },
+                  })
+              : undefined
+          }
+        />
+      )}
+      {fields.audio && (
+        <AudioField
+          audio={question.audio}
+          timeLimit={question.timeLimit}
+          onChange={(audio) => {
+            // Відео могли додати, поки файл вантажився: тоді аудіо відкидається.
+            if (latest.current.question.video !== null) return false;
+            const { audio: _old, ...rest } = latest.current.question;
+            latest.current.onChange((audio === undefined ? rest : { ...rest, audio }) as Question);
+          }}
+          onToVideo={(video) => {
+            const { audio: _old, reveal: _reveal, ...rest } = latest.current.question;
+            // У ланцюжку, сортуванні, «Хто я?» і точці відео немає: звук просто зникає.
+            const noVideo = rest.type === 'jigsaw' || rest.type === 'spotdiff' || rest.type === 'memory' || rest.type === 'chain' || rest.type === 'wordladder' || rest.type === 'wordle' || rest.type === 'sort' || rest.type === 'clues' || rest.type === 'pin' || rest.type === 'wall' || rest.type === 'bluff' || rest.type === 'spy' || rest.type === 'timedlist' || rest.type === 'letterwords' || rest.type === 'moreless' || rest.type === 'drawing' || rest.type === 'melody' || rest.type === 'videoclip';
+            latest.current.onChange((noVideo ? rest : { ...rest, video }) as Question);
+          }}
+        />
+      )}
+    </>
+  );
+  const anyMedia = fields.image || fields.reveal || fields.video || fields.audio;
+  // У медійних типів (мелодія, кліп, точка…) медіа — суть: їхні поля стоять на початку «Відповідей».
+  const native = MEDIA_NATIVE.has(question.type);
+
+  // 61: у «Вгадай слово» лише слово — тексту запитання немає.
+  const textField = question.type !== 'wordle';
+  const hint = hintShown(question, flags);
+  const timeField = timeFieldShown(question, flags);
+  const noTimer = noTimerHintShown(question, flags);
+  const points = pointsFieldShown(question, flags);
+  const vote = isVote(question);
+  const timeNote = timeField && question.timeLimit < REMINDER_MIN_TIME ? t('reminderTimerInline', { min: REMINDER_MIN_TIME }) : null;
+
   return (
     <div className="question-edit">
       <GroupDraftNotes questionId={question.id} />
       <div className="with-help">
-        <div className="type-chips" role="group" aria-label={t('questionType')}>
-          {types.map((type: QuestionType) => (
-            <button
-              type="button"
-              key={type}
-              className={question.type === type ? 'chip is-on' : 'chip'}
-              aria-pressed={question.type === type}
-              title={t(`type_${type}`)}
-              onClick={() => onChange(changeType(question, type))}
-            >
-              {t(`typeShort_${type}`)}
-            </button>
-          ))}
-        </div>
+        <Combobox label={t('questionType')} value={question.type} options={typeOptions} groups={typeGroups} onChange={(type) => onChange(changeType(question, type))} />
         <HelpButton id={`question.${question.type}`} />
       </div>
+      {errorOf('type') !== null && <p className="error card-error">{errorOf('type')}</p>}
 
-      <div className="stage-card">
-        {/* Основою точки керує PinEditor: мапа чи власна картинка. */}
-        {question.type !== 'pin' && question.type !== 'jigsaw' && question.type !== 'spotdiff' && question.type !== 'memory' && (
-          <ImageField
-            url={question.imageUrl}
-            onChange={(imageUrl) => {
-              // Режим проявлення живе лише разом із картинкою.
-              const { reveal: _reveal, ...rest } = latest.current.question;
-              latest.current.onChange((imageUrl === null ? { ...rest, imageUrl } : { ...latest.current.question, imageUrl }) as Question);
-            }}
-          />
-        )}
-        {showReveal && question.type !== 'thinkalike' && question.type !== 'spy' && question.imageUrl !== null && question.video === null && (REVEAL_TYPES as readonly string[]).includes(question.type) && (
-          <div className="with-help">
-            <div className="reveal-modes" role="group" aria-label={t('revealLabel')}>
-              {([undefined, 'pixels', 'blur'] as const).map((mode) => (
-                <button
-                  type="button"
-                  key={mode ?? 'none'}
-                  className={question.reveal === mode ? 'chip is-on' : 'chip'}
-                  aria-pressed={question.reveal === mode}
-                  onClick={() => setReveal(question, onChange, mode)}
-                >
-                  {t(mode === undefined ? 'revealNone' : mode === 'pixels' ? 'revealPixels' : 'revealBlur')}
-                </button>
-              ))}
-            </div>
-            <HelpButton id="setting.reveal" />
-          </div>
-        )}
-        {showVideo && question.audio === undefined && question.type !== 'chain' && question.type !== 'wordladder' && question.type !== 'wordle' && question.type !== 'sort' && question.type !== 'clues' && question.type !== 'pin' && question.type !== 'wall' && question.type !== 'bluff' && question.type !== 'spy' && question.type !== 'timedlist' && question.type !== 'letterwords' && question.type !== 'moreless' && question.type !== 'drawing' && question.type !== 'melody' && question.type !== 'videoclip' && question.type !== 'jigsaw' && question.type !== 'spotdiff' && question.type !== 'memory' && question.type !== 'think' && !isPuzzle(question) && (
-          <VideoField
-            key={question.id}
-            video={question.video}
-            onChange={(video) => {
-              // Картинка, що проявляється, не живе разом із відео.
-              const { reveal: _reveal, ...rest } = latest.current.question;
-              latest.current.onChange((video === null ? { ...latest.current.question, video } : { ...rest, video }) as Question);
-            }}
-            onAudioOnly={
-              showAudio
-                ? (video) =>
-                    latest.current.onChange({
-                      ...latest.current.question,
-                      video: null,
-                      audio: { source: 'youtube', id: video.id, start: video.start, duration: LIMITS.defaultAudioSeconds },
-                    })
-                : undefined
-            }
-          />
-        )}
-        {/* У малюнку звуку немає: він видав би слово. У головоломках теж: сітці він ні до чого. */}
-        {showAudio && question.video === null && question.type !== 'think' && question.type !== 'spy' && question.type !== 'drawing' && question.type !== 'melody' && question.type !== 'videoclip' && question.type !== 'jigsaw' && question.type !== 'spotdiff' && question.type !== 'memory' && !isPuzzle(question) && (
-          <AudioField
-            audio={question.audio}
-            timeLimit={question.timeLimit}
-            onChange={(audio) => {
-              // Відео могли додати, поки файл вантажився: тоді аудіо відкидається.
-              if (latest.current.question.video !== null) return false;
-              const { audio: _old, ...rest } = latest.current.question;
-              latest.current.onChange((audio === undefined ? rest : { ...rest, audio }) as Question);
-            }}
-            onToVideo={(video) => {
-              const { audio: _old, reveal: _reveal, ...rest } = latest.current.question;
-              // У ланцюжку, сортуванні, «Хто я?» і точці відео немає: звук просто зникає.
-              const noVideo = rest.type === 'jigsaw' || rest.type === 'spotdiff' || rest.type === 'memory' || rest.type === 'chain' || rest.type === 'wordladder' || rest.type === 'wordle' || rest.type === 'sort' || rest.type === 'clues' || rest.type === 'pin' || rest.type === 'wall' || rest.type === 'bluff' || rest.type === 'spy' || rest.type === 'timedlist' || rest.type === 'letterwords' || rest.type === 'moreless' || rest.type === 'drawing' || rest.type === 'melody' || rest.type === 'videoclip';
-              latest.current.onChange((noVideo ? rest : { ...rest, video }) as Question);
-            }}
-          />
-        )}
-        {/* 61: у «Вгадай слово» лише слово — тексту запитання немає. */}
-        {question.type !== 'wordle' && (
-        <label className="field question-field">
-          <span>{t('questionText')}</span>
-          <textarea
-            rows={2}
-            value={question.text}
-            maxLength={LIMITS.questionText}
-            placeholder={t('questionPlaceholder')}
-            onChange={(event) => onChange({ ...question, text: event.target.value })}
-          />
-        </label>
-        )}
-        {betsCut && <BetsCutField text={question.text} cut={question.betsCut} phase={betsCut === 'auction' ? 'auction' : 'bets'} onChange={(cut) => onChange({ ...question, betsCut: cut })} />}
-        {/* Підказка — для бафів; у «Більше чи менше», «Малюнку» й головоломках бафів немає. */}
-        {showHint && question.type !== 'think' && question.type !== 'thinkalike' && question.type !== 'spy' && question.type !== 'wordle' && question.type !== 'moreless' && question.type !== 'drawing' && question.type !== 'melody' && question.type !== 'videoclip' && question.type !== 'jigsaw' && question.type !== 'spotdiff' && question.type !== 'memory' && !isPuzzle(question) && (
-          <label className="field hint-field">
-            <span>{t('hintLabel')}</span>
-            <textarea
-              rows={2}
-              value={question.hint ?? ''}
-              maxLength={LIMITS.hintText}
-              placeholder={t('hintPlaceholder')}
-              onChange={(event) => {
-                const { hint: _old, ...rest } = question;
-                // Порожнє значення прибирає ключ, щоб запитання без підказки лишалося як раніше.
-                onChange((event.target.value === '' ? rest : { ...rest, hint: event.target.value }) as Question);
-              }}
-            />
-          </label>
-        )}
-        <Body question={question} onChange={onChange} showPoints={showPoints} cluesByHost={cluesByHost} clouds={clouds} allowCloud={allowCloud} fixedOptions={fixedOptions} />
-      </div>
-
-      {((showTime && question.type !== 'jigsaw' && question.type !== 'spotdiff' && question.type !== 'memory') || (showPoints && question.type !== 'sort' && question.type !== 'timedlist' && question.type !== 'letterwords' && question.type !== 'moreless' && !isVote)) && (
-        <div className="pair">
-          {!showTime || question.type === 'jigsaw' || question.type === 'spotdiff' || question.type === 'memory' ? null : question.video === null || !timeInLimits(question) ? (
-            <NumberField label={t(question.type === 'bluff' ? 'bluffLieTime' : 'timeLimit')} value={question.timeLimit} onChange={(timeLimit) => onChange({ ...question, timeLimit })} />
-          ) : (
-            <p className="meta">{t('noTimerHint')}</p>
+      {(textField || betsCut !== false || hint) && (
+        <EditorCard card="question" title={t('cardQuestion')} required={textField} error={errorOf('question')}>
+          {textField && (
+            <label className="field question-field">
+              <span>{t('questionText')}</span>
+              <textarea
+                rows={2}
+                value={question.text}
+                maxLength={LIMITS.questionText}
+                placeholder={t('questionPlaceholder')}
+                aria-required="true"
+                onChange={(event) => onChange({ ...question, text: event.target.value })}
+              />
+            </label>
           )}
-          {showPoints && question.type !== 'sort' && question.type !== 'timedlist' && question.type !== 'letterwords' && question.type !== 'moreless' && !isVote && <NumberField key={question.type} label={t('pointsLabel')} value={question.points} onChange={(points) => onChange({ ...question, points })} />}
-        </div>
+          {betsCut && <BetsCutField text={question.text} cut={question.betsCut} phase={betsCut === 'auction' ? 'auction' : 'bets'} onChange={(cut) => onChange({ ...question, betsCut: cut })} />}
+          {/* Підказка — для бафів; у «Більше чи менше», «Малюнку» й головоломках бафів немає. */}
+          {hint && (
+            <label className="field hint-field">
+              <span>{t('hintLabel')}</span>
+              <textarea
+                rows={2}
+                value={question.hint ?? ''}
+                maxLength={LIMITS.hintText}
+                placeholder={t('hintPlaceholder')}
+                onChange={(event) => {
+                  const { hint: _old, ...rest } = question;
+                  // Порожнє значення прибирає ключ, щоб запитання без підказки лишалося як раніше.
+                  onChange((event.target.value === '' ? rest : { ...rest, hint: event.target.value }) as Question);
+                }}
+              />
+            </label>
+          )}
+        </EditorCard>
       )}
-      {isVote && <p className="meta">{t('noPointsNote')}</p>}
+
+      {!native && anyMedia && (
+        <EditorCard
+          card="media"
+          title={t('cardMedia')}
+          summary={mediaSummary(question) ?? t('cardMediaAdd')}
+          error={errorOf('media')}
+          fold={{ open: fold.open, onToggle: (open) => setFold((current) => (current.open === open ? current : { ...current, open })) }}
+        >
+          {mediaNodes}
+        </EditorCard>
+      )}
+
+      <EditorCard card="answers" title={t('cardAnswers')} required={question.type !== 'thinkalike'} error={errorOf('answers')}>
+        {native && mediaNodes}
+        <Body question={question} onChange={onChange} showPoints={showPoints} cluesByHost={cluesByHost} clouds={clouds} allowCloud={allowCloud} fixedOptions={fixedOptions} />
+      </EditorCard>
+
+      {(timeField || noTimer || points || vote) && (
+        <EditorCard card="time" title={t('cardTime')} error={errorOf('time')} note={timeNote}>
+          {(timeField || noTimer || points) && (
+            <div className="pair">
+              {timeField ? (
+                <NumberField label={t(question.type === 'bluff' ? 'bluffLieTime' : 'timeLimit')} value={question.timeLimit} onChange={(timeLimit) => onChange({ ...question, timeLimit })} />
+              ) : noTimer ? (
+                <p className="meta">{t('noTimerHint')}</p>
+              ) : null}
+              {points && <NumberField key={question.type} label={t('pointsLabel')} value={question.points} onChange={(value) => onChange({ ...question, points: value })} />}
+            </div>
+          )}
+          {vote && <p className="meta">{t('noPointsNote')}</p>}
+        </EditorCard>
+      )}
     </div>
   );
 }

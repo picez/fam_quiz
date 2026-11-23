@@ -2075,16 +2075,6 @@ a.banner {
   font-weight: 700;
 }
 
-/* Картка запитання повторює те, що побачать гравці: світло софіта, питання, варіанти. */
-.stage-card {
-  display: grid;
-  gap: 0.75rem;
-  padding: 1.25rem;
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  background: radial-gradient(120% 90% at 50% -10%, var(--spot), transparent 60%), var(--panel);
-}
-
 .question-field > span {
   color: var(--dim);
   font-size: 0.8125rem;
@@ -2341,44 +2331,6 @@ a.banner {
   display: grid;
   gap: 0.5rem;
   margin-bottom: 0.75rem;
-}
-
-.round-tabs {
-  display: flex;
-  gap: 0.375rem;
-  overflow-x: auto;
-}
-
-/* Три крапки — лише на назві: значок «не готові» завжди видно повністю. */
-.round-tab {
-  display: inline-flex;
-  flex: none;
-  align-items: center;
-  gap: 0.375rem;
-  max-width: 14rem;
-  overflow: visible;
-  white-space: nowrap;
-}
-
-.round-tab-name {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.round-tab.is-on {
-  border-color: var(--amber);
-  color: var(--amber);
-}
-
-/* Власна плашка: не зливається з жовтою рамкою й текстом вибраної вкладки. */
-.round-tab-badge {
-  flex: none;
-  padding: 0.0625rem 0.375rem;
-  border-radius: 999px;
-  background: var(--pending);
-  color: var(--stage);
-  font-size: 0.75rem;
 }
 
 .round-settings {
@@ -12749,7 +12701,7 @@ button.wall-tile:disabled {
   min-height: 2.25rem;
   padding: 0.25rem 0.375rem;
   border: 2px solid var(--line);
-  border-radius: 0.5rem;
+  border-radius: var(--radius);
   background: var(--surface);
   color: var(--paper);
   font: inherit;
@@ -30111,4 +30063,457 @@ table.sr-only td {
 .admin-quiz-sort {
   max-inline-size: 22rem;
   margin-bottom: 0.75rem;
+}
+
+/* 74: спільний комбобокс (тип запитання, раунд). Телефон — нижній аркуш, від 600 px — список під кнопкою. */
+.combo {
+  position: relative;
+  min-inline-size: 0;
+}
+
+.combo-trigger {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  inline-size: 100%;
+  min-block-size: 2.75rem;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.combo-trigger:focus-visible {
+  border-color: var(--amber);
+  outline: 2px solid var(--amber);
+  outline-offset: 1px;
+}
+
+.combo-trigger .combo-name {
+  flex: 1;
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+}
+
+.combo-popup {
+  position: fixed;
+  inset-inline: 0;
+  inset-block-end: 0;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  max-block-size: 70vh;
+  max-block-size: 70dvh;
+  padding: 0.75rem;
+  padding-block-end: calc(0.75rem + env(safe-area-inset-bottom, 0px));
+  overflow: hidden;
+  background: var(--surface);
+  color: inherit;
+  border: 1px solid var(--line);
+  border-radius: var(--radius) var(--radius) 0 0;
+  box-shadow: 0 -0.5rem 1.5rem rgba(0, 0, 0, 0.25);
+}
+
+.combo-search {
+  inline-size: 100%;
+  box-sizing: border-box;
+  min-block-size: 2.75rem;
+  padding: 0.5rem 0.75rem;
+  border: 2px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--paper);
+  font: inherit;
+  /* Не менше 16 px: інакше iOS збільшує сторінку при фокусі. */
+  font-size: max(1rem, 16px);
+}
+
+.combo-search:focus-visible {
+  border-color: var(--amber);
+  outline: none;
+}
+
+.combo-list {
+  flex: 1;
+  min-block-size: 0;
+  overflow: auto;
+  outline: none;
+}
+
+.combo-group-title {
+  padding: 0.5rem 0.5rem 0.25rem;
+  font-size: 0.8rem;
+  font-weight: 700;
+  opacity: 0.7;
+}
+
+.combo-option {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-block-size: 2.75rem;
+  padding: 0.35rem 0.5rem;
+  border-radius: 0.5rem;
+  cursor: pointer;
+}
+
+.combo-option.is-active {
+  background: rgba(128, 128, 128, 0.22);
+}
+
+.combo-option.is-selected .combo-name {
+  font-weight: 700;
+}
+
+.combo-text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-inline-size: 0;
+}
+
+.combo-desc {
+  font-size: 0.8rem;
+  opacity: 0.7;
+}
+
+.combo-badge {
+  font-size: 0.8rem;
+  white-space: nowrap;
+}
+
+.combo-empty {
+  padding: 0.75rem 0.5rem;
+  opacity: 0.8;
+}
+
+@media (min-width: 600px) {
+  .combo-popup {
+    position: absolute;
+    inset-inline: auto;
+    inset-inline-start: 0;
+    inset-block-end: auto;
+    /* Не вужчий за 20rem: назви типів не переносяться в бічній колонці. */
+    min-inline-size: max(100%, 20rem);
+    max-inline-size: min(28rem, calc(100vw - 1rem));
+    border-radius: var(--radius);
+    box-shadow: 0 0.5rem 1.5rem rgba(0, 0, 0, 0.25);
+  }
+}
+
+/* 74: картки редактора запитання — «Запитання», «Медіа», «Відповіді», «Час і бали». */
+.editor-card {
+  display: grid;
+  gap: 0.75rem;
+  min-inline-size: 0;
+  padding: 1rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel);
+}
+
+/* Перша картка повторює те, що побачать гравці: світло софіта над запитанням. */
+.editor-card[data-card='question'] {
+  background: radial-gradient(120% 90% at 50% -10%, var(--spot), transparent 60%), var(--panel);
+}
+
+.editor-card.has-error {
+  border-color: var(--signal);
+}
+
+.editor-card-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.75rem;
+  align-items: baseline;
+}
+
+details.editor-card > summary {
+  cursor: pointer;
+}
+
+.editor-card-title {
+  margin: 0;
+  font-size: 0.9375rem;
+  font-weight: 700;
+}
+
+.editor-card-summary {
+  color: var(--dim);
+  font-size: 0.875rem;
+}
+
+.card-error {
+  margin: 0;
+}
+
+.card-note {
+  margin: 0;
+}
+
+/* Зірочка лише для ока: у доступне ім'я й textContent вона не потрапляє. */
+.is-required::after {
+  content: ' *' / '';
+  color: var(--signal);
+}
+
+@media (min-width: 600px) {
+  .editor-card {
+    padding: 1.25rem;
+  }
+}
+
+/* 74: вкладки редактора («Загальне» / «Раунди й запитання») і загальні налаштування картками. */
+.editor-tabs {
+  display: flex;
+  gap: 0.25rem;
+  margin-bottom: 0.75rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.editor-tab {
+  flex: 1 1 0;
+  min-inline-size: 0;
+  padding: 0.625rem 0.5rem;
+  border: 0;
+  border-bottom: 3px solid transparent;
+  background: transparent;
+  color: var(--dim);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.editor-tab.is-on {
+  color: var(--paper);
+  border-bottom-color: var(--signal);
+}
+
+.editor-general {
+  display: grid;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+@media (min-width: 600px) {
+  .editor-tab {
+    flex: 0 0 auto;
+    padding-inline: 1.25rem;
+  }
+}
+
+@media (min-width: 1280px) {
+  .editor-general {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
+  }
+}
+
+/* 74: смуга раунду — комбобокс раунду, «+ Раунд», меню «⋯» і шестірня налаштувань в одному ряду. */
+.round-bar-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+/* «.round-bar» уже є в підсумках гри (стовпчики): тут скидаємо їхні правила. */
+.round-strip.round-bar {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0;
+  font-size: inherit;
+  color: inherit;
+}
+
+.round-strip.round-bar .toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.375rem;
+}
+
+.round-pick {
+  flex: 1 1 12rem;
+  min-inline-size: 0;
+}
+
+.round-menu-root {
+  position: relative;
+}
+
+.round-menu {
+  position: absolute;
+  inset-block-start: 100%;
+  inset-inline-end: 0;
+  z-index: 20;
+  display: grid;
+  min-inline-size: 11rem;
+  gap: 0.25rem;
+  margin-block-start: 0.25rem;
+  padding: 0.375rem;
+  border: 1px solid var(--line);
+  border-radius: 0.5rem;
+  background: var(--surface);
+  box-shadow: 0 0.5rem 1.25rem rgb(0 0 0 / 0.35);
+}
+
+.round-menu .btn {
+  justify-content: flex-start;
+  text-align: start;
+}
+
+/* Шестірня: згорнута — лише кнопка-summary (без рамки «.rules» навколо, щоб не було подвійної);
+   розгорнута — панель на всю ширину наступного рядка, а шестірня лишається біля правого краю, як у згорнутої. */
+.round-bar-row .round-settings {
+  flex: 0 0 auto;
+  margin-bottom: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.round-bar-row details.round-settings[open] {
+  flex-basis: 100%;
+  padding: 0.5rem 0.875rem 0.875rem;
+  border: 1px solid var(--line);
+  background: var(--surface);
+}
+
+.round-bar-row details.round-settings[open] > summary {
+  justify-self: end;
+}
+
+.round-bar-row .round-settings > summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  min-block-size: 2.25rem;
+  padding: 0.25rem 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: 0.5rem;
+  cursor: pointer;
+}
+
+.round-bar-row .round-settings .summary-mark {
+  color: var(--signal);
+}
+
+/* 74: панель «⚠ N» над вкладками, значки вкладок і рядок «Не збережено» в нижній панелі. */
+.issues-bar {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 0.5rem;
+}
+
+.issues {
+  position: relative;
+}
+
+.issues-button.has-errors {
+  border-color: var(--wrong);
+}
+
+.issues-button.is-clear {
+  color: var(--dim);
+  cursor: default;
+}
+
+.issues-panel {
+  position: absolute;
+  inset-inline-end: 0;
+  z-index: 30;
+  inline-size: min(24rem, 92vw);
+  max-block-size: 60vh;
+  overflow: auto;
+  margin-block-start: 0.25rem;
+  padding: 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: 0.5rem;
+  background: var(--surface);
+  box-shadow: 0 0.5rem 1.25rem rgb(0 0 0 / 0.35);
+}
+
+.issues-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.issues-title {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.issues-section {
+  margin: 0.75rem 0 0.25rem;
+  color: var(--dim);
+  font-size: 0.875rem;
+}
+
+.issues-panel ul {
+  display: grid;
+  gap: 0.25rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.issues-panel .reminders li {
+  display: flex;
+  gap: 0.25rem;
+  color: var(--dim);
+}
+
+.issues-row {
+  padding: 0.25rem 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.issues-row:hover,
+.issues-row:focus-visible {
+  text-decoration: underline;
+}
+
+.editor-tab-badge {
+  margin-inline-start: 0.375rem;
+  color: var(--dim);
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+
+/* Позначки в списку запитань (74): ⚠ — видима помилка, ⓘ — лише нагадування. */
+.question-item-mark {
+  flex: none;
+  font-size: 0.875rem;
+  line-height: 1;
+}
+
+.question-item-mark.is-error {
+  color: var(--wrong);
+}
+
+.question-item-mark.is-soft {
+  color: var(--dim);
+}
+
+.field-error {
+  margin: 0.25rem 0 0;
+  font-size: 0.875rem;
 }

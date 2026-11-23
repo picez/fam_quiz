@@ -8,7 +8,7 @@ import { type Socket } from 'socket.io-client';
 import { expect, it } from 'vitest';
 import { xpEntry } from '../src/db/schema';
 import { kyivDay } from '../src/xp-rules';
-import { open, click, field, seconds, join, bodyText, expectNoSideScroll, register, myId, POLL, socketFrames, pickOption, silentMp3, scoreOf, toNextQuestion, expectStageFits, survivalGroupOf, openTrialLeaks, socketPlayer, expectFitsWidth13a, MENU_FITS_14A, prizeQuestions14a, isTrophyRequest, openProfileTile, label } from './helpers/common';
+import { open, click, field, seconds, join, bodyText, expectNoSideScroll, register, myId, POLL, socketFrames, pickOption, silentMp3, scoreOf, toNextQuestion, expectStageFits, survivalGroupOf, openTrialLeaks, socketPlayer, expectFitsWidth13a, MENU_FITS_14A, prizeQuestions14a, isTrophyRequest, openProfileTile, label, openGeneralFold } from './helpers/common';
 import { avatarPng, exact, base, db, problems, pages, snapshot, afterSplash, shot, flags, useE2eServer } from './helpers/setup';
 
 /**
@@ -1204,7 +1204,7 @@ async function levels15a() {
   // ── 7. Вимикач у редакторі: без бонусів і без оберегу. ──
   await host.goto(`${base}/quizzes`);
   await host.locator('.quiz-list li', { hasText: TITLE }).getByRole('link', { name: 'Редагувати' }).click();
-  await host.locator('details.powers > summary').click();
+  await openGeneralFold(host, 'powers');
   const bonuses = host.locator('label.powers-item', { hasText: 'Бонуси рівнів' }).locator('input');
   expect(await bonuses.isChecked()).toBe(true);
   await bonuses.uncheck();

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createQuiz, fetchQuizLikes, getQuiz, markGroupUses, me, sendEditorTime, updateQuiz } from '../api';
 import { forgetAccount } from '../useAccount';
@@ -10,6 +10,7 @@ import type { Question, Quiz } from '@quiz/shared';
 import { newClassicRound, newQuestion, newQuiz } from '../editor/draft';
 import { saveDraft, saveGroupDrafts } from '../editor/draft-storage';
 import { errorText, t } from '../i18n';
+import { chooseType, openTab } from '../editor/editor-testing';
 import { EditQuiz } from './EditQuiz';
 
 vi.mock('../api', () => ({ me: vi.fn(), getQuiz: vi.fn(), createQuiz: vi.fn(), updateQuiz: vi.fn(), fetchQuizLikes: vi.fn(), markGroupUses: vi.fn(), sendEditorTime: vi.fn() }));
@@ -136,7 +137,7 @@ describe('EditQuiz', () => {
     open('/quizzes/new');
     fireEvent.change(await screen.findByLabelText('Назва вікторини'), { target: { value: 'Гра' } });
     fireEvent.change(screen.getByLabelText('Текст запитання'), { target: { value: 'Так?' } });
-    fireEvent.click(screen.getByRole('button', { name: 'так чи ні' }));
+    chooseType('boolean');
     fireEvent.click(screen.getByRole('button', { name: 'Зберегти' }));
     expect(await screen.findByText('мої вікторини')).toBeTruthy();
     expect(createQuiz).toHaveBeenCalledWith(expect.objectContaining({ title: 'Гра' }));
@@ -150,7 +151,7 @@ describe('EditQuiz', () => {
     open('/quizzes/new');
     fireEvent.change(await screen.findByLabelText('Назва вікторини'), { target: { value: 'Гра' } });
     fireEvent.change(screen.getByLabelText('Текст запитання'), { target: { value: 'Так?' } });
-    fireEvent.click(screen.getByRole('button', { name: 'так чи ні' }));
+    chooseType('boolean');
     fireEvent.click(screen.getByRole('button', { name: 'Зберегти' }));
     await waitFor(() => expect(screen.getByRole('alert').textContent).toContain('Немає зв’язку із сервером.'));
     expect((screen.getByLabelText('Назва вікторини') as HTMLInputElement).value).toBe('Гра');
@@ -161,7 +162,7 @@ describe('EditQuiz', () => {
     open('/quizzes/new');
     fireEvent.change(await screen.findByLabelText('Назва вікторини'), { target: { value: 'Гра' } });
     fireEvent.change(screen.getByLabelText('Текст запитання'), { target: { value: 'Так?' } });
-    fireEvent.click(screen.getByRole('button', { name: 'так чи ні' }));
+    chooseType('boolean');
     fireEvent.click(screen.getByRole('button', { name: 'Зберегти' }));
     await waitFor(() => expect(screen.getByRole('alert').textContent).toContain(errorText('invalid_payload:wordle_unknown')));
     expect(errorText('invalid_payload:wordle_unknown')).toBe(t('err_invalid_payload_wordle_unknown'));
@@ -197,7 +198,7 @@ describe('EditQuiz: unsaved work', () => {
   it('restores an emptied number field as empty, not as a wrong number', async () => {
     open('/quizzes/new');
     await title();
-    fireEvent.click(screen.getByRole('button', { name: 'число' }));
+    chooseType('numeric');
     fireEvent.change(screen.getByLabelText('Правильне число'), { target: { value: '' } });
     cleanup();
 
@@ -211,7 +212,7 @@ describe('EditQuiz: unsaved work', () => {
     open('/quizzes/new');
     fireEvent.change(await title(), { target: { value: 'Гра' } });
     fireEvent.change(screen.getByLabelText('Текст запитання'), { target: { value: 'Так?' } });
-    fireEvent.click(screen.getByRole('button', { name: 'так чи ні' }));
+    chooseType('boolean');
     fireEvent.click(screen.getByRole('button', { name: 'Зберегти' }));
     await screen.findByText('мої вікторини');
     cleanup();
@@ -226,7 +227,7 @@ describe('EditQuiz: unsaved work', () => {
     open('/quizzes/new');
     fireEvent.change(await title(), { target: { value: 'Гра' } });
     fireEvent.change(screen.getByLabelText('Текст запитання'), { target: { value: 'Так?' } });
-    fireEvent.click(screen.getByRole('button', { name: 'так чи ні' }));
+    chooseType('boolean');
     fireEvent.click(screen.getByRole('button', { name: 'Зберегти' }));
     expect(await screen.findByText('сторінка входу')).toBeTruthy();
     cleanup();
@@ -299,5 +300,56 @@ describe('EditQuiz: questions from a group (12l)', () => {
     open('/quizzes/new');
     await screen.findByLabelText('Назва вікторини');
     expect(screen.getByRole('status').textContent).toBe('Вікторину складено з записів групи. Над кожним запитанням — що варто перевірити.');
+  });
+});
+
+describe('EditQuiz tabs (74)', () => {
+  const Where = () => <p data-testid="where">{useLocation().pathname + useLocation().search}</p>;
+  const openAt = (path: string) =>
+    render(
+      <MemoryRouter initialEntries={[path]}>
+        <Routes>
+          <Route path="/quizzes/new" element={<><EditQuiz /><Where /></>} />
+          <Route path="/quizzes" element={<p>мої вікторини</p>} />
+        </Routes>
+      </MemoryRouter>,
+    );
+  const where = () => screen.getByTestId('where').textContent;
+
+  it('opens the general tab from ?tab=general and keeps it in the address', async () => {
+    openAt('/quizzes/new?tab=general');
+    await screen.findByLabelText(t('quizDescription'));
+    expect(screen.getByRole('tab', { name: /Загальне/ }).getAttribute('aria-selected')).toBe('true');
+    expect(where()).toBe('/quizzes/new?tab=general');
+  });
+
+  it('falls back to rounds for an unknown tab and drops it from the address', async () => {
+    openAt('/quizzes/new?tab=foo');
+    await screen.findByLabelText('Текст запитання');
+    expect(screen.getByRole('tab', { name: /Раунди й запитання/ }).getAttribute('aria-selected')).toBe('true');
+    await waitFor(() => expect(where()).toBe('/quizzes/new'));
+  });
+
+  it('writes no tab for rounds', async () => {
+    openAt('/quizzes/new?tab=general');
+    await screen.findByLabelText(t('quizDescription'));
+    openTab('rounds');
+    await waitFor(() => expect(where()).toBe('/quizzes/new'));
+    openTab('general');
+    await waitFor(() => expect(where()).toBe('/quizzes/new?tab=general'));
+  });
+
+  it('keeps the draft notice above the tabs and asks before cancel after switching tabs', async () => {
+    saveDraft(undefined, newQuiz());
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
+    openAt('/quizzes/new?tab=general');
+    const notice = await screen.findByText(t('draftRestored'));
+    const tablist = screen.getByRole('tablist');
+    expect(notice.compareDocumentPosition(tablist) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    fireEvent.change(screen.getByLabelText(t('quizDescription')), { target: { value: 'Нова' } });
+    openTab('rounds');
+    fireEvent.click(screen.getByRole('button', { name: t('cancel') }));
+    expect(confirm).toHaveBeenCalled();
+    confirm.mockRestore();
   });
 });

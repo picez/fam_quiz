@@ -2,7 +2,7 @@ import { boardRound, classicRound, makeRoundsQuiz, single, withId, withPoints } 
 import { DEFAULT_RULES } from '@quiz/shared';
 import { type Page } from 'playwright-core';
 import { expect, it } from 'vitest';
-import { open, click, field, seconds, join, bodyText, expectNoSideScroll, register, yOf, POLL, type Box, overlaps, expectApart, wipeWithMouse, sortCard, sortZoneBoxes, sortBy, buffButton, takeBuff, tapBuff, pickOption, boxOf, textAnswer, vote, splashOn, RESTARTING_TEXT, COVERED, HEADER_ONE_LINE } from './helpers/common';
+import { open, click, field, seconds, join, bodyText, expectNoSideScroll, register, yOf, POLL, type Box, overlaps, expectApart, wipeWithMouse, sortCard, sortZoneBoxes, sortBy, buffButton, takeBuff, tapBuff, pickOption, boxOf, textAnswer, vote, splashOn, RESTARTING_TEXT, COVERED, HEADER_ONE_LINE, pickType, openGeneralFold, editorTab, pickRound } from './helpers/common';
 import { exact, ctx, base, problems, snapshot, afterSplash, shot, restart, flags, useE2eServer } from './helpers/setup';
 
 /**
@@ -668,7 +668,7 @@ async function debuffShopGame() {
   // Редактор: ціни Туману й Тремтіння, решта — плейсхолдер 200.
   await host.goto(`${base}/quizzes`);
   await host.locator('.quiz-list li', { hasText: 'Дебафи' }).getByRole('link', { name: 'Редагувати' }).click();
-  await host.locator('details.powers > summary').click();
+  await openGeneralFold(host, 'powers');
   const price = (name: string) => host.locator('.powers-row', { hasText: name }).getByLabel('Ціна, балів', exact);
   await price('Туман').fill('100');
   await price('Тремтіння').fill('150');
@@ -1047,7 +1047,7 @@ async function categorySparesGame() {
   // 1. Редактор: попередження про категорії без запасних; запасне для «Міста»; збереження не блокується.
   await host.goto(`${base}/quizzes`);
   await host.locator('.quiz-list li', { hasText: 'Запасні 9d' }).getByRole('link', { name: 'Редагувати' }).click();
-  await host.locator('details.powers > summary').click();
+  await openGeneralFold(host, 'powers');
   const buffGroup = host.locator('fieldset.powers-group').nth(1);
   const warns = () => buffGroup.locator('.powers-warn').allTextContents();
   await buffGroup
@@ -1055,7 +1055,8 @@ async function categorySparesGame() {
     .getByText('Заміна запитання: немає запасних у категоріях: Поле · Міста, Поле · Річки — на їхніх клітинках заміни не буде.', exact)
     .waitFor();
   expect(await warns()).not.toContain('Заміна запитання: додайте запасні запитання');
-  await host.locator('.round-tabs').getByRole('button', { name: 'Поле', ...exact }).click();
+  await editorTab(host, 'Раунди й запитання');
+  await pickRound(host, 'Поле');
   await host.getByRole('button', { name: /^Категорія 2, клітинка 1: 100/ }).click();
   const citySpares = host.locator('section.category-spares');
   await citySpares.getByRole('heading', { name: /^Запасні категорії «Міста»/ }).waitFor();
@@ -1063,7 +1064,7 @@ async function categorySparesGame() {
   await citySpares.scrollIntoViewIfNeeded();
   await shot(host, 'spares9d-editor-empty');
   await citySpares.getByRole('button', { name: 'Додати запасне', ...exact }).click();
-  await citySpares.getByRole('button', { name: 'так чи ні', ...exact }).click();
+  await pickType(citySpares, 'boolean');
   await citySpares.locator('.question-field textarea').fill('Львів — обласний центр?');
   await citySpares.getByRole('button', { name: 'Правильна відповідь: Так', ...exact }).click();
   await citySpares.getByRole('button', { name: 'Запасне 1 · так чи ні', ...exact }).waitFor();
@@ -1073,7 +1074,10 @@ async function categorySparesGame() {
   expect(await badge.getAttribute('aria-label')).toBe('Запасних: 1');
   expect(await host.locator('.board-column').nth(0).locator('.board-edit-spares').textContent()).toBe('⇄ 2');
   expect(await host.locator('.board-column').nth(2).locator('.board-edit-spares').count()).toBe(0);
+  await editorTab(host, 'Загальне');
   await expect.poll(warns).toContain('Заміна запитання: немає запасних у категоріях: Поле · Річки — на їхніх клітинках заміни не буде.');
+  await editorTab(host, 'Раунди й запитання');
+  await citySpares.waitFor();
   await shot(host, 'spares9d-editor-category');
   await host.setViewportSize({ width: 375, height: 812 });
   await citySpares.scrollIntoViewIfNeeded();

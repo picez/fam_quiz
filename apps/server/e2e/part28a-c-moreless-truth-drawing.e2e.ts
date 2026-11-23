@@ -7,7 +7,7 @@ import { expect, it } from 'vitest';
 import ar from '../../web/src/locales/ar.json';
 import es from '../../web/src/locales/es.json';
 import { ukMessages } from '../../web/src/i18n';
-import { open, click, liveRow, field, questionText, join, openRoundSettings, bodyText, expectNoSideScroll, register, POLL, socketFrames, RESTARTING_TEXT, NL, pickTeamOn, stageTeam, sleep, pilotPlayer, frame, emitOk, stateViews, type Dict22a, label, ownDir, join22a, step27a, next27a, phoneScore27a, select27b, toWinners27c, type Pair28a, PAIRS28A_TEAM, moreLess28a, morelessCounter28a, morelessRun28a, reveal28a, writeFact28b, hostAuthor28b, pickName28b } from './helpers/common';
+import { open, click, liveRow, field, questionText, join, openRoundSettings, bodyText, expectNoSideScroll, register, POLL, socketFrames, RESTARTING_TEXT, NL, pickTeamOn, stageTeam, sleep, pilotPlayer, frame, emitOk, stateViews, type Dict22a, label, ownDir, join22a, step27a, next27a, phoneScore27a, select27b, toWinners27c, type Pair28a, PAIRS28A_TEAM, moreLess28a, morelessCounter28a, morelessRun28a, reveal28a, writeFact28b, hostAuthor28b, pickName28b, pickType, typeOptions, editorTab } from './helpers/common';
 import { ARTIFACTS, exact, base, problems, snapshot, afterSplash, shot, restart, flags, useE2eServer } from './helpers/setup';
 
 /**
@@ -101,7 +101,7 @@ async function moreLessGame28a() {
   await register(host, 'host', 'Ірина Ведуча', 'host28a@example.com');
   await host.getByRole('link', { name: 'Нова вікторина' }).click();
   await field(host, 'Назва вікторини').fill('Більше чи менше 28a');
-  await click(host, 'більше чи менше');
+  await pickType(host, 'moreless');
   await questionText(host).fill('Порівняйте пари');
   expect(await host.getByLabel('Відео з YouTube', exact).count(), 'more or less has no video').toBe(0);
   expect(await host.getByRole('group', { name: /^Порівняння \d+$/ }).count(), 'three blank comparisons').toBe(3);
@@ -122,7 +122,7 @@ async function moreLessGame28a() {
   await shot(host, 'moreless28a-editor');
 
   await click(host, 'Додати запитання');
-  await click(host, 'більше чи менше');
+  await pickType(host, 'moreless');
   await questionText(host).fill('Ще чотири пари');
   await click(host, '+ Порівняння');
   for (const [at, pair] of PAIRS28A_Q2.entries()) await fillPair28a(host, at + 1, pair);
@@ -591,8 +591,9 @@ async function truthGame28b() {
   await register(host, 'host', 'Ірина Ведуча', 'host28b@example.com');
   await host.getByRole('link', { name: 'Нова вікторина' }).click();
   await field(host, 'Назва вікторини').fill('Правда 28b');
-  await host.locator('details.rules').first().locator('summary').click();
+  await editorTab(host, 'Загальне');
   await select27b(host, 'Показувати рейтинг', 'end');
+  await editorTab(host, 'Раунди й запитання');
   await openRoundSettings(host);
   await field(host, 'Бали за швидкість: швидша правильна відповідь дає більше').setChecked(false);
   await questionText(host).fill('Яка планета найбільша?');
@@ -1222,21 +1223,21 @@ async function drawingEditor28c() {
   await register(host, 'host', 'Ліна Ведуча', 'host28ce@example.com');
   await host.getByRole('link', { name: 'Нова вікторина' }).click();
   await field(host, 'Назва вікторини').fill('Малюнок 28c редактор');
-  const types = host.getByRole('group', { name: 'Тип запитання', ...exact });
-  await click(host, 'малюнок');
+  const types = host.locator('.editor-stage');
+  await pickType(host, 'drawing');
   await host.getByText(ukMessages.drawingWordHint, exact).waitFor();
   expect(await host.getByLabel('Відео з YouTube', exact).count(), 'a drawing has no video').toBe(0);
   await click(host, '+ Раунд');
   await click(host, 'Ігрове поле');
   await host.getByRole('button', { name: /^Категорія 1, клітинка 1:/ }).click();
   await types.waitFor();
-  expect(await types.getByRole('button', { name: 'один варіант', ...exact }).count(), 'the type picker on a board').toBe(1);
-  expect(await types.getByRole('button', { name: 'малюнок', ...exact }).count(), 'a drawing offered on a board').toBe(0);
+  expect((await typeOptions(types)).includes('single'), 'the type picker on a board').toBe(true);
+  expect((await typeOptions(types)).includes('drawing'), 'a drawing offered on a board').toBe(false);
   await click(host, '+ Раунд');
   await click(host, 'Бліц');
   await types.waitFor();
-  expect(await types.getByRole('button', { name: 'один варіант', ...exact }).count(), 'the type picker in a blitz').toBe(1);
-  expect(await types.getByRole('button', { name: 'малюнок', ...exact }).count(), 'a drawing offered in a blitz').toBe(0);
+  expect((await typeOptions(types)).includes('single'), 'the type picker in a blitz').toBe(true);
+  expect((await typeOptions(types)).includes('drawing'), 'a drawing offered in a blitz').toBe(false);
   // Сервер теж не прийме малюнок поза класикою.
   const cell = (id: string, points: number) => ({ ...withPoints(withId(single, id), points), timeLimit: 30 });
   const board = boardRound('rb28c', [

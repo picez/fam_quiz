@@ -2,7 +2,7 @@ import { classicRound, makeRoundsQuiz, single, slider } from '@quiz/engine/testi
 import { DEBUFF_KINDS, type Question, type Quiz } from '@quiz/shared';
 import { type Page } from 'playwright-core';
 import { expect, it } from 'vitest';
-import { open, click, field, seconds, join, expectNoSideScroll, expectStageInView, register, POLL, boxOf, pickOption, textAnswer, sleep, step27a, next27a, reveal28a, MENU } from './helpers/common';
+import { open, click, field, seconds, join, expectNoSideScroll, expectStageInView, register, POLL, boxOf, pickOption, textAnswer, sleep, step27a, next27a, reveal28a, MENU, editorTab } from './helpers/common';
 import { exact, base, problems, snapshot, afterSplash, shot, useE2eServer } from './helpers/setup';
 
 /**
@@ -227,10 +227,8 @@ async function familyGame31() {
 
   // ── Редактор: «Сімейна гра» увімкнено, «Тремтіння екрана» неактивне з поясненням. ──
   await host.goto(`${base}/quizzes/${id}`);
-  // Налаштування вікторини — перший згорнутий розділ «rules» (без додаткового класу).
-  const settings = host.locator('details.rules:not(.teams):not(.powers):not(.spares):not(.duels)').first();
-  await settings.waitFor({ state: 'attached' });
-  if ((await settings.getAttribute('open')) === null) await settings.locator('summary').first().click();
+  // Налаштування вікторини — картка «Як грати» на вкладці «Загальне».
+  await editorTab(host, 'Загальне');
   const family = host.getByRole('checkbox', { name: 'Сімейна гра', ...exact });
   await family.waitFor();
   expect(await family.isChecked()).toBe(true);

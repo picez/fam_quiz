@@ -3,7 +3,7 @@ import { DEFAULT_RULES } from '@quiz/shared';
 import { type Page } from 'playwright-core';
 import { io as connectSocket, type Socket } from 'socket.io-client';
 import { expect, it } from 'vitest';
-import { open, click, field, questionText, seconds, join, openRoundSettings, expectNoSideScroll, register, POLL, socketFrames, pickOption, RESTARTING_TEXT, pickTeamOn, stageTeam, sleep, frame, label, step27a, toWinners27c, PAIRS28A_TEAM, moreLess28a, morelessRun28a, reveal28a } from './helpers/common';
+import { open, click, field, questionText, seconds, join, openRoundSettings, expectNoSideScroll, register, POLL, socketFrames, pickOption, RESTARTING_TEXT, pickTeamOn, stageTeam, sleep, frame, label, step27a, toWinners27c, PAIRS28A_TEAM, moreLess28a, morelessRun28a, reveal28a, pickType, typeOptions, showProblems } from './helpers/common';
 import { exact, ctx, base, problems, pages, snapshot, afterSplash, shot, restart, flags, useE2eServer } from './helpers/setup';
 
 /**
@@ -676,11 +676,12 @@ async function questGame29g() {
 
   // Порожній квест: проблеми називають запитання й код.
   await click(host, 'Зберегти');
-  await host.locator('.problems', { hasText: 'Квест із кодом: напишіть глобальне запитання.' }).waitFor();
-  await host.locator('.problems', { hasText: 'Квест із кодом: код — від 3 до 8 цифр чи літер.' }).waitFor();
-  const types = host.getByRole('group', { name: 'Тип запитання', ...exact });
-  for (const missing of [/ланцюжок/i, /мелодія/i, /пазл/i]) expect(await types.getByRole('button', { name: missing }).count(), `a ${missing} in the quest menu`).toBe(0);
-  await types.getByRole('button', { name: 'один варіант', ...exact }).waitFor();
+  const problems29g = await showProblems(host);
+  await problems29g.filter({ hasText: 'Квест із кодом: напишіть глобальне запитання.' }).waitFor();
+  await problems29g.filter({ hasText: 'Квест із кодом: код — від 3 до 8 цифр чи літер.' }).waitFor();
+  const types = host.locator('.editor-stage');
+  await expect.poll(async () => (await typeOptions(types)).includes('single'), POLL).toBe(true);
+  for (const missing of ['chain', 'melody', 'jigsaw']) expect((await typeOptions(types)).includes(missing), `a ${missing} in the quest menu`).toBe(false);
 
   await host.locator('.quest-prompt').fill(PROMPT29G);
   await host.locator('.quest-code').fill('со ва');
@@ -696,22 +697,22 @@ async function questGame29g() {
 
   // Три запитання: число, так/ні, текст — а потрібно щонайменше 4.
   await pickQuestion29g(host, 1);
-  await click(host, 'число');
+  await pickType(host, 'numeric');
   await questionText(host).fill(QUESTIONS29G[0].question.text);
   await field(host, 'Правильне число').fill('8');
   await field(host, 'Час, с').fill('30');
   await pickQuestion29g(host, 2);
-  await click(host, 'так чи ні');
+  await pickType(host, 'boolean');
   await questionText(host).fill(QUESTIONS29G[1].question.text);
   await click(host, 'Правильна відповідь: Ні');
   await field(host, 'Час, с').fill('30');
   await pickQuestion29g(host, 3);
-  await click(host, 'текст');
+  await pickType(host, 'text');
   await questionText(host).fill(QUESTIONS29G[2].question.text);
   await field(host, 'Написання 1').fill('Токіо');
   await field(host, 'Час, с').fill('30');
   await click(host, 'Зберегти');
-  await host.locator('.problems', { hasText: 'Квест із кодом: запитань має бути щонайменше 4.' }).waitFor();
+  await (await showProblems(host)).filter({ hasText: 'Квест із кодом: запитань має бути щонайменше 4.' }).waitFor();
   await host.locator('.quest-short').getByText('Запитань має бути щонайменше 4', exact).waitFor();
   // Ще два — проблема зникає.
   await click(host, 'Додати запитання');
@@ -721,7 +722,7 @@ async function questGame29g() {
   await field(host, 'Правильний: варіант 2').click();
   await field(host, 'Час, с').fill('30');
   await click(host, 'Додати запитання');
-  await click(host, 'число');
+  await pickType(host, 'numeric');
   await questionText(host).fill(QUESTIONS29G[4].question.text);
   await field(host, 'Правильне число').fill('7');
   await field(host, 'Час, с').fill('30');

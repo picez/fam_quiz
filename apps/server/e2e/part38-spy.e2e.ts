@@ -2,7 +2,7 @@ import { classicRound, makeRoundsQuiz, single, spy as spyQ, spy2 as spy2Q, spyLe
 import { type Locator, type Page } from 'playwright-core';
 import { type Socket } from 'socket.io-client';
 import { expect, it } from 'vitest';
-import { open, click, field, questionText, join, expectNoSideScroll, register, POLL, socketFrames, RESTARTING_TEXT, NL, sleep, step27a, phoneScore27a, toWinners27c, reveal28a, framesBeforeReveal, pilotPlayer, frame, emitOk, type Pilot } from './helpers/common';
+import { open, click, field, questionText, join, expectNoSideScroll, register, POLL, socketFrames, RESTARTING_TEXT, NL, sleep, step27a, phoneScore27a, toWinners27c, reveal28a, framesBeforeReveal, pilotPlayer, frame, emitOk, type Pilot, pickType, typeOptions, roundAction, showProblems, editorTab } from './helpers/common';
 import { exact, base, problems, snapshot, afterSplash, shot, restart, flags, useE2eServer } from './helpers/setup';
 
 /**
@@ -212,9 +212,9 @@ async function editor38() {
   await field(host, 'Назва вікторини').fill('Шпигун 38');
 
   // ── Класика: «Шпигун» у меню; типовий текст, 40 с асоціацій, 30 с голосування. ──
-  const types = host.getByRole('group', { name: 'Тип запитання', ...exact });
-  expect(await types.getByRole('button', { name: 'Шпигун', ...exact }).count(), 'spy in the classic menu').toBe(1);
-  await types.getByRole('button', { name: 'Шпигун', ...exact }).click();
+  const types = host.locator('.editor-stage');
+  expect((await typeOptions(types)).includes('spy'), 'spy in the classic menu').toBe(true);
+  await pickType(types, 'spy');
   await expect.poll(() => questionText(host).inputValue(), POLL).toBe(SPY_DEFAULT38);
   await expect.poll(() => field(host, 'Час, с').inputValue(), POLL).toBe('40');
   await expect.poll(() => field(host, 'Час голосування, с').inputValue(), POLL).toBe('30');
@@ -226,17 +226,17 @@ async function editor38() {
   // ── Бліц: «Шпигуна» в меню немає; раунд прибрано. ──
   await click(host, '+ Раунд');
   await click(host, 'Бліц');
-  await types.getByRole('button', { name: 'один варіант', ...exact }).waitFor();
-  expect(await types.getByRole('button', { name: 'Шпигун', ...exact }).count(), 'spy in the blitz menu').toBe(0);
-  await click(host, 'Видалити раунд');
+  await expect.poll(async () => (await typeOptions(types)).includes('single'), POLL).toBe(true);
+  expect((await typeOptions(types)).includes('spy'), 'spy in the blitz menu').toBe(false);
+  await roundAction(host, 'Видалити раунд');
 
   // ── Команди: проблема «„Шпигун“ не грається командами…», зберегти не можна. ──
-  const teams = host.locator('details.teams');
-  await teams.locator('summary').click();
+  await editorTab(host, 'Загальне');
+  const teams = host.locator('section.editor-card.teams');
   await teams.getByRole('checkbox', { name: 'Грати командами', ...exact }).check();
   await click(host, 'Зберегти');
   const teamsProblem = '«Шпигун» не грається командами — вимкніть команди або приберіть запитання (запитання 1)';
-  await host.locator('.problems', { hasText: teamsProblem }).waitFor();
+  await (await showProblems(host)).filter({ hasText: teamsProblem }).waitFor();
   const listed = async () => ((await (await host.request.get(`${base}/api/quizzes`)).json()) as { title: string }[]).filter((entry) => entry.title === 'Шпигун 38').length;
   expect(await listed(), 'a spy quiz with teams was saved').toBe(0);
   // Сервер теж не бере вікторину з командами й spy (spy_teams схеми).
@@ -252,8 +252,9 @@ async function editor38() {
   expect(plain.ok(), await plain.text()).toBe(true);
 
   // ── Вимкнули команди — зберігається. ──
+  await editorTab(host, 'Загальне');
   await teams.getByRole('checkbox', { name: 'Грати командами', ...exact }).uncheck();
-  await expect.poll(() => host.locator('.problems', { hasText: teamsProblem }).count(), POLL).toBe(0);
+  await expect.poll(async () => (await host.locator('.issues-button').textContent()) ?? '', POLL).toMatch(/^ⓘ Нагадувань: \d+$|Усе заповнено/);
   await click(host, 'Зберегти');
   await host.getByRole('heading', { name: 'Шпигун 38' }).waitFor();
 

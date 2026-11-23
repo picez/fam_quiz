@@ -4,7 +4,7 @@ import { resolve } from 'node:path';
 import { type Page } from 'playwright-core';
 import { io as connectSocket, type Socket } from 'socket.io-client';
 import { expect, it } from 'vitest';
-import { open, click, field, questionText, seconds, join, expectNoSideScroll, register, POLL, socketFrames, RESTARTING_TEXT, silentMp3, NL, pickTeamOn, stageTeam, sleep, frame, stateViews, step27a, next27a, phoneScore27a, select27b, toWinners27c, reveal28a, done28d, png29d } from './helpers/common';
+import { open, click, field, questionText, seconds, join, expectNoSideScroll, register, POLL, socketFrames, RESTARTING_TEXT, silentMp3, NL, pickTeamOn, stageTeam, sleep, frame, stateViews, step27a, next27a, phoneScore27a, select27b, toWinners27c, reveal28a, done28d, png29d, pickType, typeOptions, roundAction, editorTab, showProblems } from './helpers/common';
 import { ARTIFACTS, exact, base, problems, snapshot, afterSplash, shot, restart, flags, useE2eServer } from './helpers/setup';
 
 /**
@@ -196,8 +196,9 @@ async function memoryGame29f() {
   const hostFrames = socketFrames(host);
   await host.getByRole('link', { name: 'Нова вікторина' }).click();
   await field(host, 'Назва вікторини').fill('Пам’ять 29f');
-  await host.locator('details.rules').first().locator('summary').click();
+  await editorTab(host, 'Загальне');
   await select27b(host, 'Показувати рейтинг', 'end');
+  await editorTab(host, 'Раунди й запитання');
   await questionText(host).fill('Скільки днів у тижні?');
   await field(host, 'Варіант 1').fill('П’ять');
   await field(host, 'Варіант 2').fill('Сім');
@@ -207,8 +208,8 @@ async function memoryGame29f() {
   // ── Раунд 2: класичний, «Пам'ять» 3×4: п'ять текстових пар і пара «прапор — країна» із завантаженням. ──
   await click(host, '+ Раунд');
   await click(host, 'Класичний');
-  const types = host.getByRole('group', { name: 'Тип запитання', ...exact });
-  await types.getByRole('button', { name: 'пам’ять', ...exact }).click();
+  const types = host.locator('.editor-stage');
+  await pickType(types, 'memory');
   expect(await host.getByLabel('Відео з YouTube', exact).count(), 'a memory has no video').toBe(0);
   await host.getByRole('button', { name: '3×4 · 6 пар', ...exact }).waitFor();
   expect(await host.getByRole('button', { name: '3×4 · 6 пар', ...exact }).getAttribute('aria-pressed'), 'the default grid').toBe('true');
@@ -226,7 +227,7 @@ async function memoryGame29f() {
   // Повтор картки: «Польща» вже є в парі 2 — не дозволено; виправлення знімає.
   await field(host, 'Пара 1: Питання').fill('Польща');
   await click(host, 'Зберегти');
-  await host.locator('.problems', { hasText: 'однакові картки' }).waitFor();
+  await (await showProblems(host)).filter({ hasText: 'однакові картки' }).waitFor();
   await field(host, 'Пара 1: Питання').fill('Україна');
   // «Перемішати» міняє seed (чернетка в сеансовому сховищі).
   await expect.poll(async () => (await draftSeeds29f(host)).length, POLL).toBeGreaterThan(0);
@@ -240,11 +241,11 @@ async function memoryGame29f() {
   // ── Раунд 3: «Головоломки» — судоку й «Пам'ять» 4×4. ──
   await click(host, '+ Раунд');
   await click(host, 'Головоломки');
-  await types.getByRole('button', { name: 'судоку', ...exact }).waitFor();
-  expect(await types.getByRole('button', { name: 'пам’ять', ...exact }).count(), 'a memory in the puzzles round').toBe(1);
+  await expect.poll(async () => (await typeOptions(types)).includes('sudoku'), POLL).toBe(true);
+  expect((await typeOptions(types)).includes('memory'), 'a memory in the puzzles round').toBe(true);
   await field(host, 'Час, с').fill('60');
   await click(host, 'Додати запитання');
-  await types.getByRole('button', { name: 'пам’ять', ...exact }).click();
+  await pickType(types, 'memory');
   await host.getByRole('button', { name: '4×4 · 8 пар', ...exact }).click();
   expect(await host.getByRole('group', { name: /^Пара \d+$/ }).count(), 'eight pairs on 4×4').toBe(8);
   await fillPairs29f(host, CAPITALS29F.slice(0, 8));
@@ -253,9 +254,9 @@ async function memoryGame29f() {
   // Бліц: типу «Пам'ять» у меню немає.
   await click(host, '+ Раунд');
   await click(host, 'Бліц');
-  await types.getByRole('button', { name: 'один варіант', ...exact }).waitFor();
-  expect(await types.getByRole('button', { name: 'пам’ять', ...exact }).count(), 'a memory in the blitz menu').toBe(0);
-  await click(host, 'Видалити раунд');
+  await expect.poll(async () => (await typeOptions(types)).includes('single'), POLL).toBe(true);
+  expect((await typeOptions(types)).includes('memory'), 'a memory in the blitz menu').toBe(false);
+  await roundAction(host, 'Видалити раунд');
   await click(host, 'Зберегти');
   await host.getByRole('heading', { name: 'Пам’ять 29f' }).waitFor();
 
@@ -882,8 +883,9 @@ async function melodyGame29e() {
   const hostFrames = socketFrames(host);
   await host.getByRole('link', { name: 'Нова вікторина' }).click();
   await field(host, 'Назва вікторини').fill('Мелодія 29e');
-  await host.locator('details.rules').first().locator('summary').click();
+  await editorTab(host, 'Загальне');
   await select27b(host, 'Показувати рейтинг', 'end');
+  await editorTab(host, 'Раунди й запитання');
   await questionText(host).fill('Скільки днів у тижні?');
   await field(host, 'Варіант 1').fill('П’ять');
   await field(host, 'Варіант 2').fill('Сім');
@@ -893,14 +895,14 @@ async function melodyGame29e() {
   // ── Раунд 2: класичний, «Мелодія»: порожній трек — проблема; файл із тегами, секунда, написання. ──
   await click(host, '+ Раунд');
   await click(host, 'Класичний');
-  const types = host.getByRole('group', { name: 'Тип запитання', ...exact });
-  await types.getByRole('button', { name: 'Мелодія', ...exact }).click();
+  const types = host.locator('.editor-stage');
+  await pickType(types, 'melody');
   await host.locator('.melody-editor').waitFor();
   expect(await host.getByLabel('Відео з YouTube', exact).count(), 'a melody has no video field').toBe(0);
   expect(await questionText(host).inputValue(), 'the default text').toBe('Що це за пісня?');
   await expect.poll(() => field(host, 'Час, с').inputValue(), POLL).toBe('60');
   await click(host, 'Зберегти');
-  await host.locator('.problems', { hasText: 'додайте файл або посилання на YouTube' }).waitFor();
+  await (await showProblems(host)).filter({ hasText: 'додайте файл або посилання на YouTube' }).waitFor();
   await host.locator('.melody-file input[type=file]').setInputFiles({ name: 'shchedryk.mp3', mimeType: 'audio/mpeg', buffer: taggedMp3_29e(20) });
   await host.getByText('Аудіофайл', exact).first().waitFor();
   await field(host, 'З якої секунди').fill('2');
@@ -926,14 +928,14 @@ async function melodyGame29e() {
   // Бліц і «Головоломки»: «Мелодії» в меню немає.
   await click(host, '+ Раунд');
   await click(host, 'Бліц');
-  await types.getByRole('button', { name: 'один варіант', ...exact }).waitFor();
-  expect(await types.getByRole('button', { name: 'Мелодія', ...exact }).count(), 'a melody in the blitz menu').toBe(0);
-  await click(host, 'Видалити раунд');
+  await expect.poll(async () => (await typeOptions(types)).includes('single'), POLL).toBe(true);
+  expect((await typeOptions(types)).includes('melody'), 'a melody in the blitz menu').toBe(false);
+  await roundAction(host, 'Видалити раунд');
   await click(host, '+ Раунд');
   await click(host, 'Головоломки');
-  await types.getByRole('button', { name: 'судоку', ...exact }).waitFor();
-  expect(await types.getByRole('button', { name: 'Мелодія', ...exact }).count(), 'a melody in the puzzles menu').toBe(0);
-  await click(host, 'Видалити раунд');
+  await expect.poll(async () => (await typeOptions(types)).includes('sudoku'), POLL).toBe(true);
+  expect((await typeOptions(types)).includes('melody'), 'a melody in the puzzles menu').toBe(false);
+  await roundAction(host, 'Видалити раунд');
   await click(host, 'Зберегти');
   await host.getByRole('heading', { name: 'Мелодія 29e' }).waitFor();
 

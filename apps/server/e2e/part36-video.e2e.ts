@@ -2,7 +2,7 @@ import { classicRound, makeRoundsQuiz, single, withId } from '@quiz/engine/testi
 import { type Page } from 'playwright-core';
 import { io as connectSocket, type Socket } from 'socket.io-client';
 import { expect, it } from 'vitest';
-import { open, click, field, questionText, join, expectNoSideScroll, register, POLL, socketFrames, RESTARTING_TEXT, NL, pickTeamOn, stageTeam, sleep, stateViews, step27a, phoneScore27a, select27b, toWinners27c, reveal28a } from './helpers/common';
+import { open, click, field, questionText, join, expectNoSideScroll, register, POLL, socketFrames, RESTARTING_TEXT, NL, pickTeamOn, stageTeam, sleep, stateViews, step27a, phoneScore27a, select27b, toWinners27c, reveal28a, pickType, typeOptions, roundAction, editorTab, showProblems } from './helpers/common';
 import { exact, base, problems, snapshot, afterSplash, shot, restart, flags, useE2eServer } from './helpers/setup';
 
 /**
@@ -148,8 +148,9 @@ async function videoGame36() {
   await register(host, 'host', 'Ірина Ведуча', 'host36@example.com');
   await host.getByRole('link', { name: 'Нова вікторина' }).click();
   await field(host, 'Назва вікторини').fill('Відео 36');
-  await host.locator('details.rules').first().locator('summary').click();
+  await editorTab(host, 'Загальне');
   await select27b(host, 'Показувати рейтинг', 'end');
+  await editorTab(host, 'Раунди й запитання');
   await questionText(host).fill('Скільки днів у тижні?');
   await field(host, 'Варіант 1').fill('П’ять');
   await field(host, 'Варіант 2').fill('Сім');
@@ -159,8 +160,8 @@ async function videoGame36() {
   // ── Раунд 2: класичний, «Відео за фрагментами»: порожнє посилання — проблема; посилання з t=42, секунда 12, «Без звуку». ──
   await click(host, '+ Раунд');
   await click(host, 'Класичний');
-  const types = host.getByRole('group', { name: 'Тип запитання', ...exact });
-  await types.getByRole('button', { name: 'Відео', ...exact }).click();
+  const types = host.locator('.editor-stage');
+  await pickType(types, 'videoclip');
   await host.locator('.videoclip-editor').waitFor();
   // Єдине поле посилання — власне поле типу (clip) у .videoclip-editor; загального «Відео з YouTube» запитання немає.
   expect(await host.locator('.video-field').count(), 'video link fields').toBe(1);
@@ -171,7 +172,7 @@ async function videoGame36() {
   expect(await sound.getByRole('button', { name: 'Без звуку', ...exact }).getAttribute('aria-pressed'), '«Без звуку» by default').toBe('true');
   expect(await sound.getByRole('button', { name: 'Зі звуком', ...exact }).getAttribute('aria-pressed')).toBe('false');
   await click(host, 'Зберегти');
-  await host.locator('.problems', { hasText: 'додайте посилання на YouTube' }).waitFor();
+  await (await showProblems(host)).filter({ hasText: 'додайте посилання на YouTube' }).waitFor();
   await host.locator('.videoclip-editor .video-field input').fill('https://youtu.be/E2Evideo001?t=42');
   await expect.poll(() => field(host, 'З якої секунди').inputValue(), POLL).toBe('42');
   await field(host, 'З якої секунди').fill('12');
@@ -193,14 +194,14 @@ async function videoGame36() {
   // Бліц і «Головоломки»: «Відео за фрагментами» в меню немає.
   await click(host, '+ Раунд');
   await click(host, 'Бліц');
-  await types.getByRole('button', { name: 'один варіант', ...exact }).waitFor();
-  expect(await types.getByRole('button', { name: 'Відео', ...exact }).count(), 'a videoclip in the blitz menu').toBe(0);
-  await click(host, 'Видалити раунд');
+  await expect.poll(async () => (await typeOptions(types)).includes('single'), POLL).toBe(true);
+  expect((await typeOptions(types)).includes('videoclip'), 'a videoclip in the blitz menu').toBe(false);
+  await roundAction(host, 'Видалити раунд');
   await click(host, '+ Раунд');
   await click(host, 'Головоломки');
-  await types.getByRole('button', { name: 'судоку', ...exact }).waitFor();
-  expect(await types.getByRole('button', { name: 'Відео', ...exact }).count(), 'a videoclip in the puzzles menu').toBe(0);
-  await click(host, 'Видалити раунд');
+  await expect.poll(async () => (await typeOptions(types)).includes('sudoku'), POLL).toBe(true);
+  expect((await typeOptions(types)).includes('videoclip'), 'a videoclip in the puzzles menu').toBe(false);
+  await roundAction(host, 'Видалити раунд');
   await click(host, 'Зберегти');
   await host.getByRole('heading', { name: 'Відео 36' }).waitFor();
 

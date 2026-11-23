@@ -7,7 +7,7 @@ import { type Socket } from 'socket.io-client';
 import { expect, it } from 'vitest';
 import ar from '../../web/src/locales/ar.json';
 import es from '../../web/src/locales/es.json';
-import { open, click, liveRow, field, questionText, join, openRoundSettings, bodyText, expectNoSideScroll, MENU, MENU_ITEMS_23A, register, POLL, socketFrames, buffButton, takeBuff, tapBuff, pickOption, numericAnswer, vote, splashOn, COVERED, HEADER_ONE_LINE, expectStageFits, expectStageInView, NL, pickTeamOn, stageTeam, teamTotal, scoreCells, breakdownTexts, sleep, pilotSocket, frame, expectGap, createAutopilot, stateViews, launchBot11h, joinBy11h, undoRows, revealLine, squash, expectFitsWidth13a, openProfileTile, htmlDir, ownDir, join22a } from './helpers/common';
+import { open, click, liveRow, field, questionText, join, openRoundSettings, bodyText, expectNoSideScroll, MENU, MENU_ITEMS_23A, register, POLL, socketFrames, buffButton, takeBuff, tapBuff, pickOption, numericAnswer, vote, splashOn, COVERED, HEADER_ONE_LINE, expectStageFits, expectStageInView, NL, pickTeamOn, stageTeam, teamTotal, scoreCells, breakdownTexts, sleep, pilotSocket, frame, expectGap, createAutopilot, stateViews, launchBot11h, joinBy11h, undoRows, revealLine, squash, expectFitsWidth13a, openProfileTile, htmlDir, ownDir, join22a, pickType, roundAction, pickRound, editorTab, openGeneralFold } from './helpers/common';
 import { exact, browser, base, problems, ARTIFACTS, snapshot, afterSplash, shot, useE2eServer } from './helpers/setup';
 
 /**
@@ -1236,8 +1236,8 @@ async function answerer12g() {
   await host.goto(`${base}/quizzes`);
   await host.locator('.quiz-list li', { hasText: 'По черзі 12g' }).getByRole('link', { name: 'Редагувати' }).click();
   await host.locator('main.editor').waitFor();
-  const teamsBlock = host.locator('details.teams');
-  await teamsBlock.locator('summary').click();
+  await editorTab(host, 'Загальне');
+  const teamsBlock = host.locator('section.editor-card.teams');
   const mode = host.getByLabel('Хто відповідає', exact);
   await mode.waitFor();
   expect(await mode.inputValue()).toBe('rotate');
@@ -1678,7 +1678,7 @@ async function powers12h() {
   const powersOf = async (title: string) => {
     await host.goto(`${base}/quizzes`);
     await host.locator('.quiz-list li', { hasText: title }).getByRole('link', { name: 'Редагувати' }).click();
-    await host.locator('details.powers > summary').click();
+    await openGeneralFold(host, 'powers');
     const checked = async (group: number) => {
       const items = host.locator('fieldset.powers-group').nth(group).locator('label.powers-item');
       const on: string[] = [];
@@ -2063,8 +2063,8 @@ it('part 26b: blitz streaks — a plus series grows by the step, a minus series 
     await field(host, 'Назва вікторини').fill('Серії в бліці');
     await click(host, '+ Раунд');
     await click(host, 'Бліц');
-    await host.getByRole('button', { name: 'Раунд 1', ...exact }).click();
-    await click(host, 'Видалити раунд');
+    await pickRound(host, 'Раунд 1');
+    await roundAction(host, 'Видалити раунд');
     await openRoundSettings(host);
     await host.getByRole('checkbox', { name: PLUS_26B, ...exact }).check();
     await host.getByRole('checkbox', { name: MINUS_26B, ...exact }).check();
@@ -2296,7 +2296,7 @@ async function wordLadderGame26c() {
   await register(host, 'host', 'Ірина Ведуча', 'host26c@example.com');
   await host.getByRole('link', { name: 'Нова вікторина' }).click();
   await field(host, 'Назва вікторини').fill('Драбина слів');
-  await click(host, 'драбина слів');
+  await pickType(host, 'wordladder');
   await questionText(host).fill('Від поля до тари');
   expect(await host.getByLabel('Відео з YouTube', exact).count(), 'a word ladder has no video').toBe(0);
   await field(host, 'Стартове слово').fill('ПОЛЕ');

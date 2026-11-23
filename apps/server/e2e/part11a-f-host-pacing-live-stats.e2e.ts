@@ -3,7 +3,7 @@ import { DEFAULT_RULES, type StateMeta } from '@quiz/shared';
 import { type Locator, type Page } from 'playwright-core';
 import { type Socket } from 'socket.io-client';
 import { expect, it } from 'vitest';
-import { open, click, liveRow, field, questionText, join, bodyText, expectNoSideScroll, stat, register, myId, POLL, sortZone, sortCard, sortBy, socketFrames, pickOption, numericAnswer, guideOn, expectStageInView, answerSurvey, writeLie, pickBluff, decide, choiceOf, sideRow, NL, framesUntilNextReveal, podiumScore, pickTeamOn, stageTeam, sentFrames, scoreCells, breakdownTexts, socketPlayer, frame } from './helpers/common';
+import { open, click, liveRow, field, questionText, join, bodyText, expectNoSideScroll, stat, register, myId, POLL, sortZone, sortCard, sortBy, socketFrames, pickOption, numericAnswer, guideOn, expectStageInView, answerSurvey, writeLie, pickBluff, decide, choiceOf, sideRow, NL, framesUntilNextReveal, podiumScore, pickTeamOn, stageTeam, sentFrames, scoreCells, breakdownTexts, socketPlayer, frame, roundBadge, showProblems } from './helpers/common';
 import { exact, base, problems, pages, rigged, snapshot, afterSplash, shot, useE2eServer } from './helpers/setup';
 
 /**
@@ -155,7 +155,7 @@ async function editorGame11a() {
   const cells = (name: RegExp) => host.getByRole('button', { name });
   expect(await cells(/^Категорія \d, клітинка \d: .*, готова$/).count(), 'all nine cells are ready').toBe(9);
   expect(await host.locator('.board-edit-ready').allTextContents()).toEqual(['3 / 3 готово', '3 / 3 готово', '3 / 3 готово']);
-  expect(await host.locator('.round-tab-badge').count()).toBe(0);
+  expect(await roundBadge(host, 'Поле 11a')).toBeNull();
   await cells(/^Категорія 1, клітинка 1: 100/).click();
   await questionText(host).fill('');
   await host.getByRole('button', { name: 'Категорія 1, клітинка 1: 100, не заповнена', ...exact }).waitFor();
@@ -170,8 +170,7 @@ async function editorGame11a() {
     '! 3 / 3 готово',
   ]);
   expect(await host.locator('.board-legend').textContent()).toContain('2 не готові');
-  const tab = host.locator('.round-tabs').getByRole('button', { name: 'Поле 11a', ...exact });
-  expect((await tab.locator('.round-tab-badge').textContent())?.trim()).toBe('2 не готові');
+  expect(await roundBadge(host, 'Поле 11a')).toBe('2 не готові');
   const picked = host.getByRole('button', { name: 'Категорія 2, клітинка 3: 300 ×3, не заповнена', ...exact });
   const pickedClass = (await picked.getAttribute('class')) ?? '';
   expect(pickedClass).toContain('is-on');
@@ -185,7 +184,7 @@ async function editorGame11a() {
   await host.setViewportSize({ width: 1280, height: 900 });
 
   await click(host, 'Зберегти');
-  const list = host.locator('ul.problems');
+  const list = await showProblems(host);
   await list.waitFor();
   const listed = await list.locator('li').allTextContents();
   expect(listed.length, listed.join(' | ')).toBe(3);
@@ -202,7 +201,7 @@ async function editorGame11a() {
   await field(host, 'Варіант 2').fill('Кіліманджаро');
   await field(host, 'Назва категорії 3').fill('Острови');
   expect(await cells(/^Категорія \d, клітинка \d: .*, готова$/).count(), 'all nine cells are ready again').toBe(9);
-  expect(await host.locator('.round-tab-badge').count()).toBe(0);
+  expect(await roundBadge(host, 'Поле 11a')).toBeNull();
   await click(host, 'Зберегти');
   await host.waitForURL(/\/quizzes$/);
 

@@ -6,7 +6,7 @@ import { type Page } from 'playwright-core';
 import { expect, it } from 'vitest';
 import { adminEmails } from '../src/config';
 import { user } from '../src/db/schema';
-import { bodyText, click, expectNoSideScroll, expectPhoneFit, MENU, MENU_ITEMS_23A, menuLinks, myId, open, pickOption, register, toNextQuestion } from './helpers/common';
+import { bodyText, click, expectNoSideScroll, expectPhoneFit, MENU, MENU_ITEMS_23A, menuLinks, myId, open, pickOption, register, toNextQuestion, editorTab } from './helpers/common';
 import { ARTIFACTS, avatarPng, base, db, exact, flags, problems, relisten, shot, snapshot, useE2eServer, ctx } from './helpers/setup';
 
 /**
@@ -247,6 +247,7 @@ async function library47() {
   await taras.getByText('Скопійовано в «Мої вікторини»', { exact: false }).waitFor();
   await taras.getByRole('link', { name: 'Відкрити копію', ...exact }).click();
   await taras.getByLabel('Назва вікторини', exact).waitFor();
+  await editorTab(taras, 'Загальне');
   await expect.poll(() => taras.getByLabel('Короткий опис', { exact: false }).inputValue()).toBe(`Автор: Олена\n${DESCRIPTION}`);
   await view(taras, 'p47-copy');
   const copyId = new URL(taras.url()).pathname.split('/').pop()!;

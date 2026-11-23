@@ -310,7 +310,7 @@ async function noVote51(sockets: Socket[]) {
   await author.setViewportSize({ width: 360, height: 800 });
   await author.goto(`${base}/quizzes`);
   await author.locator('.quiz-list li', { hasText: 'Вимкнене 51' }).getByRole('link', { name: 'Редагувати' }).click();
-  await author.locator('.round-tab').first().waitFor().catch(() => undefined);
+  await author.locator('details.round-settings').waitFor();
   await openRoundSettings(author);
   const box = author.getByRole('checkbox', { name: ukMessages.thinkOffVoteSetting, ...exact });
   expect(await box.isChecked(), 'on by default').toBe(true);

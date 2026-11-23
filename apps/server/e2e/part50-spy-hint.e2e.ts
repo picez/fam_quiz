@@ -3,7 +3,7 @@ import { resolve } from 'node:path';
 import { classicRound, makeRoundsQuiz, spy as spyQ, spy2 as spy2Q, spyLegacy as spyLegacyQ } from '@quiz/engine/testing';
 import { type Page } from 'playwright-core';
 import { expect, it } from 'vitest';
-import { open, click, field, questionText, join, register, POLL, socketFrames, NL, sleep, step27a, phoneScore27a, toWinners27c, reveal28a, framesBeforeReveal, noSideScroll } from './helpers/common';
+import { open, click, field, questionText, join, register, POLL, socketFrames, NL, sleep, step27a, phoneScore27a, toWinners27c, reveal28a, framesBeforeReveal, noSideScroll, pickType } from './helpers/common';
 import { exact, base, problems, snapshot, afterSplash, noSplashLayer, ARTIFACTS, useE2eServer } from './helpers/setup';
 
 /**
@@ -156,8 +156,8 @@ async function editor50() {
   await register(host, 'host', 'Ірина Ведуча', 'host50e@example.com');
   await host.getByRole('link', { name: 'Нова вікторина' }).click();
   await field(host, 'Назва вікторини').fill('Шпигун 50');
-  const types = host.getByRole('group', { name: 'Тип запитання', ...exact });
-  await types.getByRole('button', { name: 'Шпигун', ...exact }).click();
+  const types = host.locator('.editor-stage');
+  await pickType(types, 'spy');
   await expect.poll(() => questionText(host).inputValue(), POLL).toBe('Напишіть одне слово-асоціацію до загального слова');
   await host.getByText('Шпигуна вибере програма; він бачитиме лише «Ви — шпигун» і вашу підказку. Потрібно щонайменше 3 гравці; з меншою кількістю запитання пропуститься.', exact).waitFor();
   expect(await host.getByLabel('Слово шпигуна', exact).count(), 'the old spy word field').toBe(0);
@@ -168,7 +168,9 @@ async function editor50() {
   const warning = host.getByText(LEAK50, exact);
   await warning.waitFor();
   expect(await host.getByRole('button', { name: 'Зберегти', ...exact }).isEnabled(), 'save with a leaking hint').toBe(true);
-  expect(await host.locator('.problems').count(), 'a blocking problem for a leaking hint').toBe(0);
+  // Підказка, що видає слово, — лише нагадування: лічильник без помилок і не червоний.
+  expect(await host.locator('.issues-button').getAttribute('class'), 'a blocking problem for a leaking hint').not.toContain('has-errors');
+  expect((await host.locator('.issues-button').textContent())?.trim(), 'no errors for a leaking hint').toMatch(/^ⓘ Нагадувань: \d+$/);
   await host.setViewportSize({ width: 360, height: 800 });
   await field(host, HINT_FIELD50).scrollIntoViewIfNeeded();
   expect(await noSideScroll(host), 'the editor scrolls sideways at 360 px').toBe(true);
