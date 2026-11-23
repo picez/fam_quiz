@@ -2866,6 +2866,20 @@ describe('PlayerScreen: «Як грати»', () => {
   });
 });
 
+describe('PlayerScreen: skip the guide vote', () => {
+  const guide = { page: 0, pages: [{ kind: 'phone' as const }] };
+  it('autopilot guide shows the skip vote under the page', () => {
+    show(view({ phase: 'guide', guide: { ...guide, skip: { votes: 1, of: 2, mine: false } }, autopilot: true }));
+    expect(document.querySelector('.guide.is-phone')).not.toBeNull();
+    expect(screen.getByRole('button', { name: 'Пропустити пояснення' })).toBeTruthy();
+    expect(screen.getByText('Хочуть пропустити: 1 з 2')).toBeTruthy();
+  });
+  it('host game guide has no skip vote', () => {
+    show(view({ phase: 'guide', guide }));
+    expect(screen.queryByRole('button', { name: 'Пропустити пояснення' })).toBeNull();
+  });
+});
+
 describe('PlayerScreen: explanations for newcomers', () => {
   it('the tip sits above the question and answering still works', () => {
     const send = show(onQuestion({ newcomers: true, me: { ...me, tip: 'single' } }));

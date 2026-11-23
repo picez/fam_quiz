@@ -14,6 +14,7 @@ import { AdjustmentToast, BuffToast, DebuffToast, LiveNotices, StageDebuffs } fr
 import { SharedOvertime, StageBuffs } from './Buffs';
 import { DuelBanner, DuelStage } from './DuelView';
 import { GuidePageView } from '../live/Guide';
+import { GuideSkipLine } from '../live/GuideSkip';
 import { Splash, useSplash } from '../live/Splash';
 import { Timer, timerStatus } from '../live/Timer';
 import { BlitzCellNotes, Board, BoardLegend } from './Board';
@@ -1124,6 +1125,7 @@ export function StageScreen({ view: live, code, joinUrl, offsetMs, hostOnline, a
       )}
       {phase === 'lobby' && <Lobby view={view} code={code} joinUrl={joinUrl} />}
       {phase === 'guide' && view.guide !== null && <GuidePageView guide={view.guide} size="stage" autopilot={view.autopilot} />}
+      {phase === 'guide' && view.guide?.skip !== undefined && <GuideSkipLine skip={view.guide.skip} />}
       {(phase === 'question' || phase === 'locked' || phase === 'reveal') && view.ladder !== null && <LadderStage view={view} offsetMs={offsetMs} audioCommand={audioCommand} />}
       {(phase === 'question' || phase === 'locked' || phase === 'reveal') && truthStage && <TruthStage view={view} offsetMs={offsetMs} />}
       {(phase === 'question' || phase === 'locked') && thinkStage && <ThinkStage view={view} offsetMs={offsetMs} />}

@@ -98,6 +98,8 @@ import {
   chooseRetry,
   nextClue,
   skipGuide,
+  guideSkipTally,
+  guideVoters,
   startDice,
   startTeamDice,
   gameFacts,
@@ -176,7 +178,7 @@ import {
   type Result,
   type TeamAct,
 } from '@quiz/engine';
-import { ANSWERER_PICKS_PER_SECOND, REACTION_GAP_MS, reactionAllowed, type Reaction, type ReactionItem, APPEAL_VOTES_PER_SECOND, AWAY_EVENTS_PER_SECOND, awayGapMs, draftQuestionType, DRAFTS_PER_SECOND, isAnswerDraft, isUnscored, SORT_TILT_GAP_MS, LIST_WORDS_PER_SECOND, MORELESS_PICKS_PER_SECOND, PUZZLE_BATCHES_PER_SECOND, JIGSAW_MOVES_PER_SECOND, SPOTDIFF_TAPS_PER_SECOND, MEMORY_FLIPS_PER_SECOND, DRAW_GUESSES_PER_SECOND, DRAW_OPS_PER_SECOND, type DrawingEvent, type DrawOp, type AckResult, type Answer, type MoreLessSide, type AnswererScope, type AppealReason, type BuffKind, type DebuffKind, type DraftValue, type DuelSide, type ErrorCode, type GameView, type Grade, type HostDrafts, type HostUndoTarget, type LifelineKind, type Phase, type PlayerView, type Question, type Quiz, type ResumeSetup, RESUME_POINTS_MAX, clamp, isObjectLike, type ContinuedView, type PlacedPrize, placedPrizeSchema, type SlotsResponse, type Role, type SortTilt, type SubmittedAnswer, type TeamForm, type ThinkWord, type ActivePerk, type NickLevel, type StickerExtra, stickerOpen, LIKE_RATE, type LikePayload, LOBBY_VISIBILITIES, lobbyPasswordSchema, type LobbySettings, type LobbyVisibility, type AchievementId, type HostLeagueView, type PlayerLeagueView, type GameXpMoment, BOT_ROOMS_MAX, BOT_USER_ID, isBotUser, type BotAction, type BotCommand, BOT_TIME_SECONDS, type AdminBotLobby, BOT_MANUAL_GRACE_MS } from '@quiz/shared';
+import { ANSWERER_PICKS_PER_SECOND, REACTION_GAP_MS, reactionAllowed, type Reaction, type ReactionItem, APPEAL_VOTES_PER_SECOND, AWAY_EVENTS_PER_SECOND, awayGapMs, draftQuestionType, DRAFTS_PER_SECOND, isAnswerDraft, isUnscored, SORT_TILT_GAP_MS, LIST_WORDS_PER_SECOND, MORELESS_PICKS_PER_SECOND, PUZZLE_BATCHES_PER_SECOND, JIGSAW_MOVES_PER_SECOND, SPOTDIFF_TAPS_PER_SECOND, MEMORY_FLIPS_PER_SECOND, DRAW_GUESSES_PER_SECOND, DRAW_OPS_PER_SECOND, type DrawingEvent, type DrawOp, type AckResult, type Answer, type MoreLessSide, type AnswererScope, type AppealReason, type BuffKind, type DebuffKind, type DraftValue, type DuelSide, type ErrorCode, type GameView, type Grade, type GuideSkipView, type HostDrafts, type HostUndoTarget, type LifelineKind, type Phase, type PlayerView, type Question, type Quiz, type ResumeSetup, RESUME_POINTS_MAX, clamp, isObjectLike, type ContinuedView, type PlacedPrize, placedPrizeSchema, type SlotsResponse, type Role, type SortTilt, type SubmittedAnswer, type TeamForm, type ThinkWord, type ActivePerk, type NickLevel, type StickerExtra, stickerOpen, LIKE_RATE, type LikePayload, LOBBY_VISIBILITIES, lobbyPasswordSchema, type LobbySettings, type LobbyVisibility, type AchievementId, type HostLeagueView, type PlayerLeagueView, type GameXpMoment, BOT_ROOMS_MAX, BOT_USER_ID, isBotUser, type BotAction, type BotCommand, BOT_TIME_SECONDS, type AdminBotLobby, BOT_MANUAL_GRACE_MS } from '@quiz/shared';
 import type { LeagueGameResult } from '../league-store';
 import type { LikeChange, LikeKey } from '../like-store';
 import { SAVED_GAME_VERSION, type ContinueResult, type RestartInput, type SavedGameData } from './continuation';
@@ -323,6 +325,8 @@ export interface Room {
   botManual: { adminId: string; since: number } | null;
   /** 68: таймер повернення керування боту, коли всі пульти адмінів відключилися; null — таймера немає. Лише в пам'яті, у знімок не йде; після перезапуску порожньо. */
   manualAway: unknown;
+  /** 75: хто з людей голосує «Пропустити пояснення» (id людини). Лише в пам'яті: не в стані гри, не в знімку; вихід з guide стирає. */
+  guideVotes: Set<string>;
 }
 
 /** Позначка гри для сімейної ліги (45): id групи й назва на мить вибору (для рядків у грі). */
@@ -945,6 +949,7 @@ export class RoomManager {
       adminHosts: new Map(),
       botManual: null,
       manualAway: null,
+      guideVotes: new Set(),
     };
     this.live.set(room.code, room);
     this.reschedule(room);
@@ -1029,6 +1034,7 @@ export class RoomManager {
       adminHosts: new Map(),
       botManual: null,
       manualAway: null,
+      guideVotes: new Set(),
     };
     const forgotten = forgottenOf(saved.forgotten);
     if (forgotten.size > 0) room.forgotten = forgotten;
@@ -1774,7 +1780,7 @@ export class RoomManager {
   }
 
   view(room: Room, identity: Identity): GameView | null {
-    const base = this.baseView(room, identity);
+    const base = this.withGuideSkip(room, identity, this.baseView(room, identity));
     if (base === null) return null;
     const prizes = prizesView(room, identity.role === 'player' ? { role: 'player', playerId: identity.playerId ?? '' } : { role: identity.role });
     const titles = titlesView(room);
@@ -1801,6 +1807,16 @@ export class RoomManager {
     if (base.role === 'stage') return { ...base, ...extra, ...(slide === undefined ? {} : { newAchievements: slide }) };
     const league = hostLeagueView(room);
     return { ...base, ...extra, ...(league === undefined ? {} : { league }), ...(slide === undefined ? {} : { awardsExtra: true, newAchievements: slide }) };
+  }
+
+  /** 75: рядок голосування «Пропустити пояснення» — телефону (з mine) і сцені, лише в автопілоті на guide; пульт ключа не має. */
+  private withGuideSkip(room: Room, identity: Identity, base: GameView | null): GameView | null {
+    if (base === null || base.role === 'host') return base;
+    const { state } = room;
+    if (state.autopilot === undefined || state.phase !== 'guide' || base.guide === null) return base;
+    const { votes, of } = guideSkipTally(state, room.guideVotes);
+    const skip: GuideSkipView = base.role === 'player' ? { votes, of, mine: identity.playerId !== null && room.guideVotes.has(identity.playerId) } : { votes, of };
+    return { ...base, guide: { ...base.guide, skip } };
   }
 
   private baseView(room: Room, identity: Identity): GameView | null {
@@ -1875,6 +1891,23 @@ export class RoomManager {
   /** Людина досі в грі: соло — серед гравців, командна гра — серед учасників. */
   private inGame(state: GameState, playerId: string): boolean {
     return teamsOn(state) ? memberOf(state, playerId) !== undefined : state.players.some((p) => p.id === playerId);
+  }
+
+  /** 75: голос за пропуск «Як грати» в грі з автопілотом. Той самий голос удруге — ok без розсилки. Більшість — skipGuide. */
+  guideVote(room: Room, playerId: string, skip: boolean): AckResult {
+    if (!this.alive(room)) return this.gone();
+    const { state } = room;
+    if (state.autopilot === undefined) return NOT_ALLOWED;
+    if (state.phase !== 'guide') return { ok: false, error: 'wrong_phase' };
+    if (state.paused) return { ok: false, error: 'paused' };
+    if (!guideVoters(state).includes(playerId)) return { ok: false, error: 'not_found' };
+    if (room.guideVotes.has(playerId) === skip) return { ok: true };
+    if (skip) room.guideVotes.add(playerId);
+    else room.guideVotes.delete(playerId);
+    // Спершу більшість: голос, що її дає, одразу веде на intro — без зайвої розсилки guide з N голосами.
+    this.settleGuideVotes(room);
+    if (room.state.phase === 'guide') this.emit(room, { type: 'changed' });
+    return { ok: true };
   }
 
   /** Пакет живих виборів для пульта (12b): чинні чернетки з draft !== null, лише для рядків hostLive (і aside), у порядку рядків. */
@@ -3135,6 +3168,8 @@ export class RoomManager {
     const wasPaused = room.state.paused;
     const stamped = this.pacing || state.autopilot !== undefined ? stamp(room.state, state, at) : state;
     room.state = planAutopilot(room.state, stamped, at);
+    // 75: голоси «Пропустити пояснення» живуть лише в етапі guide.
+    if (room.state.phase !== 'guide') room.guideVotes.clear();
     // Межа між запитаннями (13b): звідси гру можна зберегти й продовжити.
     if (restPoint(room.state)) room.checkpoint = { state: room.state, at };
     // Пауза (і та, що ставить автопілот, коли нікого на зв'язку): нахили більше не діють.
@@ -3147,6 +3182,16 @@ export class RoomManager {
     // 29e: зріз під заставкою перед «Мелодією» оновлюється сам, коли вона мине.
     this.watchTimers(room);
     this.emit(room, puzzle ? { type: 'changed', puzzle: true } : only === undefined ? { type: 'changed' } : { type: 'changed', only });
+    // 75: відключення, вилучення чи зняття паузи можуть дати більшість без нового голосу. Вкладений commit уже на intro чистить голоси — рекурсії немає.
+    if (room.guideVotes.size > 0) this.settleGuideVotes(room);
+  }
+
+  /** 75: більшість є (автопілот, guide, не пауза) — apply(skipGuide); інакше нічого. */
+  private settleGuideVotes(room: Room): void {
+    const { state } = room;
+    if (state.autopilot === undefined || state.phase !== 'guide' || state.paused) return;
+    if (!guideSkipTally(state, room.guideVotes).reached) return;
+    this.apply(room, skipGuide(state, this.now()));
   }
 
   /** Приводить таймери кімнати у відповідність до її стану. */

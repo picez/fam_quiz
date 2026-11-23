@@ -30517,3 +30517,34 @@ details.editor-card > summary {
   margin: 0.25rem 0 0;
   font-size: 0.875rem;
 }
+
+/* 75: «Пропустити пояснення» — кнопка й рядок під сторінкою «Як грати»; на сцені лише рядок великим кеглем. */
+.guide-skip {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+.guide-skip-button {
+  width: 100%;
+}
+/* Голос віддано: кнопка «натиснута» — акцентна рамка й тло, не схожа на вимкнену. */
+.guide-skip-button[aria-pressed='true'] {
+  border-color: var(--accent);
+  background: var(--spot);
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+.guide-skip-count {
+  margin: 0;
+  text-align: center;
+}
+/* Сцена: рядок у тій самій колонці, що й сторінка .guide.is-stage, і з її лівого краю. */
+.guide-skip.is-stage {
+  width: min(100%, 84rem);
+  margin-inline: auto;
+}
+.guide-skip.is-stage .guide-skip-count {
+  font-size: 1.5rem;
+  text-align: start;
+}

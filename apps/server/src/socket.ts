@@ -17,6 +17,7 @@ import {
   overrideSchema,
   pendingSchema,
   pickSchema,
+  guideSkipSchema,
   wagerSchema,
   socketAuthSchema,
   sortSchema,
@@ -882,6 +883,13 @@ export function attachSockets(
     on('player:clue', () => {
       if (identity.role !== 'player' || identity.playerId === null) return FORBIDDEN;
       return manager.clue(room, identity.playerId);
+    });
+
+    // 75: голос «Пропустити пояснення» в грі з автопілотом.
+    on('player:guide-skip', (args) => {
+      if (identity.role !== 'player' || identity.playerId === null) return FORBIDDEN;
+      const payload = guideSkipSchema.safeParse(payloadOf(args));
+      return payload.success ? manager.guideVote(room, identity.playerId, payload.data.skip) : INVALID;
     });
 
     on('player:pick', (args) => {

@@ -14,6 +14,7 @@ import { typeHow } from '../guide-text';
 import { RoundBriefing, RoundFacts } from './RoundBriefing';
 import { AdjustmentToast, BuffToast, DebuffToast, LiveNotices, PeekedToast } from '../live/LiveNotices';
 import { GuidePageView } from '../live/Guide';
+import { GuideSkipVote } from '../live/GuideSkip';
 import { Splash, useSplash } from '../live/Splash';
 import { AwayAlarm, AwayNote } from '../live/AwayAlarm';
 import { Timer, timerStatus, useTimeOver } from '../live/Timer';
@@ -1101,6 +1102,8 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
       )}
 
       {phase === 'guide' && view.guide !== null && <GuidePageView guide={view.guide} size="phone" autopilot={view.autopilot} />}
+      {/* Голосування «Пропустити пояснення» (75): ключ ставить сервер лише в автопілоті. */}
+      {phase === 'guide' && view.guide?.skip !== undefined && <GuideSkipVote skip={view.guide.skip} paused={view.paused} send={send} onError={setError} />}
 
       {phase === 'duel' && view.duel !== null && <DuelPlay view={view} offsetMs={offsetMs} send={send} onError={setError} />}
 
