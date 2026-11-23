@@ -1,5 +1,7 @@
 import { LIMITS, allowedBuffs, questionsOf, roundQuestions, roundTrials, type Question, type QuestionBankItem, type Quiz, type QuizLikes, type Round } from '@quiz/shared';
 import { useEffect, useRef, useState } from 'react';
+import { EditorCard } from './EditorCard';
+import { generalSummaries } from './summaries';
 import { questionName } from '../format';
 import { t } from '../i18n';
 import {
@@ -64,13 +66,18 @@ interface Props {
   likes?: QuizLikes;
   /** Збережена вікторина, що редагується: у банку запитань її рядки позначені «ця вікторина». */
   quizId?: string;
+  /** Керована вкладка (адреса); без неї редактор тримає вкладку сам, типово «Раунди й запитання». */
+  tab?: EditorTab;
+  onTabChange?: (tab: EditorTab) => void;
 }
+
+export type EditorTab = 'general' | 'rounds';
 
 /**
  * Редактор «список і сцена»: зверху назва й правила, далі раунди; ліворуч список запитань, праворуч одне запитання
  * таким, яким його побачать гравці. На вузькому екрані список ховається за кнопку.
  */
-export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, onCancel, likes, quizId }: Props) {
+export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, onCancel, likes, quizId, tab, onTabChange }: Props) {
   const [quiz, setQuiz] = useState(initial);
   const [dirty, setDirty] = useState(false);
   const [roundIndex, setRoundIndex] = useState(0);
@@ -87,7 +94,16 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
   const [duelsOpen, setDuelsOpen] = useState(false);
   /** Розділ «Запасні запитання» розгорнуто: автором або помилкою в ньому. */
   const [sparesOpen, setSparesOpen] = useState(false);
+  /** Розділ «Бафи й дебафи» розгорнуто. */
+  const [powersOpen, setPowersOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [ownTab, setOwnTab] = useState<EditorTab>('rounds');
+  const currentTab = tab ?? ownTab;
+  /** Єдиний спосіб перемкнути вкладку: і внутрішній стан, і адреса. */
+  const showTab = (next: EditorTab) => {
+    setOwnTab(next);
+    onTabChange?.(next);
+  };
   /** Клітинка поля, яку треба показати після невдалого збереження. */
   const [boardFocus, setBoardFocus] = useState<{ category: number; index: number } | null>(null);
   /** Запитання, яке зараз перетягують у списку. */
@@ -122,6 +138,7 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
   /** Запитань у всій вікторині: ліміт 200 діє на всі раунди разом. */
   const total = questionsOf(quiz).length + quiz.rounds.reduce((sum, r) => sum + roundTrials(r).length, 0);
   const gaps = swapGaps(quiz);
+  const summaries = generalSummaries(quiz);
   const roomForMore = questions.length < roundCapacity(round) && total < LIMITS.maxQuizQuestions;
   const setAwayPenalty = (on: boolean) => {
     const { awayPenalty: _off, ...rest } = settings;
@@ -307,316 +324,337 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
           <span>{t('quizTitle')}</span>
           <input value={quiz.title} maxLength={120} onChange={(event) => update({ ...quiz, title: event.target.value })} />
         </label>
-
-        <details className="rules">
-          <summary>{t('settingsTitle')}</summary>
-          <label className="field">
-            <span>{t('quizDescription')}</span>
-            <textarea
-              rows={2}
-              value={quiz.description}
-              maxLength={500}
-              onChange={(event) => update({ ...quiz, description: event.target.value })}
-            />
-          </label>
-          <div className="with-help">
-            <label className="field">
-              <span>{t('leaderboardLabel')}</span>
-              <select
-                value={settings.leaderboard}
-                onChange={(event) => setSettings({ leaderboard: event.target.value === 'end' ? 'end' : 'each' })}
-              >
-                <option value="each">{t('leaderboardEach')}</option>
-                <option value="end">{t('leaderboardEnd')}</option>
-              </select>
-            </label>
-            <HelpButton id="setting.leaderboard" />
-          </div>
-          <div className="with-help">
-            <label className="field field-check">
-              <input type="checkbox" checked={settings.newcomers === true} onChange={(event) => setNewcomers(event.target.checked)} />
-              <span>{t('newcomersLabel')}</span>
-            </label>
-            <HelpButton id="setting.newcomers" />
-          </div>
-          <p className="meta">{t('newcomersHint')}</p>
-          <div className="with-help">
-            <label className="field field-check">
-              <input type="checkbox" checked={settings.family === true} onChange={(event) => setFamily(event.target.checked)} />
-              <span>{t('familyLabel')}</span>
-            </label>
-            <HelpButton id="setting.family" />
-          </div>
-          <p className="meta">{t('familyHint')}</p>
-          <div className="with-help">
-            <label className="field field-check">
-              <input type="checkbox" checked={settings.awayPenalty === true} onChange={(event) => setAwayPenalty(event.target.checked)} />
-              <span>{t('awayPenaltyLabel')}</span>
-            </label>
-            <HelpButton id="setting.away" />
-          </div>
-          <p className="meta">{t('awayPenaltyHint')}</p>
-        </details>
-
-        <details className="rules teams">
-          <summary>{t('teamsTitle')}</summary>
-          <TeamsEditor teams={settings.teams} onChange={setTeams} />
-        </details>
-
-        <details className="rules powers">
-          <summary>{t('powersTitle')}</summary>
-          <PowersEditor settings={settings} family={settings.family === true} spares={quiz.spares} gaps={gaps} onChange={(powers) => setSettings(powers)} />
-        </details>
-
-        <details className="rules spares" open={sparesOpen} onToggle={(event) => setSparesOpen(event.currentTarget.open)}>
-          <summary>{t('sparesTitle')}</summary>
-          <p className="meta with-help">
-            <span>{t('sparesTitle')}</span>
-            <HelpButton id="setting.spares" />
-          </p>
-          <SparesEditor
-            likes={likes?.questions}
-            spares={quiz.spares}
-            onChange={(spares) => {
-              const { spares: _old, ...rest } = quiz;
-              update(spares === undefined ? rest : { ...rest, spares });
-            }}
-          />
-        </details>
-
-        <details className="rules duels" open={duelsOpen} onToggle={(event) => setDuelsOpen(event.currentTarget.open)}>
-          <summary>{t('duelsTitle')}</summary>
-          <p className="meta with-help">
-            <span>{t('duelsTitle')}</span>
-            <HelpButton id="setting.duels" />
-          </p>
-          <DuelsEditor
-            duels={quiz.duels}
-            onChange={(duels) => {
-              const { duels: _old, ...rest } = quiz;
-              update(duels === undefined ? rest : { ...rest, duels });
-              if (duels !== undefined) setDuelsOpen(true);
-            }}
-          />
-        </details>
       </section>
 
-      <RoundStrip
-        rounds={rounds}
-        selected={ri}
-        onSelect={selectRound}
-        onAdd={addRound}
-        onRename={renameRound}
-        onMove={moveRound}
-        onRemove={removeRound}
-      />
-      <RoundSettings round={round} index={ri + 1} total={total} buffs={allowedBuffs(quiz)} lastRound={ri === rounds.length - 1} onChange={setRound} open={settingsOpen} onToggle={setSettingsOpen} />
-
-      <div className="editor-grid">
-        <aside className="editor-side">
-          {round.type !== 'board' && round.type !== 'final' && round.type !== 'truth' && (
-            <>
-              {/* На вузькому екрані список схований; ці кнопки гортають запитання й відкривають його. */}
-              <div className="question-nav">
-                <button
-                  type="button"
-                  className="btn btn-icon"
-                  aria-label={t('prevQuestion')}
-                  disabled={selected === 0}
-                  onClick={() => select(selected - 1)}
-                >
-                  <span className="flip-rtl" aria-hidden="true">
-                    ‹
-                  </span>
-                </button>
-                <button
-                  type="button"
-                  className="btn question-nav-all"
-                  aria-label={t('allQuestions')}
-                  aria-expanded={listOpen}
-                  onClick={() => setListOpen(!listOpen)}
-                >
-                  {`${selected + 1} / ${questions.length}`}
-                  <span aria-hidden="true"> ☰</span>
-                </button>
-                <button
-                  type="button"
-                  className="btn btn-icon"
-                  aria-label={t('nextQuestion')}
-                  disabled={selected === last}
-                  onClick={() => select(selected + 1)}
-                >
-                  <span className="flip-rtl" aria-hidden="true">
-                    ›
-                  </span>
-                </button>
-              </div>
-
-              <ol className={listOpen ? 'question-list is-open' : 'question-list'}>
-                {questions.map((question, index) => {
-                  // 61: «Вгадай слово» без тексту зветься словом («Вгадай слово: ОЖИНА»), поки слова немає — типом.
-                  const name = question.type === 'wordle' ? (question.word.trim() === '' ? t('type_wordle') : questionName(question)) : question.text;
-                  const text = name.trim() === '' ? t('untitled') : name;
-                  return (
-                    <li
-                      key={question.id}
-                      className={index === selected ? 'is-on' : undefined}
-                      draggable
-                      onDragStart={() => {
-                        dragged.current = index;
-                      }}
-                      onDragEnd={() => {
-                        dragged.current = null;
-                      }}
-                      onDragOver={(event) => event.preventDefault()}
-                      onDrop={(event) => {
-                        event.preventDefault();
-                        if (dragged.current !== null) move(dragged.current, index);
-                        dragged.current = null;
-                      }}
-                    >
-                      <button
-                        type="button"
-                        className="question-item"
-                        aria-current={index === selected}
-                        aria-label={`${t('questionN', { index: index + 1 })} ${text}`}
-                        onClick={() => select(index)}
-                      >
-                        <span className="grip" aria-hidden="true">
-                          ⋮⋮
-                        </span>
-                        <span className="letter">{index + 1}</span>
-                        <span className="question-item-text">{text}</span>
-                        <LikeCount count={likes?.questions[question.id]} />
-                        {round.type === 'wipeout' && <span className="question-item-price">{question.points}</span>}
-                        {round.type === 'ladder' && (
-                          <span className="question-item-price">
-                            {round.safe.includes(index) && <span role="img" aria-label={t('ladderSafeMark')}>🛡 </span>}
-                            {round.levels[index]}
-                          </span>
-                        )}
-                        <span className="question-item-type">{t(`typeShort_${question.type}`)}</span>
-                      </button>
-                    </li>
-                  );
-                })}
-              </ol>
-
-              <div className="editor-add-row">
-                <button type="button" className="btn btn-dashed" disabled={!roomForMore} onClick={add}>
-                  {t('addQuestion')}
-                </button>
-                {groupDraftPlace(round) === 'list' && (
-                  <button type="button" className="btn btn-dashed" disabled={!roomForMore} onClick={() => setPickerOpen(true)}>
-                    {t('groupFromButton')}
-                  </button>
-                )}
-                <button type="button" className="btn btn-dashed" disabled={!roomForMore} onClick={() => setBankOpen(true)}>
-                  {t('bankButton')}
-                </button>
-              </div>
-              {bankOpen && (
-                <QuestionBank
-                  types={questionTypesFor(round.type)}
-                  room={Math.max(0, Math.min(roundCapacity(round) - questions.length, LIMITS.maxQuizQuestions - total))}
-                  quizId={quizId}
-                  fit={(question) => bankCopy(quiz, ri, question, questions[last])}
-                  onCopy={copyFromBank}
-                  onClose={() => setBankOpen(false)}
-                />
-              )}
-              {pickerOpen && (
-                <GroupPicker
-                  target={{ types: questionTypesFor(round.type), booleans: booleanCounts(questions) }}
-                  onPick={addFromGroup}
-                  onClose={() => setPickerOpen(false)}
-                />
-              )}
-            </>
-          )}
-        </aside>
-
-        {round.type === 'truth' ? (
-          <section className="editor-stage">
-            <p className="meta truth-editor-note">{t('truthEditorNote')}</p>
-          </section>
-        ) : round.type === 'board' ? (
-          <section className="editor-stage">
-            <BoardEditor
-              likes={likes?.questions}
-              key={round.id}
-              round={round}
-              focus={boardFocus}
-              roomForMore={total < LIMITS.maxQuizQuestions}
-              roomForCategory={total + LIMITS.minCategoryQuestions <= LIMITS.maxQuizQuestions}
-              swapOn={settings.buffs?.includes('swap') ?? false}
-              legacySpares={gaps.legacyBoard}
-              onChange={setRound}
-            />
-          </section>
-        ) : (
-          <section className="editor-stage" aria-label={t('questionN', { index: selected + 1 })}>
-            <QuestionEditor
-              key={current.id}
-              question={current}
-              showPoints={round.type !== 'final' && round.type !== 'bets' && round.type !== 'ladder' && round.type !== 'think'}
-              showReveal={round.type === 'classic'}
-              showTime={round.type !== 'ladder' || round.timer}
-              fixedOptions={round.type === 'ladder' ? LIMITS.ladderOptions : undefined}
-              types={questionTypesFor(round.type)}
-              clouds={cloudSources(quiz, ri, Math.min(selected, questions.length - 1))}
-              allowCloud={round.type === 'classic'}
-              betsCut={round.type === 'bets' ? true : round.type === 'auction' ? 'auction' : false}
-              onChange={(next) => setQuestions(questions.map((question, index) => (index === selected ? next : question)))}
-            />
-            {round.type !== 'final' && (
-            <div className="toolbar">
-              <button type="button" className="btn btn-small" disabled={!roomForMore} onClick={duplicate}>
-                {t('duplicate')}
-              </button>
-              <button
-                type="button"
-                className="btn btn-small"
-                aria-label={t('moveQuestionUp', { index: selected + 1 })}
-                disabled={selected === 0}
-                onClick={() => move(selected, selected - 1)}
-              >
-                {t('moveUpShort')}
-              </button>
-              <button
-                type="button"
-                className="btn btn-small"
-                aria-label={t('moveQuestionDown', { index: selected + 1 })}
-                disabled={selected === last}
-                onClick={() => move(selected, selected + 1)}
-              >
-                {t('moveDownShort')}
-              </button>
-              <button
-                type="button"
-                className="btn btn-small btn-danger"
-                aria-label={t('removeQuestion', { index: selected + 1 })}
-                disabled={questions.length === 1 || (round.type === 'think' && questions.length <= LIMITS.minThinkQuestions) || (round.type === 'wipeout' && questions.length <= LIMITS.minWipeoutQuestions) || (round.type === 'survival' && questions.length <= LIMITS.minSurvivalQuestions) || (round.type === 'ladder' && questions.length <= LIMITS.minLadderQuestions)}
-                title={
-                  round.type === 'think' && questions.length <= LIMITS.minThinkQuestions
-                    ? t('thinkMinHint', { min: LIMITS.minThinkQuestions })
-                    : round.type === 'wipeout' && questions.length <= LIMITS.minWipeoutQuestions
-                    ? t('wipeoutMinHint', { min: LIMITS.minWipeoutQuestions })
-                    : round.type === 'survival' && questions.length <= LIMITS.minSurvivalQuestions
-                      ? t('survivalMinHint', { min: LIMITS.minSurvivalQuestions })
-                      : round.type === 'ladder' && questions.length <= LIMITS.minLadderQuestions
-                        ? t('ladderMinHint', { min: LIMITS.minLadderQuestions })
-                        : undefined
-                }
-                onClick={remove}
-              >
-                {t('remove')}
-              </button>
-            </div>
-            )}
-          </section>
-        )}
+      <div className="editor-tabs" role="tablist" aria-label={t('editorTabs')}>
+        {(['general', 'rounds'] as const).map((id) => (
+          <button
+            key={id}
+            type="button"
+            role="tab"
+            id={`editor-tab-${id}`}
+            className={id === currentTab ? 'editor-tab is-on' : 'editor-tab'}
+            aria-selected={id === currentTab}
+            aria-controls={`editor-panel-${id}`}
+            onClick={() => showTab(id)}
+          >
+            {t(id === 'general' ? 'editorTabGeneral' : 'editorTabRounds')}
+          </button>
+        ))}
       </div>
+
+      {currentTab === 'general' ? (
+        <div className="editor-general" role="tabpanel" id="editor-panel-general" aria-labelledby="editor-tab-general">
+          <EditorCard card="about" id="editor-card-about" title={t('cardAbout')}>
+            <label className="field">
+              <span>{t('quizDescription')}</span>
+              <textarea
+                rows={2}
+                value={quiz.description}
+                maxLength={500}
+                onChange={(event) => update({ ...quiz, description: event.target.value })}
+              />
+            </label>
+          </EditorCard>
+
+          <EditorCard card="rules" id="editor-card-rules" title={t('cardRules')} className="rules">
+            <div className="with-help">
+              <label className="field">
+                <span>{t('leaderboardLabel')}</span>
+                <select
+                  value={settings.leaderboard}
+                  onChange={(event) => setSettings({ leaderboard: event.target.value === 'end' ? 'end' : 'each' })}
+                >
+                  <option value="each">{t('leaderboardEach')}</option>
+                  <option value="end">{t('leaderboardEnd')}</option>
+                </select>
+              </label>
+              <HelpButton id="setting.leaderboard" />
+            </div>
+            <div className="with-help">
+              <label className="field field-check">
+                <input type="checkbox" checked={settings.newcomers === true} onChange={(event) => setNewcomers(event.target.checked)} />
+                <span>{t('newcomersLabel')}</span>
+              </label>
+              <HelpButton id="setting.newcomers" />
+            </div>
+            <p className="meta">{t('newcomersHint')}</p>
+            <div className="with-help">
+              <label className="field field-check">
+                <input type="checkbox" checked={settings.family === true} onChange={(event) => setFamily(event.target.checked)} />
+                <span>{t('familyLabel')}</span>
+              </label>
+              <HelpButton id="setting.family" />
+            </div>
+            <p className="meta">{t('familyHint')}</p>
+            <div className="with-help">
+              <label className="field field-check">
+                <input type="checkbox" checked={settings.awayPenalty === true} onChange={(event) => setAwayPenalty(event.target.checked)} />
+                <span>{t('awayPenaltyLabel')}</span>
+              </label>
+              <HelpButton id="setting.away" />
+            </div>
+            <p className="meta">{t('awayPenaltyHint')}</p>
+          </EditorCard>
+
+          <EditorCard card="teams" id="editor-card-teams" title={t('teamsTitle')} className="teams">
+            <TeamsEditor teams={settings.teams} onChange={setTeams} />
+          </EditorCard>
+
+          <EditorCard card="powers" id="editor-card-powers" title={t('powersTitle')} className="rules powers" summary={summaries.powers} fold={{ open: powersOpen, onToggle: setPowersOpen }}>
+            <PowersEditor settings={settings} family={settings.family === true} spares={quiz.spares} gaps={gaps} onChange={(powers) => setSettings(powers)} />
+          </EditorCard>
+
+          <EditorCard card="spares" id="editor-card-spares" title={t('sparesTitle')} className="rules spares" summary={summaries.spares} fold={{ open: sparesOpen, onToggle: setSparesOpen }}>
+            <p className="meta with-help">
+              <span>{t('sparesTitle')}</span>
+              <HelpButton id="setting.spares" />
+            </p>
+            <SparesEditor
+              likes={likes?.questions}
+              spares={quiz.spares}
+              onChange={(spares) => {
+                const { spares: _old, ...rest } = quiz;
+                update(spares === undefined ? rest : { ...rest, spares });
+              }}
+            />
+          </EditorCard>
+
+          <EditorCard card="duels" id="editor-card-duels" title={t('duelsTitle')} className="rules duels" summary={summaries.duels} fold={{ open: duelsOpen, onToggle: setDuelsOpen }}>
+            <p className="meta with-help">
+              <span>{t('duelsTitle')}</span>
+              <HelpButton id="setting.duels" />
+            </p>
+            <DuelsEditor
+              duels={quiz.duels}
+              onChange={(duels) => {
+                const { duels: _old, ...rest } = quiz;
+                update(duels === undefined ? rest : { ...rest, duels });
+                if (duels !== undefined) setDuelsOpen(true);
+              }}
+            />
+          </EditorCard>
+        </div>
+      ) : (
+        <div role="tabpanel" id="editor-panel-rounds" aria-labelledby="editor-tab-rounds">
+        <RoundStrip
+          rounds={rounds}
+          selected={ri}
+          onSelect={selectRound}
+          onAdd={addRound}
+          onRename={renameRound}
+          onMove={moveRound}
+          onRemove={removeRound}
+        />
+        <RoundSettings round={round} index={ri + 1} total={total} buffs={allowedBuffs(quiz)} lastRound={ri === rounds.length - 1} onChange={setRound} open={settingsOpen} onToggle={setSettingsOpen} />
+
+        <div className="editor-grid">
+          <aside className="editor-side">
+            {round.type !== 'board' && round.type !== 'final' && round.type !== 'truth' && (
+              <>
+                {/* На вузькому екрані список схований; ці кнопки гортають запитання й відкривають його. */}
+                <div className="question-nav">
+                  <button
+                    type="button"
+                    className="btn btn-icon"
+                    aria-label={t('prevQuestion')}
+                    disabled={selected === 0}
+                    onClick={() => select(selected - 1)}
+                  >
+                    <span className="flip-rtl" aria-hidden="true">
+                      ‹
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    className="btn question-nav-all"
+                    aria-label={t('allQuestions')}
+                    aria-expanded={listOpen}
+                    onClick={() => setListOpen(!listOpen)}
+                  >
+                    {`${selected + 1} / ${questions.length}`}
+                    <span aria-hidden="true"> ☰</span>
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-icon"
+                    aria-label={t('nextQuestion')}
+                    disabled={selected === last}
+                    onClick={() => select(selected + 1)}
+                  >
+                    <span className="flip-rtl" aria-hidden="true">
+                      ›
+                    </span>
+                  </button>
+                </div>
+
+                <ol className={listOpen ? 'question-list is-open' : 'question-list'}>
+                  {questions.map((question, index) => {
+                    // 61: «Вгадай слово» без тексту зветься словом («Вгадай слово: ОЖИНА»), поки слова немає — типом.
+                    const name = question.type === 'wordle' ? (question.word.trim() === '' ? t('type_wordle') : questionName(question)) : question.text;
+                    const text = name.trim() === '' ? t('untitled') : name;
+                    return (
+                      <li
+                        key={question.id}
+                        className={index === selected ? 'is-on' : undefined}
+                        draggable
+                        onDragStart={() => {
+                          dragged.current = index;
+                        }}
+                        onDragEnd={() => {
+                          dragged.current = null;
+                        }}
+                        onDragOver={(event) => event.preventDefault()}
+                        onDrop={(event) => {
+                          event.preventDefault();
+                          if (dragged.current !== null) move(dragged.current, index);
+                          dragged.current = null;
+                        }}
+                      >
+                        <button
+                          type="button"
+                          className="question-item"
+                          aria-current={index === selected}
+                          aria-label={`${t('questionN', { index: index + 1 })} ${text}`}
+                          onClick={() => select(index)}
+                        >
+                          <span className="grip" aria-hidden="true">
+                            ⋮⋮
+                          </span>
+                          <span className="letter">{index + 1}</span>
+                          <span className="question-item-text">{text}</span>
+                          <LikeCount count={likes?.questions[question.id]} />
+                          {round.type === 'wipeout' && <span className="question-item-price">{question.points}</span>}
+                          {round.type === 'ladder' && (
+                            <span className="question-item-price">
+                              {round.safe.includes(index) && <span role="img" aria-label={t('ladderSafeMark')}>🛡 </span>}
+                              {round.levels[index]}
+                            </span>
+                          )}
+                          <span className="question-item-type">{t(`typeShort_${question.type}`)}</span>
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ol>
+
+                <div className="editor-add-row">
+                  <button type="button" className="btn btn-dashed" disabled={!roomForMore} onClick={add}>
+                    {t('addQuestion')}
+                  </button>
+                  {groupDraftPlace(round) === 'list' && (
+                    <button type="button" className="btn btn-dashed" disabled={!roomForMore} onClick={() => setPickerOpen(true)}>
+                      {t('groupFromButton')}
+                    </button>
+                  )}
+                  <button type="button" className="btn btn-dashed" disabled={!roomForMore} onClick={() => setBankOpen(true)}>
+                    {t('bankButton')}
+                  </button>
+                </div>
+                {bankOpen && (
+                  <QuestionBank
+                    types={questionTypesFor(round.type)}
+                    room={Math.max(0, Math.min(roundCapacity(round) - questions.length, LIMITS.maxQuizQuestions - total))}
+                    quizId={quizId}
+                    fit={(question) => bankCopy(quiz, ri, question, questions[last])}
+                    onCopy={copyFromBank}
+                    onClose={() => setBankOpen(false)}
+                  />
+                )}
+                {pickerOpen && (
+                  <GroupPicker
+                    target={{ types: questionTypesFor(round.type), booleans: booleanCounts(questions) }}
+                    onPick={addFromGroup}
+                    onClose={() => setPickerOpen(false)}
+                  />
+                )}
+              </>
+            )}
+          </aside>
+
+          {round.type === 'truth' ? (
+            <section className="editor-stage">
+              <p className="meta truth-editor-note">{t('truthEditorNote')}</p>
+            </section>
+          ) : round.type === 'board' ? (
+            <section className="editor-stage">
+              <BoardEditor
+                likes={likes?.questions}
+                key={round.id}
+                round={round}
+                focus={boardFocus}
+                roomForMore={total < LIMITS.maxQuizQuestions}
+                roomForCategory={total + LIMITS.minCategoryQuestions <= LIMITS.maxQuizQuestions}
+                swapOn={settings.buffs?.includes('swap') ?? false}
+                legacySpares={gaps.legacyBoard}
+                onChange={setRound}
+              />
+            </section>
+          ) : (
+            <section className="editor-stage" aria-label={t('questionN', { index: selected + 1 })}>
+              <QuestionEditor
+                key={current.id}
+                question={current}
+                showPoints={round.type !== 'final' && round.type !== 'bets' && round.type !== 'ladder' && round.type !== 'think'}
+                showReveal={round.type === 'classic'}
+                showTime={round.type !== 'ladder' || round.timer}
+                fixedOptions={round.type === 'ladder' ? LIMITS.ladderOptions : undefined}
+                types={questionTypesFor(round.type)}
+                clouds={cloudSources(quiz, ri, Math.min(selected, questions.length - 1))}
+                allowCloud={round.type === 'classic'}
+                betsCut={round.type === 'bets' ? true : round.type === 'auction' ? 'auction' : false}
+                onChange={(next) => setQuestions(questions.map((question, index) => (index === selected ? next : question)))}
+              />
+              {round.type !== 'final' && (
+              <div className="toolbar">
+                <button type="button" className="btn btn-small" disabled={!roomForMore} onClick={duplicate}>
+                  {t('duplicate')}
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-small"
+                  aria-label={t('moveQuestionUp', { index: selected + 1 })}
+                  disabled={selected === 0}
+                  onClick={() => move(selected, selected - 1)}
+                >
+                  {t('moveUpShort')}
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-small"
+                  aria-label={t('moveQuestionDown', { index: selected + 1 })}
+                  disabled={selected === last}
+                  onClick={() => move(selected, selected + 1)}
+                >
+                  {t('moveDownShort')}
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-small btn-danger"
+                  aria-label={t('removeQuestion', { index: selected + 1 })}
+                  disabled={questions.length === 1 || (round.type === 'think' && questions.length <= LIMITS.minThinkQuestions) || (round.type === 'wipeout' && questions.length <= LIMITS.minWipeoutQuestions) || (round.type === 'survival' && questions.length <= LIMITS.minSurvivalQuestions) || (round.type === 'ladder' && questions.length <= LIMITS.minLadderQuestions)}
+                  title={
+                    round.type === 'think' && questions.length <= LIMITS.minThinkQuestions
+                      ? t('thinkMinHint', { min: LIMITS.minThinkQuestions })
+                      : round.type === 'wipeout' && questions.length <= LIMITS.minWipeoutQuestions
+                      ? t('wipeoutMinHint', { min: LIMITS.minWipeoutQuestions })
+                      : round.type === 'survival' && questions.length <= LIMITS.minSurvivalQuestions
+                        ? t('survivalMinHint', { min: LIMITS.minSurvivalQuestions })
+                        : round.type === 'ladder' && questions.length <= LIMITS.minLadderQuestions
+                          ? t('ladderMinHint', { min: LIMITS.minLadderQuestions })
+                          : undefined
+                  }
+                  onClick={remove}
+                >
+                  {t('remove')}
+                </button>
+              </div>
+              )}
+            </section>
+          )}
+        </div>
+        </div>
+      )}
 
       {/* Повідомлення живуть у закріпленій панелі: їх видно, хоч би де була прокрутка. */}
       <footer className="actions">
