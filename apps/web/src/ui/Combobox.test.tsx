@@ -125,4 +125,15 @@ describe('Combobox', () => {
     expect(document.getElementById(id as string)?.textContent).toBe('Другий');
     expect(within(option).getByText('Раунд 2')).toBeTruthy();
   });
+
+  it('highlights the chosen option when the options are not in group order', () => {
+    const shuffled = [options[5]!, options[0]!, options[3]!, options[1]!];
+    const onChange = vi.fn();
+    render(<Combobox label="Тип" value="memory" options={shuffled} groups={groups} onChange={onChange} />);
+    fireEvent.click(screen.getByRole('button', { name: /^Тип:/ }));
+    const chosen = screen.getByRole('option', { name: 'Пам’ять' });
+    expect(screen.getByRole('combobox').getAttribute('aria-activedescendant')).toBe(chosen.id);
+    fireEvent.keyDown(screen.getByRole('combobox'), { key: 'Enter' });
+    expect(onChange).not.toHaveBeenCalled();
+  });
 });

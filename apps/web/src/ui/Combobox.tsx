@@ -51,24 +51,26 @@ export function Combobox<V extends string>({ label, value, options, groups, onCh
 
   const selected = options.find((option) => option.value === value);
 
-  // Видимі опції у порядку груп (опції без групи — після груп).
-  const visible = useMemo(() => {
-    const needle = normalize(query.trim());
-    const matches = options.filter(
-      (option) =>
-        !needle ||
-        [option.label, option.description ?? '', ...(option.keywords ?? [])].some((text) => normalize(text).includes(needle)),
-    );
+  // Усі опції у порядку груп (опції без групи — після груп); active індексує саме цей порядок.
+  const ordered = useMemo(() => {
     const order = (groups ?? []).map((group) => group.id);
     const rank = (option: ComboOption<V>) => {
       const index = option.group ? order.indexOf(option.group) : -1;
       return index < 0 ? order.length : index;
     };
-    return matches
+    return options
       .map((option, index) => ({ option, index }))
       .sort((a, b) => rank(a.option) - rank(b.option) || a.index - b.index)
       .map((entry) => entry.option);
-  }, [options, groups, query]);
+  }, [options, groups]);
+
+  const visible = useMemo(() => {
+    const needle = normalize(query.trim());
+    if (!needle) return ordered;
+    return ordered.filter((option) =>
+      [option.label, option.description ?? '', ...(option.keywords ?? [])].some((text) => normalize(text).includes(needle)),
+    );
+  }, [ordered, query]);
 
   const closeAndFocus = useCallback(() => {
     setOpen(false);
@@ -81,7 +83,7 @@ export function Combobox<V extends string>({ label, value, options, groups, onCh
   const coarse = typeof window !== 'undefined' && !!window.matchMedia?.('(pointer: coarse)').matches;
 
   const openList = () => {
-    const at = options.findIndex((option) => option.value === value);
+    const at = ordered.findIndex((option) => option.value === value);
     setQuery('');
     setActive(Math.max(0, at));
     setOpen(true);
@@ -109,7 +111,7 @@ export function Combobox<V extends string>({ label, value, options, groups, onCh
     const last = visible.length - 1;
     if (event.key === 'ArrowDown') {
       event.preventDefault();
-      setActive((i) => Math.min(last, i + 1));
+      setActive((i) => Math.max(0, Math.min(last, i + 1)));
     } else if (event.key === 'ArrowUp') {
       event.preventDefault();
       setActive((i) => Math.max(0, i - 1));
@@ -125,6 +127,8 @@ export function Combobox<V extends string>({ label, value, options, groups, onCh
       if (option) pick(option);
     } else if (event.key === 'Escape') {
       event.preventDefault();
+      // Лише це вікно: охоплювальний діалог не має закритися разом із ним.
+      event.stopPropagation();
       closeAndFocus();
     } else if (event.key === 'Tab') {
       setOpen(false);
@@ -185,7 +189,7 @@ export function Combobox<V extends string>({ label, value, options, groups, onCh
         className="combo-trigger"
         aria-haspopup="listbox"
         aria-expanded={open}
-        aria-label={`${label}: ${selected ? nameOf(selected) : ''}`}
+        aria-label={`${label}: ${selected ? nameOf(selected) : value}`}
         onClick={() => (open ? closeOnly() : openList())}
         onKeyDown={onTriggerKey}
       >
@@ -194,7 +198,7 @@ export function Combobox<V extends string>({ label, value, options, groups, onCh
             {selected.icon}
           </span>
         )}
-        <span className="combo-name">{selected?.label}</span>
+        <span className="combo-name">{selected ? selected.label : value}</span>
         {selected?.badge && <span className="combo-badge">{selected.badge}</span>}
         <span className="combo-caret" aria-hidden="true">
           ▾
@@ -220,7 +224,7 @@ export function Combobox<V extends string>({ label, value, options, groups, onCh
             }}
             onKeyDown={onPopupKey}
           />
-          <div id={`${uid}-list`} ref={listRef} role="listbox" aria-label={label} tabIndex={-1} className="combo-list" onKeyDown={onPopupKey}>
+          <div id={`${uid}-list`} ref={listRef} role="listbox" aria-label={label} tabIndex={-1} aria-activedescendant={coarse && visible.length ? optionId(Math.min(active, visible.length - 1)) : undefined} className="combo-list" onKeyDown={onPopupKey}>
             {visible.length === 0 && <p className="combo-empty">{t('comboEmpty')}</p>}
             {(groups ?? []).map((group) => {
               const items = visible.filter((option) => option.group === group.id);
