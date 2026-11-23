@@ -1,5 +1,5 @@
 import { LIMITS, type CluePace, type Question, type RevealMode } from '@quiz/shared';
-import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { LETTERS, sliderValueText } from '../format';
 import { HelpButton } from '../help/HelpButton';
 import { countText, t, type TextKey } from '../i18n';
@@ -142,7 +142,8 @@ export function Rows(props: {
   /** Рядок, у який треба поставити курсор після наступного перемалювання. */
   const focusNext = useRef<number | null>(null);
 
-  useEffect(() => {
+  // useLayoutEffect: курсор переходить у новий рядок до наступного натискання, навіть коли React відкладає звичайні ефекти.
+  useLayoutEffect(() => {
     if (focusNext.current === null) return;
     inputs.current[focusNext.current]?.focus();
     focusNext.current = null;
