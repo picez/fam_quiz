@@ -1,9 +1,11 @@
-import { useId, useState } from 'react';
+import { useCallback, useRef, useState, type KeyboardEvent } from 'react';
 import { LIMITS, ROUND_TYPES, type Round } from '@quiz/shared';
 import { roundLabel } from '../format';
 import { HelpButton } from '../help/HelpButton';
-import { ROUND_NAMES } from '../guide-text';
+import { ROUND_ICONS, ROUND_NAMES } from '../guide-text';
 import { countText, t } from '../i18n';
+import { Combobox, type ComboOption } from '../ui/Combobox';
+import { useDismiss } from '../ui/use-dismiss';
 import { boardReadiness } from './draft';
 
 interface Props {
@@ -14,49 +16,69 @@ interface Props {
   onRename: (index: number) => void;
   onMove: (from: number, to: number) => void;
   onRemove: (index: number) => void;
+  /** Раунди з видимими помилками: у списку в них примітка «є помилка». */
+  flagged?: ReadonlySet<number>;
 }
 
 /**
  * Смуга раундів над редактором. З одним раундом це лише кнопка «+ Раунд»;
- * з кількома — вкладки з назвами та кнопки перейменування, переміщення й видалення вибраного.
+ * з кількома — комбобокс раунду та меню «⋯» з перейменуванням, переміщенням і видаленням вибраного.
  */
-export function RoundStrip({ rounds, selected, onSelect, onAdd, onRename, onMove, onRemove }: Props) {
+export function RoundStrip({ rounds, selected, onSelect, onAdd, onRename, onMove, onRemove, flagged }: Props) {
   const several = rounds.length > 1;
-  const baseId = useId();
   const [choosing, setChoosing] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const menuButtonRef = useRef<HTMLButtonElement>(null);
+  const closeMenu = useCallback(() => setMenuOpen(false), []);
+  useDismiss(menuRef, menuOpen, closeMenu);
   const add = (type: Round['type']) => {
     setChoosing(false);
     onAdd(type);
   };
-  const nameOf = (round: Round, index: number) => roundLabel(round.title, index, round.type);
+
+  const options: ComboOption<string>[] = rounds.map((round, index) => {
+    const notReady = round.type === 'board' ? boardReadiness(round).notReady : 0;
+    const name = roundLabel(round.title, index, round.type);
+    return {
+      value: round.id,
+      label: `${index + 1} · ${name} (${t(ROUND_NAMES[round.type])})`,
+      icon: ROUND_ICONS[round.type],
+      ...(notReady > 0 ? { badge: countText('boardNotReady', notReady, { count: notReady }) } : {}),
+      ...(flagged?.has(index) ? { note: t('markError') } : {}),
+      // Назва без номера й типу: за нею тести та e2e вибирають раунд.
+      dataName: name,
+    };
+  });
+
+  /** ↑/↓ між пунктами меню. */
+  const onMenuKey = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
+    event.preventDefault();
+    const items = [...event.currentTarget.querySelectorAll<HTMLButtonElement>('button[role="menuitem"]:not(:disabled)')];
+    const at = items.indexOf(document.activeElement as HTMLButtonElement);
+    const next = event.key === 'ArrowDown' ? (at + 1) % items.length : (at - 1 + items.length) % items.length;
+    items[next]?.focus();
+  };
+  const act = (action: () => void) => () => {
+    setMenuOpen(false);
+    menuButtonRef.current?.focus();
+    action();
+  };
 
   return (
-    <div className="round-strip" role="group" aria-label={t('roundsLabel')}>
+    <div className="round-strip round-bar" role="group" aria-label={t('roundsLabel')}>
       {several && (
-        <div className="round-tabs">
-          {rounds.map((round, index) => {
-            const notReady = round.type === 'board' ? boardReadiness(round).notReady : 0;
-            const badgeId = `${baseId}-${index}`;
-            return (
-              <button
-                key={round.id}
-                type="button"
-                className={index === selected ? 'btn btn-small round-tab is-on' : 'btn btn-small round-tab'}
-                aria-current={index === selected}
-                aria-label={notReady > 0 ? nameOf(round, index) : undefined}
-                aria-describedby={notReady > 0 ? badgeId : undefined}
-                onClick={() => onSelect(index)}
-              >
-                <span className="round-tab-name">{nameOf(round, index)}</span>
-                {notReady > 0 && (
-                  <span id={badgeId} className="round-tab-badge">
-                    {countText('boardNotReady', notReady, { count: notReady })}
-                  </span>
-                )}
-              </button>
-            );
-          })}
-        </div>
+        <Combobox
+          className="round-pick"
+          label={t('roundPick')}
+          value={rounds[selected]?.id ?? ''}
+          options={options}
+          onChange={(id) => {
+            const index = rounds.findIndex((round) => round.id === id);
+            if (index >= 0) onSelect(index);
+          }}
+        />
       )}
       <div className="toolbar">
         <button type="button" className="btn btn-small" disabled={rounds.length >= LIMITS.maxRounds} onClick={() => setChoosing(!choosing)}>
@@ -75,32 +97,49 @@ export function RoundStrip({ rounds, selected, onSelect, onAdd, onRename, onMove
           </>
         )}
         {several && (
-          <>
-            <button type="button" className="btn btn-small" onClick={() => onRename(selected)}>
-              {t('renameRound')}
-            </button>
+          <div className="round-menu-root" ref={menuRef}>
             <button
               type="button"
-              className="btn btn-small"
-              aria-label={t('moveRoundUp', { index: selected + 1 })}
-              disabled={selected === 0}
-              onClick={() => onMove(selected, selected - 1)}
+              ref={menuButtonRef}
+              className="btn btn-small round-menu-button"
+              aria-label={t('roundMenu')}
+              aria-haspopup="menu"
+              aria-expanded={menuOpen}
+              onClick={() => setMenuOpen(!menuOpen)}
             >
-              {t('moveUpShort')}
+              ⋯
             </button>
-            <button
-              type="button"
-              className="btn btn-small"
-              aria-label={t('moveRoundDown', { index: selected + 1 })}
-              disabled={selected === rounds.length - 1}
-              onClick={() => onMove(selected, selected + 1)}
-            >
-              {t('moveDownShort')}
-            </button>
-            <button type="button" className="btn btn-small btn-danger" onClick={() => onRemove(selected)}>
-              {t('removeRound')}
-            </button>
-          </>
+            {menuOpen && (
+              <div className="round-menu" role="menu" aria-label={t('roundMenu')} onKeyDown={onMenuKey}>
+                <button type="button" role="menuitem" className="btn btn-small" onClick={act(() => onRename(selected))}>
+                  {t('renameRound')}
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="btn btn-small"
+                  aria-label={t('moveRoundUp', { index: selected + 1 })}
+                  disabled={selected === 0}
+                  onClick={act(() => onMove(selected, selected - 1))}
+                >
+                  {t('moveUpShort')}
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="btn btn-small"
+                  aria-label={t('moveRoundDown', { index: selected + 1 })}
+                  disabled={selected === rounds.length - 1}
+                  onClick={act(() => onMove(selected, selected + 1))}
+                >
+                  {t('moveDownShort')}
+                </button>
+                <button type="button" role="menuitem" className="btn btn-small btn-danger" onClick={act(() => onRemove(selected))}>
+                  {t('removeRound')}
+                </button>
+              </div>
+            )}
+          </div>
         )}
       </div>
     </div>

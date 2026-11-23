@@ -23,6 +23,8 @@ interface Props {
   buffs?: readonly BuffKind[];
   /** Раунд останній у вікторині. */
   lastRound?: boolean;
+  /** У налаштуванні є видима помилка: ⚠ у summary. */
+  flagged?: boolean;
 }
 
 /** З якої довжини лічильник опису жовтіє (11a). */
@@ -78,7 +80,7 @@ const toMultiplier = (value: string): RoundRules['multiplier'] => (value === '3'
  * Налаштування одного раунду: назва, опис для гравців, перемішування варіантів і правила підрахунку (штраф, серії, множник);
  * класичному додатково бали за швидкість і «частково», бліцу — вікно відповіді, спроби й спосіб перевірки, полю — спосіб відповіді й перевірки та «частково». В кінці — попередній перегляд заставки з поясненням правил. Згорнуті, доки їх не відкриють.
  */
-export function RoundSettings({ round, index, total = 0, onChange, open, onToggle, buffs = [], lastRound = false }: Props) {
+export function RoundSettings({ round, index, total = 0, onChange, open, onToggle, buffs = [], lastRound = false, flagged = false }: Props) {
   const countId = useId();
   const fieldId = useId();
   const offtopicHintId = useId();
@@ -108,7 +110,16 @@ export function RoundSettings({ round, index, total = 0, onChange, open, onToggl
 
   return (
     <details className="rules round-settings" open={open} onToggle={onToggle === undefined ? undefined : (event) => onToggle(event.currentTarget.open)}>
-      <summary>{t('roundSettings')}</summary>
+      <summary>
+        <span aria-hidden="true">⚙ </span>
+        {t('roundSettings')}
+        {flagged && (
+          <span className="summary-mark" role="img" aria-label={t('markError')}>
+            {' '}
+            ⚠
+          </span>
+        )}
+      </summary>
       <p className="meta with-help">
         <span>{t(ROUND_NAMES[round.type])}</span>
         <HelpButton id={`round.${round.type}`} />

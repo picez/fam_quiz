@@ -3,7 +3,7 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-li
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { LIMITS, quizSchema, roundQuestions, rulesOf, type BoardRound, type Question, type Quiz } from '@quiz/shared';
 import { t } from '../i18n';
-import { chooseType, currentTypeLabel, openTab, typeOptions } from './editor-testing';
+import { chooseRound, chooseType, currentTypeLabel, openTab, roundAction, roundNames, typeOptions } from './editor-testing';
 import { newBetsRound, newBlitzRound, newBoardRound, newClassicRound, newLadderRound, newQuestion, newQuiz, newSurvivalRound, newThinkRound, newTruthRound } from './draft';
 import { RoundSettings } from './RoundSettings';
 import { QuizEditor } from './QuizEditor';
@@ -830,13 +830,14 @@ describe('QuizEditor: cancelled drag', () => {
   });
 
   describe('rounds', () => {
-    const roundButton = (name: string) => screen.queryByRole('button', { name });
+    const roundPick = () => screen.queryByRole('button', { name: /^Раунд: / });
+    const hasRound = (name: string) => roundNames().includes(name);
 
     it('looks like before for a simple quiz: only "+ Раунд" and collapsed round settings', () => {
       open();
-      expect(roundButton('+ Раунд')).toBeTruthy();
-      expect(roundButton('Раунд 1')).toBeNull();
-      expect(roundButton('Раунд 2')).toBeNull();
+      expect(screen.queryByRole('button', { name: '+ Раунд' })).toBeTruthy();
+      expect(roundPick()).toBeNull();
+      expect(screen.queryByRole('button', { name: t('roundMenu') })).toBeNull();
       const details = screen.getByText('Налаштування раунду').closest('details') as HTMLDetailsElement;
       expect(details.open).toBe(false);
       expect(screen.queryByRole('button', { name: 'Видалити раунд' })).toBeNull();
@@ -847,18 +848,17 @@ describe('QuizEditor: cancelled drag', () => {
       fill('Назва вікторини', 'Гра');
       fill('Текст запитання', 'Перше?');
       addRound('Класичний');
-      expect(roundButton('Раунд 1')).toBeTruthy();
-      expect(roundButton('Раунд 2')).toBeTruthy();
+      expect(roundNames()).toEqual(['Раунд 1', 'Раунд 2']);
       // Після додавання відкривається новий раунд з порожнім запитанням.
       expect((screen.getByLabelText('Текст запитання') as HTMLTextAreaElement).value).toBe('');
       fill('Текст запитання', 'Друге?');
-      click('Раунд 1');
+      chooseRound('Раунд 1');
       expect((screen.getByLabelText('Текст запитання') as HTMLTextAreaElement).value).toBe('Перше?');
-      click('Раунд 2');
+      chooseRound('Раунд 2');
       expect((screen.getByLabelText('Текст запитання') as HTMLTextAreaElement).value).toBe('Друге?');
 
       chooseType('boolean');
-      click('Раунд 1');
+      chooseRound('Раунд 1');
       chooseType('boolean');
       click('Зберегти');
       await waitFor(() => expect(onSave).toHaveBeenCalled());
@@ -873,7 +873,7 @@ describe('QuizEditor: cancelled drag', () => {
       fill('Текст запитання', 'Перше?');
       chooseType('boolean');
       addRound('Бліц');
-      expect(roundButton('Бліц')).toBeTruthy();
+      expect(hasRound('Бліц')).toBe(true);
       fireEvent.click(screen.getAllByText('Налаштування раунду')[0]);
       fill('Перевірка', 'manual');
       fill('Вікно відповіді', '30');
@@ -932,9 +932,8 @@ describe('QuizEditor: cancelled drag', () => {
       vi.spyOn(window, 'confirm').mockReturnValue(true);
       open();
       addRound('Класичний');
-      click('Видалити раунд');
-      expect(roundButton('Раунд 2')).toBeNull();
-      expect(roundButton('Раунд 1')).toBeNull();
+      roundAction('Видалити раунд');
+      expect(roundPick()).toBeNull();
       expect(screen.queryByRole('button', { name: 'Видалити раунд' })).toBeNull();
     });
 
@@ -943,8 +942,8 @@ describe('QuizEditor: cancelled drag', () => {
       fill('Текст запитання', 'Перше?');
       addRound('Класичний');
       fill('Текст запитання', 'Друге?');
-      click('Раунд 2 вище');
-      click('Раунд 1');
+      roundAction('Раунд 2 вище');
+      chooseRound('Раунд 1');
       expect((screen.getByLabelText('Текст запитання') as HTMLTextAreaElement).value).toBe('Друге?');
     });
 
@@ -960,10 +959,10 @@ describe('QuizEditor: cancelled drag', () => {
       fill('Текст запитання', 'Перше?');
       chooseType('boolean');
       addRound('Класичний');
-      click('Раунд 1');
+      chooseRound('Раунд 1');
       click('Зберегти');
       expect(screen.getByRole('alert').textContent).toContain('Раунд 2: Запитання 1: впишіть текст запитання.');
-      expect(screen.getByRole('button', { name: 'Раунд 2' }).getAttribute('aria-current')).toBe('true');
+      expect(screen.getByRole('button', { name: /^Раунд: 2 · Раунд 2/ })).toBeTruthy();
       expect(screen.getByRole('button', { name: /Запитання 1/ }).getAttribute('aria-current')).toBe('true');
     });
 
@@ -1193,8 +1192,8 @@ describe('QuizEditor board focus and limits', () => {
   it('does not jump back to the old problem cell after switching rounds', () => {
     open(brokenBoard());
     click('Зберегти');
-    fireEvent.click(screen.getByRole('button', { name: 'Раунд 2' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Ігрове поле' }));
+    chooseRound('Раунд 2');
+    chooseRound('Ігрове поле');
     expect(screen.getByRole('region', { name: 'Клітинка 1 категорії 1' })).toBeTruthy();
   });
 
@@ -2833,15 +2832,19 @@ describe('QuizEditor board tab badge (11a)', () => {
     return { ...newQuiz(), title: 'Гра', rounds: [round, newClassicRound()] };
   };
 
-  it('badges the board tab with the not-ready count without changing its name, and drops it when fixed', () => {
+  const optionOf = (name: string) => {
+    if (!document.querySelector('[role="listbox"]')) fireEvent.click(screen.getByRole('button', { name: /^Раунд: / }));
+    return document.querySelector<HTMLElement>(`[role="option"][data-name="${name}"]`)!;
+  };
+
+  it('badges the board round option with the not-ready count and drops it when fixed', () => {
     open(board());
-    const tab = screen.getByRole('button', { name: 'Ігрове поле' });
-    const badge = document.getElementById(tab.getAttribute('aria-describedby') ?? '');
-    expect(badge?.textContent).toBe('1 не готова');
-    expect(screen.getByRole('button', { name: 'Раунд 2' }).getAttribute('aria-describedby')).toBeNull();
+    expect(optionOf('Ігрове поле').querySelector('.combo-badge')?.textContent).toBe('1 не готова');
+    expect(optionOf('Раунд 2').querySelector('.combo-badge')).toBeNull();
+    fireEvent.keyDown(screen.getByRole('listbox'), { key: 'Escape' });
     fireEvent.click(screen.getByRole('button', { name: /^Категорія 2, клітинка 3:/ }));
     fireEvent.change(screen.getByLabelText('Текст запитання'), { target: { value: 'Тепер є' } });
-    expect(screen.getByRole('button', { name: 'Ігрове поле' }).getAttribute('aria-describedby')).toBeNull();
+    expect(optionOf('Ігрове поле').querySelector('.combo-badge')).toBeNull();
   });
 
   it('with a long round name only the name is clipped: the badge sits outside the name', () => {
@@ -2849,12 +2852,70 @@ describe('QuizEditor board tab badge (11a)', () => {
     const long = 'Річки, гори й острови Європи та Азії для найсміливіших гравців вечора';
     quiz.rounds[0] = { ...quiz.rounds[0], title: long };
     open(quiz);
-    const tab = screen.getByRole('button', { name: long });
-    expect(tab.querySelector('.round-tab-name')?.textContent).toBe(long);
-    const badge = tab.querySelector('.round-tab-badge');
+    const trigger = screen.getByRole('button', { name: /^Раунд: 1 · / });
+    expect(trigger.querySelector('.combo-name')?.textContent).toContain(long);
+    const badge = trigger.querySelector('.combo-badge');
     expect(badge?.textContent).toBe('1 не готова');
-    expect(badge?.closest('.round-tab-name')).toBeNull();
-    expect(badge?.parentElement).toBe(tab);
+    expect(badge?.closest('.combo-name')).toBeNull();
+    expect(badge?.parentElement).toBe(trigger);
+  });
+});
+
+describe('round bar (74)', () => {
+  const twoRounds = (): Quiz => ({ ...newQuiz(), title: 'Гра', rounds: [newClassicRound(), { ...newClassicRound(), title: 'Фінал' }] });
+
+  it('picks a round from a combobox named number, title and type', () => {
+    const quiz = twoRounds();
+    quiz.rounds[1] = { ...newClassicRound(), title: 'Фінал', questions: [{ ...newQuestion('single'), text: 'Друге?' }] };
+    open(quiz);
+    expect(roundNames()).toEqual(['Раунд 1', 'Фінал']);
+    expect(screen.getByRole('button', { name: 'Раунд: 1 · Раунд 1 (Класичний)' })).toBeTruthy();
+    chooseRound('Фінал');
+    expect(screen.getByRole('button', { name: 'Раунд: 2 · Фінал (Класичний)' })).toBeTruthy();
+    expect((screen.getByLabelText('Текст запитання') as HTMLTextAreaElement).value).toBe('Друге?');
+  });
+
+  it('shows the not-ready badge of a board round', () => {
+    open({ ...newQuiz(), title: 'Гра', rounds: [newBoardRound(), newClassicRound()] });
+    fireEvent.click(screen.getByRole('button', { name: /^Раунд: / }));
+    const option = document.querySelector('[role="option"][data-name="Ігрове поле"]')!;
+    expect(option.querySelector('.combo-badge')?.textContent).toMatch(/не готов/);
+  });
+
+  it('keeps rename, up, down and remove in the ⋯ menu with the same confirmations', () => {
+    const prompt = vi.spyOn(window, 'prompt').mockReturnValue('Нова');
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    const quiz = twoRounds();
+    quiz.rounds[0] = { ...newClassicRound(), questions: [{ ...newQuestion('single'), text: 'Є текст?' }] };
+    open(quiz);
+    roundAction('Перейменувати');
+    expect(prompt).toHaveBeenCalled();
+    expect(roundNames()).toEqual(['Нова', 'Фінал']);
+    chooseRound('Фінал');
+    roundAction('Раунд 2 вище');
+    expect(roundNames()).toEqual(['Фінал', 'Нова']);
+    expect(screen.queryByRole('menu')).toBeNull();
+    chooseRound('Нова');
+    roundAction('Видалити раунд');
+    expect(confirm).toHaveBeenCalled();
+    expect(screen.queryByRole('button', { name: t('roundMenu') })).toBeNull();
+  });
+
+  it('closes the ⋯ menu on Escape and keeps the actions disabled at the edges', () => {
+    open(twoRounds());
+    fireEvent.click(screen.getByRole('button', { name: t('roundMenu') }));
+    expect((screen.getByRole('menuitem', { name: 'Раунд 1 вище' }) as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(screen.queryByRole('menu')).toBeNull();
+  });
+
+  it('opens the round settings from the gear next to the round picker', () => {
+    open(twoRounds());
+    const summary = screen.getByText('Налаштування раунду').closest('summary')!;
+    expect(summary.closest('.round-bar-row')).toBeTruthy();
+    expect(document.querySelector('.round-bar-row .round-strip')).toBeTruthy();
+    fireEvent.click(summary);
+    expect((summary.closest('details') as HTMLDetailsElement).open).toBe(true);
   });
 });
 

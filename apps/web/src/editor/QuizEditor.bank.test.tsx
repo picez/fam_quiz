@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { quizSchema, roundQuestions, type Question, type QuestionBankItem, type Quiz } from '@quiz/shared';
 import { searchQuestionBank } from '../api';
 import { t } from '../i18n';
+import { chooseRound, roundNames } from './editor-testing';
 import { newClassicRound, newLadderRound, newQuestion, newQuiz } from './draft';
 import { QuizEditor } from './QuizEditor';
 
@@ -89,7 +90,7 @@ describe('QuizEditor question bank', () => {
     serve(sourceItem(filled('А')), sourceItem(filled('Б')));
     const wide: Quiz = { ...quizWith(...Array.from({ length: 100 }, (_, index) => filled(`Q${index}`))), rounds: [{ ...newClassicRound(), questions: Array.from({ length: 100 }, (_, index) => filled(`Q${index}`)) }, { ...newClassicRound(), questions: Array.from({ length: 99 }, (_, index) => filled(`R${index}`)) }] };
     open(wide);
-    fireEvent.click(document.querySelectorAll('.round-tab')[1]);
+    chooseRound(roundNames()[1]);
     fireEvent.click(bankButton()!);
     await screen.findByText('А');
     fireEvent.click(screen.getByLabelText(t('bankPick', { text: 'А' })));

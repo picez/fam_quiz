@@ -18,6 +18,8 @@ export interface ComboOption<V extends string> {
   badge?: string;
   /** Дописується до aria-label через «, » (напр. «є помилка»). */
   note?: string;
+  /** Короткий ключ для тестів і e2e: data-name на рядку. */
+  dataName?: string;
 }
 
 export interface ComboboxProps<V extends string> {
@@ -152,6 +154,7 @@ export function Combobox<V extends string>({ label, value, options, groups, onCh
         id={optionId(index)}
         role="option"
         data-value={option.value}
+        data-name={option.dataName}
         aria-selected={option.value === value}
         aria-label={nameOf(option)}
         aria-describedby={descId}

@@ -437,6 +437,7 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
         </div>
       ) : (
         <div role="tabpanel" id="editor-panel-rounds" aria-labelledby="editor-tab-rounds">
+        <div className="round-bar-row">
         <RoundStrip
           rounds={rounds}
           selected={ri}
@@ -447,6 +448,7 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
           onRemove={removeRound}
         />
         <RoundSettings round={round} index={ri + 1} total={total} buffs={allowedBuffs(quiz)} lastRound={ri === rounds.length - 1} onChange={setRound} open={settingsOpen} onToggle={setSettingsOpen} />
+        </div>
 
         <div className="editor-grid">
           <aside className="editor-side">
