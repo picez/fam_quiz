@@ -1,8 +1,9 @@
-import { BUFF_KINDS, DEBUFF_KINDS, DEFAULT_RULES, type Question, type Quiz } from '@quiz/shared';
+import { BUFF_KINDS, CHALLENGE_SKIP_BUFFS, type BuffKind, type Question, type Quiz } from '@quiz/shared';
 import { bool, clues, match, multi, numeric, order, pin, rules, single, slider, sort, textQ, cell } from './demo-quiz';
-import { crossword, cut, scatter, type Cell } from './mix-quiz';
+import { crossword, scatter, type Cell } from './mix-quiz';
 import { jigsaw } from './mix2/kit';
 import { img, memory } from './mega/kit';
+import { KNEE_EXPLANATIONS } from './knee/explanations';
 import { aspectOf, pinOf, type KneeImageKey } from './knee/images';
 
 /** Bild: Schlüssel → Adresse auf der Seite (/uploads/…). */
@@ -14,12 +15,24 @@ export type KneePhotos = (key: KneeImageKey) => string;
  * Sprache Deutsch, Fachbegriffe Latein wie auf den Folien. Alle Fakten stammen aus den Folien (Lehrbuchwissen, das ihnen entspricht).
  * Bilder: Abbildungen der Folien selbst (knee/images.ts), Beschriftungen abgedeckt oder durch Nummern ersetzt.
  * Timer ab 25 s, Ja/Nein gemischt, Preise steigen mit der Schwierigkeit. Nichts mit Bezug zu russland.
+ * Für eine Person zum Lernen: keine Runden und Boni gegen andere (kein Blitz «wer zuerst», keine Auktion, keine Debuffs);
+ * jede Frage hat eine Erklärung (knee/explanations.ts), die sieht, wer falsch antwortet.
  */
+/** Erklärung zur Frage: der Eintrag, mit dessen Schlüssel der Fragetext beginnt (genau einer). */
+export const explain = (text: string): string => {
+  const found = KNEE_EXPLANATIONS.filter(([key]) => text.startsWith(key));
+  if (found.length !== 1) throw new Error(`knee: ${found.length} Erklärungen für «${text.slice(0, 60)}»`);
+  return found[0]![1];
+};
+
+/** Boni, die allein Sinn ergeben. */
+const SOLO_BUFFS: BuffKind[] = BUFF_KINDS.filter((b) => !(CHALLENGE_SKIP_BUFFS as readonly BuffKind[]).includes(b));
+
 export const kneeQuiz = (photos: KneePhotos): Quiz => {
   let k = 0;
   const tag =
     (part: string) =>
-    (question: Question): Question => ({ ...question, id: `kn-${part}-${++k}` });
+    (question: Question): Question => ({ ...question, id: `kn-${part}-${++k}`, explanation: explain(question.text) });
   /** «Tippe auf …» auf einer Folienabbildung. */
   const tap = (text: string, key: KneeImageKey, radii: [number, number], points: number, time = 30): Question =>
     pin(text, { imageUrl: photos(key), aspect: aspectOf(key) }, pinOf(key), radii, points, time);
@@ -37,14 +50,12 @@ export const kneeQuiz = (photos: KneePhotos): Quiz => {
 
   return {
     title: 'Knie & Unterschenkel: Anatomie skelettal',
-    description: 'Lernquiz zu den Folien «Knie & Unterschenkel»: Femur, Patella, Tibia, Fibula, Bänder, Menisken und Bewegungen — mit Atlasbildern und lateinischen Fachbegriffen.',
+    description:
+      'Lernquiz für eine Person: Femur, Patella, Tibia, Fibula, Bänder, Menisken und Bewegungen — mit Atlasbildern und Latein. Nach jeder falschen Antwort kommt eine Erklärung.',
     settings: {
       leaderboard: 'each',
       newcomers: true,
-      buffs: [...BUFF_KINDS],
-      debuffs: [...DEBUFF_KINDS],
-      debuffPrices: { shake: 200, fog: 250, freeze: 350, mirror: 300, guests: 200, mud: 200, flip: 250, torch: 300, sticky: 200, noclock: 300, bubbles: 200 },
-      debuffShop: true,
+      buffs: SOLO_BUFFS,
     },
     rounds: [
       {
@@ -386,15 +397,13 @@ export const kneeQuiz = (photos: KneePhotos): Quiz => {
       },
       {
         id: 'kn-blitz',
-        type: 'blitz',
-        title: 'Blitz: Wer ist schneller?',
+        type: 'classic',
+        title: 'Schnellrunde: kurz und knapp',
         description:
-          'Zwölf kurze Fragen zu Menisken, Bändern, Bursen und Gelenken. Drücke als Erster auf «Antworten»: Du hast 25 Sekunden und einen Versuch. Punkte bekommt nur, wer zuerst richtig antwortet.',
+          'Zwölf kurze Fragen zu Menisken, Bändern, Bursen und Gelenken, meist «Ja oder Nein». Je schneller die richtige Antwort, desto größer der Bonus.',
+        speedBonus: true,
         shuffleOptions: true,
-        answerWindow: 25,
-        attempts: 1,
-        check: 'auto',
-        rules: { ...DEFAULT_RULES, partial: null },
+        rules: rules({}),
         questions: [
           // Folie 19: kein Kontakt zur Kapsel.
           bool('Das Außenband hat keinen Kontakt zur Gelenkkapsel.', true, 300, 25),
@@ -543,43 +552,37 @@ export const kneeQuiz = (photos: KneePhotos): Quiz => {
       },
       {
         id: 'kn-auction',
-        type: 'auction',
-        title: 'Auktion: für echte Kenner',
-        description:
-          'Die schwersten Fragen des Quiz. Vor dem Bieten ist nur das Thema zu sehen, geboten wird in Schritten von 100 Punkten. Nur der Höchstbietende antwortet: richtig — Einsatz zurück plus Preis der Frage, falsch — Einsatz weg. Bietet niemand, spielen alle.',
+        type: 'classic',
+        title: 'Für echte Kenner',
+        description: 'Die vier schwersten Fragen des Quiz: Kniekehle, Syndesmose, Außenmeniskus und Rotation. Teilweise richtige Antworten geben die Hälfte.',
+        speedBonus: false,
         shuffleOptions: true,
-        check: 'auto',
-        bidMode: 'step',
-        bidStep: 100,
-        loss: 'bid',
+        rules: rules({ partial: 50 }),
         questions: [
           // Folie 24.
-          cut(multi(
+          multi(
             'Kniekehle: Welche dieser Bänder liegen an der Hinterseite des Knies? Wähle alle richtigen Antworten.',
             ['Lig. popliteum obliquum', 'Lig. popliteum arcuatum', 'Lig. popliteofibulare', 'Retinaculum patellae longitudinale mediale', 'Lig. meniscofemorale posterius', 'Lig. collaterale tibiale'],
             [0, 1, 2],
             1000,
             35,
-          ), 1),
+          ),
           // Folie 41.
-          cut(textQ(
+          textQ(
             'Sprunggelenk: Wie heißt die Verbindung, die als Art. tibiofibularis inferior bezeichnet wird? (Latein, zwei Wörter)',
             ['Syndesmosis tibiofibularis', 'Syndesmosis tibiofibulare', 'Syndesmose tibiofibularis', 'Syndesmosis tibiofibularis distalis', 'Syndesmosis'],
             1200,
             40,
-          ), 1),
+          ),
           // Folie 32: teilweise strahlt der M. popliteus in den Außenmeniskus ein.
-          cut(
-            textQ(
+          textQ(
               'Außenmeniskus: Welcher Muskel strahlt teilweise in den Meniscus lateralis ein? (Latein, M. …)',
               ['M. popliteus', 'Musculus popliteus', 'popliteus', 'M popliteus', 'Popliteus'],
               1500,
               35,
             ),
-            1,
-          ),
           // Folie 38: Iro — Kreuzbänder wickeln sich umeinander, deshalb kleiner; Aro — sie entdrehen sich.
-          cut(single(
+          single(
             'Rotation: Welche Rotation ist im gebeugten Knie größer — und warum?',
             [
               'Außenrotation, weil sich die Kreuzbänder dabei entdrehen',
@@ -590,14 +593,14 @@ export const kneeQuiz = (photos: KneePhotos): Quiz => {
             0,
             2000,
             35,
-          ), 1),
+          ),
         ].map(tag('auction')),
       },
       {
         id: 'kn-final',
         type: 'final',
         title: 'Finale: das Kniegelenk',
-        description: 'Die letzte Frage für alle. Setze zuerst geheim einen Teil deiner Punkte, dann antworte: richtig — der Einsatz kommt dazu, falsch — er wird abgezogen.',
+        description: 'Die letzte Frage. Setze zuerst geheim einen Teil deiner Punkte, dann antworte: richtig — der Einsatz kommt dazu, falsch — er wird abgezogen.',
         shuffleOptions: true,
         check: 'auto',
         wagerMode: 'classic',

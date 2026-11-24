@@ -13,6 +13,8 @@ export interface QuestionPreview {
   /** Написання (accepted) для text, drawing, clues, melody, videoclip, bluff, spy. */
   accepted: string[];
   hint: string | null;
+  /** Пояснення автора після розкриття (будь-який тип). */
+  explanation: string | null;
   /** Усі /uploads-картинки запитання (з mediaRefs), без повторів; аудіофайли — не картинки. */
   images: string[];
   /** Зовнішні картинки старих вікторин (https://…): посилання, а не мініатюри, щоб сторінка адміна сама нікуди не ходила. */
@@ -219,6 +221,7 @@ export function questionPreview(question: Question): QuestionPreview {
     answer: safe(() => answerOf(q), null),
     accepted: typeof q.type === 'string' && ACCEPTED_TYPES.has(q.type) ? strings(q.accepted) : [],
     hint: q.type === 'wordle' ? null : str(q.hint),
+    explanation: str(q.explanation),
     images,
     imageLinks: safe(() => imageLinksOf(question), []),
     grid: safe(() => gridOf(q), null),

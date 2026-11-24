@@ -1,0 +1,102 @@
+/**
+ * Erklärungen zum Lernquiz «Knie & Unterschenkel» (Seed `knee`): Wer falsch (oder nur teilweise richtig) antwortet, sieht nach
+ * der Auflösung diesen Text. Schlüssel — ein eindeutiger Anfang des Fragetexts; der Test prüft, dass jede Frage genau eine
+ * Erklärung bekommt. Inhalt aus den Folien «Anatomie skelettal» und dem Lehrbuchwissen, das ihnen entspricht.
+ */
+export const KNEE_EXPLANATIONS: readonly (readonly [string, string])[] = [
+  // Aufwärmen
+  ['Beinskelett von vorne', 'Die Patella (Kniescheibe) liegt ventral vor dem Kniegelenk, eingebettet in die Sehne des M. quadriceps femoris. Deshalb ist sie nur in der Ansicht von vorne (linkes Bild) zu sehen.'],
+  ['Aus welchen zwei Knochen', 'Der Unterschenkel besteht aus Tibia (Schienbein, medial, kräftig) und Fibula (Wadenbein, lateral, schlank). Das Femur ist der Oberschenkelknochen, die Patella ein Sesambein.'],
+  ['Wie lautet der lateinische Name des Kniegelenks', 'Kniegelenk = Articulatio genus (genu = Knie). Art. coxae ist das Hüftgelenk, Art. cubiti das Ellenbogengelenk, Art. talocruralis das obere Sprunggelenk.'],
+  ['Schleimbeutel sind', 'Die Aussage stimmt: Schleimbeutel (Bursae synoviales) sind mit Synovialflüssigkeit gefüllt und vermindern die Reibung zwischen Haut, Sehnen und Knochen.'],
+  ['Welcher Gelenktyp', 'Das Knie ist im Wesentlichen ein Scharniergelenk (Flexion und Extension). In Beugestellung kommt Rotation dazu — deshalb spricht man auch von einem Drehscharniergelenk.'],
+  ['Das Patellagleitlager ist medial', 'Die Aussage stimmt nicht: Das Patellagleitlager (Facies patellaris femoris) ist lateral stärker ausgeprägt. Die höhere laterale Wange hält die Patella und verhindert, dass sie nach außen springt.'],
+  ['Die Gelenkfläche des distalen Femurs', 'Die Aussage stimmt nicht: Die Gelenkflächen des distalen Femurs sind mit hyalinem Knorpel überzogen. Faserknorpel findet man im Knie in den Menisken.'],
+  ['Femur, Tibia oder Fibula?', 'Femur: Linea supracondylaris lateralis, Linea intercondylaris, Epicondylus lateralis.\nTibia: Margo anterior, Facies articularis fibulae (Gelenkfläche für das Fibulaköpfchen), Area intercondylaris posterior.\nFibula: Collum fibulae, Malleolus lateralis, Fossa malleoli lateralis.'],
+  ['Ordne die Strukturen von proximal nach distal', 'Von proximal nach distal: Linea supracondylaris medialis → Epicondylus medialis femoris → Tibiaplateau → Tuberositas tibiae → Malleolus medialis.'],
+  ['Wer bin ich?', 'Gesucht war die Membrana interossea cruris (Zwischenknochenmembran): Sie spannt sich zwischen den Margines interossei von Tibia und Fibula aus, verbindet beide Knochen über die ganze Länge und stabilisiert die beiden tibiofibularen Verbindungen mit.'],
+  // Bilderatlas
+  ['Patella von ventral', 'Der Apex patellae ist die nach kaudal zeigende Spitze der Patella; an ihm entspringt das Lig. patellae. Die breite Basis patellae liegt kranial.'],
+  ['Proximale Tibia und Fibula von ventral', 'Die Tuberositas tibiae ist die raue Erhebung vorne an der proximalen Tibia, unterhalb des Tibiaplateaus. Hier setzt das Lig. patellae an.'],
+  ['Die Patella von dorsal', 'Die Rückseite der Patella trägt die Facies articularis patellae. Sie ist mit hyalinem Knorpel überzogen und gleitet im Patellagleitlager des Femurs.'],
+  ['Rechtes Knie von ventral', 'Die Fibula ist nicht am Kniegelenk beteiligt: Das Kniegelenk bilden Femur, Tibia und Patella. Das Fibulaköpfchen artikuliert nur mit der Tibia (Art. tibiofibularis superior).'],
+  ['Distales Femur, links von ventral', '1 = Epicondylus medialis, 2 = Linea intercondylaris (dorsal, über der Fossa intercondylaris), 3 = Facies patellaris (ventral, das Patellagleitlager), 4 = Condylus lateralis.'],
+  ['Distales Femur von dorsal', 'Das Tuberculum adductorium liegt medial knapp oberhalb des Epicondylus medialis, am unteren Ende der Linea supracondylaris medialis. Hier setzt der M. adductor magnus an.'],
+  ['Querschnitt durch Patella', 'Nummer 1 ist die laterale Facette: Sie ist leicht konkav, die mediale Facette leicht konvex. Getrennt werden beide durch einen First.'],
+  ['Tibiaplateau von kranial. Tippe', 'Die Eminentia intercondylaris ist die Erhöhung in der Mitte des Tibiaplateaus zwischen den Gelenkflächen der beiden Condylen. Davor und dahinter liegen die Areae intercondylares anterior und posterior.'],
+  ['Tibiaplateau von kranial. Welche Fläche', 'Nummer 1 ist die Area intercondylaris anterior vor der Eminentia intercondylaris; dahinter liegt die Area intercondylaris posterior. In diesen Feldern sind Kreuzbänder und Menisken befestigt.'],
+  ['Knie von lateral', '1 ist das Lig. collaterale fibulare (Außenband): ein rundlicher Strang vom Epicondylus lateralis femoris zum Caput fibulae, ohne Verbindung zu Kapsel und Außenmeniskus.'],
+  ['Knie von medial', 'Das Lig. collaterale tibiale (Innenband) ist ein breites, flaches Band an der Innenseite: vom Epicondylus medialis femoris unter das Tibiaplateau, verwachsen mit Kapsel und Innenmeniskus.'],
+  ['Sagittalschnitt durch das Knie', 'Die Bursa subcutanea prepatellaris liegt zwischen Haut und Patella, also direkt vor der Kniescheibe (im Bild rechts). Beim Knien wird sie belastet.'],
+  ['Menisken von kranial', 'In dieser Ansicht ist vorne oben und medial links — der Meniscus lateralis liegt also rechts, sein Hinterhorn rechts unten. Der Außenmeniskus ist fast ringförmig, der Innenmeniskus offener, C-förmig.'],
+  ['Gebeugtes Knie von ventral', '1 ist das Lig. cruciatum anterius (vorderes Kreuzband): Es zieht von der Area intercondylaris anterior der Tibia nach hinten oben zur Innenseite des lateralen Femurcondylus.'],
+  ['Tibiaplateau mit Menisken', 'Das Lig. transversum genus verbindet vorne die Vorderhörner von Innen- und Außenmeniskus.'],
+  // Spielfeld: Femur & Patella
+  ['Welcher deutsche Begriff', 'Facies patellaris femoris = Patellagleitlager: die ventrale Gelenkfläche des Femurs, in der die Patella gleitet.'],
+  ['Die Fossa intercondylaris liegt ventral', 'Die Aussage stimmt nicht: Die Fossa intercondylaris liegt dorsal zwischen den beiden Femurcondylen; in ihr verlaufen die Kreuzbänder. Ventral liegt die Facies patellaris.'],
+  ['Wie heißt das Teilgelenk', 'Femur und Patella bilden die Art. patellofemoralis, Femur und Tibia die Art. femorotibialis. Beide zusammen liegen in einer gemeinsamen Kapsel — das ist das Kniegelenk.'],
+  ['Wodurch wird die Gelenkfläche der Patella', 'Ein senkrechter First teilt die Facies articularis patellae in eine laterale und eine mediale Facette.'],
+  ['Wie heißt die Fläche am dorsalen distalen Femur', 'Facies poplitea: die dreieckige Fläche an der Rückseite des distalen Femurs zwischen Linea supracondylaris medialis und lateralis. Sie bildet den Boden der Kniekehle.'],
+  ['Wo liegt die Basis patellae', 'Die Basis patellae ist der breite obere Rand — sie liegt kranial. Die Spitze (Apex patellae) zeigt nach kaudal.'],
+  // Spielfeld: Tibia & Fibula
+  ['Welcher Knochen liegt am Unterschenkel lateral', 'Die Fibula (Wadenbein) liegt lateral, die Tibia medial. Merkhilfe: Der Außenknöchel (Malleolus lateralis) gehört zur Fibula.'],
+  ['Die Linea musculi solei', 'Die Aussage stimmt nicht: Die Linea musculi solei verläuft schräg über die Rückseite der Tibia. Hier entspringt der M. soleus.'],
+  ['Wozu dient der Sulcus malleolaris', 'Der Sulcus malleolaris an der Rückseite des Malleolus medialis ist eine Gleitrinne für die Sehne des M. tibialis posterior.'],
+  ['Wie heißt das Gelenk zwischen Caput fibulae', 'Zwischen Caput fibulae und Condylus lateralis der Tibia liegt die Art. tibiofibularis superior, das proximale Tibiofibulargelenk: ein straffes Gelenk mit wenig Bewegung.'],
+  ['Wie heißt die Gelenkfläche am Malleolus lateralis', 'Die Gelenkfläche am Malleolus lateralis heißt Facies articularis malleoli lateralis. Mit ihr artikuliert die Fibula mit dem Talus im oberen Sprunggelenk.'],
+  ['Wie nennt die Folie die Gabel', 'Malleolus medialis (Tibia) und Malleolus lateralis (Fibula) bilden zusammen die Malleolengabel, die den Talus umgreift.'],
+  // Spielfeld: Bänder
+  ['Das Innenband ist mit dem Innenmeniskus', 'Die Aussage stimmt: Das Innenband ist mit Kapsel und Innenmeniskus verwachsen. Deshalb werden Innenband und Innenmeniskus oft zusammen verletzt. Das Außenband hat dagegen keinen Kontakt zum Meniskus.'],
+  ['Wie verhalten sich die Collateralbänder bei Flexion', 'Bei Flexion nähern sich Ursprung und Ansatz der Collateralbänder an: Sie entspannen sich — dadurch wird Rotation möglich. In Extension sind sie gespannt.'],
+  ['Die Skizze zeigt zusätzliche Haltebänder', 'MPTL = Lig. patellotibiale mediale, LPTL = Lig. patellotibiale laterale: Haltebänder von der Patella zur Tibia. MPFL und LPFL ziehen dagegen zum Femur.'],
+  ['Wohin ziehen diese Bänder', 'Lig. collaterale tibiale → unter das Tibiaplateau (medial).\nLig. collaterale fibulare → zum Caput fibulae.\nLig. patellae → zur Tuberositas tibiae.'],
+  ['Welche Bänder überkreuzen sich zusätzlich', 'In Extension überkreuzen sich zusätzlich das vordere Kreuzband mit dem Außenband und das hintere Kreuzband mit dem Innenband. Das «verschraubt» das Knie in Streckstellung.'],
+  ['Wofür steht die Abkürzung MPFL', 'MPFL = Lig. patellofemorale mediale: Es verbindet die Patella mit dem medialen Femur. LPFL ist sein laterales Gegenstück, MPTL und LPTL ziehen zur Tibia.'],
+  // Spielfeld: Menisken
+  ['Welche Form haben die Menisken', 'Von kranial gesehen sind die Menisken halbmondförmig: der mediale offen und C-förmig, der laterale fast ringförmig.'],
+  ['Der Meniscus lateralis ist beweglicher', 'Die Aussage stimmt: Der Meniscus lateralis ist fast ringförmig und nicht mit dem Außenband verbunden. Er ist deutlich beweglicher als der Meniscus medialis, der mit dem Innenband verwachsen ist.'],
+  ['Das Bild zeigt ein gebeugtes Knie', 'Bei Flexion rollen die Femurcondylen nach hinten und schieben die Menisken nach dorsal. Bei Extension wandern die Menisken wieder minimal nach ventral.'],
+  ['Aus welchem Kollagen', 'Die Menisken bestehen aus Faserknorpel, hauptsächlich aus Kollagen Typ I. Kollagen Typ II ist typisch für hyalinen Knorpel.'],
+  ['Fasern welches Muskels', 'Fasern des M. semimembranosus haben Kontakt zum Hinterhorn des Meniscus medialis. Beim Außenmeniskus ist es der M. popliteus.'],
+  ['Wie sind die Menisken in der Area intercondylaris', 'Vorder- und Hinterhörner der Menisken sind über kurze Bänder in den Areae intercondylares anterior und posterior am Tibiaplateau befestigt.'],
+  // Spielfeld: Bewegung & Kapsel
+  ['Rotationsbewegungen im Kniegelenk', 'Die Aussage stimmt nicht: In voller Streckung sind die Collateralbänder gespannt, und das Knie kann sich nicht drehen. Rotation ist nur in Beugestellung möglich.'],
+  ['Wie nennt man eine Hyperextension', 'Genu recurvatum ist die Überstreckung (Hyperextension) des Knies. Genu valgum = X-Bein, Genu varum = O-Bein.'],
+  ['Wie viel Grad Flexion', 'Im Kniegelenk sind etwa 120–150° Flexion möglich (Mitte rund 135°); die Extension beträgt 5–10°.'],
+  ['Woher kommt die Stabilität', 'In voller Extension sind die Collateralbänder angespannt und sichern das Knie. Menisken, Patella und Bursen tragen zur Stabilität in Streckung kaum bei.'],
+  ['Die Kreuzbänder liegen intraartikulär', 'Die Aussage stimmt: Die Kreuzbänder liegen innerhalb der Membrana fibrosa (intraartikulär). Die Membrana synovialis umhüllt sie aber nur von vorne, sie liegen also außerhalb von ihr (extrasynovial).'],
+  ['Wie viel Grad Überstreckung', 'Laut Bewegungsschema sind 5–10° Extension (Überstreckung) und 120–150° Flexion möglich.'],
+  // Schnellrunde (früher Blitz)
+  ['Das Außenband hat keinen Kontakt', 'Die Aussage stimmt: Das Außenband (Lig. collaterale fibulare) verläuft als runder Strang außerhalb der Kapsel und hat keinen Kontakt zu Kapsel und Außenmeniskus.'],
+  ['Der Meniscus medialis hat die Form', 'Die Aussage stimmt nicht: Fast ringförmig ist der Meniscus lateralis. Der Meniscus medialis ist offener, C- oder halbmondförmig.'],
+  ['Das Innenband ist in Höhe des Gelenkspalts', 'Die Aussage stimmt: Das Innenband ist in Höhe des Gelenkspalts am breitesten. Dort ist es mit Kapsel und Innenmeniskus verwachsen.'],
+  ['In der Art. tibiofibularis inferior', 'Die Aussage stimmt: Die Art. tibiofibularis inferior ist eine Bandhaft (Syndesmose). Sie lässt nur wenig Bewegung zu — die Malleolengabel kann sich nur minimal weiten.'],
+  ['Das Außenband zieht vom Epicondylus', 'Die Aussage stimmt nicht: Das Außenband zieht vom Epicondylus lateralis femoris schräg nach distal und dorsal zum Caput fibulae.'],
+  ['Im Querschnitt sind die Menisken', 'Die Aussage stimmt nicht: Im Querschnitt sind die Menisken keilförmig — außen dick, innen dünn auslaufend. So gleichen sie die Inkongruenz zwischen Femurcondylen und Tibiaplateau aus.'],
+  ['Wie viele Retinacula patellae', 'Vier: Retinaculum patellae longitudinale mediale und laterale sowie Retinaculum patellae transversale mediale und laterale.'],
+  ['Die Menisken haben keinerlei Verbindung', 'Die Aussage stimmt nicht: Die Menisken sind an ihrem äußeren Rand mit der Gelenkkapsel verbunden. Von dort bekommt ihre äußere Zone auch Gefäße.'],
+  ['Die Menisken gleichen die Inkongruenz', 'Die Aussage stimmt: Die keilförmigen Menisken vergrößern die Kontaktfläche und gleichen die Inkongruenz zwischen den runden Femurcondylen und dem flachen Tibiaplateau aus.'],
+  ['Welches dieser Bänder ist ein Binnenband', 'Das Lig. meniscofemorale posterius ist ein Binnenband: Es liegt im Gelenk, wie die Kreuzbänder und das Lig. transversum genus. Lig. patellae, Lig. popliteum obliquum und Lig. collaterale tibiale liegen außen am Kapsel-Band-Apparat.'],
+  ['Bei Extension verlagern sich die Menisken', 'Die Aussage stimmt nicht: Bei Extension verlagern sich die Menisken nur minimal nach ventral. Stark nach dorsal wandern sie bei Flexion.'],
+  ['Welches Band hält laut Folie', 'Das Lig. patellae setzt die Quadrizepssehne bis zur Tuberositas tibiae fort und hält zusammen mit den Retinacula die Patella in ihrem Lager.'],
+  // Alles oder nichts
+  ['Welche Aufgabe haben die Retinacula', 'Die Retinacula patellae (längs und quer, medial und lateral) sind Haltebänder: Sie halten die Patella in ihrem Gleitlager.'],
+  ['Wie viel Grad Außenrotation', 'Im gebeugten Knie sind etwa 30–40° Außenrotation möglich, die Innenrotation ist deutlich kleiner (etwa 10°).'],
+  ['Ernährung des Meniskus', 'Die zentrale, innere Zone des Meniskus hat keine Gefäße und wird über die Synovia durch Diffusion ernährt. Die äußere Zone bekommt Gefäße aus der Gelenkkapsel.'],
+  ['Das Kniegelenk ist ein zusammengesetztes', 'Zusammengesetzt heißt: Zwei Einzelgelenke — Art. femorotibialis und Art. patellofemoralis — liegen in einer gemeinsamen Gelenkkapsel.'],
+  ['Wozu bildet die Membrana synovialis', 'Die Recessi sind Aussackungen der Membrana synovialis (zum Beispiel der Recessus suprapatellaris). Sie vergrößern die Oberfläche und ermöglichen so die Beweglichkeit und das Gleiten der Patella.'],
+  ['Was hemmt das Lig. collaterale tibiale', 'Das Innenband hemmt die Extension, die Außenrotation und das Aufklappen des Gelenks zur Innenseite.'],
+  ['Welche Bänder halten laut Folie die Art. tibiofibularis superior', 'Die Art. tibiofibularis superior wird vom Lig. capitis fibulae anterius und posterius gehalten. Die Ligg. tibiofibularia anterius und posterius gehören zur Syndesmose am Sprunggelenk.'],
+  ['Welchen Strukturen folgen die Menisken', 'Bei Rotation der Tibia folgen die Menisken den Femurcondylen: Sie bewegen sich mit dem Femur, nicht mit der Tibia.'],
+  // Rätsel
+  ['Kreuzworträtsel', 'Die Lösungen: Patella, Meniskus, Fibula, Kreuzband, Tibia, Schienbein, Rotation und Außenband.'],
+  ['Memory', 'Die Paare: Lig. cruciatum anterius – vorderes Kreuzband, Lig. cruciatum posterius – hinteres Kreuzband, Lig. collaterale tibiale – Innenband, Lig. collaterale fibulare – Außenband, Meniscus medialis – Innenmeniskus, Meniscus lateralis – Außenmeniskus, Os femoris – Oberschenkelknochen, Lig. patellae – Kniescheibenband.'],
+  ['Puzzle', 'Das Bild zeigt das Kniegelenk von ventral und dorsal: Femur, Patella, Tibia und Fibula mit dem Kapsel-Band-Apparat. Tipp: Orientiere dich an der Patella (vorne) und am Fibulaköpfchen (lateral).'],
+  // Für echte Kenner (früher Auktion)
+  ['Kniekehle', 'An der Hinterseite des Knies liegen Lig. popliteum obliquum, Lig. popliteum arcuatum und Lig. popliteofibulare. Das Lig. meniscofemorale posterius ist ein Binnenband im Gelenk, das Retinaculum liegt vorne an der Patella, das Innenband medial.'],
+  ['Sprunggelenk', 'Die Art. tibiofibularis inferior ist kein echtes Gelenk, sondern eine Bandhaft: die Syndesmosis tibiofibularis. Gehalten wird sie von den Ligg. tibiofibularia anterius und posterius.'],
+  ['Außenmeniskus', 'Der M. popliteus strahlt teilweise in den Meniscus lateralis ein. Beim Innenmeniskus haben dagegen Fasern des M. semimembranosus Kontakt zum Hinterhorn.'],
+  ['Rotation: Welche Rotation', 'Die Außenrotation ist größer (30–40°): Dabei entdrehen sich die Kreuzbänder. Bei Innenrotation wickeln sie sich umeinander und bremsen die Bewegung früh (etwa 10°).'],
+  // Finale
+  ['Am Ende der Streckung', 'Das ist die Schlussrotation: In den letzten Grad der Streckung dreht sich die Tibia automatisch um etwa 10–15° nach außen. Die Kreuzbänder werden dabei entspannter, die gespannten Collateralbänder sichern das gestreckte Knie.'],
+];

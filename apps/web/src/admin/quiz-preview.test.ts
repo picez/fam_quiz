@@ -48,6 +48,11 @@ describe('questionPreview', () => {
     expect(questionPreview(single).hint).toBeNull();
   });
 
+  it('carries the explanation of any type', () => {
+    expect(questionPreview({ ...single, explanation: 'Бо так.' }).explanation).toBe('Бо так.');
+    expect(questionPreview(single).explanation).toBeNull();
+  });
+
   it('collects the question picture and the option pictures', () => {
     const pictured: Question = { ...single, imageUrl: IMG_A, options: [{ id: 'a', text: 'Дніпро', imageUrl: IMG_B }, { id: 'b', text: 'Десна', imageUrl: IMG_A }] };
     expect(questionPreview(pictured).images).toEqual([IMG_A, IMG_B]);

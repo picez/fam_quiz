@@ -246,3 +246,35 @@ describe('QuestionEditor cards (74)', () => {
     expect(container.querySelectorAll('.has-error')).toHaveLength(1);
   });
 });
+
+describe('QuestionEditor explanation', () => {
+  const ALL_TYPES = [...new Set([...questionTypesFor('classic'), ...questionTypesFor('puzzles'), ...questionTypesFor('think')])];
+
+  it('every type has the explanation field at the end of the answers card, hint or not', () => {
+    for (const type of ALL_TYPES) {
+      const { container } = render(<QuestionEditor question={newQuestion(type)} onChange={vi.fn()} types={ALL_TYPES} />);
+      const field = screen.getByLabelText(t('explanationLabel')) as HTMLTextAreaElement;
+      expect(field.maxLength, type).toBe(LIMITS.explanationText);
+      expect(container.querySelector('[data-card="answers"]')!.contains(field), type).toBe(true);
+      cleanup();
+    }
+  });
+
+  it('is shown for a spare too, where the hint is hidden', () => {
+    render(<QuestionEditor question={newQuestion('single')} onChange={vi.fn()} types={['single']} showHint={false} />);
+    expect(screen.queryByLabelText(t('hintLabel'))).toBeNull();
+    expect(screen.getByLabelText(t('explanationLabel'))).toBeTruthy();
+  });
+
+  it('writes the text and an empty value removes the key', () => {
+    const onChange = vi.fn();
+    const question = { ...newQuestion('text'), explanation: 'Було' } as Question;
+    render(<QuestionEditor question={question} onChange={onChange} types={questionTypesFor('classic')} />);
+    const field = screen.getByLabelText(t('explanationLabel')) as HTMLTextAreaElement;
+    expect(field.value).toBe('Було');
+    fireEvent.change(field, { target: { value: 'Бо так.\nІ ще.' } });
+    expect((onChange.mock.calls.at(-1)?.[0] as Question).explanation).toBe('Бо так.\nІ ще.');
+    fireEvent.change(field, { target: { value: '' } });
+    expect(onChange.mock.calls.at(-1)?.[0]).not.toHaveProperty('explanation');
+  });
+});

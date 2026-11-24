@@ -123,7 +123,7 @@ export function cloudSources(quiz: Pick<Quiz, 'rounds'>, roundIndex: number, que
   return all.flatMap(({ id, text, before }, index) => (before ? [{ n: index + 1, id, text }] : []));
 }
 
-type Common = Pick<Question, 'id' | 'text' | 'imageUrl' | 'video' | 'timeLimit' | 'points' | 'hint' | 'audio' | 'reveal' | 'betsCut'>;
+type Common = Pick<Question, 'id' | 'text' | 'imageUrl' | 'video' | 'timeLimit' | 'points' | 'hint' | 'explanation' | 'audio' | 'reveal' | 'betsCut'>;
 
 const blank = () => ({ id: newId(), text: '' });
 const blanks = (count: number) => Array.from({ length: count }, () => ({ id: newId(), text: '' }));
@@ -461,7 +461,7 @@ export function newSpare(type: QuestionType = 'single'): Question {
 /** Змінює тип, зберігаючи текст, підказку, час і бали; між single і multi зберігаються й варіанти. */
 export function changeType(question: Question, type: QuestionType): Question {
   if (question.type === type) return question;
-  const { id, imageUrl, video, timeLimit, points, hint, audio, reveal, betsCut } = question;
+  const { id, imageUrl, video, timeLimit, points, hint, explanation, audio, reveal, betsCut } = question;
   // Типовий текст «Відео за фрагментами» не переживає свого типу (build нового типу підставить свій); так само типовий текст мелодії, що стає відео.
   const staleText = (question.type === 'videoclip' && question.text === t('videoclipDefaultText')) || (question.type === 'melody' && type === 'videoclip' && question.text === t('melodyDefaultText'));
   const text = staleText ? '' : question.text;
@@ -476,6 +476,8 @@ export function changeType(question: Question, type: QuestionType): Question {
     timeLimit,
     points: unscored(type) ? 0 : unscored(question.type) ? LIMITS.defaultPoints : points,
     ...(hint === undefined ? {} : { hint }),
+    // Пояснення є в кожного типу, тож переживає будь-яку зміну типу.
+    ...(explanation === undefined ? {} : { explanation }),
     ...(audio === undefined ? {} : { audio }),
     ...(keepsReveal ? { reveal } : {}),
     ...(betsCut === undefined ? {} : { betsCut }),
@@ -1177,11 +1179,13 @@ const cleanBody = (question: Question): Question => {
 // Порожня підказка не зберігається: ключа немає, як у старих запитань.
 /** Запитання в тому вигляді, у якому воно піде на сервер (те саме чищення, що в cleaned). */
 export function cleanedQuestion(question: Question): Question {
-  const { hint, reveal, ...rest } = cleanBody(question);
+  const { hint, explanation, reveal, ...rest } = cleanBody(question);
   const trimmed = hint?.trim() ?? '';
+  const told = explanation?.trim() ?? '';
   // Режим проявлення без картинки (її прибрали) зникає тихо.
   const kept = reveal !== undefined && rest.imageUrl !== null && rest.video === null ? { ...rest, reveal } : rest;
-  return (trimmed === '' ? kept : { ...kept, hint: trimmed }) as Question;
+  // Порожнє пояснення — як і підказка: ключа немає.
+  return { ...kept, ...(trimmed === '' ? {} : { hint: trimmed }), ...(told === '' ? {} : { explanation: told }) } as Question;
 }
 
 /** Вікторина в тому вигляді, у якому вона піде на сервер. */

@@ -358,6 +358,21 @@ function SpyResult({ view }: { view: PlayerView }) {
   );
 }
 
+/** Пояснення автора після розкриття: лише якщо власна відповідь не повністю правильна (привид «Вибування», що вгадав, — теж правильна). */
+function RevealExplanation({ view }: { view: PlayerView }) {
+  const explanation = view.reveal?.explanation;
+  if (explanation === undefined) return null;
+  const { result } = view.me;
+  const right = result === null ? view.me.survival?.ghostCorrect === true : result.grade === 'correct';
+  if (right) return null;
+  return (
+    <section className="reveal-explanation">
+      <h3>{t('explanationTitle')}</h3>
+      <p dir="auto">{explanation}</p>
+    </section>
+  );
+}
+
 function Result({ view, strokes = [] }: { view: PlayerView; strokes?: Stroke[] }) {
   if (view.question !== null && isUnscored(view.question)) return <VoteResult view={view} />;
   const { result } = view.me;
@@ -1791,6 +1806,8 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
           {/* Слова з літер (27d) — так само: «правильно» означає лише «хоч одне слово». */}
           {/* Більше чи менше (28a): «правильно» — лише весь ряд, частка нічого не каже; таблиця вже показує, скільки вгадали кожне. */}
           {view.own?.reveal != null && question?.type !== 'timedlist' && question?.type !== 'letterwords' && question?.type !== 'moreless' && question?.type !== 'drawing' && <OwnRevealLine fact={view.own.reveal} team={view.team !== null} />}
+          {/* Пояснення автора — тому, хто помилився, відповів частково чи не відповів; будь-який тип, і в «Виклику» теж. */}
+          <RevealExplanation view={view} />
           {/* Виборець відкритої апеляції подає свою (29k: у чергу) і бачить «розглянуть наступною» в аркуші голосування — тут їх немає. */}
           {!appealSheetUp &&
             me.appeal?.reasons.map((reason) => (

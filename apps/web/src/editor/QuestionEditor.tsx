@@ -1056,6 +1056,21 @@ export function QuestionEditor({ question, onChange, types, showPoints = true, s
       <EditorCard card="answers" title={t('cardAnswers')} required={question.type !== 'thinkalike'} error={errorOf('answers')}>
         {native && mediaNodes}
         <Body question={question} onChange={onChange} showPoints={showPoints} cluesByHost={cluesByHost} clouds={clouds} allowCloud={allowCloud} fixedOptions={fixedOptions} />
+        {/* Пояснення — у кожного типу: після розкриття його бачить на телефоні той, хто помилився чи не відповів. */}
+        <label className="field explanation-field">
+          <span>{t('explanationLabel')}</span>
+          <textarea
+            rows={2}
+            value={question.explanation ?? ''}
+            maxLength={LIMITS.explanationText}
+            placeholder={t('explanationPlaceholder')}
+            onChange={(event) => {
+              const { explanation: _old, ...rest } = question;
+              // Порожнє значення прибирає ключ, як у підказки.
+              onChange((event.target.value === '' ? rest : { ...rest, explanation: event.target.value }) as Question);
+            }}
+          />
+        </label>
       </EditorCard>
 
       {(timeField || noTimer || points || vote) && (

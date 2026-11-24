@@ -24,6 +24,7 @@ export type TableProblem =
   | 'bad_points'
   | 'bad_timer'
   | 'hint_long'
+  | 'explanation_long'
   | 'round_long'
   | 'round_full'
   | 'too_many_rounds'
@@ -68,6 +69,8 @@ export function quizToRows(quiz: Quiz): { rows: XlsxCell[][]; skipped: number } 
     words.columns.points[0]!,
     words.columns.timer[0]!,
     words.columns.hint[0]!,
+    // Пояснення — останнім стовпчиком: старі файли без нього імпортуються як раніше.
+    words.columns.explanation[0]!,
   ];
   const rows: XlsxCell[][] = [header];
   let total = 0;
@@ -78,7 +81,7 @@ export function quizToRows(quiz: Quiz): { rows: XlsxCell[][]; skipped: number } 
     const title = round.title !== '' ? round.title : t('roundN', { index: roundIndex + 1 });
     for (const question of all) {
       if (!tableRepresentable(question)) continue;
-      const cells: XlsxCell[] = [title, null, question.text, null, null, null, null, null, null, null, question.points, question.timeLimit, question.hint ?? ''];
+      const cells: XlsxCell[] = [title, null, question.text, null, null, null, null, null, null, null, question.points, question.timeLimit, question.hint ?? '', question.explanation ?? ''];
       if (question.type === 'single') {
         cells[1] = words.types.single[0]!;
         question.options.forEach((option, i) => (cells[4 + i] = option.text));
@@ -263,6 +266,8 @@ export function rowsToQuiz(rows: string[][], title: string): RowsToQuiz {
     if (timeLimit === undefined) found.push('bad_timer');
     const hint = cell(data, at.hint);
     if (hint.length > LIMITS.hintText) found.push('hint_long');
+    const explanation = cell(data, at.explanation);
+    if (explanation.length > LIMITS.explanationText) found.push('explanation_long');
     if (roundTitle.length > LIMITS.roundTitle) found.push('round_long');
 
     const list = rounds.get(roundTitle);
@@ -272,7 +277,7 @@ export function rowsToQuiz(rows: string[][], title: string): RowsToQuiz {
 
     for (const code of found) errors.push({ row, code });
     if (found.length > 0 || body === undefined || points === undefined || timeLimit === undefined) continue;
-    const question = { id, text, imageUrl: null, video: null, timeLimit, points, ...(hint !== '' ? { hint } : {}), ...body } as Question;
+    const question = { id, text, imageUrl: null, video: null, timeLimit, points, ...(hint !== '' ? { hint } : {}), ...(explanation !== '' ? { explanation } : {}), ...body } as Question;
     if (list === undefined) rounds.set(roundTitle, [question]);
     else list.push(question);
     total += 1;
@@ -296,6 +301,7 @@ const PROBLEM_VARS: Partial<Record<TableProblem, { min?: number; max: number }>>
   bad_points: { max: LIMITS.maxPoints },
   bad_timer: { min: LIMITS.minTime, max: LIMITS.maxTime },
   hint_long: { max: LIMITS.hintText },
+  explanation_long: { max: LIMITS.explanationText },
   round_long: { max: LIMITS.roundTitle },
   round_full: { max: LIMITS.maxQuestions },
   too_many_rounds: { max: LIMITS.maxRounds },

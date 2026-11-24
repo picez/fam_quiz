@@ -4045,3 +4045,49 @@ describe('placedProblemsOf (74)', () => {
     expect(tabOf({ kind: 'quiz' })).toBe('rounds');
   });
 });
+
+describe('explanation after the answer', () => {
+  const EXPLANATION = 'Бо Говерла — 2061 м.\nНайвища точка України.';
+  /** Заповнене запитання типу в тому раунді, де воно живе (як у тесті newQuestion). */
+  const quizOf = (question: Question): Quiz =>
+    isPuzzle(question)
+      ? { ...quizWith(), rounds: [{ ...newPuzzlesRound(), questions: [question] }] }
+      : question.type === 'think'
+        ? { ...quizWith(), rounds: [{ ...newThinkRound(), questions: [question, filled(newQuestion('think')), filled(newQuestion('think'))] }] }
+        : quizWith(question);
+
+  it('every type keeps a trimmed explanation on save, and the saved quiz is valid', () => {
+    for (const type of QUESTION_TYPES) {
+      const quiz = quizOf({ ...filled(newQuestion(type)), explanation: `  ${EXPLANATION}  ` });
+      const saved = cleaned(quiz);
+      expect(roundQuestions(saved.rounds[0])[0]?.explanation, type).toBe(EXPLANATION);
+      expect(quizSchema.safeParse(saved).success, type).toBe(true);
+    }
+  });
+
+  it('a blank explanation leaves no key', () => {
+    for (const type of QUESTION_TYPES) {
+      const saved = cleanedQuestion({ ...filled(newQuestion(type)), explanation: '   ' });
+      expect(saved, type).not.toHaveProperty('explanation');
+    }
+    expect(cleanedQuestion(filled(newQuestion('single')))).not.toHaveProperty('explanation');
+  });
+
+  it('survives a change to any type', () => {
+    const from: Question = { ...filled(newQuestion('single')), explanation: EXPLANATION };
+    for (const type of QUESTION_TYPES) expect(changeType(from, type).explanation, type).toBe(EXPLANATION);
+    const drawing: Question = { ...filled(newQuestion('drawing')), explanation: EXPLANATION };
+    expect(changeType(drawing, 'text').explanation).toBe(EXPLANATION);
+  });
+
+  it('round-trips through the draft storage for every type, and a broken value is dropped', () => {
+    for (const type of QUESTION_TYPES) {
+      const quiz = quizOf({ ...filled(newQuestion(type)), explanation: EXPLANATION });
+      saveDraft(`explanation-${type}`, quiz);
+      expect(roundQuestions(loadDraft(`explanation-${type}`)!.rounds[0])[0]?.explanation, type).toBe(EXPLANATION);
+    }
+    const broken = { ...filled(newQuestion('single')), explanation: 42 } as unknown as Question;
+    saveDraft('explanation-broken', quizWith(broken));
+    expect(roundQuestions(loadDraft('explanation-broken')!.rounds[0])[0]).not.toHaveProperty('explanation');
+  });
+});
