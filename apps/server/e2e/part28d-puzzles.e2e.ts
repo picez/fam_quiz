@@ -482,10 +482,10 @@ async function puzzlesGame28d() {
   await crosswordCell28d(petro, crossing).click();
   await expect.poll(() => activeClue.innerText(), POLL).toBe(`${downHere.number} ↓ ${downHere.clue}`);
   expect(await petro.locator('.crossword-play-cell.is-word').count(), 'the cells of the chosen word').toBe(downHere.length);
-  // Латиниця не вписується; хибна літера — Backspace стирає її й повертає курсор.
-  await petro.keyboard.type('q');
+  // Цифра не вписується (літери будь-якої абетки — так); хибна літера — Backspace стирає її й повертає курсор.
+  await petro.keyboard.type('7');
   await sleep(300);
-  expect(await crosswordCell28d(petro, crossing).locator('.crossword-letter').textContent(), 'a Latin letter written').toBe('');
+  expect(await crosswordCell28d(petro, crossing).locator('.crossword-letter').textContent(), 'a digit written').toBe('');
   await petro.keyboard.type('ґ');
   await expect.poll(() => crosswordCell28d(petro, crossing).locator('.crossword-letter').textContent(), POLL).toBe('ґ');
   await petro.keyboard.press('Backspace');

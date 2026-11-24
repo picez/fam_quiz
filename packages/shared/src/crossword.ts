@@ -2,7 +2,6 @@
 // Спільне для схеми, редактора й рушія. LIMITS читається лише всередині функцій: quiz.ts імпортує цей файл.
 import { wordLetters } from './letterwords';
 import { LIMITS } from './quiz';
-import { ladderKey } from './wordladder';
 
 export type CrosswordDir = 'across' | 'down';
 /** Слово на сітці: клітинка першої літери й напрямок. */
@@ -21,18 +20,42 @@ export interface CrosswordLayout {
 }
 type Entry = { id: string; answer: string };
 
-const LETTER = /^[а-щьюяєіїґ]$/u;
+/**
+ * Літера клітинки: одна літера будь-якої абетки (одна кодова точка після NFC) — українська, латинська, німецька, польська…
+ * Без літер-модифікаторів (\p{Lm}): серед них український апостроф «ʼ» (U+02BC), а він клітинки не займає.
+ */
+const LETTER = /^(?!\p{Lm})\p{L}$/u;
+/** Слово: літери, між ними щонайбільше по одному апострофу (клітинки він не займає). Прапорець u, не v: старі Safari. */
+const WORD = /^(?!\p{Lm})\p{L}(?:'?(?!\p{Lm})\p{L})*$/u;
+/** Типографські апострофи й гравіс, що їх пишуть замість «'». */
+const APOSTROPHES = /[’ʼ‘`]/gu;
 
-/** Літери слова кросворду: ladderKey без апострофа; не українське слово чи довжина поза minCrosswordWord…maxCrosswordWord — null. */
+/** Ключ слова кросворду: NFC, без пробілів по краях, малими, апостроф — «'»; не слово з літер — null. Довжину не перевіряє. */
+export function crosswordKey(word: string): string | null {
+  const key = word.normalize('NFC').trim().toLocaleLowerCase('uk').replace(APOSTROPHES, "'");
+  return WORD.test(key) ? key : null;
+}
+
+/** Літера клітинки для показу (великою її робить CSS): ß → ẞ, бо велика ß — «SS» на дві клітинки. */
+export function crosswordGlyph(letter: string): string {
+  return letter.replaceAll('ß', 'ẞ');
+}
+
+/** Слово кросворду великими: як crosswordGlyph, ß → ẞ. */
+export function crosswordUpper(text: string): string {
+  return crosswordGlyph(text).toLocaleUpperCase('uk');
+}
+
+/** Літери слова кросворду: crosswordKey без апострофа; не слово з літер чи довжина поза minCrosswordWord…maxCrosswordWord — null. */
 export function crosswordLetters(word: string): string[] | null {
-  const key = ladderKey(word);
+  const key = crosswordKey(word);
   if (key === null) return null;
   const letters = wordLetters(key);
   if (letters.length < LIMITS.minCrosswordWord || letters.length > LIMITS.maxCrosswordWord) return null;
   return letters;
 }
 
-/** Один введений у клітинку символ: NFC, малими; не українська літера (зокрема апостроф) — null. */
+/** Один введений у клітинку символ: NFC, малими; не літера (апостроф, цифра, розділовий знак) — null. */
 export function crosswordLetter(input: string): string | null {
   const ch = input.normalize('NFC').toLocaleLowerCase('uk');
   return LETTER.test(ch) ? ch : null;
@@ -40,7 +63,7 @@ export function crosswordLetter(input: string): string | null {
 
 /** Літери ключового слова: як crosswordLetters, але minCrosswordKey…maxCrosswordKey; інакше — null. */
 export function crosswordKeyLetters(key: string): string[] | null {
-  const k = ladderKey(key);
+  const k = crosswordKey(key);
   if (k === null) return null;
   const letters = wordLetters(k);
   if (letters.length < LIMITS.minCrosswordKey || letters.length > LIMITS.maxCrosswordKey) return null;
@@ -272,7 +295,7 @@ function owners(layout: CrosswordLayout, entries: readonly Entry[]): Map<number,
 /**
  * Клітинки ключового слова в порядку його літер. Для кожної літери — ще не взята клітинка з нею; перевага:
  * усі її слова ще без ключової клітинки, клітинка не на перетині, порядок читання.
- * Літер не вистачає — { missing }: нестача в порядку ключа (з повторами). Ключ не 3…12 українських літер — { missing: [] }.
+ * Літер не вистачає — { missing }: нестача в порядку ключа (з повторами). Ключ не 3…12 літер — { missing: [] }.
  */
 export function pickKeyCells(layout: CrosswordLayout, entries: readonly Entry[], key: string): number[] | { missing: string[] } {
   const keyLetters = crosswordKeyLetters(key);

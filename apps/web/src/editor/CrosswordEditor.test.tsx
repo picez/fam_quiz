@@ -91,9 +91,9 @@ describe('CrosswordEditor', () => {
     type([...WORDS.slice(0, 3), ['дуб', 'Могутнє дерево']]);
     expect(last().layout).toBeNull();
     expect(screen.getByRole('status').textContent).toBe(t('crosswordUnplaced', { words: 'дуб' }));
-    // Не українське слово — інше попередження.
-    fireEvent.change(row(4).getByLabelText(t('crosswordAnswer')), { target: { value: 'oak' } });
-    expect(screen.getByRole('status').textContent).toBe(t('crosswordBadWords', { words: 'oak', min: 2, max: 12 }));
+    // Слово з пробілом — інше попередження.
+    fireEvent.change(row(4).getByLabelText(t('crosswordAnswer')), { target: { value: 'oak tree' } });
+    expect(screen.getByRole('status').textContent).toBe(t('crosswordBadWords', { words: 'oak tree', min: 2, max: 12 }));
   });
 
   it('shows missing key letters', () => {

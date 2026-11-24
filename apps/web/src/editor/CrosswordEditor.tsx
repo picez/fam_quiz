@@ -1,4 +1,4 @@
-import { LIMITS, crosswordCells, crosswordNumbers, type CrosswordLayout, type Question } from '@quiz/shared';
+import { LIMITS, crosswordCells, crosswordGlyph, crosswordNumbers, type CrosswordLayout, type Question } from '@quiz/shared';
 import { t } from '../i18n';
 import { blankCrosswordEntry, buildCrossword, moveItem, withCrosswordLayout, type CrosswordWarning } from './draft';
 import { UK_WORD_INPUT } from './QuestionEditor';
@@ -58,7 +58,7 @@ function CrosswordPreview({ grid, keyCells, entries }: { grid: CrosswordLayout; 
                   <td key={col} data-cell={i} className={`crossword-cell${letter === null ? ' is-block' : ' is-letter'}${key >= 0 ? ' is-key' : ''}`}>
                     {number !== undefined && <span className="crossword-number">{number}</span>}
                     {key >= 0 && <span className="crossword-key-n">{key + 1}</span>}
-                    {letter ?? ''}
+                    {crosswordGlyph(letter ?? '')}
                   </td>
                 );
               })}

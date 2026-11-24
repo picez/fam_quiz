@@ -378,7 +378,7 @@
   "question.crossword.how.1": "Modo «Todo el crucigrama»: puntos por una cuadrícula del todo correcta. Modo «Palabra clave»: el juego marca las casillas con las letras de la clave, y solo da puntos la palabra clave; el resto de la cuadrícula no cuenta.",
   "question.crossword.how.2": "Si a las palabras les faltan letras para la clave, el editor las nombra: añade una palabra con ellas o cambia la clave.",
   "question.crossword.how.3": "En el móvil, el jugador toca una casilla y escribe letras, y el cursor avanza solo por la palabra; un segundo toque en un cruce cambia la dirección.",
-  "question.crossword.limits.0": "Una palabra tiene de {minCrosswordWord} a {maxCrosswordWord} letras ucranianas (ґ y г son distintas, el apóstrofo no ocupa casilla); una clave, de {minCrosswordKey} a {maxCrosswordKey}. La cuadrícula, hasta {maxCrosswordSide} × {maxCrosswordSide}.",
+  "question.crossword.limits.0": "Una palabra tiene de {minCrosswordWord} a {maxCrosswordWord} letras de cualquier alfabeto (ucraniano, latino, alemán, polaco…), sin espacios, guiones ni cifras; las letras parecidas son distintas (ґ y г, ñ y n), el apóstrofo no ocupa casilla. Una clave, de {minCrosswordKey} a {maxCrosswordKey} letras. La cuadrícula, hasta {maxCrosswordSide} × {maxCrosswordSide}.",
   "question.crossword.limits.1": "Solo en una ronda «Pasatiempos»; sin vídeo, sonido ni pista para potenciadores.",
   "question.crossword.points.0": "El precio de la pregunta por una cuadrícula correcta o una palabra clave correcta; si no, 0.",
   "question.crossword.tip.0": "Usa palabras comunes: «калина», «лелека», «вишня». Una clave como «ялина» se forma con las letras de estas palabras.",

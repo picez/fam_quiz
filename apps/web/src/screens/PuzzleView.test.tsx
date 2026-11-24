@@ -466,12 +466,12 @@ describe('CrosswordPlay', () => {
     expect(crosswordCell(0).getAttribute('aria-pressed')).toBe('true');
   });
 
-  it('apostrophes and latin letters are ignored', () => {
+  it('apostrophes, digits and spaces are ignored; letters of any alphabet are typed', () => {
     vi.useFakeTimers();
     const { send } = deferred();
     render(<CrosswordPlay info={mineOf(12)} question={crossword} questionIndex={0} paused={false} timeUp={false} send={send} />);
     fireEvent.click(crosswordCell(0));
-    for (const ch of ["'", 'ʼ', '’', 'a', 'L', '1', ' ']) typeIn(ch);
+    for (const ch of ["'", 'ʼ', '’', '1', ' ', '-']) typeIn(ch);
     expect(crosswordCell(0).getAttribute('aria-pressed')).toBe('true');
     expect(crosswordCell(0).textContent).toBe('1');
     wait(PUZZLE_FLUSH_MS);
@@ -479,6 +479,13 @@ describe('CrosswordPlay', () => {
     // ґ — окрема літера.
     typeIn('ґ');
     expect(crosswordCell(0).textContent).toContain('ґ');
+    // Латиниця й німецькі літери вписуються малими; ß показується як ẞ (не «SS» на дві клітинки).
+    fireEvent.click(crosswordCell(1));
+    typeIn('Ä');
+    expect(crosswordCell(1).textContent).toContain('ä');
+    fireEvent.click(crosswordCell(2));
+    typeIn('ß');
+    expect(crosswordCell(2).textContent).toContain('ẞ');
   });
 
   it('the key strip shows the key cells and selects them', () => {

@@ -378,7 +378,7 @@
   "question.crossword.how.1": "Modalità «Tutto il cruciverba»: punti per una griglia del tutto giusta. Modalità «Parola chiave»: il gioco segna le caselle con le lettere della chiave, e i punti vanno solo per la parola chiave; il resto della griglia non conta.",
   "question.crossword.how.2": "Se nelle parole mancano lettere per la chiave, l’editor le nomina: aggiungi una parola che le contenga o cambia la chiave.",
   "question.crossword.how.3": "Sul telefono il giocatore tocca una casella e scrive le lettere, e il cursore avanza da solo lungo la parola; un secondo tocco su un incrocio cambia la direzione.",
-  "question.crossword.limits.0": "Una parola ha da {minCrosswordWord} a {maxCrosswordWord} lettere ucraine (ґ e г sono diverse, l’apostrofo non occupa una casella); una chiave da {minCrosswordKey} a {maxCrosswordKey}. La griglia arriva a {maxCrosswordSide} × {maxCrosswordSide}.",
+  "question.crossword.limits.0": "Una parola ha da {minCrosswordWord} a {maxCrosswordWord} lettere di qualsiasi alfabeto (ucraino, latino, tedesco, polacco…), senza spazi, trattini né cifre; le lettere simili sono diverse (ґ e г, à e a), l’apostrofo non occupa una casella. Una chiave da {minCrosswordKey} a {maxCrosswordKey} lettere. La griglia arriva a {maxCrosswordSide} × {maxCrosswordSide}.",
   "question.crossword.limits.1": "Solo in un round «Rompicapi»; senza video, audio e indizio per i potenziamenti.",
   "question.crossword.points.0": "Il prezzo della domanda per una griglia giusta o una parola chiave giusta; altrimenti 0.",
   "question.crossword.tip.0": "Usa parole comuni: «калина», «лелека», «вишня». Una chiave come «ялина» si compone con le lettere di queste parole.",

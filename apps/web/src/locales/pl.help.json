@@ -378,7 +378,7 @@
   "question.crossword.how.1": "Tryb „Cała krzyżówka”: punkty za całkowicie poprawną siatkę. Tryb „Hasło”: gra zaznacza kratki z literami hasła, a punkty są tylko za hasło — reszta siatki się nie liczy.",
   "question.crossword.how.2": "Jeśli w słowach brakuje liter do hasła, edytor je nazwie: dodaj słowo z nimi albo zmień hasło.",
   "question.crossword.how.3": "Na telefonie gracz dotyka kratki i wpisuje litery, a kursor sam przechodzi dalej po słowie; ponowne dotknięcie na skrzyżowaniu zmienia kierunek.",
-  "question.crossword.limits.0": "Słowo ma od {minCrosswordWord} do {maxCrosswordWord} ukraińskich liter (ґ i г to różne litery, apostrof nie zajmuje kratki); hasło — od {minCrosswordKey} do {maxCrosswordKey}. Siatka — do {maxCrosswordSide} × {maxCrosswordSide}.",
+  "question.crossword.limits.0": "Słowo ma od {minCrosswordWord} do {maxCrosswordWord} liter dowolnego alfabetu (ukraińskie, łacińskie, niemieckie, polskie…), bez spacji, łączników i cyfr; podobne litery są różne (ґ i г, ą i a), apostrof nie zajmuje kratki. Hasło — od {minCrosswordKey} do {maxCrosswordKey} liter. Siatka — do {maxCrosswordSide} × {maxCrosswordSide}.",
   "question.crossword.limits.1": "Tylko w rundzie „Łamigłówki”; bez wideo, dźwięku i podpowiedzi do buffów.",
   "question.crossword.points.0": "Cena pytania za poprawną siatkę albo poprawne hasło; w przeciwnym razie 0.",
   "question.crossword.tip.0": "Bierz zwykłe słowa: «калина», «лелека», «вишня». Hasło w rodzaju «ялина» składa się z liter tych słów.",

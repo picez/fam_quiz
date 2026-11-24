@@ -2815,8 +2815,11 @@ describe('puzzles round (28d)', () => {
 
   it('refuses a broken crossword', () => {
     expect(qIssues(crosswordQ({ layout: null }))).toContain('crossword_layout');
-    const english = entries.map((e, i) => (i === 0 ? { ...e, answer: 'apple' } : e));
-    expect(qIssues(crosswordQ({ entries: english }))).toContain('crossword_word');
+    const spaced = entries.map((e, i) => (i === 0 ? { ...e, answer: 'apple pie' } : e));
+    expect(qIssues(crosswordQ({ entries: spaced }))).toContain('crossword_word');
+    // Латиниця тепер дозволена: «apple» не перетинається з рештою — вада розкладки, а не слова.
+    const latin = entries.map((e, i) => (i === 0 ? { ...e, answer: 'apple' } : e));
+    expect(qIssues(crosswordQ({ entries: latin }))).not.toContain('crossword_word');
     const long = entries.map((e, i) => (i === 0 ? { ...e, answer: 'а'.repeat(13) } : e));
     expect(qIssues(crosswordQ({ entries: long }))).toContain('crossword_word');
     const twin = entries.map((e, i) => (i === 1 ? { ...e, answer: 'Калина' } : e));

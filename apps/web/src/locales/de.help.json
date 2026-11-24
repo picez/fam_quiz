@@ -378,7 +378,7 @@
   "question.crossword.how.1": "Modus „Das ganze Kreuzworträtsel“: Punkte für ein vollständig richtiges Gitter. Modus „Lösungswort“: Das Spiel markiert die Felder mit den Buchstaben des Lösungsworts, und Punkte gibt es nur dafür — der Rest des Gitters zählt nicht.",
   "question.crossword.how.2": "Fehlen in den Wörtern Buchstaben für das Lösungswort, nennt der Editor sie: Füge ein Wort mit ihnen hinzu oder ändere das Lösungswort.",
   "question.crossword.how.3": "Auf dem Handy tippt ein Spieler auf ein Feld und trägt Buchstaben ein, der Cursor wandert von selbst im Wort weiter; ein zweites Tippen auf eine Kreuzung wechselt die Richtung.",
-  "question.crossword.limits.0": "Ein Wort hat {minCrosswordWord} bis {maxCrosswordWord} ukrainische Buchstaben (ґ und г sind verschieden, ein Apostroph belegt kein Feld); ein Lösungswort {minCrosswordKey} bis {maxCrosswordKey}. Das Gitter ist bis zu {maxCrosswordSide} × {maxCrosswordSide} groß.",
+  "question.crossword.limits.0": "Ein Wort hat {minCrosswordWord} bis {maxCrosswordWord} Buchstaben eines beliebigen Alphabets (ukrainisch, lateinisch, deutsch, polnisch…), ohne Leerzeichen, Bindestriche und Ziffern; ähnliche Buchstaben sind verschieden (ґ und г, ä und a), ein Apostroph belegt kein Feld. Ein Lösungswort hat {minCrosswordKey} bis {maxCrosswordKey} Buchstaben. Das Gitter ist bis zu {maxCrosswordSide} × {maxCrosswordSide} groß.",
   "question.crossword.limits.1": "Nur in der Runde „Rätsel“; ohne Video, Ton und Hinweis für Buffs.",
   "question.crossword.points.0": "Der Fragenpreis für ein richtiges Gitter oder ein richtiges Lösungswort; sonst 0.",
   "question.crossword.tip.0": "Nimm gewöhnliche Wörter: «калина», «лелека», «вишня». Ein Lösungswort wie «ялина» besteht aus den Buchstaben dieser Wörter.",

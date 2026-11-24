@@ -378,7 +378,7 @@
   "question.crossword.how.1": "“The whole crossword” mode: points for a fully correct grid. “Key word” mode: the game marks the cells with the letters of the key, and points go only for the key word — the rest of the grid does not matter.",
   "question.crossword.how.2": "If the words lack letters for the key, the editor names them: add a word with them or change the key.",
   "question.crossword.how.3": "On the phone, a player taps a cell and types letters, and the cursor moves on along the word by itself; a second tap on a crossing turns the direction.",
-  "question.crossword.limits.0": "A word has {minCrosswordWord} to {maxCrosswordWord} Ukrainian letters (ґ and г differ, an apostrophe takes no cell); a key has {minCrosswordKey} to {maxCrosswordKey}. The grid is up to {maxCrosswordSide} × {maxCrosswordSide}.",
+  "question.crossword.limits.0": "A word has {minCrosswordWord} to {maxCrosswordWord} letters of any alphabet (Ukrainian, Latin, German, Polish…), with no spaces, hyphens or digits; similar letters differ (ґ and г, ä and a), an apostrophe takes no cell. A key has {minCrosswordKey} to {maxCrosswordKey} letters. The grid is up to {maxCrosswordSide} × {maxCrosswordSide}.",
   "question.crossword.limits.1": "Only in a “Puzzles” round; no video, sound or buff hint.",
   "question.crossword.points.0": "The question price for a correct grid or a correct key word; otherwise 0.",
   "question.crossword.tip.0": "Take common words: «калина», «лелека», «вишня». A key like «ялина» is made of the letters of these words.",
