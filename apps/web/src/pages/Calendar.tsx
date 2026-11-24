@@ -48,7 +48,7 @@ export function Calendar(): JSX.Element {
         <p className="error" role="alert">
           {t('calendarError')}
         </p>
-        <button type="button" className="secondary" onClick={() => setAttempt((n) => n + 1)}>
+        <button type="button" className="btn" onClick={() => setAttempt((n) => n + 1)}>
           {t('prizesRetry')}
         </button>
       </main>
@@ -196,11 +196,11 @@ function CalendarList({ first }: { first: CalendarPage }): JSX.Element {
   }, [events, zone]);
 
   return (
-    <main className="app wide feed-page">
+    <main className="app wide feed-page is-stream">
       <FeedTabs badge={badge} />
       <PushSettings compact />
       {form === null ? (
-        <button type="button" disabled={busy} onClick={() => void openForm()}>
+        <button type="button" className="btn btn-primary calendar-new" disabled={busy} onClick={() => void openForm()}>
           {t('calendarNew')}
         </button>
       ) : (

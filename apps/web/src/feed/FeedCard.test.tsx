@@ -54,6 +54,13 @@ describe('FeedCard', () => {
     expect(screen.getByText('Петро')).toBeTruthy();
   });
 
+  it('the text keeps the whole line in a tooltip; the date sits in the meta line (76)', () => {
+    const { container } = show(event());
+    const text = container.querySelector('.feed-text')!;
+    expect(text.getAttribute('title')).toBe('🎲 Петро ' + text.textContent!.split('Петро ')[1]);
+    expect(container.querySelector('.feed-meta .feed-time')).not.toBeNull();
+  });
+
   it('the card carries the event id for paging checks', () => {
     const { container } = show(event({ id: 'like:g1:u2' }));
     expect(container.querySelector('li.feed-card')!.getAttribute('data-id')).toBe('like:g1:u2');

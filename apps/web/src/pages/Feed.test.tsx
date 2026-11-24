@@ -52,7 +52,11 @@ describe('Feed', () => {
     vi.mocked(getFeed).mockResolvedValueOnce({ ok: true, events: [ev('e1')], next: 'c1', asOf: 'x' });
     vi.mocked(getFeed).mockResolvedValueOnce({ ok: true, events: [ev('e1'), ev('e2')], next: null });
     show();
-    fireEvent.click(await screen.findByRole('button', { name: 'Показати ще' }));
+    const more = await screen.findByRole('button', { name: 'Показати ще' });
+    // 76: звичайна кнопка застосунку, стрічка — одна колонка.
+    expect(more.className).toBe('btn feed-more');
+    expect(document.querySelector('main.feed-page.is-stream')).not.toBeNull();
+    fireEvent.click(more);
     await screen.findByText(/Гра e2/);
     expect(getFeed).toHaveBeenLastCalledWith('c1');
     expect(screen.getAllByText(/Гра e1/)).toHaveLength(1);

@@ -171,7 +171,11 @@ describe('Calendar', () => {
   it('planning: form, save, create and reload', async () => {
     vi.mocked(createCalendarEvent).mockResolvedValue({ ok: true } as never);
     show();
-    fireEvent.click(await screen.findByRole('button', { name: 'Запланувати гру' }));
+    const plan = await screen.findByRole('button', { name: 'Запланувати гру' });
+    // 76: головна кнопка календаря має стиль застосунку.
+    expect(plan.className).toBe('btn btn-primary calendar-new');
+    expect(document.querySelector('main.feed-page.is-stream')).not.toBeNull();
+    fireEvent.click(plan);
     fireEvent.change(await screen.findByLabelText('Назва'), { target: { value: 'Вечір' } });
     fireEvent.change(screen.getByLabelText('Дата й час'), { target: { value: '2099-11-07T19:00' } });
     fireEvent.change(screen.getByLabelText('Вікторина'), { target: { value: 'q1' } });

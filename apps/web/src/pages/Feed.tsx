@@ -28,7 +28,7 @@ export function Feed(): JSX.Element {
         <p className="error" role="alert">
           {t('feedError')}
         </p>
-        <button type="button" className="secondary" onClick={() => setAttempt((n) => n + 1)}>
+        <button type="button" className="btn" onClick={() => setAttempt((n) => n + 1)}>
           {t('prizesRetry')}
         </button>
       </main>
@@ -86,7 +86,7 @@ function FeedList({ first }: { first: FeedPage }): JSX.Element {
   };
 
   return (
-    <main className="app wide feed-page">
+    <main className="app wide feed-page is-stream">
       <FeedTabs badge={badge} />
       {events.length === 0 ? (
         <p className="meta feed-empty">
@@ -105,7 +105,7 @@ function FeedList({ first }: { first: FeedPage }): JSX.Element {
         </p>
       )}
       {next !== null && (
-        <button type="button" className="secondary" disabled={busy} onClick={more}>
+        <button type="button" className="btn feed-more" disabled={busy} onClick={more}>
           {t('feedMore')}
         </button>
       )}

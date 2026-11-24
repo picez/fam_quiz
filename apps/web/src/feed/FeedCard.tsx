@@ -12,6 +12,9 @@ export function FeedCard({ event, onLike, pending = false }: { event: FeedEvent;
   // Для like `mine` завжди true, а who — той, хто вподобав: це не власна подія.
   const own = event.mine && data.kind !== 'like';
   const win = data.kind === 'game' && data.place === 1;
+  // 76: текст картки обрізано до двох рядків — повний текст у підказці (екранні читачі й так читають увесь).
+  const text = feedText(data);
+  const full = `${feedIcon(data)} ${own ? t('feedYou') : nickText(who.nickname)} ${text}`;
   return (
     <li className={win ? 'feed-card is-win' : 'feed-card'} data-id={event.id}>
       {own ? (
@@ -22,7 +25,7 @@ export function FeedCard({ event, onLike, pending = false }: { event: FeedEvent;
         </Link>
       )}
       <div className="feed-body">
-        <p className="feed-text">
+        <p className="feed-text" title={full}>
           <span aria-hidden="true">{feedIcon(data)} </span>
           {own ? (
             <strong>{t('feedYou')}</strong>
@@ -33,15 +36,18 @@ export function FeedCard({ event, onLike, pending = false }: { event: FeedEvent;
               </strong>
             </Link>
           )}{' '}
-          {feedText(data)}
+          {text}
         </p>
-        {event.hidden && <p className="meta feed-hidden">{t('feedHiddenByModerator')}</p>}
-        {data.kind === 'planned' && (
-          <p className="feed-link">
-            <Link to={`/feed/calendar#event-${data.eventId}`}>{t('feedPlannedLink')}</Link>
-          </p>
-        )}
-        <p className="meta feed-time">{formatDate(event.at)}</p>
+        {/* 76: дата, позначка модератора й посилання — одним рядком, щоб усі картки були однакової висоти. */}
+        <p className="meta feed-meta">
+          <span className="feed-time">{formatDate(event.at)}</span>
+          {event.hidden && <span className="meta feed-hidden">{t('feedHiddenByModerator')}</span>}
+          {data.kind === 'planned' && (
+            <Link className="feed-link" to={`/feed/calendar#event-${data.eventId}`}>
+              {t('feedPlannedLink')}
+            </Link>
+          )}
+        </p>
       </div>
       {/* 63: подію, приховану модератором, бачить лише автор — без вподобайок. */}
       {likes !== null &&
