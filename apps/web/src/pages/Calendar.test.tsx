@@ -174,6 +174,7 @@ describe('Calendar', () => {
     const plan = await screen.findByRole('button', { name: 'Запланувати гру' });
     // 76: головна кнопка календаря має стиль застосунку.
     expect(plan.className).toBe('btn btn-primary calendar-new');
+    expect(document.querySelector('main.feed-page.is-stream')).not.toBeNull();
     fireEvent.click(plan);
     fireEvent.change(await screen.findByLabelText('Назва'), { target: { value: 'Вечір' } });
     fireEvent.change(screen.getByLabelText('Дата й час'), { target: { value: '2099-11-07T19:00' } });

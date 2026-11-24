@@ -128,6 +128,7 @@ async function feed76() {
   expect((await geometry76(olya)).heights, 'after paging: the same height').toHaveLength(1);
 
   // Календар: «Запланувати гру» — кнопка застосунку.
+  const feedMain = (await geometry76(olya)).main;
   for (const theme of ['dark', 'light'] as const) {
     await olya.evaluate((value) => localStorage.setItem('quiz:theme', value), theme);
     await olya.goto(`${base}/feed/calendar`);
@@ -138,8 +139,24 @@ async function feed76() {
     expect(box.height, `calendar ${theme}: a comfortable button`).toBeGreaterThanOrEqual(44);
     expect(await plan.evaluate((el) => getComputedStyle(el).borderTopLeftRadius), `calendar ${theme}: the app button`).not.toBe('0px');
     await expectNoSideScroll(olya, `76-calendar-${theme}-1920`);
+    // Та сама колонка, що й у стрічці: вкладки не стрибають.
+    const cal = await olya.evaluate(() => {
+      const main = document.querySelector('main')!.getBoundingClientRect();
+      const cards = [...document.querySelectorAll('.calendar-card')].map((el) => el.getBoundingClientRect());
+      const list = document.querySelector('.calendar-day .feed-list')!.getBoundingClientRect();
+      return { left: main.left, width: main.width, full: cards.every((r) => Math.abs(r.width - list.width) <= 1) };
+    });
+    expect(Math.abs(cal.left - feedMain.left), `calendar ${theme}: the same column as the feed`).toBeLessThanOrEqual(1);
+    expect(Math.abs(cal.width - feedMain.width), `calendar ${theme}: the same width as the feed`).toBeLessThanOrEqual(1);
+    expect(cal.full, `calendar ${theme}: cards span the column`).toBe(true);
     await view76(olya, `76-calendar-${theme}-1920`);
   }
+
+  await olya.setViewportSize({ width: 360, height: 740 });
+  await olya.goto(`${base}/feed/calendar`);
+  await olya.locator('.calendar-card').first().waitFor();
+  await expectNoSideScroll(olya, '76-calendar-light-360');
+  await view76(olya, '76-calendar-light-360');
 
   expect(problems).toEqual([]);
 }

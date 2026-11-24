@@ -196,7 +196,7 @@ function CalendarList({ first }: { first: CalendarPage }): JSX.Element {
   }, [events, zone]);
 
   return (
-    <main className="app wide feed-page">
+    <main className="app wide feed-page is-stream">
       <FeedTabs badge={badge} />
       <PushSettings compact />
       {form === null ? (

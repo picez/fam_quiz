@@ -17220,6 +17220,18 @@ button.wall-tile:disabled {
   }
 }
 
+/* Календар у тій самій колонці: картки одна під одною, як у стрічці (поверхня, рамка, радіус). */
+.is-stream .calendar-card {
+  padding: 0.75rem 0.875rem;
+  background: var(--surface);
+}
+
+.is-stream .calendar-card[data-state='open'] {
+  border-color: var(--line);
+  border-inline-start: 3px solid var(--accent);
+  padding-inline-start: calc(0.875rem - 2px);
+}
+
 /* «Показати ще» — звичайна кнопка застосунку на всю ширину колонки. */
 .feed-more {
   align-self: stretch;
