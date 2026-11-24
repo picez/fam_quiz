@@ -25,8 +25,9 @@ export const SCREEN_PHOTOS: Record<string, string> = {
   kudrow: 'File:Lisa Kudrow at TIFF 2009.jpg',
   // Будинок «Друзів» на розі Бедфорд-стрит і Ґров-стрит, Нью-Йорк (CC BY 2.0).
   friendsbldg: 'File:NYC Friends Apartment Building (22499701821).jpg',
-  // Г’ю Лорі, Роберт Шон Леонард і Ліза Едельштейн на заході серіалу в Paley Center, 2009 (CC BY-SA 2.0).
-  laurie: 'File:Hugh Laurie 2009 crop.jpg',
+  // Кайл Маклахлен на Comic-Con 2017 (CC BY-SA 3.0).
+  maclachlan: 'File:Kyle MacLachlan by Gage Skidmore.jpg',
+  // Роберт Шон Леонард і Ліза Едельштейн на заході серіалу в Paley Center, 2009 (CC BY-SA 2.0).
   leonard: 'File:Robert Sean Leonard 2009.jpg',
   edelstein: 'File:Lisa Edelstein 2009.jpg',
   // Frist Campus Center, Принстонський університет — зовнішні кадри лікарні Принстон-Плейнсборо (CC BY 4.0).
@@ -103,7 +104,7 @@ export const screenQuiz = (photos: Photos): Quiz => {
         check: 'auto',
         rules: rules({ penalty: 'minus' }),
         categories: [
-          category('swamp', 'Болото й Дюлок'),
+          category('swamp', 'Шрек: перший фільм'),
           category('faraway', 'Шрек: продовження'),
           category('mccallister', 'Сам удома'),
           category('perk', 'Шестеро друзів'),
