@@ -17083,8 +17083,147 @@ button.wall-tile:disabled {
 }
 
 .feed-text,
-.feed-time {
+.feed-meta {
   margin: 0;
+}
+
+/* ---------- 76: стрічка — одна колонка однакових карток ---------- */
+/* Стрічка друзів (не календар): одна колонка ≈ 44 rem посередині на будь-якому екрані. */
+.app.feed-page.is-stream {
+  --app-w: 44rem;
+}
+
+.is-stream .feed-list {
+  grid-template-columns: none;
+  gap: 0.625rem;
+}
+
+/* Кожна картка однакової висоти: аватар ліворуч, два рядки тексту й рядок дати, серце праворуч посередині. */
+.is-stream .feed-card {
+  box-sizing: border-box;
+  height: 5.75rem;
+  gap: 0.875rem;
+  padding: 0.625rem 0.75rem 0.625rem 0.875rem;
+  background: var(--surface);
+  overflow: hidden;
+}
+
+/* Перемога — тонка червона смужка на початку й легкий відтінок, без товстої рамки: ритм не ламається. */
+.is-stream .feed-card.is-win {
+  border-color: var(--line);
+  border-inline-start: 3px solid var(--accent);
+  padding-inline-start: calc(0.875rem - 2px);
+  background: linear-gradient(90deg, var(--spot), transparent 60%), var(--surface);
+}
+
+[dir='rtl'] .is-stream .feed-card.is-win {
+  background: linear-gradient(270deg, var(--spot), transparent 60%), var(--surface);
+}
+
+.is-stream .feed-body {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 0.25rem;
+  overflow-wrap: break-word;
+}
+
+/* Текст — не більше двох рядків; повний — у підказці (title). */
+.is-stream .feed-text {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+  line-height: 1.35;
+}
+
+.is-stream .feed-text a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.is-stream .feed-text a:hover,
+.is-stream .feed-text a:focus-visible {
+  text-decoration: underline;
+}
+
+/* Дата, «Приховано модератором» і «До календаря» — один рядок; зайве обрізається трьома крапками. */
+.is-stream .feed-meta {
+  display: flex;
+  align-items: baseline;
+  gap: 0.75rem;
+  min-width: 0;
+  font-size: 0.875rem;
+  line-height: 1.35;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.is-stream .feed-meta > * {
+  flex: none;
+}
+
+/* Коли місця мало, скорочується дата, а посилання «До календаря» лишається видимим повністю. */
+.is-stream .feed-meta > .feed-time {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.is-stream .feed-meta .feed-hidden {
+  font-size: inherit;
+  color: var(--signal);
+}
+
+/* Посилання тонке на вигляд, але торкатися зручно: поле 44 px за рахунок від’ємних відступів. */
+.is-stream .feed-meta .feed-link {
+  padding-block: 0.75rem;
+  margin-block: -0.75rem;
+  color: var(--link);
+}
+
+.is-stream .feed-like {
+  min-width: 3.25rem;
+}
+
+/* Світла тема: біле серце на білій картці ледь видно — тонкий контур. */
+:root.is-light .is-stream .feed-like[aria-pressed='false'] > [aria-hidden='true'] {
+  filter: drop-shadow(0 0 1px rgb(31 21 21 / 0.55));
+}
+
+/* Телефон: вужчі проміжки й серце, дрібніша дата — щоб дата вміщалася повністю. */
+@media (max-width: 420px) {
+  .is-stream .feed-card {
+    gap: 0.625rem;
+    padding-inline: 0.625rem 0.5rem;
+  }
+
+  .is-stream .feed-card.is-win {
+    padding-inline-start: calc(0.625rem - 2px);
+  }
+
+  .is-stream .feed-like {
+    min-width: 44px;
+    padding: 0 0.4rem;
+  }
+
+  .is-stream .feed-text {
+    font-size: 0.9375rem;
+  }
+
+  .is-stream .feed-meta {
+    font-size: 0.8125rem;
+    gap: 0.5rem;
+  }
+}
+
+/* «Показати ще» — звичайна кнопка застосунку на всю ширину колонки. */
+.feed-more {
+  align-self: stretch;
+  width: 100%;
 }
 
 .feed-who {
@@ -17192,17 +17331,7 @@ button.wall-tile:disabled {
   min-height: 44px;
 }
 
-.feed-link {
-  margin: 0.25rem 0 0;
-}
-
-.feed-link a {
-  display: inline-flex;
-  align-items: center;
-  min-height: 44px;
-}
-
-.calendar-actions a.button {
+.calendar-actions a.btn {
   display: inline-flex;
   align-items: center;
   padding: 0 1rem;
@@ -29592,7 +29721,7 @@ details.admin-fold[open] > summary::before {
   }
 
   /* Кнопка «Запланувати гру» не тягнеться на всю сторінку. */
-  .app.feed-page > button {
+  .app.feed-page > .calendar-new {
     align-self: flex-start;
   }
 

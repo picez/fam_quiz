@@ -625,7 +625,7 @@ const CALENDAR_FITS_19A = `(() => {
     const t = text.getBoundingClientRect();
     if (t.width > 0 && b.left < t.right - 0.5 && t.left < b.right - 0.5 && b.top < t.bottom && t.top < b.bottom) bad.push('the badge covers the tab text');
   }
-  for (const el of document.querySelectorAll('.calendar-card button, .calendar-card a.button, .calendar-form button')) {
+  for (const el of document.querySelectorAll('.calendar-card button, .calendar-card a.btn, .calendar-form button')) {
     const r = el.getBoundingClientRect();
     if (r.height < 43.5) bad.push('a short button: ' + el.textContent + ' ' + r.height.toFixed(1));
     if (r.right > innerWidth + 0.5 || r.left < -0.5) bad.push('a button leaves the phone: ' + el.textContent);

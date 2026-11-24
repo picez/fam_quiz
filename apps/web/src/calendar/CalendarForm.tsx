@@ -34,7 +34,7 @@ export function CalendarForm({
         <p>
           <Link to="/quizzes/new">{t('calendarNoQuizzesLink')}</Link>
         </p>
-        <button type="button" className="secondary" onClick={onCancel}>
+        <button type="button" className="btn" onClick={onCancel}>
           {t('calendarFormCancel')}
         </button>
       </div>
@@ -79,10 +79,10 @@ export function CalendarForm({
         </p>
       )}
       <div className="calendar-actions">
-        <button type="submit" disabled={saving}>
+        <button type="submit" className="btn btn-primary" disabled={saving}>
           {t('calendarSave')}
         </button>
-        <button type="button" className="secondary" onClick={onCancel}>
+        <button type="button" className="btn" onClick={onCancel}>
           {t('calendarFormCancel')}
         </button>
       </div>

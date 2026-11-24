@@ -25,7 +25,7 @@ export function CalendarCard({
 }): JSX.Element {
   const live = event.state === 'planned' || event.state === 'open';
   const act = (label: string, action: CalendarAction, secondary = true) => (
-    <button type="button" className={secondary ? 'secondary' : undefined} disabled={busy} onClick={() => onAction(event, action)}>
+    <button type="button" className={secondary ? 'btn btn-small' : 'btn btn-small btn-primary'} disabled={busy} onClick={() => onAction(event, action)}>
       {label}
     </button>
   );
@@ -86,7 +86,7 @@ export function CalendarCard({
           {live && event.myRequest === null && act(t('calendarRequest'), 'request', false)}
           {live && event.myRequest === 'pending' && act(t('calendarWithdraw'), 'withdraw')}
           {event.myRequest === 'approved' && event.state === 'open' && event.joinCode !== null && (
-            <Link className="button" to={`/play/${event.joinCode}`}>
+            <Link className="btn btn-small btn-primary" to={`/play/${event.joinCode}`}>
               {t('calendarJoin')}
             </Link>
           )}
