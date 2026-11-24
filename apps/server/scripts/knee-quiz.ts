@@ -1,6 +1,6 @@
 import { BUFF_KINDS, DEBUFF_KINDS, DEFAULT_RULES, type Question, type Quiz } from '@quiz/shared';
 import { bool, clues, match, multi, numeric, order, pin, rules, single, slider, sort, textQ, cell } from './demo-quiz';
-import { cut, scatter, type Cell } from './mix-quiz';
+import { crossword, cut, scatter, type Cell } from './mix-quiz';
 import { jigsaw } from './mix2/kit';
 import { img, memory } from './mega/kit';
 import { aspectOf, pinOf, type KneeImageKey } from './knee/images';
@@ -501,8 +501,25 @@ export const kneeQuiz = (photos: KneePhotos): Quiz => {
         type: 'puzzles',
         title: 'Rätsel: Latein trifft Deutsch',
         description:
-          'Zwei Rätsel nacheinander: ein Memory, in dem lateinische Namen ihre deutschen Partner suchen, und ein Puzzle aus einer Atlasabbildung des Kniegelenks. Wer schneller löst, bekommt mehr Punkte.',
+          'Drei Rätsel nacheinander: ein Kreuzworträtsel mit deutschen und lateinischen Begriffen, ein Memory, in dem lateinische Namen ihre deutschen Partner suchen, und ein Puzzle aus einer Atlasabbildung des Kniegelenks.',
         questions: [
+          // Folien 13–37: Begriffe aus Femur, Tibia, Fibula, Bändern, Menisken und Bewegung; die Sprache steht in jedem Hinweis.
+          crossword(
+            'Kreuzworträtsel: Deutsch und Latein rund ums Knie. In jedem Hinweis steht, in welcher Sprache das Wort gesucht ist; Umlaute und ß sind eigene Buchstaben.',
+            [
+              ['Patella', 'Latein: größtes Sesambein des Körpers, eingebettet in die Sehne des M. quadriceps femoris'],
+              ['Meniskus', 'Deutsch: halbmondförmige Faserknorpelscheibe zwischen den Gelenkflächen von Ober- und Unterschenkel (Einzahl)'],
+              ['Fibula', 'Latein: der schlanke Knochen an der Außenseite des Unterschenkels'],
+              ['Kreuzband', 'Deutsch: Lig. cruciatum, ein Wort'],
+              ['Tibia', 'Latein: der kräftigere der beiden Unterschenkelknochen'],
+              ['Schienbein', 'Deutsch: derselbe kräftige Unterschenkelknochen; sein Vorderrand liegt direkt unter der Haut'],
+              ['Rotation', 'Deutsch/Latein: Bewegung des Unterschenkels, die nur im gebeugten Knie möglich ist'],
+              ['Außenband', 'Deutsch: Lig. collaterale fibulare'],
+            ],
+            null,
+            1500,
+            300,
+          ),
           memory(
             'Memory: Finde die Paare «lateinischer Name – deutscher Name».',
             '4x4',

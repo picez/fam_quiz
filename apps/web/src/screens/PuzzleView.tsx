@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ChangeEvent, type CompositionEvent, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent } from 'react';
-import { crosswordCells, crosswordLetter, evenPageSize, pageCount, pageSlice, type PlayerPuzzle, type PublicPuzzle, type PublicQuestion, type PuzzleAnswer, type PuzzleBoardView, type PuzzleInfo, type PuzzleTone, type Question } from '@quiz/shared';
+import { crosswordCells, crosswordGlyph, crosswordLetter, crosswordUpper, evenPageSize, pageCount, pageSlice, type PlayerPuzzle, type PublicPuzzle, type PublicQuestion, type PuzzleAnswer, type PuzzleBoardView, type PuzzleInfo, type PuzzleTone, type Question } from '@quiz/shared';
 import { signed } from '../format';
 import { errorText, t } from '../i18n';
 import type { Send, SendResult } from '../live/types';
@@ -350,7 +350,7 @@ export function wordFilled(cells: readonly number[], values: readonly string[]):
  * Кросворд на телефоні: угорі активна підказка («3 ↓ …»), нижче сітка (до 12 стовпців на 320 px без прокрутки вбік), під нею
  * смужка ключа (режим key), «Стерти» і згорнутий список підказок. Тап вибирає слово; повторний тап на перетині міняє напрямок;
  * тап по підказці — слово й перша порожня клітинка. Літери — системна клавіатура через приховане поле: кожен символ проходить
- * crosswordLetter (апостроф, латиниця, цифри — повз), курсор іде на наступну клітинку слова, а з кінця — на наступне незаповнене
+ * crosswordLetter (літера будь-якої абетки; апостроф, цифри, знаки — повз), курсор іде на наступну клітинку слова, а з кінця — на наступне незаповнене
  * слово. Backspace стирає й відступає.
  */
 export function CrosswordPlay({ info, question, questionIndex, paused, timeUp, closed = false, send, deadline = null }: PuzzlePlayProps) {
@@ -546,7 +546,7 @@ export function CrosswordPlay({ info, question, questionIndex, paused, timeUp, c
               >
                 {number !== undefined && <span className="crossword-number">{number}</span>}
                 {key !== undefined && <span className="crossword-key-n">{key + 1}</span>}
-                <span className="crossword-letter">{value}</span>
+                <span className="crossword-letter">{crosswordGlyph(value)}</span>
               </button>
             );
           })}
@@ -580,7 +580,7 @@ export function CrosswordPlay({ info, question, questionIndex, paused, timeUp, c
               aria-disabled={off}
               onClick={() => pick(cell, wordAt(cell, 'across') !== undefined && selected?.dir !== 'down' ? 'across' : wordAt(cell, 'down') !== undefined ? 'down' : 'across')}
             >
-              {board.cells[cell] ?? ''}
+              {crosswordGlyph(board.cells[cell] ?? '')}
             </button>
           ))}
         </div>
@@ -802,7 +802,7 @@ function Thumb({ board, puzzle, solution, reveal }: ThumbProps) {
               .join(' ');
             return (
               <span key={i} className={`${cls}${puzzle.kind === 'sudoku' ? boxEdges(i) : ''}`}>
-                {value}
+                {crosswordGlyph(value)}
               </span>
             );
           })}
@@ -869,7 +869,7 @@ function wordText(puzzle: Crossword, solution: readonly string[], word: Crosswor
     const at = (word.row + (word.dir === 'down' ? k : 0)) * puzzle.width + word.col + (word.dir === 'across' ? k : 0);
     text += solution[at] ?? '';
   }
-  return text.toLocaleUpperCase('uk');
+  return crosswordUpper(text);
 }
 
 /**
@@ -878,7 +878,7 @@ function wordText(puzzle: Crossword, solution: readonly string[], word: Crosswor
  */
 export function PuzzleSolution({ puzzle, solution }: { puzzle: PublicPuzzle; solution: readonly string[] }) {
   const { w, h } = sizeOf(puzzle);
-  const key = puzzle.kind === 'crossword' && puzzle.mode === 'key' && puzzle.keyCells.length > 0 ? puzzle.keyCells.map((i) => solution[i] ?? '').join('').toLocaleUpperCase('uk') : null;
+  const key = puzzle.kind === 'crossword' && puzzle.mode === 'key' && puzzle.keyCells.length > 0 ? crosswordUpper(puzzle.keyCells.map((i) => solution[i] ?? '').join('')) : null;
   return (
     <figure className="puzzle-solution">
       <figcaption className="meta">{t('puzzleSolution')}</figcaption>
@@ -939,14 +939,14 @@ export function PuzzleHistoryGrid({ answer, question, playerKey }: { answer: Puz
           const cls = ['puzzle-thumb-cell', block ? 'is-block' : '', given ? 'is-given' : '', !given && value !== '' ? 'is-filled' : '', wrong ? 'is-wrong' : '', keys.has(i) ? 'is-key' : ''].filter(Boolean).join(' ');
           return (
             <span key={i} className={`${cls}${question.type === 'sudoku' ? boxEdges(i) : ''}`}>
-              {value}
+              {crosswordGlyph(value)}
             </span>
           );
         })}
       </div>
       {playerKey !== undefined && (
         <p className="meta puzzle-history-key">
-          {t('crosswordModeKey')}: <strong dir="auto">{playerKey.replace(/\./g, '·').toLocaleUpperCase('uk')}</strong>
+          {t('crosswordModeKey')}: <strong dir="auto">{crosswordUpper(playerKey.replace(/\./g, '·'))}</strong>
         </p>
       )}
       {answer.done === true && <span className="tag puzzle-history-done">{`${t('puzzleDone')} ✓`}</span>}

@@ -3081,7 +3081,7 @@ describe('puzzles in the editor (28d)', () => {
     expect(one(custom('123450000006'.padEnd(36, '0')))).toEqual([t('problemSudokuNone', { index: 1 })]);
     expect(one(custom('11'.padEnd(36, '0')))).toEqual([t('problemSudokuConflict', { index: 1 })]);
     expect(one(words(crossword(), ['калина', 'лелека', 'вишня', 'дуб']))).toEqual([t('problemCrosswordLayout', { index: 1 })]);
-    expect(one(words(crossword(), ['калина', 'лелека', 'tree', 'сонях']))).toEqual([
+    expect(one(words(crossword(), ['калина', 'лелека', 'tree 2', 'сонях']))).toEqual([
       t('problemCrosswordWord', { index: 1, min: LIMITS.minCrosswordWord, max: LIMITS.maxCrosswordWord }),
     ]);
     expect(one(words(crossword(), ['калина', 'лелека', 'Калина', 'сонях']))).toEqual([t('problemCrosswordDuplicate', { index: 1 })]);

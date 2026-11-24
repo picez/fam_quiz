@@ -8,7 +8,7 @@ import type { Issue } from './checks';
 /** 27d: приклади слів і літер «Слів з літер» — українські (ґ/г, м’ясо, морква), тож кирилиця в цих текстах навмисна. */
 const LETTER_WORD_EXAMPLES = ['question.letterwords.how.1', 'question.letterwords.points.0', 'question.letterwords.points.1', 'question.letterwords.points.2'];
 
-/** 28d: слова кросворду — лише українські, тож приклади слів і ключа (лелека, калина, ялина) та літери ґ/г кирилицею навмисно. */
+/** 28d: приклади слів і ключа кросворду (лелека, калина, ялина) та літери ґ/г — українські, кирилицею навмисно (літери інших абеток теж дозволені). */
 const CROSSWORD_EXAMPLES = ['crosswordAnswerPlaceholder', 'crosswordKeyPlaceholder', 'question.crossword.tip.0', 'question.crossword.limits.0'];
 
 export const L10N_EXCEPTIONS: Record<Exclude<Locale, 'uk'>, Partial<Record<Issue['kind'], string[]>>> = {

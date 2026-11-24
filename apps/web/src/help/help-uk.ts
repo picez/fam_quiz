@@ -516,7 +516,7 @@ export const helpUk: Readonly<Record<string, string>> = {
   'question.crossword.how.3': 'На телефоні гравець торкається клітинки, вписує літери, і курсор сам переходить далі по слову; повторний дотик на перетині змінює напрямок.',
   'question.crossword.points.0': 'Ціна запитання — за правильну сітку чи правильне ключове слово; інакше 0.',
   'question.crossword.tip.0': 'Беріть загальні слова: «калина», «лелека», «вишня». Ключ на кшталт «ялина» складається з літер цих слів.',
-  'question.crossword.limits.0': 'Слово — від {minCrosswordWord} до {maxCrosswordWord} українських літер (ґ і г різні, апостроф клітинки не займає); ключ — від {minCrosswordKey} до {maxCrosswordKey}. Сітка — до {maxCrosswordSide} × {maxCrosswordSide}.',
+  'question.crossword.limits.0': 'Слово — від {minCrosswordWord} до {maxCrosswordWord} літер будь-якої абетки (українські, латинські, німецькі, польські…), без пробілів, дефісів і цифр; схожі літери різні (ґ і г, ä і a), апостроф клітинки не займає. Ключ — від {minCrosswordKey} до {maxCrosswordKey} літер. Сітка — до {maxCrosswordSide} × {maxCrosswordSide}.',
   'question.crossword.limits.1': 'Лише в раунді «Головоломки»; без відео, звуку й підказки для бафів.',
   'question.jigsaw.title': 'Пазл',
   'question.jigsaw.what': 'Фото, яке гравці складають на телефоні зі шматочків з виступами; команда складає один спільний пазл.',

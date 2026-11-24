@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
   crosswordCells,
+  crosswordGlyph,
   crosswordLayoutIssue,
   crosswordLetter,
   crosswordLetters,
   crosswordNumbers,
+  crosswordUpper,
   layoutCrossword,
   pickKeyCells,
   type CrosswordLayout,
@@ -39,7 +41,6 @@ describe('crossword', () => {
     expect(crosswordLetters(' Калина ')).toEqual(['к', 'а', 'л', 'и', 'н', 'а']);
     expect(crosswordLetters('Ґанок')![0]).toBe('ґ');
     expect(crosswordLetters('ганок')![0]).toBe('г');
-    expect(crosswordLetters('sun')).toBeNull();
     expect(crosswordLetters('два слова')).toBeNull();
     expect(crosswordLetters('а')).toBeNull();
     expect(crosswordLetters('їж')).toEqual(['ї', 'ж']);
@@ -48,9 +49,44 @@ describe('crossword', () => {
     expect(crosswordLetter('Ї')).toBe('ї');
     expect(crosswordLetter('ґ')).toBe('ґ');
     expect(crosswordLetter("'")).toBeNull();
-    expect(crosswordLetter('q')).toBeNull();
+    expect(crosswordLetter('7')).toBeNull();
+    expect(crosswordLetter('-')).toBeNull();
+    expect(crosswordLetter(' ')).toBeNull();
     expect(crosswordLetter('аб')).toBeNull();
     expect(crosswordLetter('')).toBeNull();
+  });
+
+  it('takes letters of any alphabet: German, Latin, Polish, mixed', () => {
+    expect(crosswordLetters('Kniescheibe')).toHaveLength(11);
+    expect(crosswordLetters('Schienbein')![0]).toBe('s');
+    expect(crosswordLetters('Gelenkfläche')).toContain('ä');
+    expect(crosswordLetters('Fuß')).toEqual(['f', 'u', 'ß']);
+    expect(crosswordLetters('FUẞ')).toEqual(['f', 'u', 'ß']);
+    expect(crosswordLetters('Źdźbło')).toEqual(['ź', 'd', 'ź', 'b', 'ł', 'o']);
+    // NFD (a + combining diaeresis) → NFC: one cell per letter.
+    expect(crosswordLetters('Bär')).toEqual(['b', 'ä', 'r']);
+    expect(crosswordLetters("O'Neil")).toEqual(['o', 'n', 'e', 'i', 'l']);
+    expect(crosswordLetters('Lig-patellae')).toBeNull();
+    expect(crosswordLetters('Lig. patellae')).toBeNull();
+    expect(crosswordLetters('tibia2')).toBeNull();
+    expect(crosswordLetter('Ö')).toBe('ö');
+    expect(crosswordLetter('q')).toBe('q');
+    expect(crosswordLetter('ẞ')).toBe('ß');
+    expect(crosswordLetter('ʼ')).toBeNull();
+    expect(crosswordLetter('ˈ')).toBeNull();
+    expect(crosswordGlyph('ß')).toBe('ẞ');
+    expect(crosswordGlyph('ä')).toBe('ä');
+    expect(crosswordUpper('fuß')).toBe('FUẞ');
+    expect(crosswordUpper('мʼята')).toBe('МʼЯТА');
+  });
+
+  it('lays out German and Latin words with a key', () => {
+    const entries = entriesOf(['patella', 'tibia', 'fibula', 'femur', 'meniskus']);
+    const layout = laid(entries);
+    expect(crosswordLayoutIssue(layout, entries, null)).toBeNull();
+    const keyCells = pickKeyCells(layout, entries, 'Knie');
+    expect(Array.isArray(keyCells)).toBe(true);
+    expect(crosswordLayoutIssue({ ...layout, keyCells: keyCells as number[] }, entries, 'Knie')).toBeNull();
   });
 
   it('lays out words with crossings', () => {
@@ -82,7 +118,7 @@ describe('crossword', () => {
     const apart = entriesOf(['дуб', 'сік', 'вежа', 'гриф']);
     // Кожен старт кладе одне слово; найменша рамка — у «дуб» (раніший з тризначних), решта не покладені.
     expect(layoutCrossword(apart)).toEqual({ ok: false, reason: 'unplaced', ids: ['w1', 'w2', 'w3'] });
-    expect(layoutCrossword([...ENTRIES.slice(0, 3), { id: 'bad', answer: 'sun' }])).toEqual({
+    expect(layoutCrossword([...ENTRIES.slice(0, 3), { id: 'bad', answer: 'sun 2' }])).toEqual({
       ok: false,
       reason: 'word',
       ids: ['bad'],
