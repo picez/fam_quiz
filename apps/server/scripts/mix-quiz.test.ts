@@ -79,7 +79,9 @@ describe('the «Сім доріг» mixed quiz', () => {
     const others = files.map((f) => readFileSync(join(dir, f), 'utf8')).join('\n').toLocaleLowerCase('uk');
     // Ключ («прапор») — слово самої теми, тож його не звіряємо.
     const words = ofType('crossword').flatMap((q) => q.entries.map((e) => e.answer));
-    expect(words.filter((w) => others.includes(key(w)))).toEqual([]);
+    // Ціле слово, не частина іншого («Ліван» — не «Олівандер»).
+    const used = (w: string) => new RegExp(`(?<!\\p{L})${key(w)}(?!\\p{L})`, 'u').test(others);
+    expect(words.filter(used)).toEqual([]);
   });
 
   it('gives every question, spare, blitz window and duel at least 25 seconds', () => {
