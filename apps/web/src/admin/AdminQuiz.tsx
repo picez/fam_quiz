@@ -101,6 +101,7 @@ function PreviewBody({ question }: { question: Question }): JSX.Element {
       )}
       {preview.accepted.length > 0 && <p className="meta" dir="auto">{t('adminPreviewAccepted', { list: preview.accepted.join(', ') })}</p>}
       {preview.hint !== null && <p className="meta" dir="auto">{t('adminPreviewHint', { hint: preview.hint })}</p>}
+      {preview.explanation !== null && <p className="meta admin-preview-explanation" dir="auto">{t('adminPreviewExplanation', { text: preview.explanation })}</p>}
       {preview.images.length > 0 && (
         <div className="admin-thumbs">
           {preview.images.map((url, index) => (

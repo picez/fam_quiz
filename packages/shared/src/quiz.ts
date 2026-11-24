@@ -132,6 +132,8 @@ export const LIMITS = {
   maxDuelTries: 30,
   /** Підказка до запитання (редактор) і від ведучого в грі, символів. */
   hintText: 200,
+  /** Пояснення після відповіді (бачить той, хто помилився), символів. */
+  explanationText: 600,
   /** Запасних запитань для бафу «Заміна запитання». */
   maxSpares: 20,
   /** Запасних в одній категорії поля (9d). */
@@ -378,6 +380,8 @@ const base = {
   points: z.number().int().min(0).max(LIMITS.maxPoints),
   /** Підказка для бафу «Підказка ведучого»; немає — ведучий підкаже сам. Старі запитання без неї. */
   hint: z.string().trim().min(1).max(LIMITS.hintText).refine(isStorable, UNSTORABLE).optional(),
+  /** Пояснення автора: після розкриття бачить на телефоні той, хто відповів неправильно, частково чи не відповів; до розкриття не надсилається. Будь-який тип. */
+  explanation: z.string().trim().min(1).max(LIMITS.explanationText).refine(isStorable, UNSTORABLE).optional(),
   /** Аудіо до запитання (10b); старі запитання без поля. Разом із відео не буває. */
   audio: audioSchema.optional(),
   /** Режим картинки (10b): немає — звичайна. */

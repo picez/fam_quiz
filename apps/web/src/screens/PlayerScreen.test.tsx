@@ -598,6 +598,47 @@ describe('PlayerScreen', () => {
     expect(screen.getByText('Правильна відповідь: B. Київ')).toBeTruthy();
   });
 
+  describe('explanation after the reveal', () => {
+    const EXPLANATION = 'Київ — столиця з 1934 року.\nДо того — Харків.';
+    const explained: Question = { ...fullQuestion, explanation: EXPLANATION };
+    const revealWith = (result: PlayerView['me']['result'], answer: PlayerView['me']['answer'] = { type: 'single', optionId: 'a' }) =>
+      view({ phase: 'reveal', questionIndex: 0, question: publicQuestion, reveal: explained, me: { ...me, answer, result } });
+
+    it('a wrong answer shows the explanation under the correct answer, line breaks kept', () => {
+      show(revealWith({ accepted: false, accuracy: 0, grade: 'wrong', streakBonus: 0, points: 0 }));
+      const block = document.querySelector('.reveal-explanation') as HTMLElement;
+      expect(block).not.toBeNull();
+      expect(within(block).getByRole('heading', { name: 'Пояснення' })).toBeTruthy();
+      expect(block.querySelector('p')!.textContent).toBe(EXPLANATION);
+    });
+
+    it('no answer and a partial answer show it too', () => {
+      show(revealWith(null, null));
+      expect(document.querySelector('.reveal-explanation')).not.toBeNull();
+      cleanup();
+      show(revealWith({ accepted: true, accuracy: 0.5, grade: 'partial', streakBonus: 0, points: 300 }));
+      expect(document.querySelector('.reveal-explanation')).not.toBeNull();
+    });
+
+    it('a correct answer shows no explanation, nor does a question without one', () => {
+      show(revealWith({ accepted: true, accuracy: 1, grade: 'correct', streakBonus: 0, points: 750 }, { type: 'single', optionId: 'b' }));
+      expect(document.querySelector('.reveal-explanation')).toBeNull();
+      expect(screen.queryByText('Пояснення')).toBeNull();
+      cleanup();
+      show(view({ phase: 'reveal', questionIndex: 0, question: publicQuestion, reveal: fullQuestion, me: { ...me, result: null } }));
+      expect(document.querySelector('.reveal-explanation')).toBeNull();
+    });
+
+    it('shows it for a type without the correct-answer line (wordle)', () => {
+      const wordleQuestion = { ...publicQuestion, type: 'wordle' as const, text: 'Вгадайте слово', choices: [], wordle: { letters: 5, tries: 6 } };
+      const myWordle = { letters: 5, tries: 6, rows: [{ letters: ['с', 'о', 'с', 'н', 'а'], marks: ['near', 'hit', 'miss', 'miss', 'miss'] as ('near' | 'hit' | 'miss')[] }], solved: false, canGuess: false, word: 'колос' };
+      const reveal: Question = { id: 'q1', type: 'wordle', text: 'Вгадайте слово', imageUrl: null, video: null, timeLimit: 120, points: 1000, word: 'колос', explanation: EXPLANATION };
+      show(view({ phase: 'reveal', questionIndex: 0, question: wordleQuestion, reveal, me: { ...me, wordle: myWordle } }));
+      expect(screen.queryByText(/Правильна відповідь:/)).toBeNull();
+      expect(document.querySelector('.reveal-explanation')).not.toBeNull();
+    });
+  });
+
   it('distinguishes a wrong answer, a partial one and no answer', () => {
     const reveal = { phase: 'reveal' as const, questionIndex: 0, question: publicQuestion, reveal: fullQuestion };
 

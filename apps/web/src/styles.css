@@ -985,6 +985,27 @@ button.choice {
   margin-inline-end: 0.4em;
 }
 
+/* Пояснення автора після розкриття (тому, хто помилився): спокійна панель із фіолетовою рискою, абзаци автора зберігаються. */
+.reveal-explanation {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  padding: 1rem 1.25rem;
+  border-inline-start: 4px solid var(--voice);
+  background: color-mix(in srgb, var(--voice) 10%, var(--panel));
+  border-radius: 0 var(--radius) var(--radius) 0;
+}
+
+.reveal-explanation h3 {
+  font-size: 1rem;
+  color: var(--dim);
+}
+
+.reveal-explanation p {
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+
 .earned {
   font-family: var(--display);
   font-size: 2rem;
@@ -17698,6 +17719,11 @@ details.admin-round > summary > .admin-round-title {
 
 .admin-card a.admin-preview-link {
   overflow-wrap: anywhere;
+}
+
+/* Пояснення автора: абзаци зберігаються. */
+.admin-preview-explanation {
+  white-space: pre-line;
 }
 
 /* Фокус після «До запитання» (tabIndex -1): видно, куди перейшли. */

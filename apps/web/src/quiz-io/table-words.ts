@@ -5,7 +5,7 @@ import type { Locale } from '@quiz/shared';
  * тож вони живуть окремо від i18n (той самий підхід, що й push/push-strings.ts). [0] — каноничне слово,
  * його пише експорт мовою інтерфейсу; решта — синоніми для імпорту.
  */
-export type ColumnKey = 'round' | 'type' | 'question' | 'answer' | 'option' | 'points' | 'timer' | 'hint';
+export type ColumnKey = 'round' | 'type' | 'question' | 'answer' | 'option' | 'points' | 'timer' | 'hint' | 'explanation';
 export type TableType = 'single' | 'boolean' | 'text' | 'numeric';
 
 export interface TableWords {
@@ -26,6 +26,7 @@ export const TABLE_WORDS: Record<Locale, TableWords> = {
       points: ['Бали', 'Очки'],
       timer: ['Таймер (с)', 'Таймер', 'Час'],
       hint: ['Підказка'],
+      explanation: ['Пояснення'],
     },
     types: {
       single: ['варіанти', 'варіант'],
@@ -46,6 +47,7 @@ export const TABLE_WORDS: Record<Locale, TableWords> = {
       points: ['Points'],
       timer: ['Timer (s)', 'Timer', 'Time'],
       hint: ['Hint'],
+      explanation: ['Explanation'],
     },
     types: {
       single: ['choice', 'options', 'single'],
@@ -66,6 +68,7 @@ export const TABLE_WORDS: Record<Locale, TableWords> = {
       points: ['Punkty'],
       timer: ['Czasomierz (s)', 'Czasomierz', 'Czas'],
       hint: ['Podpowiedź'],
+      explanation: ['Wyjaśnienie'],
     },
     types: {
       single: ['wybór', 'wybor'],
@@ -86,6 +89,7 @@ export const TABLE_WORDS: Record<Locale, TableWords> = {
       points: ['Punkte'],
       timer: ['Timer (s)', 'Timer', 'Zeit'],
       hint: ['Hinweis'],
+      explanation: ['Erklärung'],
     },
     types: {
       single: ['auswahl', 'optionen'],
@@ -106,6 +110,7 @@ export const TABLE_WORDS: Record<Locale, TableWords> = {
       points: ['Puntos'],
       timer: ['Temporizador (s)', 'Temporizador', 'Tiempo'],
       hint: ['Pista'],
+      explanation: ['Explicación'],
     },
     types: {
       single: ['opciones', 'elección'],
@@ -126,6 +131,7 @@ export const TABLE_WORDS: Record<Locale, TableWords> = {
       points: ['Punti'],
       timer: ['Timer (s)', 'Timer', 'Tempo'],
       hint: ['Suggerimento'],
+      explanation: ['Spiegazione'],
     },
     types: {
       single: ['opzioni', 'scelta'],
@@ -146,6 +152,7 @@ export const TABLE_WORDS: Record<Locale, TableWords> = {
       points: ['النقاط'],
       timer: ['المؤقت (ث)', 'المؤقت', 'الوقت'],
       hint: ['تلميح'],
+      explanation: ['الشرح'],
     },
     types: {
       single: ['اختيار من متعدد', 'خيارات'],

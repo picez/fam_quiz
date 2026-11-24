@@ -6,7 +6,7 @@ import en from '../locales/en.json';
 import { TABLE_WORDS, normalizeWord, type ColumnKey, type TableType } from './table-words';
 import { problemText, quizToRows, rowsToQuiz, tableRepresentable, templateRows, type TableProblem } from './table';
 
-const HEAD = ['Раунд', 'Тип', 'Запитання', 'Правильна відповідь', 'Варіант 1', 'Варіант 2', 'Варіант 3', 'Варіант 4', 'Варіант 5', 'Варіант 6', 'Бали', 'Таймер (с)', 'Підказка'];
+const HEAD = ['Раунд', 'Тип', 'Запитання', 'Правильна відповідь', 'Варіант 1', 'Варіант 2', 'Варіант 3', 'Варіант 4', 'Варіант 5', 'Варіант 6', 'Бали', 'Таймер (с)', 'Підказка', 'Пояснення'];
 
 const common = { imageUrl: null, video: null, timeLimit: 30, points: 1000 };
 const single = (id: string, text: string, texts: string[], correct: number, extra: Record<string, unknown> = {}): Question =>
@@ -23,10 +23,10 @@ function quizOf(questions: Question[], title = 'Природа'): Quiz {
 /** Рядок аркуша: заголовок + дані, усе рядками (як з файлу). */
 const asStrings = (rows: (string | number | null)[][]): string[][] => rows.map((row) => row.map((cell) => (cell === null ? '' : String(cell))));
 
-/** Рядок даних за шаблоном заголовків HEAD: round, type, question, answer, options 1..6, points, timer, hint. */
-function row(parts: { round?: string; type?: string; question?: string; answer?: string; options?: string[]; points?: string; timer?: string; hint?: string }): string[] {
+/** Рядок даних за шаблоном заголовків HEAD: round, type, question, answer, options 1..6, points, timer, hint, explanation. */
+function row(parts: { round?: string; type?: string; question?: string; answer?: string; options?: string[]; points?: string; timer?: string; hint?: string; explanation?: string }): string[] {
   const options = [...(parts.options ?? []), '', '', '', '', '', ''].slice(0, 6);
-  return [parts.round ?? 'Р', parts.type ?? 'текст', parts.question ?? 'Питання', parts.answer ?? 'відповідь', ...options, parts.points ?? '', parts.timer ?? '', parts.hint ?? ''];
+  return [parts.round ?? 'Р', parts.type ?? 'текст', parts.question ?? 'Питання', parts.answer ?? 'відповідь', ...options, parts.points ?? '', parts.timer ?? '', parts.hint ?? '', parts.explanation ?? ''];
 }
 
 afterEach(() => activateLocaleForTests('uk'));
@@ -34,7 +34,7 @@ afterEach(() => activateLocaleForTests('uk'));
 describe('quizToRows', () => {
   it('exports the four simple types of classic rounds', () => {
     const quiz = quizOf([
-      single('a', 'Яка планета?', ['Меркурій', 'Венера', 'Марс'], 1, { hint: 'Друга' }),
+      single('a', 'Яка планета?', ['Меркурій', 'Венера', 'Марс'], 1, { hint: 'Друга', explanation: 'Друга від Сонця.' }),
       bool('b'),
       text('c', ['Тихий', 'Тихий океан']),
       num('d', { points: 500, timeLimit: 25 }),
@@ -42,7 +42,7 @@ describe('quizToRows', () => {
     const { rows, skipped } = quizToRows(quiz);
     expect(skipped).toBe(0);
     expect(rows[0]).toEqual(HEAD);
-    expect(rows[1]).toEqual(['Природа', 'варіанти', 'Яка планета?', 'Венера', 'Меркурій', 'Венера', 'Марс', null, null, null, 1000, 30, 'Друга']);
+    expect(rows[1]).toEqual(['Природа', 'варіанти', 'Яка планета?', 'Венера', 'Меркурій', 'Венера', 'Марс', null, null, null, 1000, 30, 'Друга', 'Друга від Сонця.']);
     expect(rows[2]![1]).toBe('так-ні');
     expect(rows[2]![3]).toBe('ні');
     expect(rows[3]![1]).toBe('текст');
@@ -52,6 +52,7 @@ describe('quizToRows', () => {
     expect(rows[4]![10]).toBe(500);
     expect(rows[4]![11]).toBe(25);
     expect(rows[2]![12]).toBe('');
+    expect(rows[2]![13]).toBe('');
   });
 
   it('skips what the table cannot carry', () => {
@@ -96,7 +97,7 @@ it('keeps choice questions with options repeating in another case in the quiz fi
 
   it('round trip of the four types', () => {
     const quiz = quizOf([
-      single('a', 'Яка планета?', ['Меркурій', 'Венера', 'Марс'], 1, { hint: 'Друга', points: 700, timeLimit: 40 }),
+      single('a', 'Яка планета?', ['Меркурій', 'Венера', 'Марс'], 1, { hint: 'Друга', explanation: 'Друга від Сонця.\nПісля Меркурія.', points: 700, timeLimit: 40 }),
       bool('b', { points: 300, timeLimit: 25 }),
       text('c', ['Тихий', 'Тихий океан']),
       num('d', { points: 500, timeLimit: 25 }),
@@ -108,7 +109,8 @@ it('keeps choice questions with options repeating in another case in the quiz fi
     const back = result.quiz;
     expect(back.rounds.map((r) => r.title)).toEqual(['Природа', 'Інше']);
     const [qa, qb, qc, qd] = (back.rounds[0] as ClassicRound).questions;
-    expect(qa).toMatchObject({ type: 'single', text: 'Яка планета?', points: 700, timeLimit: 40, hint: 'Друга' });
+    expect(qa).toMatchObject({ type: 'single', text: 'Яка планета?', points: 700, timeLimit: 40, hint: 'Друга', explanation: 'Друга від Сонця.\nПісля Меркурія.' });
+    expect(qb).not.toHaveProperty('explanation');
     const sa = qa as Extract<Question, { type: 'single' }>;
     expect(sa.options.map((o) => o.text)).toEqual(['Меркурій', 'Венера', 'Марс']);
     expect(sa.options.find((o) => o.id === sa.correctId)?.text).toBe('Венера');
@@ -144,11 +146,16 @@ describe('rowsToQuiz', () => {
     expect(q).toMatchObject({ timeLimit: 40, hint: 'Підказка' });
   });
 
-  it('an «Explanation»-like column is not the hint (it could leak the answer)', () => {
+  it('an «Explanation» column is the explanation, not the hint (it could leak the answer)', () => {
     const rows = [['Запитання', 'Тип', 'Відповідь', 'Пояснення'], ['Q', 'текст', 'a', 'секрет']];
+    expect((ok(rowsToQuiz(rows, 'f')).rounds[0] as ClassicRound).questions[0]).toMatchObject({ explanation: 'секрет' });
     expect((ok(rowsToQuiz(rows, 'f')).rounds[0] as ClassicRound).questions[0]!.hint).toBeUndefined();
     const english = [['Question', 'Type', 'Answer', 'Explanation'], ['Q', 'text', 'a', 'secret']];
+    expect((ok(rowsToQuiz(english, 'f')).rounds[0] as ClassicRound).questions[0]).toMatchObject({ explanation: 'secret' });
     expect((ok(rowsToQuiz(english, 'f')).rounds[0] as ClassicRound).questions[0]!.hint).toBeUndefined();
+    // Старий файл без стовпчика — запитання без пояснення.
+    const old = [HEAD.slice(0, -1), row({ answer: 'a' }).slice(0, -1)];
+    expect((ok(rowsToQuiz(old, 'f')).rounds[0] as ClassicRound).questions[0]).not.toHaveProperty('explanation');
   });
 
   it('number cells: a thousands separator is refused, an exponent is accepted', () => {
@@ -233,6 +240,7 @@ describe('rowsToQuiz', () => {
       ['bad_points', row({ points: '2001' })],
       ['bad_timer', row({ timer: '4' })],
       ['hint_long', row({ hint: 'я'.repeat(LIMITS.hintText + 1) })],
+      ['explanation_long', row({ explanation: 'я'.repeat(LIMITS.explanationText + 1) })],
       ['round_long', row({ round: 'я'.repeat(LIMITS.roundTitle + 1) })],
     ];
     for (const [code, data] of cases) {
@@ -292,7 +300,7 @@ describe('template', () => {
 
 describe('table words', () => {
   it('cover every locale without ambiguity', () => {
-    const columns: ColumnKey[] = ['round', 'type', 'question', 'answer', 'option', 'points', 'timer', 'hint'];
+    const columns: ColumnKey[] = ['round', 'type', 'question', 'answer', 'option', 'points', 'timer', 'hint', 'explanation'];
     const types: TableType[] = ['single', 'boolean', 'text', 'numeric'];
     for (const [locale, words] of Object.entries(TABLE_WORDS)) {
       // Заголовки читаються лише в першому рядку, назви типів і так/ні — лише в клітинках: двозначність можлива в межах кожної групи.

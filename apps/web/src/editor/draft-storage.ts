@@ -380,13 +380,14 @@ function reviveCrossword(base: Extract<Question, { type: 'crossword' }>): Questi
 }
 
 function revive(stored: Question): Question {
-  // Підказка — лише рядок: зіпсоване значення зникає, а не ламає редактор.
-  const { hint, audio, reveal, ...question } = stored;
+  // Підказка й пояснення — лише рядки: зіпсоване значення зникає, а не ламає редактор.
+  const { hint, explanation, audio, reveal, ...question } = stored;
   const video = videoSchema.safeParse(question.video).success ? question.video : null;
   const revivedAudio = reviveAudio(audio);
   const base = {
     ...question,
     ...(typeof hint === 'string' ? { hint } : {}),
+    ...(typeof explanation === 'string' ? { explanation } : {}),
     ...(revivedAudio === null || video !== null ? {} : { audio: revivedAudio }),
     ...((REVEAL_MODES as readonly string[]).includes(reveal as string) ? { reveal } : {}),
     video,

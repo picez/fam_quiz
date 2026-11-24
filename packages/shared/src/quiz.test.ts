@@ -1263,6 +1263,18 @@ describe('buffs and debuffs in the settings', () => {
     const empty = { ...baseQuiz, rounds: [{ ...baseQuiz.rounds[0], questions: [{ ...single, hint: '   ' }] }] };
     expect(valid(quizSchema, empty)).toBe(false);
   });
+
+  it('a question may carry an explanation up to LIMITS.explanationText; old questions have none', () => {
+    expect(questionsOf(quizSchema.parse(baseQuiz))[0].explanation).toBeUndefined();
+    const told = { ...baseQuiz, rounds: [{ ...baseQuiz.rounds[0], questions: [{ ...single, explanation: '  Бо Дніпро тече через Київ. ' }] }] };
+    expect(questionsOf(quizSchema.parse(told))[0].explanation).toBe('Бо Дніпро тече через Київ.');
+    const max = { ...baseQuiz, rounds: [{ ...baseQuiz.rounds[0], questions: [{ ...single, explanation: 'я'.repeat(LIMITS.explanationText) }] }] };
+    expect(valid(quizSchema, max)).toBe(true);
+    const long = { ...baseQuiz, rounds: [{ ...baseQuiz.rounds[0], questions: [{ ...single, explanation: 'я'.repeat(LIMITS.explanationText + 1) }] }] };
+    expect(valid(quizSchema, long)).toBe(false);
+    const empty = { ...baseQuiz, rounds: [{ ...baseQuiz.rounds[0], questions: [{ ...single, explanation: '   ' }] }] };
+    expect(valid(quizSchema, empty)).toBe(false);
+  });
   it('spare pool rules', () => {
     expect(valid(quizSchema, { ...baseQuiz, spares: [spareSingle] })).toBe(true);
     expect(valid(quizSchema, { ...baseQuiz, spares: [] })).toBe(false);
@@ -2673,6 +2685,8 @@ describe('drawing question (28c)', () => {
     expect(qIssues(drawingQ({ audio: { source: 'youtube', id: 'dQw4w9WgXcQ', start: 0, duration: 15 } }))).toContain('drawing_video');
     // підказка недосяжна (баф вимкнено), тож і не зберігається
     expect(qIssues(drawingQ({ hint: 'Жовта квітка' }))).toContain('drawing_hint');
+    // Пояснення — не баф: у малюнку воно дозволене, як і в будь-якому типі.
+    expect(qIssues(drawingQ({ explanation: 'Соняшник — символ України.' }))).toEqual(qIssues(drawingQ()));
   });
 
   it('refuses a word or a spelling longer than the guess field', () => {
