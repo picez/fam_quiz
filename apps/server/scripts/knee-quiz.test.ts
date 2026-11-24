@@ -1,7 +1,8 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { LIMITS, questionPrice, questionsOf, quizSchema, roundTrials, type Question, type Quiz } from '@quiz/shared';
+import { CHALLENGE_SKIP_BUFFS, CHALLENGE_SKIP_ROUNDS, CHALLENGE_SKIP_TYPES, LIMITS, questionPrice, questionsOf, quizSchema, roundTrials, type Question, type Quiz } from '@quiz/shared';
+import { KNEE_EXPLANATIONS } from './knee/explanations';
 import { kneeQuiz } from './knee-quiz';
 import { KNEE_IMAGES, KNEE_KEYS, aspectOf, imageSvg, pinOf, type KneeImage } from './knee/images';
 import { MIN_TIMER } from './mix-quiz';
@@ -33,7 +34,7 @@ describe('the «Knie & Unterschenkel» anatomy quiz', () => {
   it('passes the quiz schema and has the planned size and rounds', () => {
     const result = quizSchema.safeParse(quiz);
     expect(result.success ? [] : result.error.issues).toEqual([]);
-    expect(quiz.rounds.map((r) => r.type)).toEqual(['classic', 'classic', 'board', 'blitz', 'wipeout', 'puzzles', 'auction', 'final']);
+    expect(quiz.rounds.map((r) => r.type)).toEqual(['classic', 'classic', 'board', 'classic', 'wipeout', 'puzzles', 'classic', 'final']);
     expect(everything.length).toBeGreaterThanOrEqual(75);
     expect(everything.length).toBeLessThanOrEqual(LIMITS.maxQuizQuestions);
   });
@@ -46,8 +47,23 @@ describe('the «Knie & Unterschenkel» anatomy quiz', () => {
 
   it('gives every question at least 25 seconds', () => {
     expect(withSpares.filter((q) => q.timeLimit < MIN_TIMER).map((q) => q.id)).toEqual([]);
-    const blitz = quiz.rounds.find((r) => r.type === 'blitz');
-    expect(blitz?.type === 'blitz' ? blitz.answerWindow : 0).toBeGreaterThanOrEqual(MIN_TIMER);
+  });
+
+  it('is made for one person: no rounds, question types, settings or buffs that need other players', () => {
+    const solo = new Set<string>([...CHALLENGE_SKIP_ROUNDS, 'blitz']);
+    expect(quiz.rounds.filter((r) => solo.has(r.type)).map((r) => r.type)).toEqual([]);
+    expect(withSpares.filter((q) => (CHALLENGE_SKIP_TYPES as readonly string[]).includes(q.type)).map((q) => q.id)).toEqual([]);
+    expect(quiz.settings.debuffs ?? []).toEqual([]);
+    expect(quiz.settings.debuffShop ?? false).toBe(false);
+    expect(quiz.settings.teams ?? false).toBeFalsy();
+    for (const b of CHALLENGE_SKIP_BUFFS) expect(quiz.settings.buffs ?? []).not.toContain(b);
+  });
+
+  it('explains every question, each explanation used exactly once and within the limit', () => {
+    expect(withSpares.filter((q) => (q.explanation ?? '').length < 40).map((q) => q.id)).toEqual([]);
+    expect(withSpares.filter((q) => (q.explanation ?? '').length > LIMITS.explanationText).map((q) => q.id)).toEqual([]);
+    const used = withSpares.map((q) => q.explanation);
+    expect(KNEE_EXPLANATIONS.filter(([, text]) => used.filter((u) => u === text).length !== 1).map(([key]) => key)).toEqual([]);
   });
 
   it('prices the board 100…500 by difficulty with ×2/×3 marks on varying prices', () => {
@@ -60,9 +76,9 @@ describe('the «Knie & Unterschenkel» anatomy quiz', () => {
     expect(marked.size).toBeGreaterThan(1);
   });
 
-  it('raises the prices in the classic rounds, «Alles oder nichts» and the auction', () => {
+  it('raises the prices in the classic rounds and «Alles oder nichts»', () => {
     for (const r of quiz.rounds) {
-      if (!['classic', 'wipeout', 'auction'].includes(r.type) || !('questions' in r)) continue;
+      if (!['classic', 'wipeout'].includes(r.type) || !('questions' in r)) continue;
       const points = r.questions.map(questionPrice);
       expect(points.filter((p, i) => i > 0 && p < points[i - 1]!), r.title).toEqual([]);
     }
