@@ -9,6 +9,8 @@ export const AWAY_RETRY_MS = 1000;
 export const AWAY_ACK_MS = 5000;
 /** Як часто перевіряти фокус після виходу через blur (WebKit може не надіслати focus). */
 export const AWAY_FOCUS_POLL_MS = 500;
+/** Скільки після останньої дії палець, що не підняли, вважається на сторінці (touchend міг загубитися). */
+export const AWAY_TOUCH_HOLD_MS = 10_000;
 
 /** Відповіді, після яких звіт уже не повторюється: прийнято або сервер його ніколи не прийме. */
 const FINAL = new Set(['forbidden', 'invalid_payload', 'not_found', 'game_not_found']);
@@ -20,6 +22,9 @@ const FINAL = new Set(['forbidden', 'invalid_payload', 'not_found', 'game_not_fo
 export function blurIsAway(hasFocus: boolean): boolean {
   return !hasFocus;
 }
+
+/** Дії на сторінці, після яких blur — від самої сторінки (pointermove миші не рахується: миша водить і над вікном без фокусу). */
+const ACTS = ['touchstart', 'touchmove', 'touchend', 'touchcancel', 'pointerdown', 'pointerup', 'pointermove', 'keydown', 'scroll'] as const;
 
 const cap = (ms: number) => clamp(Math.round(ms), 0, AWAY_REPORT_MAX_MS);
 
@@ -48,6 +53,8 @@ function sendWithin(send: Send, payload: unknown): Promise<SendResult> {
  * самих виходів (видимий час між ними не рахується). Значення рахуються в мить надсилання: буфер socket.io не
  * використовується (send без зв'язку одразу відповідає offline). too_soon — повтор за секунду.
  * Вихід через blur закінчується й першим дотиком чи клавішею, і фокусом, який перевіряється раз на AWAY_FOCUS_POLL_MS.
+ * Blur, коли палець на сторінці чи сторінка відповідає на дотик / прокрутку / клавішу під час паузи перевірки, — не вихід:
+ * iPad (WebKit) шле blur і document.hasFocus() false, коли прокрутка ховає системну клавіатуру (кросворд).
  * Вимкнено поза роллю player, у лобі й після кінця гри.
  */
 export function useAwayWatch(send: Send, status: Status, view: GameView | null): void {
@@ -82,6 +89,16 @@ export function useAwayWatch(send: Send, status: Status, view: GameView | null):
     let blurTimer: ReturnType<typeof setTimeout> | null = null;
     let retryTimer: ReturnType<typeof setTimeout> | null = null;
     let focusPoll: ReturnType<typeof setInterval> | null = null;
+    // Пальці на сторінці й мить останньої дії на ній (дотик, прокрутка, клавіша): blur під час дії — зі сторінки, не вихід.
+    let touches = 0;
+    let actedAt = -Infinity;
+    const onAct = (event: Event) => {
+      if (event.type === 'pointermove' && (event as PointerEvent).pointerType === 'mouse') return;
+      const list = (event as TouchEvent).touches;
+      if (event.type === 'touchstart') touches = Math.max(1, list?.length ?? 0);
+      else if (event.type === 'touchend' || event.type === 'touchcancel') touches = list?.length ?? 0;
+      if (event.type !== 'touchcancel') actedAt = Date.now();
+    };
 
     const flush = () => {
       if (!alive || busy || statusRef.current !== 'live') return;
@@ -127,6 +144,7 @@ export function useAwayWatch(send: Send, status: Status, view: GameView | null):
       if (focusPoll !== null) clearInterval(focusPoll);
       focusPoll = null;
       document.removeEventListener('pointerdown', onTouch, true);
+      document.removeEventListener('touchstart', onTouch, true);
       document.removeEventListener('keydown', onTouch, true);
     };
     const leave = (at: number, byBlur: boolean) => {
@@ -140,6 +158,7 @@ export function useAwayWatch(send: Send, status: Status, view: GameView | null):
       state.byBlur = byBlur;
       if (byBlur) {
         document.addEventListener('pointerdown', onTouch, true);
+        document.addEventListener('touchstart', onTouch, true);
         document.addEventListener('keydown', onTouch, true);
         focusPoll = setInterval(() => {
           if (document.visibilityState !== 'hidden' && document.hasFocus()) back();
@@ -171,6 +190,9 @@ export function useAwayWatch(send: Send, status: Status, view: GameView | null):
       const blurAt = Date.now();
       blurTimer = setTimeout(() => {
         blurTimer = null;
+        // Палець досі на сторінці чи сторінка відповідала на дію після blur — фокус забрала сама сторінка (iPad).
+        // Загублений touchend не вимикає нагляд назавжди: палець «на сторінці» лише AWAY_TOUCH_HOLD_MS від останньої дії.
+        if ((touches > 0 && Date.now() - actedAt < AWAY_TOUCH_HOLD_MS) || actedAt > blurAt) return;
         if (blurIsAway(document.hasFocus())) leave(blurAt, true);
       }, AWAY_MS.blurGrace);
     };
@@ -179,6 +201,7 @@ export function useAwayWatch(send: Send, status: Status, view: GameView | null):
     };
 
     document.addEventListener('visibilitychange', onVisibility);
+    for (const type of ACTS) document.addEventListener(type, onAct, { capture: true, passive: true });
     window.addEventListener('blur', onBlur);
     window.addEventListener('focus', onFocus);
     onLive.current = () => {
@@ -196,6 +219,7 @@ export function useAwayWatch(send: Send, status: Status, view: GameView | null):
       stopBlurWatch();
       if (retryTimer !== null) clearTimeout(retryTimer);
       document.removeEventListener('visibilitychange', onVisibility);
+      for (const type of ACTS) document.removeEventListener(type, onAct, { capture: true });
       window.removeEventListener('blur', onBlur);
       window.removeEventListener('focus', onFocus);
       onLive.current = () => {};

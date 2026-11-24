@@ -152,6 +152,79 @@ describe('useAwayWatch', () => {
     expect(send).toHaveBeenCalledTimes(2);
   });
 
+  it('ends a blur leave on a touchstart (iPad may not send pointerdown on a scroll)', async () => {
+    watch();
+    await run(blur);
+    await wait(800);
+    await run(() => document.dispatchEvent(new Event('touchstart')));
+    expect(send).toHaveBeenLastCalledWith('player:away', { away: false, ms: 800 });
+  });
+
+  // iPad: прокрутка кросворду ховає системну клавіатуру — WebKit шле blur, а document.hasFocus() лишається false.
+  it('ignores a blur while a finger is on the page (a scroll hid the keyboard)', async () => {
+    watch();
+    await run(() => document.dispatchEvent(new Event('touchstart')));
+    await wait(100);
+    await run(blur);
+    await wait(3000);
+    expect(send).not.toHaveBeenCalled();
+  });
+
+  it('ignores a blur followed by a scroll or a touch within the grace', async () => {
+    watch();
+    await run(blur);
+    await wait(150);
+    await run(() => document.dispatchEvent(new Event('scroll')));
+    await wait(3000);
+    expect(send).not.toHaveBeenCalled();
+    await run(focus);
+    await run(blur);
+    await wait(100);
+    await run(() => document.dispatchEvent(new Event('touchend')));
+    await wait(3000);
+    expect(send).not.toHaveBeenCalled();
+  });
+
+  it('still counts a blur after the finger left: lifted or taken by a system gesture (touchcancel)', async () => {
+    watch();
+    await run(() => document.dispatchEvent(new Event('touchstart')));
+    await run(() => document.dispatchEvent(new Event('touchend')));
+    await wait(50);
+    await run(blur);
+    await wait(300);
+    expect(send).toHaveBeenCalledWith('player:away', { away: true });
+    await run(focus);
+    send.mockClear();
+    await wait(2000);
+    await run(() => document.dispatchEvent(new Event('touchstart')));
+    await run(() => document.dispatchEvent(new Event('touchcancel')));
+    await run(blur);
+    await wait(300);
+    expect(send).toHaveBeenCalledWith('player:away', { away: true });
+  });
+
+  it('a mouse moving over the unfocused window does not cancel the leave', async () => {
+    watch();
+    await run(blur);
+    await wait(100);
+    await run(() => {
+      const move = new Event('pointermove');
+      Object.defineProperty(move, 'pointerType', { value: 'mouse' });
+      document.dispatchEvent(move);
+    });
+    await wait(200);
+    expect(send).toHaveBeenCalledWith('player:away', { away: true });
+  });
+
+  it('a finger whose touchend was lost stops counting after the hold', async () => {
+    watch();
+    await run(() => document.dispatchEvent(new Event('touchstart')));
+    await wait(10_000);
+    await run(blur);
+    await wait(300);
+    expect(send).toHaveBeenCalledWith('player:away', { away: true });
+  });
+
   it('ends a blur leave on a key press', async () => {
     watch();
     await run(blur);
