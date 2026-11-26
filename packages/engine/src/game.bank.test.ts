@@ -190,8 +190,10 @@ describe('the bank reveal', () => {
     expect(playerView(s, 'p3')!.me).toMatchObject({ score: 600, result: null });
     expect(stage.final).not.toHaveProperty('splitNext');
     expect(playerView(s, 'p1')!.final).not.toHaveProperty('splitNext');
-    // Ведучий бачить справжні бали, як і досі.
-    expect(hostView(s).final?.entries.find((e) => e.playerId === 'p2')?.after).toBe(1067);
+    // Пульт — за тим самим правилом, що й сцена: частка банку лише на кроці розподілу.
+    const hostJson = JSON.stringify(hostView(s));
+    for (const leak of ['667', '1067', '333', '933']) expect(hostJson).not.toContain(leak);
+    expect(hostView(s).final?.entries.find((e) => e.playerId === 'p2')?.after).toBe(stage.final?.shown.find((e) => e.playerId === 'p2')?.after);
   });
 
   it('a refund: the losers scores come back on the split step', () => {
