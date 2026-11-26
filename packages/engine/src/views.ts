@@ -133,6 +133,8 @@ import {
   type BluffOptionView,
   type SurveyRowView,
   type SortRow,
+  type SoloProgress,
+  type SoloWatch,
   type Choice,
   type SurvivalInfo,
   type SurvivalRow,
@@ -1765,6 +1767,48 @@ function playerLetterWords(state: GameState, playerId: string): PlayerLetterWord
   // Кінця часу зріз не знає (у нього немає now): між endsAt і закриттям поле гасить телефон за годинником (PlayerScreen).
   const canType = state.phase === 'question' && !state.paused && (play.letterwords?.best ?? null) !== null;
   return { words, canType };
+}
+
+/** Поступ того, хто відповідає сам, — лише вже зроблене ним (типи без власного живого показу); інакше undefined. */
+function soloProgress(state: GameState, play: Play, id: string): SoloProgress | undefined {
+  // Запасне (заміна на полі) — інше запитання: його поступу тут немає.
+  if (questionFor(state, play, id) !== play.question) return undefined;
+  const question = play.question;
+  if (question.type === 'timedlist') {
+    const list = playerTimedList(state, id);
+    return list === undefined ? undefined : { kind: 'timedlist', found: list.found, total: list.total, wrong: list.wrong };
+  }
+  if (question.type === 'wordladder') {
+    const ladder = playerWordLadder(state, id);
+    return ladder === undefined ? undefined : { kind: 'wordladder', words: ladder.words, finished: ladder.finished };
+  }
+  if (question.type === 'letterwords') {
+    const letters = playerLetterWords(state, id);
+    return letters === undefined ? undefined : { kind: 'letterwords', words: letters.words };
+  }
+  if (question.type === 'chain') {
+    // Непройдені — як у публічних масках (перша літера): відкриті ним підказки й наступне слово лишаються його.
+    const { solved, hints } = chainOf(state, id);
+    const hidden = question.words.slice(1);
+    return { kind: 'chain', solved, total: hidden.length, hints, masks: hidden.map((word, i) => (i < solved ? [...word] : maskWord(word, 1))) };
+  }
+  return undefined;
+}
+
+/**
+ * Живий показ того, хто відповідає сам на очах у всіх (як soleSorter: звичайна клітинка поля — той, хто вибрав; продане запитання
+ * «Аукціону» — переможець торгу), на question і locked. viewer — сторона телефона (гравець чи команда), null — сцена;
+ * тому, хто відповідає, показ не потрібен — у нього власне поле.
+ */
+function soloWatch(state: GameState, viewer: string | null): SoloWatch | undefined {
+  if (state.phase !== 'question' && state.phase !== 'locked') return undefined;
+  const play = state.plays[state.questionIndex];
+  if (play === undefined || play.roundIndex !== state.roundIndex) return undefined;
+  const id = soleSorter(state, play);
+  const player = id === null ? undefined : state.players.find((p) => p.id === id);
+  if (player === undefined || player.id === viewer) return undefined;
+  const progress = soloProgress(state, play, player.id);
+  return progress === undefined ? undefined : { playerId: player.id, nickname: player.nickname, progress };
 }
 
 /** Поточне запитання «Більше чи менше» з його грою; null поза запитанням або для інших типів. */
@@ -3781,6 +3825,8 @@ function stageViewOf(state: GameState): StageView {
   return {
     ...base(state, false),
     role: 'stage',
+    // Хтось відповідає сам (клітинка поля, продане «Аукціону»): сцена бачить його поступ наживо.
+    ...optional('solo', soloWatch(state, null)),
     players: state.players.map((p) => ({ id: p.id, nickname: p.nickname, connected: p.connected, streak: shownStreak(state, p), ...seriesKey(state, p.id, false) })),
     reveal: revealed,
     // У фіналі лічильники видали б результат ще не розкритих гравців.
@@ -4006,6 +4052,8 @@ function buildOwnView(state: GameState, playerId: string): Omit<PlayerView, 'tea
     ...(shared.sort !== null && (shared.sort.words !== null || shared.sort.live !== null) && (open?.board.chooserId ?? (play === undefined ? null : soleSorter(state, play))) === playerId
       ? { sort: { ...shared.sort, words: null, live: null } }
       : {}),
+    // Глядач того, хто відповідає сам, бачить його поступ наживо; сам він (його команда) — лише власне поле.
+    ...optional('solo', soloWatch(state, playerId)),
     role: 'player',
     me: {
       id: player.id,

@@ -683,6 +683,27 @@ export interface MoreLessCellWatch {
   picks: MoreLessSide[];
 }
 
+/**
+ * Поступ того, хто відповідає сам на очах у всіх, — лише вже зроблене ним: без незнайдених пунктів, шляху ведучого
+ * й наступного слова ланцюжка (маски непройдених — лише перша літера, без його підказок).
+ */
+export type SoloProgress =
+  | { kind: 'timedlist'; found: { index: number; text: string }[]; total: number; wrong: number }
+  | { kind: 'wordladder'; words: string[]; finished: boolean }
+  | { kind: 'letterwords'; words: { text: string; letters: number }[] }
+  | { kind: 'chain'; solved: number; total: number; hints: number; masks: ChainMask[] };
+
+/**
+ * Хто відповідає сам (звичайна клітинка поля — той, хто вибрав; продане запитання «Аукціону» — переможець торгу; у командній
+ * грі — команда) і його живий поступ — для глядачів на question і locked (сортування — SortInfo.live, «Більше чи менше» — MoreLessInfo.watch).
+ */
+export interface SoloWatch {
+  playerId: string;
+  /** Нікнейм; для команди — назва команди. */
+  nickname: string;
+  progress: SoloProgress;
+}
+
 export interface MoreLessInfo {
   /** За done спаданням, далі в порядку гравців. */
   rows: MoreLessRow[];
@@ -2100,6 +2121,8 @@ interface BaseView {
   levels?: Record<string, NickLevel>;
   /** Бонуси рівнів (ставить рушій): без ключа — діють; 'off' — ведучий вимкнув; 'none' — командна гра чи жоден не пасує вікторині. */
   levelBonuses?: 'off' | 'none';
+  /** Хтось відповідає сам на очах у всіх: сцені й телефонам решти; тому, хто відповідає, і пульту ключа немає. */
+  solo?: SoloWatch;
   phase: Phase;
   paused: boolean;
   /** Раунд; null у лобі. */
