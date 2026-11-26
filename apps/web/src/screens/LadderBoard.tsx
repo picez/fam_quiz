@@ -1,19 +1,9 @@
-import type { CSSProperties } from 'react';
+import { useLayoutEffect, useRef, type CSSProperties } from 'react';
 import type { LadderInfo, LadderStep } from '@quiz/shared';
 import { num } from '../format';
 import { t } from '../i18n';
 
 type Size = 'stage' | 'host' | 'phone';
-
-/** Телефон: поточна сходинка і по одній з боків (або перші три до початку, останні три на верху). */
-function phoneWindow(info: LadderInfo): { step: LadderStep; index: number }[] {
-  const all = info.steps.map((step, index) => ({ step, index }));
-  const span = 3;
-  if (all.length <= span) return all;
-  const center = Math.min(Math.max(info.current, 0), all.length - 1);
-  const start = Math.min(Math.max(center - 1, 0), all.length - span);
-  return all.slice(start, start + span);
-}
 
 /** Назва сходинки для читача з екрана: сума й усе, що на ній особливе, — сума не ховається. */
 function stepLabel(step: LadderStep): string {
@@ -23,19 +13,33 @@ function stepLabel(step: LadderStep): string {
 
 /**
  * Драбина «Мільйонера»: сходинки згори вниз (верх — найбільша сума), неспалимі виділені, поточна підсвічена,
- * пройдені приглушені, сходинка помилки позначена. На телефоні — компактна смуга.
+ * пройдені приглушені, сходинка помилки позначена. На телефоні — уся драбина компактними рядками; довга гортається,
+ * і поточна сходинка (чи помилка) стоїть у полі зору.
  */
 export function LadderBoard({ info, size }: { info: LadderInfo; size: Size }) {
-  const rows = (size === 'phone' ? phoneWindow(info) : info.steps.map((step, index) => ({ step, index }))).reverse();
+  const rows = info.steps.map((step, index) => ({ step, index })).reverse();
+  const list = useRef<HTMLOListElement | null>(null);
+  const focus = info.steps.findIndex((step) => step.state === 'current' || step.state === 'failed');
+  // Телефон: список гортається сам, лише в межах смуги — сторінка не стрибає.
+  useLayoutEffect(() => {
+    const el = list.current;
+    if (size !== 'phone' || el === null || focus < 0) return;
+    const item = el.querySelector<HTMLElement>('[data-focus]');
+    if (item === null) return;
+    // Поточна — посередині смуги: видно й сходинки над нею, і пройдені під нею.
+    const top = item.getBoundingClientRect().top - el.getBoundingClientRect().top + el.scrollTop;
+    el.scrollTop = Math.max(0, top - (el.clientHeight - item.offsetHeight) / 2);
+  }, [size, focus]);
   return (
     <section className={`ladder-board is-${size}`} aria-label={t('ladderTitle')} style={{ '--ladder-steps': rows.length } as CSSProperties}>
-      <ol className="ladder-steps">
+      <ol className="ladder-steps" ref={list}>
         {rows.map(({ step, index }) => (
           <li
             key={index}
             className={`ladder-step is-${step.state}${step.safe ? ' is-safe' : ''}`}
             aria-label={stepLabel(step)}
             aria-current={step.state === 'current' ? 'step' : undefined}
+            data-focus={index === focus || undefined}
           >
             <span className="ladder-number" aria-hidden="true">
               {index + 1}

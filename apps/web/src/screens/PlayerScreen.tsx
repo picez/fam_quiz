@@ -17,7 +17,7 @@ import { GuidePageView } from '../live/Guide';
 import { GuideSkipVote } from '../live/GuideSkip';
 import { Splash, useSplash } from '../live/Splash';
 import { AwayAlarm, AwayNote } from '../live/AwayAlarm';
-import { Timer, timerStatus, useTimeOver } from '../live/Timer';
+import { Timer, timerStatus, usePersonalTotal, useTimeOver } from '../live/Timer';
 import { secondsLeft } from '../clock';
 import type { Send } from '../live/types';
 import { publicWindowMs, questionElapsedMs, revealStage, useRevealProgress } from '../reveal';
@@ -746,29 +746,6 @@ function useKeptHeight(open: boolean, key: number) {
   return { ref, minHeight: open ? undefined : kept.current?.height };
 }
 
-/**
- * Повний час для власного годинника: спільний ліміт плюс власний додатковий час (кінець особистий − кінець спільний;
- * на паузі — різниця залишків). Найбільше значення за запитання тримається: пауза після спільного кінця
- * зменшує додатковий час на витрачене, а смужка не має стрибати.
- */
-function usePersonalTotal(
-  view: { questionIndex: number; limitMs: number | null; endsAt: number | null; remainingMs: number | null },
-  myClock: { endsAt: number | null; remainingMs: number | null } | null,
-): number | null {
-  const kept = useRef<{ questionIndex: number; total: number } | null>(null);
-  if (view.limitMs === null || myClock === null) return view.limitMs;
-  const extra =
-    myClock.endsAt !== null && view.endsAt !== null
-      ? myClock.endsAt - view.endsAt
-      : myClock.remainingMs !== null && view.remainingMs !== null
-        ? myClock.remainingMs - view.remainingMs
-        : 0;
-  let total = view.limitMs + Math.max(0, extra);
-  if (kept.current !== null && kept.current.questionIndex === view.questionIndex) total = Math.max(total, kept.current.total);
-  kept.current = { questionIndex: view.questionIndex, total };
-  return total;
-}
-
 export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = NO_TILTS, code = '', stageUrl = null, stageOnline = true, reactions = NO_REACTIONS, drawing = null, requestSync = NO_SYNC, answerPending = false, answerError = null }: Props) {
   // Напруга перед вердиктом (беклог 19): після оцінки ведучого ще мить видно помаранчеву відповідь.
   const { view, suspense } = useVerdictSuspense(live);
@@ -901,7 +878,9 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
     if (peekFor !== null && !peekAllowed) setPeekFor(null);
   }, [peekFor, peekAllowed]);
   const sharedOver = useTimeOver(view.endsAt, view.remainingMs, offsetMs);
-  const clockTotal = usePersonalTotal(view, myClock);
+  // Табло: свій кінець, поки відповідаю; хто вже не відповідає, бачить, коли запитання справді закриється (чужий додатковий час).
+  const shownClock = myClock ?? me.closing ?? null;
+  const clockTotal = usePersonalTotal(view, shownClock);
   const waiting = phase === 'question' && myClock === null && sharedOver && view.overtime.length > 0;
   const activeBuff = me.buffs?.active ?? null;
   const retryStage = activeBuff?.retry ?? null;
@@ -1208,8 +1187,8 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
               {waiting && <OvertimeLine rows={view.overtime} offsetMs={offsetMs} />}
             </div>
             {/* «Без годинника»: на місці табло — ⌛ тієї самої висоти; кінець часу приходить несподівано. */}
-            {!chainMine && debuff?.kind === 'noclock' && secondsLeft(myClock ?? view, offsetMs, Date.now()) !== null && <NoClock total={clockTotal} status={timerStatus(view)} />}
-            {!chainMine && debuff?.kind !== 'noclock' && <Timer view={myClock ?? view} offsetMs={offsetMs} total={clockTotal} status={timerStatus(view)} leadMs={question.audio && view.bluff?.stage !== 'choice' ? publicWindowMs(question) - (question.timeLimit ?? 0) * 1000 : 0} />}
+            {!chainMine && debuff?.kind === 'noclock' && secondsLeft(shownClock ?? view, offsetMs, Date.now()) !== null && <NoClock total={clockTotal} status={timerStatus(view)} />}
+            {!chainMine && debuff?.kind !== 'noclock' && <Timer view={shownClock ?? view} offsetMs={offsetMs} total={clockTotal} status={timerStatus(view)} leadMs={question.audio && view.bluff?.stage !== 'choice' ? publicWindowMs(question) - (question.timeLimit ?? 0) * 1000 : 0} />}
           </div>
           {thinkHearts}
           {board !== null && board.cell !== null && (
@@ -1652,7 +1631,7 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
           ) : (question?.type === 'sudoku' || question?.type === 'crossword') && me.puzzle !== undefined ? (
             // Головоломки (28d): сітка лише для перегляду; правильність — на розкритті.
             <section className="sent">
-              <h2>{me.puzzle.done ? t('puzzleWaiting') : t(ranOut ? 'puzzleTimeUp' : 'puzzleClosed')}</h2>
+              <h2>{me.puzzle.done ? (me.puzzle.timeMs !== null ? t('puzzleDoneIn', { time: secondsText(me.puzzle.timeMs) }) : t('puzzleWaiting')) : t(ranOut ? 'puzzleTimeUp' : 'puzzleClosed')}</h2>
               <PuzzlePlay key={view.questionIndex} info={me.puzzle} question={question} questionIndex={view.questionIndex} paused={false} timeUp={false} closed send={send} pencil={code === '' ? undefined : { room: code, round: view.round?.index ?? 0 }} />
             </section>
           ) : question?.type === 'jigsaw' && me.jigsaw !== undefined ? (

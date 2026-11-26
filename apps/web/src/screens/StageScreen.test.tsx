@@ -1560,6 +1560,14 @@ describe('StageScreen final', () => {
     expect(screen.queryByText(/Чекаємо:/)).toBeNull();
   });
 
+  it('the stage clock runs to when the question really closes, not to the shared end', () => {
+    const now = Date.now();
+    const overtime = [{ playerId: 'p1', nickname: 'Оля', deadline: now + 24_000, remainingMs: null }];
+    show(view({ phase: 'question', questionIndex: 0, question, endsAt: now + 4000, limitMs: 20_000, overtime, closing: { endsAt: now + 24_000, remainingMs: null } }));
+    expect(screen.getByRole('timer').getAttribute('aria-label')).toBe('24');
+    expect(screen.getByText('/ 40 с')).toBeTruthy();
+  });
+
   it('a buff notice on the stage', () => {
     show(view({ phase: 'question', questionIndex: 0, question, endsAt: Date.now() + 10_000, buffNotice: { seq: 1, at: Date.now(), playerId: 'p2', nickname: 'Оля', kind: 'fifty', questionIndex: 0, target: null } }));
     expect(screen.getByText('Оля: 50/50')).toBeTruthy();

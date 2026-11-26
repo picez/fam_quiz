@@ -209,6 +209,17 @@ describe('puzzle views', () => {
     expect(host?.boards.every((b) => b.solved === null)).toBe(true);
   });
 
+  it('«Готово» gives the player their own time; the closing record without «Готово» does not', () => {
+    // Запитання відкрито о 0: «Готово» о 2000 — 2 с.
+    const s = must(puzzleFinish(write(played(), 'p3', empties), 'p3', 0, 2000));
+    expect(playerView(s, 'p3')?.me.puzzle?.timeMs).toBe(2000);
+    expect(playerView(s, 'p1')?.me.puzzle?.timeMs).toBeNull();
+    const shown = revealed(s);
+    expect(playerView(shown, 'p3')?.me.puzzle?.timeMs).toBe(2000);
+    // p1 не натискала «Готово»: запис на закритті має час ліміту, але це не її час.
+    expect(playerView(shown, 'p1')?.me.puzzle?.timeMs).toBeNull();
+  });
+
   it('a key crossword marks only key cells wrong', () => {
     let s = fresh([crosswordKey]);
     const solution = puzzleSolution(crosswordKey);

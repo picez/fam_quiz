@@ -195,6 +195,7 @@ import {
   familyOn,
   roundBrief,
   rulesOf,
+  type QuestionClock,
 } from '@quiz/shared';
 import { currentRound, finalOutcome, type AnswerRecord, type TruthPlay, type TeamMember, finalShown, finalVisiblePoints, needsSplit, recordOf, roundQuestionNumber, streakCounts, type BlitzPlay, type BoardPlay, type FinalState, type GameState, type LadderPlay, type Play, type PlayerState, type PuzzlePlay, type ThinkVote } from './game';
 import { lastNotice } from './adjust';
@@ -2238,6 +2239,8 @@ function playerPuzzle(state: GameState, playerId: string): PlayerPuzzle | undefi
     done,
     canEdit: state.phase === 'question' && !state.paused && !done && record === undefined,
     seq: board?.seq ?? 0,
+    // Час «Готово» від відкриття; запис на закритті (час, ведучий) несе ліміт, а не час гравця — тоді null.
+    timeMs: done && record !== undefined ? record.timeMs : null,
     result:
       state.phase === 'reveal'
         ? { solved: puzzleSolved(question, cells), wrong: solution.flatMap((v, i) => (scored.has(i) && cells[i] !== v ? [i] : [])), points: record?.points ?? 0 }
@@ -3361,6 +3364,7 @@ function base(state: GameState, forHost: boolean) {
     removed: boardRemoved(state),
     splash: splashView(state),
     overtime: overtimeRows(state),
+    ...optional('closing', closingClock(state)),
     guide: state.phase === 'guide' ? { page: state.guidePage, pages: guidePages(state.quiz) } : null,
     newcomers: newcomersOn(state.quiz),
     // Сімейна гра (31): ключ лише коли ввімкнено — фікстури звичайних ігор не змінюються.
@@ -3465,6 +3469,31 @@ function personalClock(state: GameState, playerId: string): { deadline: number |
   const remaining = state.heldAt !== null ? remainingOf(state, state.heldAt) : state.paused ? state.remainingMs : null;
   if (remaining !== null) return { deadline: null, remainingMs: remaining + overtime };
   return state.endsAt === null ? null : { deadline: state.endsAt + overtime, remainingMs: null };
+}
+
+/**
+ * Коли запитання справді закривається, якщо його тримає чийсь додатковий час (рядки overtimeRows): найпізніший особистий кінець.
+ * Годинник іде — endsAt; стоїть (пауза, утримання) — найбільший залишок. Немає рядків — undefined (закривається на endsAt).
+ */
+function closingClock(state: GameState): QuestionClock | undefined {
+  const rows = overtimeRows(state);
+  if (rows.length === 0) return undefined;
+  // Рядки беруть годинник з одного стану: або всі з deadline, або всі із залишком.
+  const ends = rows.flatMap((row) => (row.deadline === null ? [] : [row.deadline]));
+  if (ends.length > 0) return { endsAt: Math.max(...ends), remainingMs: null };
+  return { endsAt: null, remainingMs: Math.max(...rows.map((row) => row.remainingMs ?? 0)) };
+}
+
+/**
+ * Табло гравця, що вже не відповідає, поки запитання тримає чужий додатковий час: closingClock. Хто ще відповідає (у грі
+ * на цьому запитанні — answeringTeams чи грає ставку — і без запису), дивиться на власний кінець: undefined.
+ */
+function watchClock(state: GameState, playerId: string): QuestionClock | undefined {
+  const play = state.phase === 'question' ? state.plays[state.questionIndex] : undefined;
+  if (play === undefined || personalClock(state, playerId) !== null) return undefined;
+  const answering = (betsPlaying(state) ?? answeringTeams(state, play)).includes(playerId);
+  if (answering && !Object.hasOwn(play.answers, playerId) && !hasAnswered(state, play, playerId)) return undefined;
+  return closingClock(state);
 }
 
 /** Гравці з додатковим часом без відповіді, у порядку гравців (від миті, коли баф узято). */
@@ -4059,6 +4088,7 @@ function buildOwnView(state: GameState, playerId: string): Omit<PlayerView, 'tea
       // Командна гра: зріз команди, тож сповіщення бачить уся команда-ціль.
       peekedBy: peekedBy(state, playerId),
       overtime: personalClock(state, playerId),
+      ...optional('closing', watchClock(state, playerId)),
       tip: typeTip(state, playerId),
       vote: votePrompt(state, playerId),
       // Командна гра: зріз спільний для команди, а апеляція людини (свій голос) — у playerView поверх нього.
