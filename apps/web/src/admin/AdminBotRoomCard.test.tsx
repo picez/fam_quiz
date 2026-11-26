@@ -259,4 +259,11 @@ describe('AdminBotRoomCard: host screen (68)', () => {
     show(room({ status: 'finished' }));
     expect(screen.queryByRole('button', { name: 'Взяти керування' })).toBeNull();
   });
+
+  it('a finished room still held by an admin offers «Віддати боту»', () => {
+    show(room({ status: 'finished', manual: true }));
+    fireEvent.click(screen.getByRole('button', { name: 'Віддати боту' }));
+    expect(onManual).toHaveBeenCalledWith(false);
+    expect(screen.queryByRole('button', { name: 'Взяти керування' })).toBeNull();
+  });
 });

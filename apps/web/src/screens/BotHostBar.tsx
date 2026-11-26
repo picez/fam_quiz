@@ -6,7 +6,7 @@ import { errorText, t } from '../i18n';
 
 /**
  * 68: смуга над пультом адміна в кімнаті бота: хто веде гру («Допомагаю» — бот веде темп, будь-яка кнопка діє одразу;
- * «Керую сам» — бот не робить кроків) і кнопка «Взяти керування» / «Віддати боту». На фініші смуги немає.
+ * «Керую сам» — бот не робить кроків) і кнопка «Взяти керування» / «Віддати боту». На фініші — лише «Віддати боту», якщо керує адмін.
  */
 export function BotHostBar({ view, code }: { view: HostView; code: string }) {
   const [busy, setBusy] = useState(false);
@@ -32,7 +32,7 @@ export function BotHostBar({ view, code }: { view: HostView; code: string }) {
         </p>
       )}
       <div className="bot-host-actions">
-        {!finished && (
+        {(!finished || state.manual) && (
         <button type="button" className={state.manual ? 'btn btn-small' : 'btn btn-small btn-primary'} disabled={busy} onClick={flip}>
           {t(state.manual ? 'botHostGiveBack' : 'botHostTakeOver')}
         </button>

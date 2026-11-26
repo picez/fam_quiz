@@ -57,6 +57,16 @@ describe('BotHost', () => {
     expect(screen.getByRole('link', { name: 'До вкладки «Бот»' }).getAttribute('href')).toBe('/admin/bot');
   });
 
+  it('on the finish in manual mode the bar still gives the game back to the bot', async () => {
+    vi.mocked(botHostAccess).mockResolvedValue(granted);
+    vi.mocked(botManual).mockResolvedValue({ ok: true });
+    setGame('live', hostView({ manual: true, mine: true }, 'finished'));
+    open();
+    fireEvent.click(await screen.findByRole('button', { name: 'Віддати боту' }));
+    expect(botManual).toHaveBeenLastCalledWith('123456', false);
+    expect(screen.queryByRole('status')).toBeNull();
+  });
+
   it('a token opens the real host screen with botHost, kept out of localStorage', async () => {
     vi.mocked(botHostAccess).mockResolvedValue(granted);
     setGame('live', hostView({ manual: false, mine: false }));
