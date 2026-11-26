@@ -1797,6 +1797,40 @@ describe('PlayerScreen final', () => {
     expect(screen.getByText('3 / 8')).toBeTruthy();
   });
 
+  it('a watcher of a board cell sees the chooser finds live, the count and the misses (solo)', () => {
+    const timedlist = { total: 8, minus: 50, players: 1, rows: [{ playerId: 'p2', nickname: 'Тарас', found: 2, wrong: 1, points: null }], items: null };
+    const solo = { playerId: 'p2', nickname: 'Тарас', progress: { kind: 'timedlist' as const, found: [{ index: 4, text: 'Марс' }, { index: 5, text: 'Юпітер' }], total: 8, wrong: 1 } };
+    show(onQuestion({ question: listQuestion, endsAt: Date.now() + 20_000, timedlist, solo }));
+    expect(screen.queryByLabelText('Ваш варіант')).toBeNull();
+    expect(screen.getByText('Марс')).toBeTruthy();
+    expect(screen.getByText('Юпітер')).toBeTruthy();
+    expect(screen.getByText('2 / 8')).toBeTruthy();
+    expect(screen.getByText('Помилок: 1')).toBeTruthy();
+    expect(document.querySelectorAll('.solo-watch .timedlist-cell')).toHaveLength(8);
+    cleanup();
+    show(view({ phase: 'locked', questionIndex: 0, question: listQuestion, timedlist, solo }));
+    expect(screen.getByText('Марс')).toBeTruthy();
+    expect(screen.getByText('Чекаємо на результати')).toBeTruthy();
+  });
+
+  it('a watcher of a sold auction word ladder sees the winner words, not an empty screen (solo)', () => {
+    const auctionRound: RoundInfo = { index: 0, total: 1, title: 'Слова', type: 'auction', partial: false, description: '', brief: emptyBrief('auction'), times: null };
+    const auction = {
+      theme: 'Слова', index: 0, total: 1, price: 500, mode: 'step' as const, step: 100, loss: 'bid' as const, teaser: null, bid: 300,
+      leader: { playerId: 'p2', nickname: 'Тарас' }, next: 0, endsAt: null, remainingMs: null, totalMs: 5000, open: false, result: null,
+    };
+    // Рушій дає глядачеві й me.wordladder (без права ходу): живий показ має бути над ним.
+    const watching = { ...me, auction: { status: 'watching' as const, limit: 600, next: 0, canBid: false }, wordladder: { words: [], steps: 0, finished: false, canAdd: true, canBack: false } };
+    const solo = { playerId: 'p2', nickname: 'Тарас', progress: { kind: 'wordladder' as const, words: ['пола', 'пора'], finished: false } };
+    show(onQuestion({ round: auctionRound, auction, question: ladderQuestion, endsAt: Date.now() + 20_000, solo, me: watching }));
+    expect(screen.getByText('Відповідає Тарас')).toBeTruthy();
+    expect(screen.getByText('поле → тара')).toBeTruthy();
+    expect(screen.getByText('пола')).toBeTruthy();
+    expect(screen.getByText('пора')).toBeTruthy();
+    expect(screen.getByText('Кроків: 2')).toBeTruthy();
+    expect(screen.queryByLabelText('Наступне слово')).toBeNull();
+  });
+
   it('27c: after a timed list closes the phone shows its cells', () => {
     show(view({ phase: 'locked', questionIndex: 0, question: listQuestion, me: { ...me, timedlist: { ...myList, canType: false } } }));
     expect(screen.queryByLabelText('Ваш варіант')).toBeNull();

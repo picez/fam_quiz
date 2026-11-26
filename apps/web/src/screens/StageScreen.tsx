@@ -52,6 +52,7 @@ import { WordleBoard } from './WordleView';
 import { TimedListBoard, TimedListReveal } from './TimedListView';
 import { LetterTiles, LetterWordsBest, LetterWordsBoard } from './LetterWordsView';
 import { MoreLessBoard, MoreLessReveal, MoreLessWatch } from './MoreLessView';
+import { SoloWatchView } from './SoloWatch';
 import { DrawingBoard, DrawingLive, DrawingReveal, drawingTitle, strokesOf } from './DrawingView';
 import { PuzzleBoards, PuzzleSolution } from './PuzzleView';
 import { JigsawBoards, JigsawResults } from './JigsawView';
@@ -403,7 +404,8 @@ function Question({ view, offsetMs, blink, blinking, audioCommand, tilts, drawin
         reveal !== null && reveal.type === 'chain' ? (
           <ChainWords first={reveal.words[0]} masks={reveal.words.slice(1).map(fullMask)} tone="is-correct" />
         ) : (
-          <ChainWords first={question.chain.first} masks={question.chain.masks} />
+          // Ланцюжок того, хто відповідає сам: пройдені ним слова повністю.
+          <ChainWords first={question.chain.first} masks={view.solo?.progress.kind === 'chain' ? view.solo.progress.masks : question.chain.masks} current={view.solo?.progress.kind === 'chain' ? view.solo.progress.solved : undefined} />
         )
       ) : question.wordladder !== undefined ? (
         <WordLadderGoal start={question.wordladder.start} target={question.wordladder.target} />
@@ -498,8 +500,10 @@ function Question({ view, offsetMs, blink, blinking, audioCommand, tilts, drawin
           </ul>
         )
       )}
-      {view.chain !== null && !finalReveal && <ChainBoard chain={view.chain} reveal={view.phase === 'reveal'} />}
-      {view.wordladder !== undefined && !finalReveal && (
+      {/* Хтось відповідає сам (клітинка поля, продане «Аукціону»): його список, драбина, слова чи ланцюжок наживо замість рядків. */}
+      {view.solo !== undefined && view.solo.progress.kind !== 'letterwords' && !finalReveal && <SoloWatchView solo={view.solo} question={question} stage />}
+      {view.chain !== null && !finalReveal && view.solo === undefined && <ChainBoard chain={view.chain} reveal={view.phase === 'reveal'} />}
+      {view.wordladder !== undefined && !finalReveal && view.solo === undefined && (
         <>
           {view.phase === 'reveal' && view.wordladder.path !== null && <WordLadderPath path={view.wordladder.path} />}
           <WordLadderBoard info={view.wordladder} reveal={view.phase === 'reveal'} />
@@ -507,7 +511,7 @@ function Question({ view, offsetMs, blink, blinking, audioCommand, tilts, drawin
       )}
       {/* «Вгадай слово» (48): до розкриття — лише кольори; літери, слово й бали — на розкритті. */}
       {view.wordle !== undefined && !finalReveal && <WordleBoard info={view.wordle} reveal={view.phase === 'reveal'} />}
-      {view.timedlist !== undefined && !finalReveal && (
+      {view.timedlist !== undefined && !finalReveal && view.solo === undefined && (
         <>
           {view.phase === 'reveal' && (
             <>
@@ -524,7 +528,7 @@ function Question({ view, offsetMs, blink, blinking, audioCommand, tilts, drawin
           <LetterTiles letters={question.letterwords.letters} big />
           {view.letterwords !== undefined && (
             <div className="letterwords-stage-body">
-              <LetterWordsBoard info={view.letterwords} reveal={view.phase === 'reveal'} />
+              {view.solo === undefined ? <LetterWordsBoard info={view.letterwords} reveal={view.phase === 'reveal'} /> : <SoloWatchView solo={view.solo} question={question} stage />}
               {view.phase === 'reveal' && <LetterWordsBest info={view.letterwords} />}
             </div>
           )}

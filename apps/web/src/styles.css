@@ -30715,3 +30715,48 @@ details.editor-card > summary {
   font-size: 1.5rem;
   text-align: start;
 }
+
+/* Живий показ того, хто відповідає сам (клітинка поля, продане «Аукціону»): телефони глядачів і сцена */
+.solo-watch {
+  display: grid;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.solo-watch-name,
+.solo-watch-count {
+  margin: 0;
+}
+
+.solo-watch-count {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.5rem;
+}
+
+.solo-watch-words {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.solo-watch-words li {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.375rem;
+  min-width: 0;
+  padding: 0.25rem 0.5rem;
+  border: 1px solid var(--correct);
+  border-radius: var(--radius-small);
+  background: var(--sort-landed);
+}
+
+.stage .solo-watch-name,
+.stage .solo-watch-count {
+  font-size: 1.75rem;
+}
+/* кінець: живий показ того, хто відповідає сам */
