@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { secondsLeft } from '../clock';
 import { t } from '../i18n';
 import { useStickyTimer } from './StickyTimer';
@@ -153,4 +153,27 @@ export function useLeftMs(clock: { endsAt: number | null; remainingMs: number | 
   if (clock.remainingMs !== null) return clock.remainingMs;
   if (clock.endsAt === null) return 0;
   return Math.max(0, clock.endsAt - (now + offsetMs));
+}
+
+/**
+ * Повний час для власного годинника: спільний ліміт плюс власний додатковий час (кінець особистий − кінець спільний;
+ * на паузі — різниця залишків). Найбільше значення за запитання тримається: пауза після спільного кінця
+ * зменшує додатковий час на витрачене, а смужка не має стрибати.
+ */
+export function usePersonalTotal(
+  view: { questionIndex: number; limitMs: number | null; endsAt: number | null; remainingMs: number | null },
+  myClock: { endsAt: number | null; remainingMs: number | null } | null,
+): number | null {
+  const kept = useRef<{ questionIndex: number; total: number } | null>(null);
+  if (view.limitMs === null || myClock === null) return view.limitMs;
+  const extra =
+    myClock.endsAt !== null && view.endsAt !== null
+      ? myClock.endsAt - view.endsAt
+      : myClock.remainingMs !== null && view.remainingMs !== null
+        ? myClock.remainingMs - view.remainingMs
+        : 0;
+  let total = view.limitMs + Math.max(0, extra);
+  if (kept.current !== null && kept.current.questionIndex === view.questionIndex) total = Math.max(total, kept.current.total);
+  kept.current = { questionIndex: view.questionIndex, total };
+  return total;
 }

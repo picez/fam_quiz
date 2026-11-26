@@ -12062,10 +12062,22 @@ button.wall-tile:disabled {
   }
 }
 
-/* Телефон: смуга з трьох сходинок. */
+/* Телефон: уся драбина компактними рядками; довга гортається всередині смуги (поточна — посередині). */
 .ladder-board.is-phone .ladder-steps {
   gap: 0.125rem;
+  max-height: min(22rem, 45vh);
+  max-height: min(22rem, 45dvh);
   padding: 0.25rem;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.ladder-board.is-phone .ladder-step {
+  flex: none;
+  gap: 0.5rem;
+  padding: 0.125rem 0.625rem;
+  font-size: 0.9375rem;
+  line-height: 1.35;
 }
 
 .ladder-lifelines {

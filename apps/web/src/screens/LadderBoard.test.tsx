@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { cleanup, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
+import { num } from '../format';
 import { LadderBoard } from './LadderBoard';
 import { ladderInfo } from './ladder-fixtures';
 
@@ -37,12 +38,15 @@ describe('LadderBoard', () => {
     expect(failed.textContent).toContain('✗');
   });
 
-  it('shows only the current and the two neighbours on the phone', () => {
-    render(<LadderBoard info={ladderInfo()} size="phone" />);
-    const labels = screen.getAllByRole('listitem').map((item) => item.getAttribute('aria-label'));
-    expect(labels).toHaveLength(3);
-    expect(labels[0]).toBe('3000');
-    expect(labels[1]).toContain('1000');
-    expect(labels[2]).toBe('300');
+  it('the phone shows the whole ladder top down, not a window around the current step', () => {
+    const levels = [100, 200, 300, 500, 1000, 2000, 4000, 8000, 16000, 32000, 64000, 125000];
+    const steps = levels.map((level, i) => ({ level, safe: i === 4 || i === 9, state: i < 6 ? ('passed' as const) : i === 6 ? ('current' as const) : ('ahead' as const) }));
+    render(<LadderBoard info={ladderInfo({ steps, current: 6 })} size="phone" />);
+    const items = screen.getAllByRole('listitem');
+    expect(items).toHaveLength(12);
+    expect(items[0].getAttribute('aria-label')).toBe(num(125000));
+    expect(items[11].getAttribute('aria-label')).toBe(num(100));
+    expect(screen.getByRole('listitem', { current: 'step' }).getAttribute('aria-label')).toContain(num(4000));
+    expect(document.querySelectorAll('.ladder-step.is-safe')).toHaveLength(2);
   });
 });

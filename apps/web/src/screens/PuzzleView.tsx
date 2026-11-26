@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ChangeEvent, type CompositionEvent, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent } from 'react';
 import { crosswordCells, crosswordGlyph, crosswordLetter, crosswordUpper, evenPageSize, pageCount, pageSlice, type PlayerPuzzle, type PublicPuzzle, type PublicQuestion, type PuzzleAnswer, type PuzzleBoardView, type PuzzleInfo, type PuzzleTone, type Question } from '@quiz/shared';
-import { signed } from '../format';
+import { secondsText, signed } from '../format';
 import { errorText, t } from '../i18n';
 import type { Send, SendResult } from '../live/types';
 import { usePuzzleBoard, type PuzzleBoardModel } from '../live/usePuzzleBoard';
@@ -121,7 +121,9 @@ function StatusLine({ board, info, timeUp, closed }: { board: PuzzleBoardModel; 
   const text = closed
     ? ''
     : info.done
-      ? t('puzzleWaiting')
+      ? info.timeMs !== null
+        ? t('puzzleDoneIn', { time: secondsText(info.timeMs) })
+        : t('puzzleWaiting')
       : timeUp || board.status === 'time_over'
         ? t('puzzleTimeUp')
         : board.status === 'offline'
@@ -680,7 +682,7 @@ export function PuzzleReveal({ mine, question, solution }: { mine: PlayerPuzzle 
     <section className="puzzle-reveal">
       {mine !== undefined && (
         <figure className="puzzle-reveal-part">
-          <figcaption className="meta">{t('puzzleYours')}</figcaption>
+          <figcaption className="meta">{mine.done && mine.timeMs !== null ? t('puzzleYoursIn', { time: secondsText(mine.timeMs) }) : t('puzzleYours')}</figcaption>
           <StaticGrid puzzle={puzzle} values={mine.cells} wrong={wrong} />
         </figure>
       )}

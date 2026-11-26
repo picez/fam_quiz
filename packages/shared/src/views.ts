@@ -646,6 +646,8 @@ export interface PlayerPuzzle {
   canEdit: boolean;
   /** Скільки пакетів сервер прийняв від відкриття. */
   seq: number;
+  /** За скільки мс від відкриття натиснуто «Готово» (у команді — ким завгодно); без «Готово» — null. */
+  timeMs: number | null;
   result: { solved: boolean; wrong: number[]; points: number } | null;
 }
 
@@ -1917,6 +1919,12 @@ export interface BuffNotice extends BlitzPlayer {
 }
 
 /** Гравець із додатковим часом без відповіді: особистий кінець пізніший за спільний, тож розкриття на нього чекатиме. */
+/** Годинник для табло: endsAt (час сервера) або, коли годинник стоїть, remainingMs. */
+export interface QuestionClock {
+  endsAt: number | null;
+  remainingMs: number | null;
+}
+
 export interface OvertimeRow extends BlitzPlayer {
   /** Особистий кінець (час сервера); null на паузі. */
   deadline: number | null;
@@ -2220,6 +2228,12 @@ interface BaseView {
   splash: SplashView | null;
   /** Гравці з додатковим часом без відповіді (етап question) — від миті, коли баф узято, а не лише після спільного кінця; інакше []. */
   overtime: OvertimeRow[];
+  /**
+   * Коли запитання справді закривається за часом, якщо додатковий час гравця без відповіді (час, заміна, зал) тягне його
+   * понад спільний кінець (етап question): найпізніший особистий кінець; на паузі й утриманні — залишок. Ключа немає — закривається на endsAt.
+   * Табло сцени й пульта показують саме його, а не endsAt.
+   */
+  closing?: QuestionClock;
   /** Етап guide: сторінки й поточна; інакше null. */
   guide: GuideView | null;
   /** Пояснення для новачків увімкнено (пам'ятка раунду на intro). */
@@ -2540,6 +2554,11 @@ export interface PlayerView extends BaseView {
     peekedBy: { seq: number; at: number; nickname: string } | null;
     /** Власний особистий кінець, якщо він пізніший за спільний (етап question); інакше null. */
     overtime: { deadline: number | null; remainingMs: number | null } | null;
+    /**
+     * Табло того, хто вже не відповідає (відповів, на полі не вибирав, вибув), поки запитання тримає чужий додатковий час:
+     * те саме, що closing. Ключа немає — табло за власним кінцем (overtime або endsAt).
+     */
+    closing?: QuestionClock;
     /** Тип поточного запитання, якщо воно перше такого типу в грі й гравець відповідає з телефона; лише етап question і з поясненнями. Інакше null. */
     tip: Question['type'] | null;
     /** Відкрите голосування, у якому гравець може й ще не голосував; null — немає. */
