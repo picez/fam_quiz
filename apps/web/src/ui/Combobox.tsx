@@ -134,6 +134,12 @@ export function Combobox<V extends string>({ label, value, options, groups, onCh
       closeAndFocus();
     } else if (event.key === 'Tab') {
       setOpen(false);
+    } else if (event.currentTarget === listRef.current && event.key.length === 1 && event.key !== ' ' && !event.ctrlKey && !event.metaKey && !event.altKey) {
+      // На дотику фокус у списку (без екранної клавіатури), але набір літери — це пошук: літера йде в поле пошуку.
+      event.preventDefault();
+      setQuery((text) => text + event.key);
+      setActive(0);
+      searchRef.current?.focus();
     }
   };
 

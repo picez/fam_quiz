@@ -137,3 +137,51 @@ describe('Combobox', () => {
     expect(onChange).not.toHaveBeenCalled();
   });
 });
+
+/** matchMedia, що відповідає лише на перелічені запити. */
+function media(matches: readonly string[]) {
+  vi.stubGlobal('matchMedia', (query: string) => ({ matches: matches.includes(query), media: query, addEventListener: () => {}, removeEventListener: () => {} }));
+}
+
+describe('Combobox on a touch screen', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('focuses the list, and typing a letter there moves into the search and filters', () => {
+    media(['(pointer: coarse)']);
+    setup();
+    fireEvent.click(trigger());
+    const list = screen.getByRole('listbox');
+    expect(document.activeElement).toBe(list);
+    fireEvent.keyDown(list, { key: 'м' });
+    const search = screen.getByRole('combobox') as HTMLInputElement;
+    expect(document.activeElement).toBe(search);
+    expect(search.value).toBe('м');
+    expect(screen.getAllByRole('option').map((o) => o.getAttribute('data-value'))).toEqual(['memory', 'pin', 'melody']);
+  });
+
+  it('keeps the search usable: tapping it takes the focus and typing filters', () => {
+    media(['(pointer: coarse)']);
+    setup();
+    fireEvent.click(trigger());
+    const search = screen.getByRole('combobox') as HTMLInputElement;
+    expect(search.readOnly).toBe(false);
+    fireEvent.pointerDown(search);
+    search.focus();
+    fireEvent.change(search, { target: { value: 'мел' } });
+    expect(screen.getByRole('listbox')).toBeTruthy();
+    expect(screen.getAllByRole('option').map((o) => o.getAttribute('data-value'))).toEqual(['melody']);
+    fireEvent.keyDown(search, { key: 'Enter' });
+    expect(screen.queryByRole('listbox')).toBeNull();
+  });
+
+  it('arrows and modifier keys in the list do not jump into the search', () => {
+    media(['(pointer: coarse)']);
+    setup();
+    fireEvent.click(trigger());
+    const list = screen.getByRole('listbox');
+    fireEvent.keyDown(list, { key: 'ArrowDown' });
+    fireEvent.keyDown(list, { key: 'c', ctrlKey: true });
+    expect(document.activeElement).toBe(list);
+    expect((screen.getByRole('combobox') as HTMLInputElement).value).toBe('');
+  });
+});
