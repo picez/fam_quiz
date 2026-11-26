@@ -1964,7 +1964,7 @@ describe('PlayerScreen final', () => {
 
   const sudokuGivens = '1'.padEnd(36, '0');
   const sudokuQuestion = { ...publicQuestion, type: 'sudoku' as const, text: 'Розв’яжіть судоку', choices: [], puzzle: { kind: 'sudoku' as const, givens: sudokuGivens } };
-  const myGrid = { cells: new Array<string>(36).fill(''), mask: 'g'.padEnd(36, '0'), members: [], done: false, canEdit: true, seq: 0, result: null };
+  const myGrid = { cells: new Array<string>(36).fill(''), mask: 'g'.padEnd(36, '0'), members: [], done: false, canEdit: true, seq: 0, timeMs: null, result: null };
 
   it('28d: a sudoku question shows the grid, the keypad and done', () => {
     show(onQuestion({ question: sudokuQuestion, endsAt: Date.now() + 60_000, me: { ...me, puzzle: myGrid } }));
@@ -1992,6 +1992,16 @@ describe('PlayerScreen final', () => {
     expect(screen.getByText('Запитання закрито — сітку зафіксовано.')).toBeTruthy();
     expect(document.querySelector('.puzzle-play.is-off')).not.toBeNull();
     expect(screen.queryByRole('button', { name: 'Готово' })).toBeNull();
+  });
+
+  it('28d: after «Готово» the player sees how long the grid took, also on the reveal', () => {
+    const answer = { type: 'puzzle', kind: 'sudoku', grid: '', filled: 35, total: 35, solved: true, done: true } as unknown as PlayerView['me']['answer'];
+    show(onQuestion({ question: sudokuQuestion, endsAt: Date.now() + 60_000, me: { ...me, answer, puzzle: { ...myGrid, done: true, canEdit: false, timeMs: 83_400 } } }));
+    expect(screen.getByText('Готово за 83,4 с. Чекаємо інших')).toBeTruthy();
+    cleanup();
+    const puzzle = { kind: 'sudoku' as const, boards: [], solution: null };
+    show(view({ phase: 'reveal', questionIndex: 0, question: sudokuQuestion, puzzle, me: { ...me, puzzle: { ...myGrid, done: true, canEdit: false, timeMs: 83_400, result: { solved: true, wrong: [], points: 300 } } } }));
+    expect(screen.getByText('Ваша сітка · за 83,4 с')).toBeTruthy();
   });
 
   it('28d: the reveal shows the own grid with wrong cells and the solution', () => {

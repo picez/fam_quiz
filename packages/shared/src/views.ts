@@ -646,6 +646,8 @@ export interface PlayerPuzzle {
   canEdit: boolean;
   /** Скільки пакетів сервер прийняв від відкриття. */
   seq: number;
+  /** За скільки мс від відкриття натиснуто «Готово» (у команді — ким завгодно); без «Готово» — null. */
+  timeMs: number | null;
   result: { solved: boolean; wrong: number[]; points: number } | null;
 }
 

@@ -12,6 +12,7 @@ const infoOf = (over: Partial<PlayerPuzzle> = {}): PlayerPuzzle => ({
   done: false,
   canEdit: true,
   seq: 0,
+  timeMs: null,
   result: null,
   ...over,
 });

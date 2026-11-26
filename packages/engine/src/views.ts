@@ -2239,6 +2239,8 @@ function playerPuzzle(state: GameState, playerId: string): PlayerPuzzle | undefi
     done,
     canEdit: state.phase === 'question' && !state.paused && !done && record === undefined,
     seq: board?.seq ?? 0,
+    // Час «Готово» від відкриття; запис на закритті (час, ведучий) несе ліміт, а не час гравця — тоді null.
+    timeMs: done && record !== undefined ? record.timeMs : null,
     result:
       state.phase === 'reveal'
         ? { solved: puzzleSolved(question, cells), wrong: solution.flatMap((v, i) => (scored.has(i) && cells[i] !== v ? [i] : [])), points: record?.points ?? 0 }

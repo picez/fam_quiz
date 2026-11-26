@@ -1631,7 +1631,7 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
           ) : (question?.type === 'sudoku' || question?.type === 'crossword') && me.puzzle !== undefined ? (
             // Головоломки (28d): сітка лише для перегляду; правильність — на розкритті.
             <section className="sent">
-              <h2>{me.puzzle.done ? t('puzzleWaiting') : t(ranOut ? 'puzzleTimeUp' : 'puzzleClosed')}</h2>
+              <h2>{me.puzzle.done ? (me.puzzle.timeMs !== null ? t('puzzleDoneIn', { time: secondsText(me.puzzle.timeMs) }) : t('puzzleWaiting')) : t(ranOut ? 'puzzleTimeUp' : 'puzzleClosed')}</h2>
               <PuzzlePlay key={view.questionIndex} info={me.puzzle} question={question} questionIndex={view.questionIndex} paused={false} timeUp={false} closed send={send} pencil={code === '' ? undefined : { room: code, round: view.round?.index ?? 0 }} />
             </section>
           ) : question?.type === 'jigsaw' && me.jigsaw !== undefined ? (
