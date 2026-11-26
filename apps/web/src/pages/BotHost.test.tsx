@@ -53,8 +53,18 @@ describe('BotHost', () => {
   it('a 404 shows «no access» with a link back to the bot tab', async () => {
     vi.mocked(botHostAccess).mockResolvedValue({ ok: false, error: 'not_found' });
     open();
-    expect(await screen.findByText('Ця кімната не бота або ти не адмін')).toBeTruthy();
+    expect(await screen.findByText('Гри вже немає, або ця кімната не бота, або ти не адмін')).toBeTruthy();
     expect(screen.getByRole('link', { name: 'До вкладки «Бот»' }).getAttribute('href')).toBe('/admin/bot');
+  });
+
+  it('on the finish in manual mode the bar still gives the game back to the bot', async () => {
+    vi.mocked(botHostAccess).mockResolvedValue(granted);
+    vi.mocked(botManual).mockResolvedValue({ ok: true });
+    setGame('live', hostView({ manual: true, mine: true }, 'finished'));
+    open();
+    fireEvent.click(await screen.findByRole('button', { name: 'Віддати боту' }));
+    expect(botManual).toHaveBeenLastCalledWith('123456', false);
+    expect(screen.queryByRole('status')).toBeNull();
   });
 
   it('a token opens the real host screen with botHost, kept out of localStorage', async () => {
@@ -78,6 +88,7 @@ describe('BotHost', () => {
     setGame('live', hostView({ manual: true, mine: true }));
     open();
     expect((await screen.findByRole('status')).textContent).toContain('Керуєш ти');
+    expect(screen.getByRole('status').textContent).toContain('10 хв (чи без пульта 1 хв) гра повернеться боту');
     fireEvent.click(screen.getByRole('button', { name: 'Віддати боту' }));
     expect(botManual).toHaveBeenLastCalledWith('123456', false);
   });
@@ -107,7 +118,7 @@ describe('BotHost', () => {
     setGame('live', hostView({ manual: false, mine: false }));
     open();
     expect(await screen.findByRole('alert')).toBeTruthy();
-    expect(screen.queryByText('Ця кімната не бота або ти не адмін')).toBeNull();
+    expect(screen.queryByText('Гри вже немає, або ця кімната не бота, або ти не адмін')).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Спробувати ще' }));
     expect(await screen.findByText('HostScreen 123456 bot')).toBeTruthy();
     expect(botHostAccess).toHaveBeenCalledTimes(2);
@@ -137,6 +148,24 @@ describe('BotHost', () => {
     expect(await screen.findByText(/Цієї гри вже немає/)).toBeTruthy();
     expect(botHostAccess).toHaveBeenCalledTimes(2);
     expect(localStorage.length).toBe(0);
+  });
+
+  it('a 404 on the second ask after unauthorized means the room is closed, not «no access»', async () => {
+    vi.mocked(botHostAccess).mockResolvedValueOnce(granted).mockResolvedValue({ ok: false, error: 'not_found' });
+    setGame('live', hostView({ manual: false, mine: false }));
+    const tree = () => (
+      <MemoryRouter initialEntries={['/bot-host/123456']}>
+        <Routes>
+          <Route path="/bot-host/:code" element={<BotHost />} />
+        </Routes>
+      </MemoryRouter>
+    );
+    const view = render(tree());
+    await screen.findByText('HostScreen 123456 bot');
+    setGame('unauthorized');
+    view.rerender(tree());
+    expect(await screen.findByText(/Цієї гри вже немає/)).toBeTruthy();
+    expect(screen.queryByText('Гри вже немає, або ця кімната не бота, або ти не адмін')).toBeNull();
   });
 
   it('a restarting server is asked again after RETRY_MS', async () => {

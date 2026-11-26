@@ -43,6 +43,9 @@ const lobbyVars = (entry: AdminLogEntry): { listed: string; locked: string } => 
   locked: entry.details.locked ? t('lobbyLocked') : t('adminBotLogOpen'),
 });
 
+/** 68: види журналу гри бота з ніком людини у {text}; без ніку — ключ adminLog_<вид>_plain. */
+const PLAIN_KINDS: ReadonlySet<AdminLogEntry['kind']> = new Set(['bot_room_grade', 'bot_room_kick', 'bot_room_release', 'bot_room_adjust', 'bot_room_debuff', 'bot_room_hint']);
+
 /**
  * Рядок журналу; для блокування чи зміни досвіду з причиною — «. Причина: …»; для збою розкладу бота — причина словами.
  * Видалення акаунта називає ціль з details.text (нік чи email на мить видалення: акаунта вже немає, а нік міг бути порожнім);
@@ -55,8 +58,8 @@ export function logLine(entry: AdminLogEntry): string {
   // 63: подія стрічки — словами, як була на мить дії.
   const feed = entry.details.feed === undefined ? null : feedText(entry.details.feed);
   const text = feed ?? entry.details.text ?? (entry.kind === 'account_delete' ? nickText(entry.target) : '');
-  // 68: оцінка без людини (name, alike-*) — без « — {text}».
-  const key = entry.kind === 'bot_room_grade' && text === '' ? 'adminLog_bot_room_grade_plain' : `adminLog_${entry.kind}`;
+  // 68: дія без людини (оцінка name, alike-*) чи з людиною, якої в грі вже не знайшли, — рядок без ніку (_plain), не з порожнім місцем.
+  const key = text === '' && PLAIN_KINDS.has(entry.kind) ? `adminLog_${entry.kind}_plain` : `adminLog_${entry.kind}`;
   const line = t(key as TextKey, { admin: nickText(entry.admin), target: nickText(entry.target), title: entry.details.title ?? '', text, code: entry.details.code ?? '', count: String(entry.details.count ?? ''), seconds: BOT_TIME_SECONDS, when, reason: planReason, amount: signedXp(entry.details.amount ?? 0), achievement: entry.details.achievementId === undefined ? '' : t(`achievement_${entry.details.achievementId}` as TextKey), summary: entry.kind === 'account_merge' ? mergeSummaryText(entry.details.merge ?? emptyMergeSummary()) : '', ...lobbyVars(entry) });
   const reason = entry.kind === 'ban' || entry.kind === 'xp_adjust' || entry.kind === 'group_hide' ? entry.details.reason : null;
   if (entry.kind === 'nickname_reset' && entry.details.text) return t('adminLogWas', { line, text: entry.details.text });

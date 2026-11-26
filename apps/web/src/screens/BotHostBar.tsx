@@ -1,12 +1,12 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import type { HostView } from '@quiz/shared';
+import { BOT_MANUAL_GRACE_MS, BOT_MANUAL_IDLE_MS, type HostView } from '@quiz/shared';
 import { botManual } from '../admin/admin-api';
 import { errorText, t } from '../i18n';
 
 /**
  * 68: смуга над пультом адміна в кімнаті бота: хто веде гру («Допомагаю» — бот веде темп, будь-яка кнопка діє одразу;
- * «Керую сам» — бот не робить кроків) і кнопка «Взяти керування» / «Віддати боту». На фініші смуги немає.
+ * «Керую сам» — бот не робить кроків) і кнопка «Взяти керування» / «Віддати боту». На фініші — лише «Віддати боту», якщо керує адмін.
  */
 export function BotHostBar({ view, code }: { view: HostView; code: string }) {
   const [busy, setBusy] = useState(false);
@@ -14,7 +14,7 @@ export function BotHostBar({ view, code }: { view: HostView; code: string }) {
   const state = view.botHost;
   if (state === undefined) return null;
   const finished = view.phase === 'finished';
-  const text = state.manual ? t(state.mine ? 'botHostManualMine' : 'botHostManualOther') : t('botHostAuto');
+  const text = state.manual ? (state.mine ? t('botHostManualMine', { idle: BOT_MANUAL_IDLE_MS / 60_000, grace: BOT_MANUAL_GRACE_MS / 60_000 }) : t('botHostManualOther')) : t('botHostAuto');
   const flip = () => {
     if (busy) return;
     setBusy(true);
@@ -32,7 +32,7 @@ export function BotHostBar({ view, code }: { view: HostView; code: string }) {
         </p>
       )}
       <div className="bot-host-actions">
-        {!finished && (
+        {(!finished || state.manual) && (
         <button type="button" className={state.manual ? 'btn btn-small' : 'btn btn-small btn-primary'} disabled={busy} onClick={flip}>
           {t(state.manual ? 'botHostGiveBack' : 'botHostTakeOver')}
         </button>

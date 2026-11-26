@@ -1,4 +1,4 @@
-import type { Locale } from '@quiz/shared';
+import { GROUP_LIMITS, type Locale } from '@quiz/shared';
 import { currentLocale, intlTag, setCurrentLocale } from './locales/current';
 import { loadMessages, type Messages } from './locales/load';
 import { helpUk } from './help/help-uk';
@@ -5221,8 +5221,6 @@ const uk = {
   adminCardGrant: 'Видати досягнення',
   adminCardGrantPick: 'Оберіть досягнення',
   adminCardGrantConfirm: 'Видати досягнення «{name}» гравцеві {nickname}?',
-  adminCardRevoke: 'Відібрати',
-  adminCardRevokeConfirm: 'Забрати досягнення «{name}» у {nickname}? Досвід за нього теж зникне.',
   adminCardBlocked: 'Забрано адміністратором',
   adminCardXp: 'Досвід',
   adminCardXpAmount: 'Зміна (від’ємне число — відняти)',
@@ -5249,8 +5247,6 @@ const uk = {
   adminCardGiftNew: 'Створити новий приз',
   adminCardGiftNone: 'У Вашому складі немає призів — створіть новий',
   adminCardGiftConfirm: 'Подарувати приз «{title}» гравцеві {nickname}?',
-  adminCardGiftRevoke: 'Забрати подарунок',
-  adminCardGiftRevokeConfirm: 'Забрати подарунок «{title}» у {nickname}?',
   adminCardDelete: 'Видалити акаунт',
   adminCardDeleteLead: 'Акаунт і персональні дані буде видалено назавжди. Ігри в історії інших лишаться з позначкою «Видалений гравець».',
   adminCardDeleteType: 'Введіть нік «{nickname}», щоб підтвердити',
@@ -5281,12 +5277,17 @@ const uk = {
   adminLog_bot_room_debuff: '{admin} змінив(-ла) дебаф у грі бота — {text} (код {code})',
   adminLog_bot_room_hint: '{admin} дав(-ла) підказку в грі бота — {text} (код {code})',
   botHostAuto: 'Гру веде бот — ти допомагаєш: будь-яка кнопка діє одразу',
-  botHostManualMine: 'Керуєш ти: бот не робить кроків',
+  botHostManualMine: 'Керуєш ти: бот не робить кроків. Без твоїх дій {idle} хв (чи без пульта {grace} хв) гра повернеться боту',
   botHostManualOther: 'Керує інший адмін: бот не робить кроків',
   botHostTakeOver: 'Взяти керування',
   botHostGiveBack: 'Віддати боту',
   botHostBack: 'До вкладки «Бот»',
-  botHostDenied: 'Ця кімната не бота або ти не адмін',
+  botHostDenied: 'Гри вже немає, або ця кімната не бота, або ти не адмін',
+  adminLog_bot_room_kick_plain: '{admin} вилучив(-ла) гравця з гри бота (код {code})',
+  adminLog_bot_room_release_plain: '{admin} звільнив(-ла) місце в грі бота (код {code})',
+  adminLog_bot_room_adjust_plain: '{admin} нарахував(-ла) бали в грі бота (код {code})',
+  adminLog_bot_room_debuff_plain: '{admin} змінив(-ла) дебаф у грі бота (код {code})',
+  adminLog_bot_room_hint_plain: '{admin} дав(-ла) підказку в грі бота (код {code})',
   deletedPlayer: 'Видалений гравець',
   deletedFact: '(факт видалено)',
   adminGameBack: 'Назад',
@@ -5508,7 +5509,7 @@ const uk = {
   err_member_banned: 'Людину заблоковано — до групи її не додати.',
   err_group_hidden: 'Групу приховано — спершу поверни її.',
   err_already_member: 'Ця людина вже в групі.',
-  err_member_too_many_groups: 'Людина вже в 10 групах — це межа.',
+  err_member_too_many_groups: 'Людина вже в {limit} групах — це межа.',
   adminLog_group_member_add: '{admin} додав(-ла) {target} до групи «{title}»',
   adminLog_group_item_add: '{admin} додав(-ла) запис «{text}» у групу «{title}» від Квіз-бота ({target})',
   inboxGroupAdded: 'Тебе додали до групи «{title}»',
@@ -5857,11 +5858,16 @@ export function hasText(key: string): key is TextKey {
   return Object.prototype.hasOwnProperty.call(uk, key);
 }
 
+/** Змінні текстів помилок, що називають межу: число — зі спільної константи, а не в тексті. */
+const ERROR_VARS: Partial<Record<string, Record<string, number>>> = {
+  err_member_too_many_groups: { limit: GROUP_LIMITS.groupsPerUser },
+};
+
 export function errorText(code: string): string {
   // «invalid_payload:prize_empty» — причина 400; без окремого тексту лишається загальний.
   for (const candidate of [code.replace(':', '_'), code.split(':')[0]!]) {
     const key = `err_${candidate}`;
-    if (key in uk) return t(key as TextKey);
+    if (key in uk) return t(key as TextKey, ERROR_VARS[key]);
   }
   return t('err_unknown');
 }

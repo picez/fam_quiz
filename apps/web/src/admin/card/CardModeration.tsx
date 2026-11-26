@@ -1,6 +1,7 @@
 import { useState, type JSX } from 'react';
 import { t } from '../../i18n';
 import { nickText } from '../../nick';
+import { refreshAdminBadge } from '../Admin';
 import { actOnProfileReport, banUser, unbanUser } from '../admin-api';
 import type { CardProps } from '../AdminUser';
 import { CardFold } from './CardFold';
@@ -10,6 +11,12 @@ export function CardModeration({ detail, act, busy }: CardProps): JSX.Element | 
   const { user, card } = detail;
   const [reason, setReason] = useState('');
   const [error, setError] = useState<string | null>(null);
+  // Скидання ніку чи аватара закриває відкриті скарги на профіль: бейдж «Звернень» перечитується (70), як після дії зі скарги.
+  const resetProfile = (action: 'reset_nickname' | 'reset_avatar') => async () => {
+    const result = await actOnProfileReport(user.id, action);
+    if (result.ok) refreshAdminBadge();
+    return result;
+  };
   const nickname = nickText(user.nickname);
   if (user.admin && user.banned === null) return null;
   return (
@@ -35,12 +42,12 @@ export function CardModeration({ detail, act, busy }: CardProps): JSX.Element | 
       {!user.admin && (user.nickname !== null || card.overview.avatar !== null) && (
         <div className="admin-actions">
           {user.nickname !== null && (
-            <button type="button" className="btn btn-danger" disabled={busy} onClick={() => void act(t('adminCardResetNickConfirm', { nickname }), () => actOnProfileReport(user.id, 'reset_nickname'), setError)}>
+            <button type="button" className="btn btn-danger" disabled={busy} onClick={() => void act(t('adminCardResetNickConfirm', { nickname }), resetProfile('reset_nickname'), setError)}>
               {t('adminCardResetNick')}
             </button>
           )}
           {card.overview.avatar !== null && (
-            <button type="button" className="btn btn-danger" disabled={busy} onClick={() => void act(t('adminCardResetAvatarConfirm', { nickname }), () => actOnProfileReport(user.id, 'reset_avatar'), setError)}>
+            <button type="button" className="btn btn-danger" disabled={busy} onClick={() => void act(t('adminCardResetAvatarConfirm', { nickname }), resetProfile('reset_avatar'), setError)}>
               {t('adminCardResetAvatar')}
             </button>
           )}

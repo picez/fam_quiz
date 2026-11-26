@@ -35,6 +35,11 @@ export const adminBotLobbySchema = z.object({ listed: z.boolean(), password: lob
 export type AdminBotLobby = z.infer<typeof adminBotLobbySchema>;
 /** 68: with every admin host screen offline this long, a bot room in manual mode goes back to the bot. */
 export const BOT_MANUAL_GRACE_MS = 60_000;
+/**
+ * Manual mode with no admin action (host screen action, card command or lobby change, taking over) this long goes back
+ * to the bot even while a host screen stays open: a forgotten tab must not freeze a bot game.
+ */
+export const BOT_MANUAL_IDLE_MS = 10 * 60_000;
 /** 68: «Взяти керування» (on) / «Віддати боту» (off) in a bot room. */
 export const adminBotManualSchema = z.object({ on: z.boolean() }).strict();
 export type AdminBotManual = z.infer<typeof adminBotManualSchema>;

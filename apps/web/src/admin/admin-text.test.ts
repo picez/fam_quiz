@@ -96,6 +96,12 @@ describe('logLine for moderation', () => {
     expect(line('bot_room_undo')).toBe('Адмін скасував(-ла) бали в грі бота (код 123456)');
     expect(line('bot_room_debuff', { text: 'Оля' })).toBe('Адмін змінив(-ла) дебаф у грі бота — Оля (код 123456)');
     expect(line('bot_room_hint', { text: 'Оля' })).toBe('Адмін дав(-ла) підказку в грі бота — Оля (код 123456)');
+    // Людину не знайшли (вже немає в грі): рядок без ніку, без порожнього місця.
+    expect(line('bot_room_kick')).toBe('Адмін вилучив(-ла) гравця з гри бота (код 123456)');
+    expect(line('bot_room_release')).toBe('Адмін звільнив(-ла) місце в грі бота (код 123456)');
+    expect(line('bot_room_adjust')).toBe('Адмін нарахував(-ла) бали в грі бота (код 123456)');
+    expect(line('bot_room_debuff')).toBe('Адмін змінив(-ла) дебаф у грі бота (код 123456)');
+    expect(line('bot_room_hint')).toBe('Адмін дав(-ла) підказку в грі бота (код 123456)');
     for (const kind of ['bot_room_host_open', 'bot_room_manual_on', 'bot_room_manual_off', 'bot_room_grade', 'bot_room_undo', 'bot_room_debuff', 'bot_room_hint'] as const) expect(line(kind, { text: 'Оля' })).not.toMatch(/[{}]/);
   });
   it('shows a player without a nickname as the default name', () => {

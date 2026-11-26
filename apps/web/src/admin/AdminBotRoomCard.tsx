@@ -110,7 +110,8 @@ export function AdminBotRoomCard({ room, busy, onCommand, onLobby, onManual }: {
             {t('endRound')}
           </button>
         )}
-        {room.status !== 'finished' && (
+        {/* Після фіналу взяти керування не можна, а віддати боту — так (сервер приймає; інакше картка лишалась би «Керує адмін»). */}
+        {(room.status !== 'finished' || room.manual) && (
           <button type="button" className="btn" disabled={busy} onClick={() => onManual(!room.manual)}>
             {t(room.manual ? 'botHostGiveBack' : 'botHostTakeOver')}
           </button>

@@ -26,6 +26,7 @@ import { registerInboxRoutes } from './inbox-routes';
 import { registerPrizeRoutes } from './prize-routes';
 import { registerShowcaseRoutes } from './showcase-routes';
 import { registerAdminRoutes } from './admin-routes';
+import { isAdmin } from './admin';
 import { processStats } from './process-stats';
 import { createBotSchedule } from './bot-schedule';
 import { announcementCache } from './announcement-store';
@@ -282,6 +283,8 @@ export async function buildApp(options: AppOptions) {
         details: { title: entry.title, code: entry.code, ...(entry.text === undefined ? {} : { text: entry.text }) },
         now: new Date(),
       }).catch((error: unknown) => reportError(error, { where: 'admin-host-log' })),
+    // 68: адміна прибрали (адреса з ADMIN_EMAILS, акаунт видалено чи злито) — його пульти більше не відкриваються.
+    adminStill: (adminId) => isAdmin(options.db, options.adminEmails ?? new Set<string>(), adminId),
   });
   // Відкриті WebSocket-з'єднання (і довгі опитування) не дали б HTTP-серверу завершитись. io.close()
   // закриває й транспорти engine.io, і рукостискання в польоті; не чекаємо на нього: він сам чекає на

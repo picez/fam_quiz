@@ -36,6 +36,8 @@ export function BotHost() {
           retry = setTimeout(ask, RETRY_MS);
           return;
         }
+        // Повторний запит після «unauthorized»: «не знайдено» — кімнату закрито (гри вже немає), а не відмова в доступі.
+        if (!result.ok && result.error === 'not_found' && retried.current) return setGone(true);
         // Лише «не знайдено» (не бот, не адмін) — відмова; мережа, ліміт чи збій сервера — окремий текст і «Спробувати ще».
         if (!result.ok) return setAccess(result.error === 'not_found' || result.error === 'forbidden' ? { status: 'denied' } : { status: 'failed', error: result.error });
         setAccess({ status: 'granted', tokens: { hostToken: result.hostToken, stageToken: result.stageToken } });

@@ -1049,6 +1049,25 @@ describe('HostScreen: blitz', () => {
       expect(screen.queryByRole('button', { name: '+15 с' })).toBeNull();
     });
 
+    it('±15 s after the shared end follow the extra time that still holds the question', () => {
+      const olena = { playerId: 'p1', nickname: 'Олена' };
+      const now = Date.now();
+      // Спільний час сплив, Олена ще в додатковому: «+15 с» додає їй, «−15 с» сервер не приймає.
+      const send = show(during('question', single, { endsAt: now - 1000, limitMs: 20_000, overtime: [{ ...olena, deadline: now + 24_000, remainingMs: null }] }));
+      expect(button('−15 с').disabled).toBe(true);
+      expect(button('+15 с').disabled).toBe(false);
+      fireEvent.click(button('+15 с'));
+      expect(send).toHaveBeenCalledWith('host:time', { seconds: 15 });
+      cleanup();
+      // Особистий залишок уже максимум (2:00): «+15 с» вимкнено, як і на сервері (time_limit).
+      show(during('question', single, { endsAt: now - 1000, limitMs: 20_000, overtime: [{ ...olena, deadline: now + 125_000, remainingMs: null }] }));
+      expect(button('+15 с').disabled).toBe(true);
+      cleanup();
+      // На паузі — за залишком рядка.
+      show(during('question', single, { endsAt: null, remainingMs: 0, paused: true, limitMs: 20_000, overtime: [{ ...olena, deadline: null, remainingMs: 120_000 }] }));
+      expect(button('+15 с').disabled).toBe(true);
+    });
+
     it('accepts or re-picks a pending answer in an automatic round', () => {
       const send = show(during('question', single, { endsAt: Date.now() + 20_000, spotlight: pendingSpot }));
       expect(screen.getByRole('heading', { name: 'Відповідь чекає на рішення' })).toBeTruthy();

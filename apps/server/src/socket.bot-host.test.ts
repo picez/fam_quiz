@@ -29,6 +29,17 @@ let db: Db;
 let url: string;
 let sockets: Client[];
 let scheduler: FakeScheduler;
+/** Адреси адмінів застосунку (той самий набір, тож тест додає й прибирає адміна на ходу). */
+const emails = new Set<string>();
+
+/** Акаунт-адмін: адреса в наборі адмінів і підтверджена. */
+async function makeAdmin(name: string): Promise<{ id: string; email: string }> {
+  const account = await signUp(ctx.app, name);
+  emails.add(account.email.toLowerCase());
+  await db.update(user).set({ emailVerified: true }).where(eq(user.email, account.email));
+  const [row] = await db.select({ id: user.id }).from(user).where(eq(user.email, account.email));
+  return { id: row!.id, email: account.email.toLowerCase() };
+}
 
 beforeAll(async () => {
   db = await createTestDb();
@@ -38,7 +49,8 @@ beforeAll(async () => {
 beforeEach(async () => {
   sockets = [];
   scheduler = new FakeScheduler();
-  ctx = await buildApp({ db, auth: TEST_AUTH, scheduler });
+  emails.clear();
+  ctx = await buildApp({ db, auth: TEST_AUTH, scheduler, adminEmails: emails });
   await ctx.app.listen({ port: 0, host: '127.0.0.1' });
   url = `http://127.0.0.1:${(ctx.app.server.address() as AddressInfo).port}`;
 });
@@ -81,14 +93,12 @@ async function botGame() {
   const room: Room = created.room;
   const joined = (await ctx.app.inject({ method: 'POST', url: `/api/games/by-code/${room.code}/join`, payload: { nickname: 'Оля' } })).json() as { token: string; playerId: string };
   const olya = open({ code: room.code, role: 'player', token: joined.token });
-  const account = await signUp(ctx.app, 'Адмін 68');
-  const [row] = await db.select({ id: user.id }).from(user).where(eq(user.email, account.email));
-  const adminId = row!.id;
+  const { id: adminId, email: adminEmail } = await makeAdmin('Адмін 68');
   const access = ctx.manager.botHostToken(room.code, adminId);
   if (!access.ok) throw new Error(access.error);
   const host = open({ code: room.code, role: 'host', token: access.hostToken });
   await until(host, (view) => view.role === 'host' && view.players.some((p) => p.connected));
-  return { room, olya, host, adminId, olyaId: joined.playerId };
+  return { room, olya, host, adminId, adminEmail, olyaId: joined.playerId };
 }
 
 /** Годинник іде, доки кімната не дійде до фази. */
@@ -134,6 +144,22 @@ describe('the admin host socket of a bot room (68)', () => {
     expect(await send(olya, 'host:hint', { playerId: olyaId, text: null })).toEqual({ ok: false, error: 'not_allowed' });
   });
 
+  it('an admin who is no longer an admin loses the host tokens and the manual mode on the next connect', async () => {
+    const { room, host, adminId, adminEmail } = await botGame();
+    expect(ctx.manager.botManual(room.code, adminId, true).ok).toBe(true);
+    emails.delete(adminEmail);
+    host.socket.close();
+    const again = ctx.manager.botHostToken(room.code, adminId);
+    if (!again.ok) throw new Error(again.error);
+    expect(again.fresh).toBe(false);
+    const socket: Client = connect(url, { auth: { code: room.code, role: 'host', token: again.hostToken }, transports: ['websocket'], reconnection: false });
+    sockets.push(socket);
+    const error = await new Promise<Error>((resolve) => socket.on('connect_error', resolve));
+    expect(error.message).toBe('unauthorized');
+    expect([...room.adminHosts.values()]).not.toContain(adminId);
+    expect(room.botManual).toBeNull();
+  });
+
   it("the bot room's own host token opens nothing", async () => {
     const { room } = await botGame();
     const socket: Client = connect(url, { auth: { code: room.code, role: 'host', token: room.hostToken }, transports: ['websocket'], reconnection: false });
@@ -158,8 +184,7 @@ describe('the admin host socket of a bot room (68)', () => {
     const [red, blue] = room.state.teams!.list.map((t) => t.id);
     expect(await send(olya, 'player:team', { teamId: red })).toEqual({ ok: true });
     expect(await send(taras, 'player:team', { teamId: blue })).toEqual({ ok: true });
-    const [row] = await db.select({ id: user.id }).from(user).where(eq(user.email, (await signUp(ctx.app, 'Адмін 68')).email));
-    const access = ctx.manager.botHostToken(room.code, row!.id);
+    const access = ctx.manager.botHostToken(room.code, (await makeAdmin('Адмін 68')).id);
     if (!access.ok) throw new Error(access.error);
     const host = open({ code: room.code, role: 'host', token: access.hostToken });
     await until(host, (view) => view.role === 'host');

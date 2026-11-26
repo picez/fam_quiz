@@ -178,7 +178,7 @@ import {
   type Result,
   type TeamAct,
 } from '@quiz/engine';
-import { ANSWERER_PICKS_PER_SECOND, REACTION_GAP_MS, reactionAllowed, type Reaction, type ReactionItem, APPEAL_VOTES_PER_SECOND, AWAY_EVENTS_PER_SECOND, awayGapMs, draftQuestionType, DRAFTS_PER_SECOND, isAnswerDraft, isUnscored, SORT_TILT_GAP_MS, LIST_WORDS_PER_SECOND, MORELESS_PICKS_PER_SECOND, PUZZLE_BATCHES_PER_SECOND, JIGSAW_MOVES_PER_SECOND, SPOTDIFF_TAPS_PER_SECOND, MEMORY_FLIPS_PER_SECOND, DRAW_GUESSES_PER_SECOND, DRAW_OPS_PER_SECOND, type DrawingEvent, type DrawOp, type AckResult, type Answer, type MoreLessSide, type AnswererScope, type AppealReason, type BuffKind, type DebuffKind, type DraftValue, type DuelSide, type ErrorCode, type GameView, type Grade, type GuideSkipView, type HostDrafts, type HostUndoTarget, type LifelineKind, type Phase, type PlayerView, type Question, type Quiz, type ResumeSetup, RESUME_POINTS_MAX, clamp, isObjectLike, type ContinuedView, type PlacedPrize, placedPrizeSchema, type SlotsResponse, type Role, type SortTilt, type SubmittedAnswer, type TeamForm, type ThinkWord, type ActivePerk, type NickLevel, type StickerExtra, stickerOpen, LIKE_RATE, type LikePayload, LOBBY_VISIBILITIES, lobbyPasswordSchema, type LobbySettings, type LobbyVisibility, type AchievementId, type HostLeagueView, type PlayerLeagueView, type GameXpMoment, BOT_ROOMS_MAX, BOT_USER_ID, isBotUser, type BotAction, type BotCommand, BOT_TIME_SECONDS, type AdminBotLobby, BOT_MANUAL_GRACE_MS } from '@quiz/shared';
+import { ANSWERER_PICKS_PER_SECOND, REACTION_GAP_MS, reactionAllowed, type Reaction, type ReactionItem, APPEAL_VOTES_PER_SECOND, AWAY_EVENTS_PER_SECOND, awayGapMs, draftQuestionType, DRAFTS_PER_SECOND, isAnswerDraft, isUnscored, SORT_TILT_GAP_MS, LIST_WORDS_PER_SECOND, MORELESS_PICKS_PER_SECOND, PUZZLE_BATCHES_PER_SECOND, JIGSAW_MOVES_PER_SECOND, SPOTDIFF_TAPS_PER_SECOND, MEMORY_FLIPS_PER_SECOND, DRAW_GUESSES_PER_SECOND, DRAW_OPS_PER_SECOND, type DrawingEvent, type DrawOp, type AckResult, type Answer, type MoreLessSide, type AnswererScope, type AppealReason, type BuffKind, type DebuffKind, type DraftValue, type DuelSide, type ErrorCode, type GameView, type Grade, type GuideSkipView, type HostDrafts, type HostUndoTarget, type LifelineKind, type Phase, type PlayerView, type Question, type Quiz, type ResumeSetup, RESUME_POINTS_MAX, clamp, isObjectLike, type ContinuedView, type PlacedPrize, placedPrizeSchema, type SlotsResponse, type Role, type SortTilt, type SubmittedAnswer, type TeamForm, type ThinkWord, type ActivePerk, type NickLevel, type StickerExtra, stickerOpen, LIKE_RATE, type LikePayload, LOBBY_VISIBILITIES, lobbyPasswordSchema, type LobbySettings, type LobbyVisibility, type AchievementId, type HostLeagueView, type PlayerLeagueView, type GameXpMoment, BOT_ROOMS_MAX, BOT_USER_ID, isBotUser, type BotAction, type BotCommand, BOT_TIME_SECONDS, type AdminBotLobby, BOT_MANUAL_GRACE_MS, BOT_MANUAL_IDLE_MS } from '@quiz/shared';
 import type { LeagueGameResult } from '../league-store';
 import type { LikeChange, LikeKey } from '../like-store';
 import { SAVED_GAME_VERSION, type ContinueResult, type RestartInput, type SavedGameData } from './continuation';
@@ -325,6 +325,8 @@ export interface Room {
   botManual: { adminId: string; since: number } | null;
   /** 68: таймер повернення керування боту, коли всі пульти адмінів відключилися; null — таймера немає. Лише в пам'яті, у знімок не йде; після перезапуску порожньо. */
   manualAway: unknown;
+  /** Таймер повернення керування боту, коли адмін у «Керую сам» нічого не робить BOT_MANUAL_IDLE_MS (навіть з відкритим пультом); null — таймера немає. Лише в пам'яті. */
+  manualIdle: unknown;
   /** 75: хто з людей голосує «Пропустити пояснення» (id людини). Лише в пам'яті: не в стані гри, не в знімку; вихід з guide стирає. */
   guideVotes: Set<string>;
 }
@@ -949,6 +951,7 @@ export class RoomManager {
       adminHosts: new Map(),
       botManual: null,
       manualAway: null,
+      manualIdle: null,
       guideVotes: new Set(),
     };
     this.live.set(room.code, room);
@@ -1034,6 +1037,7 @@ export class RoomManager {
       adminHosts: new Map(),
       botManual: null,
       manualAway: null,
+      manualIdle: null,
       guideVotes: new Set(),
     };
     const forgotten = forgottenOf(saved.forgotten);
@@ -2672,6 +2676,7 @@ export class RoomManager {
     const room = this.live.get(code);
     if (room === undefined || !isBotUser(room.hostUserId) || room.state.autopilot === undefined) return GONE;
     if (!this.alive(room)) return this.gone();
+    this.adminActive(room);
     const command: BotCommand = typeof action === 'string' ? { type: action } : action;
     const state = room.state;
     switch (command.type) {
@@ -2708,6 +2713,7 @@ export class RoomManager {
   botLobby(code: string, input: AdminBotLobby): AckResult {
     const room = this.live.get(code);
     if (room === undefined || !isBotUser(room.hostUserId) || room.state.autopilot === undefined) return GONE;
+    this.adminActive(room);
     return this.setLobby(room, { visibility: input.listed ? 'all' : 'hidden', password: input.password });
   }
 
@@ -2723,6 +2729,17 @@ export class RoomManager {
     const token = newToken();
     room.adminHosts.set(token, adminId);
     return { ok: true, hostToken: token, stageToken: room.stageToken, fresh: true };
+  }
+
+  /**
+   * Акаунт більше не адмін (68): його токени пультів у всіх кімнатах відкликано, а «Керую сам», який він тримає, — боту.
+   * Відкриті з'єднання пульта лишаються до розриву; нове підключення з відкликаним токеном — unauthorized.
+   */
+  withdrawAdmin(adminId: string): void {
+    for (const room of this.live.values()) {
+      for (const [token, admin] of room.adminHosts) if (admin === adminId) room.adminHosts.delete(token);
+      if (room.botManual?.adminId === adminId && this.alive(room)) this.releaseManual(room);
+    }
   }
 
   /**
@@ -2748,6 +2765,7 @@ export class RoomManager {
     room.manualAway = null;
     // Узято з картки без жодного пульта на зв'язку — той самий відлік повернення, що й після відходу пультів.
     this.watchManual(room);
+    this.adminActive(room);
     this.reschedule(room);
     this.emit(room, { type: 'changed' });
     return { ok: true, changed: true };
@@ -2762,11 +2780,27 @@ export class RoomManager {
     });
   }
 
+  /**
+   * Дія адміна в кімнаті бота (пульт, картка, лобі): у «Керую сам» відлік BOT_MANUAL_IDLE_MS — спочатку; сплив без жодної
+   * дії — керування боту (як після відходу пультів, без журналу). Без «Керую сам» нічого не робить.
+   */
+  adminActive(room: Room): void {
+    this.scheduler.clearTimeout(room.manualIdle);
+    room.manualIdle = null;
+    if (room.botManual === null || !this.alive(room)) return;
+    room.manualIdle = this.timer(room, 'manual-idle', BOT_MANUAL_IDLE_MS, () => {
+      room.manualIdle = null;
+      if (this.alive(room) && room.botManual !== null) this.releaseManual(room);
+    });
+  }
+
   /** Керування — боту (68): гра йде — свіжий відлік поточного кроку від цієї миті (planAutopilot лишає at: pilotKey той самий). */
   private releaseManual(room: Room): void {
     room.botManual = null;
     this.scheduler.clearTimeout(room.manualAway);
     room.manualAway = null;
+    this.scheduler.clearTimeout(room.manualIdle);
+    room.manualIdle = null;
     const { state } = room;
     const pilot = state.autopilot;
     // У лобі свіжий відлік лише для жеребу команд (тур кубиків): інакше at лобі — це момент старту, його не чіпаємо.
@@ -2794,6 +2828,7 @@ export class RoomManager {
     if (!this.alive(room)) return this.gone();
     const state = room.state;
     if (!isBotUser(room.hostUserId) || state.autopilot === undefined) return FORBIDDEN;
+    this.adminActive(room);
     const paced = PACED[action.type];
     if (paced !== undefined && !state.paused && tooSoon(state, paced, this.now() + PACE_GRACE_MS)) return { ok: false, error: 'too_soon' };
     switch (action.type) {
@@ -3143,8 +3178,8 @@ export class RoomManager {
   }
 
   private clearTimers(room: Room): void {
-    for (const handle of [room.deadline, room.pilot, room.absence, room.authorAway, room.expiry, room.holdExpiry, room.manualAway]) this.scheduler.clearTimeout(handle);
-    room.deadline = room.pilot = room.absence = room.authorAway = room.expiry = room.holdExpiry = room.manualAway = null;
+    for (const handle of [room.deadline, room.pilot, room.absence, room.authorAway, room.expiry, room.holdExpiry, room.manualAway, room.manualIdle]) this.scheduler.clearTimeout(handle);
+    room.deadline = room.pilot = room.absence = room.authorAway = room.expiry = room.holdExpiry = room.manualAway = room.manualIdle = null;
   }
 
   private apply(room: Room, result: Result, options?: { only?: string }): AckResult {

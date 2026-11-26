@@ -383,6 +383,13 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
   const secondsRaw = phase === 'question' ? secondsLeft(view, offsetMs, Date.now()) : null;
   const secondsNow = secondsRaw !== null && view.limitMs !== null ? Math.min(secondsRaw, Math.ceil(view.limitMs / 1000)) : secondsRaw;
   const timeShown = phase === 'question' && (view.endsAt !== null || view.remainingMs !== null);
+  // ±15 с як на сервері (adjustTime): поки йде спільний час — за ним; сплив, а запитання тримає чийсь додатковий час —
+  // «+15 с» додає до додаткового (вимкнено, коли в усіх уже 2:00), «−15 с» додатковий час не урізає.
+  const overtimeOnly = secondsNow === 0 && view.overtime.length > 0;
+  const minusOff = secondsNow !== null && secondsNow <= 5;
+  const plusOff = overtimeOnly
+    ? view.overtime.every((row) => (secondsLeft({ endsAt: row.deadline, remainingMs: row.remainingMs }, offsetMs, Date.now()) ?? 0) >= 120)
+    : secondsNow !== null && secondsNow >= 120;
   // Табло — до справжнього кінця: чужий додатковий час (заміна, «+30 с», зал) тримає запитання довше за endsAt.
   const clockTotal = usePersonalTotal(view, view.closing ?? null);
   // Спільний час сплив, а розкриття чекає на гравця з додатковим часом: головна кнопка — «Не чекати» (та сама host:lock).
@@ -904,10 +911,10 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
         <div className="panel-actions host-time">
           <Timer view={view.closing ?? view} offsetMs={offsetMs} total={clockTotal} status={timerStatus(view)} leadMs={view.question === null || view.bluff?.stage === 'choice' ? 0 : publicLeadMs(view.question)} />
           {view.overtime.length > 0 && <SharedOvertime view={view} offsetMs={offsetMs} />}
-          <button type="button" className="btn btn-small" disabled={secondsNow !== null && secondsNow <= 5} onClick={() => adjust(-15)}>
+          <button type="button" className="btn btn-small" disabled={minusOff} onClick={() => adjust(-15)}>
             {t('timeMinus')}
           </button>
-          <button type="button" className="btn btn-small" disabled={secondsNow !== null && secondsNow >= 120} onClick={() => adjust(15)}>
+          <button type="button" className="btn btn-small" disabled={plusOff} onClick={() => adjust(15)}>
             {t('timePlus')}
           </button>
         </div>
