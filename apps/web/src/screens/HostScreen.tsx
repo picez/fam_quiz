@@ -70,7 +70,7 @@ import { PrizePlaces } from './PrizePlaces';
 import { LeaguePick } from '../league/LeaguePick';
 import { HostCeremony } from './HostCeremony';
 import { PrizeResults } from './MyPrize';
-import { Timer, timerStatus, useTimeOver } from '../live/Timer';
+import { Timer, timerStatus, usePersonalTotal, useTimeOver } from '../live/Timer';
 import { Standings } from './Standings';
 import { Nick } from './Nick';
 import { FactCards, RevealFactsLine } from './FactCards';
@@ -383,6 +383,8 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
   const secondsRaw = phase === 'question' ? secondsLeft(view, offsetMs, Date.now()) : null;
   const secondsNow = secondsRaw !== null && view.limitMs !== null ? Math.min(secondsRaw, Math.ceil(view.limitMs / 1000)) : secondsRaw;
   const timeShown = phase === 'question' && (view.endsAt !== null || view.remainingMs !== null);
+  // Табло — до справжнього кінця: чужий додатковий час (заміна, «+30 с», зал) тримає запитання довше за endsAt.
+  const clockTotal = usePersonalTotal(view, view.closing ?? null);
   // Спільний час сплив, а розкриття чекає на гравця з додатковим часом: головна кнопка — «Не чекати» (та сама host:lock).
   const sharedOver = useTimeOver(view.endsAt, view.remainingMs, offsetMs);
   // Звук без сцени грає тут: починається після заставки запитання, як на сцені.
@@ -900,7 +902,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
 
       {timeShown && (
         <div className="panel-actions host-time">
-          <Timer view={view} offsetMs={offsetMs} total={view.limitMs} status={timerStatus(view)} leadMs={view.question === null || view.bluff?.stage === 'choice' ? 0 : publicLeadMs(view.question)} />
+          <Timer view={view.closing ?? view} offsetMs={offsetMs} total={clockTotal} status={timerStatus(view)} leadMs={view.question === null || view.bluff?.stage === 'choice' ? 0 : publicLeadMs(view.question)} />
           {view.overtime.length > 0 && <SharedOvertime view={view} offsetMs={offsetMs} />}
           <button type="button" className="btn btn-small" disabled={secondsNow !== null && secondsNow <= 5} onClick={() => adjust(-15)}>
             {t('timeMinus')}

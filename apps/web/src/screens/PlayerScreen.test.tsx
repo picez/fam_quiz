@@ -2626,6 +2626,18 @@ describe('PlayerScreen: sort', () => {
     expect(parseFloat((container.querySelector('.timer-bar > span') as HTMLElement).style.width)).toBeCloseTo(58, 0);
   });
 
+  it('a phone that no longer answers counts down to when the question really closes', () => {
+    const now = Date.now();
+    const overtime = [{ playerId: 'p2', nickname: 'Оля', deadline: now + 24_000, remainingMs: null }];
+    const closing = { endsAt: now + 24_000, remainingMs: null };
+    show(onQuestion({ endsAt: now - 1000, limitMs: 20_000, overtime, closing, me: { ...me, closing } }));
+    expect(screen.getByRole('timer').getAttribute('aria-label')).toBe('24');
+    cleanup();
+    // Хто ще відповідає, дивиться на свій кінець: ключа closing у me немає.
+    show(onQuestion({ endsAt: now + 5000, limitMs: 20_000, overtime, closing, me }));
+    expect(screen.getByRole('timer').getAttribute('aria-label')).toBe('5');
+  });
+
   it('others see who the reveal waits for', () => {
     const now = Date.now();
     const overtime = [{ playerId: 'p2', nickname: 'Оля', deadline: now + 24_000, remainingMs: null }];

@@ -16,7 +16,7 @@ import { DuelBanner, DuelStage } from './DuelView';
 import { GuidePageView } from '../live/Guide';
 import { GuideSkipLine } from '../live/GuideSkip';
 import { Splash, useSplash } from '../live/Splash';
-import { Timer, timerStatus } from '../live/Timer';
+import { Timer, timerStatus, usePersonalTotal } from '../live/Timer';
 import { BlitzCellNotes, Board, BoardLegend } from './Board';
 import { BoardIntro } from './Dice';
 import { TurnSchedule } from './TurnSchedule';
@@ -227,6 +227,8 @@ function Question({ view, offsetMs, blink, blinking, audioCommand, tilts, drawin
   const busy = view.phase === 'question' && (splashNow?.splash.kind === 'question' || splashNow?.splash.kind === 'cell' || splashNow?.splash.kind === 'blitz');
   // Поступ проявлення рахується лише для запитань із проявленням: решта не перемальовується щоразу.
   const revealP = useRevealProgress(view, view.question?.reveal ? view.question : null, offsetMs);
+  // Табло — до справжнього кінця: чужий додатковий час (заміна, «+30 с», зал) тримає запитання довше за endsAt.
+  const clockTotal = usePersonalTotal(view, view.closing ?? null);
   if (question === null) return null;
   const correctIds =
     reveal === null
@@ -360,7 +362,7 @@ function Question({ view, offsetMs, blink, blinking, audioCommand, tilts, drawin
         {view.phase === 'question' && (
           // «Чекаємо …» висить під табло поза потоком: його поява на спільному кінці нічого не зсуває.
           <div className="stage-clock">
-            <Timer view={view} offsetMs={offsetMs} total={view.limitMs} status={timerStatus(view)} leadMs={view.bluff?.stage === 'choice' ? 0 : publicLeadMs(question)} />
+            <Timer view={view.closing ?? view} offsetMs={offsetMs} total={clockTotal} status={timerStatus(view)} leadMs={view.bluff?.stage === 'choice' ? 0 : publicLeadMs(question)} />
             {view.overtime.length > 0 && <SharedOvertime view={view} offsetMs={offsetMs} />}
           </div>
         )}
@@ -747,6 +749,8 @@ function LadderStage({ view, offsetMs, audioCommand }: { view: StageView; offset
   const info = view.ladder;
   const { question, reveal } = view;
   const splashNow = useSplash(view.splash, view.paused, offsetMs);
+  // Зал (підказка) тримає запитання довше за endsAt: табло — до справжнього кінця.
+  const clockTotal = usePersonalTotal(view, view.closing ?? null);
   if (info === null || question === null) return null;
   const busy = view.phase === 'question' && splashNow?.splash.kind === 'question';
   const correctId = reveal !== null && reveal.type === 'single' ? reveal.correctId : null;
@@ -771,7 +775,7 @@ function LadderStage({ view, offsetMs, audioCommand }: { view: StageView; offset
             <h1 className={questionClass(question.text)} dir="auto">{question.text}</h1>
             {view.phase === 'question' && info.timer && (
               <div className="stage-clock">
-                <Timer view={view} offsetMs={offsetMs} total={view.limitMs} status={timerStatus(view)} leadMs={publicLeadMs(question)} />
+                <Timer view={view.closing ?? view} offsetMs={offsetMs} total={clockTotal} status={timerStatus(view)} leadMs={publicLeadMs(question)} />
               </div>
             )}
           </div>
