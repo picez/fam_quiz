@@ -4,6 +4,7 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import type { AdminPlayerCard, AdminUserDetail, AdminUserRow, PrizeItem } from '@quiz/shared';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AdminUser } from './AdminUser';
+import { ADMIN_BADGE_EVENT } from './Admin';
 
 type Call = { method: string; url: string; body: unknown };
 type Reply = { status: number; data?: unknown } | undefined;
@@ -269,6 +270,8 @@ describe('AdminUser: the player card (58)', () => {
   });
 
   it('resets nickname and avatar through the moderation action', async () => {
+    const badge = vi.fn();
+    window.addEventListener(ADMIN_BADGE_EVENT, badge);
     open();
     fireEvent.click(await screen.findByRole('button', { name: 'Скинути нік' }));
     expect(window.confirm).toHaveBeenLastCalledWith('Скинути нік гравця Оля до типового?');
@@ -276,6 +279,9 @@ describe('AdminUser: the player card (58)', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Скинути аватар' }));
     await waitFor(() => expect(sent('POST', '/api/admin/reports/profile/u2')).toHaveLength(2));
     expect(sent('POST', '/api/admin/reports/profile/u2').map((call) => call.body)).toEqual([{ action: 'reset_nickname' }, { action: 'reset_avatar' }]);
+    // Дія закриває скарги на профіль: бейдж «Звернень» перечитується.
+    await waitFor(() => expect(badge).toHaveBeenCalledTimes(2));
+    window.removeEventListener(ADMIN_BADGE_EVENT, badge);
   });
 
   it('an admin has no moderation buttons and no delete section', async () => {
