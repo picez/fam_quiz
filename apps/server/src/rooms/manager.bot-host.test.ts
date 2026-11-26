@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { blitzRound, classicRound, makeRoundsQuiz, single, text } from '@quiz/engine/testing';
-import { AUTOPILOT_MS, BOT_MANUAL_GRACE_MS, defaultTeams, type HostView, type Quiz } from '@quiz/shared';
+import { AUTOPILOT_MS, BOT_MANUAL_GRACE_MS, BOT_MANUAL_IDLE_MS, defaultTeams, type HostView, type Quiz } from '@quiz/shared';
 import { FakeScheduler } from '../testing/fake-scheduler';
 import { AUTOPILOT_EMPTY_MS, HOST_ABSENCE_MS, RoomManager, type Identity, type Room } from './manager';
 
@@ -373,6 +373,42 @@ describe('manual mode of a bot room (68)', () => {
     expect(back!.botManual).toBeNull();
     expect(back!.adminHosts.size).toBe(0);
     expect(back!.manualAway).toBeNull();
+  });
+});
+
+describe('manual mode idle cap', () => {
+  it('with a host screen open but no admin action for the idle cap, the bot takes the game back', () => {
+    const { manager, scheduler } = setup();
+    const { room } = atQuestion(manager, scheduler);
+    const admin = adminHost(manager, room);
+    manager.connect(room, admin);
+    expect(manager.botManual(room.code, 'admin-1', true).ok).toBe(true);
+    scheduler.advance(BOT_MANUAL_IDLE_MS - 1000);
+    expect(room.botManual).not.toBeNull();
+    // Будь-яка дія адміна (навіть відмовлена) — відлік спочатку.
+    manager.adminHost(room, { type: 'save' });
+    scheduler.advance(BOT_MANUAL_IDLE_MS - 1);
+    expect(room.botManual).not.toBeNull();
+    // Дія з картки — теж.
+    manager.botAct(room.code, 'pause');
+    scheduler.advance(BOT_MANUAL_IDLE_MS - 1);
+    expect(room.botManual).not.toBeNull();
+    scheduler.advance(1);
+    expect(room.botManual).toBeNull();
+    expect(room.manualIdle).toBeNull();
+  });
+
+  it('giving back by hand drops the idle timer; a restart has none', () => {
+    const { manager, scheduler } = setup();
+    const { room } = atQuestion(manager, scheduler);
+    expect(manager.botManual(room.code, 'admin-1', true).ok).toBe(true);
+    expect(room.manualIdle).not.toBeNull();
+    expect(manager.botManual(room.code, 'admin-1', false).ok).toBe(true);
+    expect(room.manualIdle).toBeNull();
+    expect(manager.botManual(room.code, 'admin-1', true).ok).toBe(true);
+    const back = setup().manager.restore(manager.snapshot(room));
+    expect(back!.manualIdle).toBeNull();
+    expect(BOT_MANUAL_IDLE_MS).toBe(10 * 60_000);
   });
 });
 

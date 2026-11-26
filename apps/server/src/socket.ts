@@ -555,6 +555,8 @@ export function attachSockets(
     const logged = (action: AdminHostAction, act: () => AckResult): AckResult => {
       const entry = adminHostLog(room.state, action);
       const title = room.state.quiz.title;
+      // Підказка й рішення «Мільйонера» йдуть повз adminHost: дія адміна теж відкладає повернення боту (BOT_MANUAL_IDLE_MS).
+      if (admin !== undefined) manager.adminActive(room);
       const result = act();
       if (result.ok && entry !== null && admin !== undefined) {
         try {
