@@ -188,7 +188,9 @@ describe('timed list on a board cell', () => {
     expect(stageList(s)).toMatchObject({ players: 1, rows: [{ playerId: 'p1', found: 0 }] });
     const typed = enter(s, 'p1', ['Марс']);
     expect(stageView(typed).answeredCount).toBe(1);
-    expect(JSON.stringify(stageView(typed))).not.toContain('Марс');
+    // Знайдене тим, хто відповідає сам, сцена бачить наживо (solo); незнайдене — ні.
+    expect(stageView(typed).solo?.progress).toMatchObject({ kind: 'timedlist', found: [{ index: 4, text: 'Марс' }] });
+    expect(JSON.stringify(stageView(typed))).not.toContain('Венера');
     const closed = tick(s, 90_001);
     expect(stageView(closed).answeredCount).toBe(1);
     expect(stageList(must(next(closed, 91_000)))).toMatchObject({ players: 1, rows: [{ playerId: 'p1', found: 0, points: 0 }] });

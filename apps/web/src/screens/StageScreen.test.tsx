@@ -1361,6 +1361,33 @@ describe('StageScreen final', () => {
     expect(screen.queryByText(/Гравців:/)).toBeNull();
   });
 
+  it('a sole answerer is shown live instead of the rows: timed list finds, ladder words, chain words (solo)', () => {
+    const listQ = { ...question, type: 'timedlist' as const, text: 'Назвіть планети', choices: [], timedlist: { total: 3, minus: 50 } };
+    const info = { total: 3, minus: 50, players: 1, rows: [{ playerId: 'p1', nickname: 'Олена', found: 1, wrong: 2, points: null }], items: null };
+    const list = { playerId: 'p1', nickname: 'Олена', progress: { kind: 'timedlist' as const, found: [{ index: 2, text: 'Венера' }], total: 3, wrong: 2 } };
+    show(view({ phase: 'question', questionIndex: 0, question: listQ, endsAt: Date.now() + 20_000, playerCount: 1, answeredCount: 1, timedlist: info, solo: list }));
+    expect(screen.getByText('Відповідає Олена')).toBeTruthy();
+    expect(screen.getByText('Венера')).toBeTruthy();
+    expect(screen.getByText('Помилок: 2')).toBeTruthy();
+    expect(document.querySelectorAll('.solo-watch .timedlist-cell')).toHaveLength(3);
+    expect(document.querySelector('.timedlist-board')).toBeNull();
+    cleanup();
+    const ladderQ = { ...question, type: 'wordladder' as const, choices: [], wordladder: { start: 'поле', target: 'тара', letters: 4, maxSteps: 8 } };
+    const ladder = { playerId: 'p2', nickname: 'Тарас', progress: { kind: 'wordladder' as const, words: ['пола'], finished: false } };
+    const ladderInfo = { start: 'поле', target: 'тара', maxSteps: 8, path: null, rows: [{ playerId: 'p2', nickname: 'Тарас', steps: 1, finished: false, words: null, points: null }] };
+    show(view({ phase: 'question', questionIndex: 0, question: ladderQ, endsAt: Date.now() + 20_000, playerCount: 1, answeredCount: 0, wordladder: ladderInfo, solo: ladder }));
+    expect(screen.getAllByText('поле → тара')).toHaveLength(1);
+    expect(screen.getByText('пола')).toBeTruthy();
+    expect(screen.getByText('Кроків: 1')).toBeTruthy();
+    cleanup();
+    const chainQ = { ...question, type: 'chain' as const, choices: [], chain: { first: 'Форель', masks: [['Р', null, null, null], ['О', null, null, null, null]], hintSeconds: 5 } };
+    const chained = { playerId: 'p2', nickname: 'Тарас', progress: { kind: 'chain' as const, solved: 1, total: 2, hints: 0, masks: [[...'Риба'], ['О', null, null, null, null]] } };
+    show(view({ phase: 'question', questionIndex: 0, question: chainQ, endsAt: Date.now() + 20_000, playerCount: 1, answeredCount: 0, solo: chained }));
+    expect(screen.getByLabelText('Риба')).toBeTruthy();
+    expect(screen.getByLabelText('О____')).toBeTruthy();
+    expect(screen.getByText('1 з 2')).toBeTruthy();
+  });
+
   it('a word ladder in the final shows the plain answered count, not how many reached the target', () => {
     const ladderQ = { ...question, type: 'wordladder' as const, choices: [], wordladder: { start: 'поле', target: 'тара', letters: 4, maxSteps: 8 } };
     show(view({ phase: 'question', questionIndex: 0, question: ladderQ, endsAt: Date.now() + 20_000, playerCount: 2, answeredCount: 1 }));

@@ -48,6 +48,7 @@ import { XpMoment } from './XpMoment';
 import { ChainPlay, ChainWords } from './ChainView';
 import { WordLadderOutcome, WordLadderPlay } from './WordLadderView';
 import { WordleOutcome, WordlePlay } from './WordleView';
+import { SoloWatchView } from './SoloWatch';
 import { TimedListBoard, TimedListOutcome, TimedListPlay, TimedListReveal } from './TimedListView';
 import { LetterWordsBest, LetterWordsBoard, LetterWordsMine, LetterWordsPlay } from './LetterWordsView';
 import { MoreLessBoard, MoreLessPlay, MoreLessReveal, MoreLessWatch, useTimeRanOut } from './MoreLessView';
@@ -1264,6 +1265,9 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
             {me.auction !== undefined && view.auction !== undefined && <AuctionResult auction={view.auction} mine={me.auction} />}
             {betsSkipping && me.bets !== undefined && view.bets !== undefined ? (
               <BetResult bets={view.bets} mine={me.bets} playerId={me.id} />
+            ) : view.solo !== undefined ? (
+              // Хтось відповідає сам (клітинка поля, продане «Аукціону»): глядач бачить його список, драбину, слова чи ланцюжок наживо.
+              <SoloWatchView solo={view.solo} question={question} named={!othersAnswer} />
             ) : auctionWatching && !isSort ? (
               // Глядач проданого запитання: варіанти лише для читання, як на locked, — стежить за відповіддю й без сцени.
               // Сортування варіантів не має: глядач бачить живий показ переможця (SortWatch нижче), як глядач клітинки поля.
@@ -1560,6 +1564,12 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
             <TruthHeldPick question={question} answer={me.answer} team={truthMine.team} />
           ) : question?.type === 'drawing' ? (
             <DrawingClosed mine={me.drawing} info={view.drawing} strokes={strokesOf(drawing, view.questionIndex)} />
+          ) : view.solo !== undefined && question !== null ? (
+            // Глядач того, хто відповідав сам: його підсумок до розкриття.
+            <section className="sent">
+              <SoloWatchView solo={view.solo} question={question} />
+              <p className="lead">{t('chainWaitResults')}</p>
+            </section>
           ) : isSort ? (
             // Сортування: власний підсумок і очікування розкриття; глядач на полі бачить прогрес того, хто сортував.
             <section className="sent">
