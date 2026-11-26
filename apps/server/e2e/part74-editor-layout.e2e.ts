@@ -200,5 +200,11 @@ async function layout74() {
   expect(await gear.innerText()).toContain('Налаштування раунду');
   await gear.click();
   await marta.locator('details.round-settings[open]').waitFor();
+  // Розгорнута шестірня не перестрибує на новий рядок: лишається в смузі раунду, вміст — під смугою.
+  const openGear = (await gear.boundingBox())!;
+  expect(Math.abs(openGear.y + openGear.height / 2 - (pick.y + pick.height / 2)), 'the open ⚙ stays in the round bar').toBeLessThanOrEqual(8);
+  expect(Math.abs(openGear.x - gearBox.x), 'the open ⚙ keeps its place').toBeLessThanOrEqual(8);
+  const theme = (await marta.locator('details.round-settings[open] label.field').first().boundingBox())!;
+  expect(theme.y, 'the settings open below the round bar').toBeGreaterThan(pick.y + pick.height);
   await expectNoSideScroll(marta, '74-rounds-1920');
 }

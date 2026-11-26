@@ -974,7 +974,7 @@ function splitOutcome(state: GameState) {
 
 /**
  * Записи гравців із записом на запитання фіналу; після входу в reveal — у порядку розкриття, інакше в порядку гравців.
- * visible — для сцени й телефонів: «після» включає лише вже розкрите (finalVisiblePoints); ведучий бачить справжні бали.
+ * visible — «після» включає лише вже розкрите (finalVisiblePoints): сцена, телефони й пульт; false — справжні бали.
  */
 function finalEntries(state: GameState, visible: boolean): FinalEntry[] {
   const open = finalRoundOf(state);
@@ -1048,7 +1048,8 @@ function hostFinal(state: GameState): HostFinal | null {
   const manual = open.round.check === 'manual';
   const play = state.plays[state.questionIndex];
   const graded = play?.final?.graded ?? [];
-  const entries = finalEntries(state, false);
+  // «Після» — за правилом сцени (лише вже розкрите): оцінку ведучий бачить для перевірки, новий рахунок — лише з розкриттям.
+  const entries = finalEntries(state, true);
   // Ланцюжок і сортування перевіряються хід за ходом: ручної оцінки в них немає (override відмовляє).
   const gradable = play?.question.type !== 'chain' && play?.question.type !== 'sort' && play?.question.type !== 'wordladder' && play?.question.type !== 'timedlist' && play?.question.type !== 'letterwords' && play?.question.type !== 'moreless' && play?.question.type !== 'drawing' && play?.question.type !== 'jigsaw' && play?.question.type !== 'spotdiff' && play?.question.type !== 'memory' && !(play !== undefined && isPuzzle(play.question));
   return {
@@ -3773,9 +3774,16 @@ function hostLines(state: GameState): LinesByPlayer {
 }
 
 /** Розбивки пульта за гравцями: рядки hostLines рахуються один раз на зріз. */
-function hostBreakdowns(state: GameState): Record<string, ScoreBreakdown> {
-  const lines = hostLines(state);
+function hostBreakdowns(state: GameState, lines: LinesByPlayer = hostLines(state)): Record<string, ScoreBreakdown> {
   return Object.fromEntries(state.players.map((p) => [p.id, breakdownFor(lines, p.id)]));
+}
+
+/**
+ * Бали фіналу, яких пульт ще не показує: те саме правило, що для сцени й телефонів (hiddenPoints) — рахунок гравця
+ * змінюється в мить його розкриття, частка банку — на кроці розподілу. Поза фіналом пульт бачить усе, як і досі.
+ */
+function hostHiddenPoints(state: GameState, playerId: string): number {
+  return currentRound(state)?.type === 'final' ? hiddenPoints(state, playerId) : 0;
 }
 
 /** Групування видимих рядків: без прихованого — готові групи стану. */
@@ -4232,6 +4240,9 @@ export function hostView(state: GameState, options: { byAdmin?: boolean } = {}):
   const q = state.questionIndex;
   const penalized = unscored || q < 0 ? [] : awayPenalized(state, q).filter((id) => !state.adjustments.some((a) => a.source === 'away' && a.playerId === id && a.afterQuestion - 1 === q));
   const play = state.plays[state.questionIndex];
+  // Фінал (спойлер): рахунки, рядки й бали відповідей — без ще не розкритого, як на сцені; оцінку пульт бачить для перевірки.
+  const hiddenOf = new Map(state.players.map((p) => [p.id, hostHiddenPoints(state, p.id)]));
+  const hidden = (id: string) => hiddenOf.get(id) ?? 0;
   const responses = responders.flatMap((player): HostResponse[] => {
     const record = currentRecord(state, player.id);
     if (record === undefined) return [];
@@ -4245,7 +4256,7 @@ export function hostView(state: GameState, options: { byAdmin?: boolean } = {}):
         accepted: unscored ? null : record.accepted,
         grade: unscored ? null : record.grade,
         streakBonus: record.streakBonus,
-        points: record.points,
+        points: record.points - hidden(player.id),
         ...(unscored ? {} : appealExtra(state, player.id)),
         overridden: record.overridden,
         buff: record.buff ?? null,
@@ -4259,6 +4270,9 @@ export function hostView(state: GameState, options: { byAdmin?: boolean } = {}):
     ];
   });
   const wards = wardsView(state);
+  const masked = [...hiddenOf.values()].some((points) => points !== 0);
+  const anonHidden = state.phase !== 'finished';
+  const seenLines = masked ? groupByPlayer(visibleLines(scoreLines(state).filter((line) => !(anonHidden && line.anon === true)), state, hidden)) : null;
   // Зріз «Ставок» для сцени й телефонів ведучому замінює повний (hostBets).
   const { bets: _publicBets, auction: _publicAuction, truth: _publicTruth, quest: _publicQuest, drawing: _publicDrawing, spotdiff: _publicSpotdiff, memory: _publicMemory, think: _publicThink, alike: _publicAlike, spy: _publicSpy, ...shared } = base(state, true);
   return {
@@ -4274,7 +4288,7 @@ export function hostView(state: GameState, options: { byAdmin?: boolean } = {}):
       connected: p.connected,
       streak: shownStreak(state, p),
       ...seriesKey(state, p.id, true),
-      score: p.score,
+      score: p.score - hidden(p.id),
       debuff: hostDebuff(state, p.id),
     })),
     correct: hostKey(state, shownQuestion(state)?.question ?? null),
@@ -4295,9 +4309,12 @@ export function hostView(state: GameState, options: { byAdmin?: boolean } = {}):
     duel: hostDuel(state),
     allowed: { debuffs: debuffsOff(state) ? [] : allowedDebuffs(state.quiz), buffs: allowedBuffs(state.quiz) },
     hints: hintRequests(state),
-    standings: withRounds(rankPlayers(state.players), scoreLinesByPlayer(state), roundCount(state)),
+    standings:
+      seenLines === null
+        ? withRounds(rankPlayers(state.players), scoreLinesByPlayer(state), roundCount(state))
+        : withRounds(rankPlayers(state.players.map((p) => ({ ...p, score: p.score - hidden(p.id) }))), groupedVisible(state, visibleLines(scoreLines(state), state, hidden)), roundCount(state)),
     firstRound: firstRound(state),
-    breakdowns: state.phase === 'lobby' ? {} : hostBreakdowns(state),
+    breakdowns: state.phase === 'lobby' ? {} : hostBreakdowns(state, seenLines ?? hostLines(state)),
     sliderMarks: sliderMarks(state, true),
     pinMarks: pinMarks(state, true),
     cloud: hostCloud(state),

@@ -137,3 +137,100 @@ describe('Combobox', () => {
     expect(onChange).not.toHaveBeenCalled();
   });
 });
+
+/** matchMedia, що відповідає лише на перелічені запити. */
+function media(matches: readonly string[]) {
+  vi.stubGlobal('matchMedia', (query: string) => ({ matches: matches.includes(query), media: query, addEventListener: () => {}, removeEventListener: () => {} }));
+}
+
+describe('Combobox on a touch screen', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('focuses the list, and typing a letter there moves into the search and filters', () => {
+    media(['(pointer: coarse)']);
+    setup();
+    fireEvent.click(trigger());
+    const list = screen.getByRole('listbox');
+    expect(document.activeElement).toBe(list);
+    fireEvent.keyDown(list, { key: 'м' });
+    const search = screen.getByRole('combobox') as HTMLInputElement;
+    expect(document.activeElement).toBe(search);
+    expect(search.value).toBe('м');
+    expect(screen.getAllByRole('option').map((o) => o.getAttribute('data-value'))).toEqual(['memory', 'pin', 'melody']);
+  });
+
+  it('keeps the search usable: tapping it takes the focus and typing filters', () => {
+    media(['(pointer: coarse)']);
+    setup();
+    fireEvent.click(trigger());
+    const search = screen.getByRole('combobox') as HTMLInputElement;
+    expect(search.readOnly).toBe(false);
+    fireEvent.pointerDown(search);
+    search.focus();
+    fireEvent.change(search, { target: { value: 'мел' } });
+    expect(screen.getByRole('listbox')).toBeTruthy();
+    expect(screen.getAllByRole('option').map((o) => o.getAttribute('data-value'))).toEqual(['melody']);
+    fireEvent.keyDown(search, { key: 'Enter' });
+    expect(screen.queryByRole('listbox')).toBeNull();
+  });
+
+  it('arrows and modifier keys in the list do not jump into the search', () => {
+    media(['(pointer: coarse)']);
+    setup();
+    fireEvent.click(trigger());
+    const list = screen.getByRole('listbox');
+    fireEvent.keyDown(list, { key: 'ArrowDown' });
+    fireEvent.keyDown(list, { key: 'c', ctrlKey: true });
+    expect(document.activeElement).toBe(list);
+    expect((screen.getByRole('combobox') as HTMLInputElement).value).toBe('');
+  });
+});
+
+describe('Combobox popup near the inline-end edge (from 600 px)', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  const placePopup = (left: number, width: number) =>
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+      const shift = parseFloat(this.style.insetInlineStart || '0') || 0;
+      const x = this.classList.contains('combo-popup') ? left + shift : 0;
+      return { left: x, right: x + width, x, y: 0, top: 0, bottom: 10, width, height: 10, toJSON: () => ({}) } as DOMRect;
+    });
+
+  it('shifts back so its edge stays inside the viewport', () => {
+    media(['(min-width: 600px)']);
+    Object.defineProperty(document.documentElement, 'clientWidth', { configurable: true, value: 1000 });
+    placePopup(700, 448);
+    setup();
+    fireEvent.click(trigger());
+    const popup = document.querySelector('.combo-popup') as HTMLElement;
+    // 700 + 448 = 1148 > 1000 − 8: назад на 156 px.
+    expect(popup.style.insetInlineStart).toBe('-156px');
+  });
+
+  it('does not move past the start edge when the viewport is too narrow', () => {
+    media(['(min-width: 600px)']);
+    Object.defineProperty(document.documentElement, 'clientWidth', { configurable: true, value: 620 });
+    placePopup(100, 640);
+    setup();
+    fireEvent.click(trigger());
+    expect((document.querySelector('.combo-popup') as HTMLElement).style.insetInlineStart).toBe('-92px');
+  });
+
+  it('stays put when it fits, and on a phone (bottom sheet)', () => {
+    Object.defineProperty(document.documentElement, 'clientWidth', { configurable: true, value: 1000 });
+    placePopup(700, 448);
+    media([]);
+    setup();
+    fireEvent.click(trigger());
+    expect((document.querySelector('.combo-popup') as HTMLElement).style.insetInlineStart).toBe('');
+    cleanup();
+    media(['(min-width: 600px)']);
+    placePopup(100, 448);
+    setup();
+    fireEvent.click(trigger());
+    expect((document.querySelector('.combo-popup') as HTMLElement).style.insetInlineStart).toBe('');
+  });
+});

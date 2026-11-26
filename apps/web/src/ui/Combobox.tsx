@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from 'react';
+import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { t } from '../i18n';
 import { useDismiss } from './use-dismiss';
 
@@ -49,6 +49,7 @@ export function Combobox<V extends string>({ label, value, options, groups, onCh
   const triggerRef = useRef<HTMLButtonElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
+  const popupRef = useRef<HTMLDivElement>(null);
   const uid = useId();
 
   const selected = options.find((option) => option.value === value);
@@ -97,6 +98,28 @@ export function Combobox<V extends string>({ label, value, options, groups, onCh
     (coarse ? listRef.current : searchRef.current)?.focus();
   }, [open, coarse]);
 
+  // Від 600 px список під кнопкою може вилізти за кінцевий край екрана (кнопка біля краю, ширина від 20rem):
+  // тоді він зсувається назад, але не далі за початковий край. Нижній аркуш телефона не чіпаємо.
+  useLayoutEffect(() => {
+    const popup = popupRef.current;
+    if (!open || popup === null) return;
+    const place = () => {
+      popup.style.insetInlineStart = '';
+      if (!window.matchMedia?.('(min-width: 600px)').matches) return;
+      const edge = 8;
+      const width = document.documentElement.clientWidth;
+      const rect = popup.getBoundingClientRect();
+      const rtl = getComputedStyle(popup).direction === 'rtl';
+      const over = rtl ? edge - rect.left : rect.right - (width - edge);
+      const room = rtl ? width - edge - rect.right : rect.left - edge;
+      const shift = Math.max(0, Math.min(over, room));
+      if (shift > 0) popup.style.insetInlineStart = `${-shift}px`;
+    };
+    place();
+    window.addEventListener('resize', place);
+    return () => window.removeEventListener('resize', place);
+  }, [open]);
+
   // Активний рядок видно в списку.
   useEffect(() => {
     if (!open) return;
@@ -134,6 +157,12 @@ export function Combobox<V extends string>({ label, value, options, groups, onCh
       closeAndFocus();
     } else if (event.key === 'Tab') {
       setOpen(false);
+    } else if (event.currentTarget === listRef.current && event.key.length === 1 && event.key !== ' ' && !event.ctrlKey && !event.metaKey && !event.altKey) {
+      // На дотику фокус у списку (без екранної клавіатури), але набір літери — це пошук: літера йде в поле пошуку.
+      event.preventDefault();
+      setQuery((text) => text + event.key);
+      setActive(0);
+      searchRef.current?.focus();
     }
   };
 
@@ -208,7 +237,7 @@ export function Combobox<V extends string>({ label, value, options, groups, onCh
         </span>
       </button>
       {open && (
-        <div className="combo-popup">
+        <div className="combo-popup" ref={popupRef}>
           <input
             ref={searchRef}
             className="combo-search"
