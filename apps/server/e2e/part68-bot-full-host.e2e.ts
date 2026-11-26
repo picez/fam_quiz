@@ -119,7 +119,7 @@ async function full68(sockets: Socket[]) {
     rogue.once('connect_error', () => done());
   });
   await olya.goto(`${base}/bot-host/${code}`);
-  await olya.getByText('Ця кімната не бота або ти не адмін').waitFor();
+  await olya.getByText('Гри вже немає, або ця кімната не бота, або ти не адмін').waitFor();
   await olya.goto(`${base}/play/${code}`);
   await olya.getByText('Ви в грі. Чекаємо на старт.').waitFor();
 

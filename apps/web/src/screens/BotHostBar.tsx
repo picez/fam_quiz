@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import type { HostView } from '@quiz/shared';
+import { BOT_MANUAL_GRACE_MS, BOT_MANUAL_IDLE_MS, type HostView } from '@quiz/shared';
 import { botManual } from '../admin/admin-api';
 import { errorText, t } from '../i18n';
 
@@ -14,7 +14,7 @@ export function BotHostBar({ view, code }: { view: HostView; code: string }) {
   const state = view.botHost;
   if (state === undefined) return null;
   const finished = view.phase === 'finished';
-  const text = state.manual ? t(state.mine ? 'botHostManualMine' : 'botHostManualOther') : t('botHostAuto');
+  const text = state.manual ? (state.mine ? t('botHostManualMine', { idle: BOT_MANUAL_IDLE_MS / 60_000, grace: BOT_MANUAL_GRACE_MS / 60_000 }) : t('botHostManualOther')) : t('botHostAuto');
   const flip = () => {
     if (busy) return;
     setBusy(true);
