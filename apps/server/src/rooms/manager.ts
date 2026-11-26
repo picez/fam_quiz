@@ -2732,6 +2732,17 @@ export class RoomManager {
   }
 
   /**
+   * Акаунт більше не адмін (68): його токени пультів у всіх кімнатах відкликано, а «Керую сам», який він тримає, — боту.
+   * Відкриті з'єднання пульта лишаються до розриву; нове підключення з відкликаним токеном — unauthorized.
+   */
+  withdrawAdmin(adminId: string): void {
+    for (const room of this.live.values()) {
+      for (const [token, admin] of room.adminHosts) if (admin === adminId) room.adminHosts.delete(token);
+      if (room.botManual?.adminId === adminId && this.alive(room)) this.releaseManual(room);
+    }
+  }
+
+  /**
    * «Взяти керування» / «Віддати боту» (68). Немає кімнати, не бота чи не автопілот → game_not_found; зупинка → restarting;
    * фініш → wrong_phase. on — бот не робить кроків (інший адмін може перехопити); off — бот продовжує зі свіжим відліком
    * поточного кроку. changed — чи режим справді змінився (для журналу маршруту).

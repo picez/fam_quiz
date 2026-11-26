@@ -191,6 +191,11 @@ export interface SocketOptions {
   eventsPerSecond?: number;
   /** 68: вдала дія з пульта адміна в кімнаті бота, що йде в журнал адмінки (кроки темпу й показу сюди не потрапляють). */
   onAdminHost?: (entry: { adminId: string; code: string; title: string; kind: AdminActionKind; text?: string }) => void;
+  /**
+   * 68: чи акаунт усе ще адмін (кожне підключення пульта адміна). false — його токени пультів відкликано, «Керую сам» — боту,
+   * з'єднання — unauthorized. Збій перевірки — restarting (токени лишаються). Немає — без перевірки.
+   */
+  adminStill?: (adminId: string) => Promise<boolean>;
 }
 
 /** Вікно злиття зрізів від пакетів клітинок (28d): телефон шле пакет раз на 250 мс, тож на кімнату — не частіше. */
@@ -274,6 +279,13 @@ export function attachSockets(
     if (manager.frozen || located === 'restarting') return next(new Error('restarting'));
     const found = manager.identify(auth.data.code, auth.data.role, auth.data.token);
     if (found === null) return next(new Error('unauthorized'));
+    const admin = found.identity.admin;
+    if (admin !== undefined && options.adminStill !== undefined && !(await options.adminStill(admin))) {
+      manager.withdrawAdmin(admin);
+      return next(new Error('unauthorized'));
+    }
+    // Поки чекали на перевірку адміна, сервер міг почати зупинку.
+    if (manager.frozen) return next(new Error('restarting'));
     socket.data.room = found.room;
     socket.data.identity = found.identity;
     next();
