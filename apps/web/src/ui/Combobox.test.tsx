@@ -185,3 +185,52 @@ describe('Combobox on a touch screen', () => {
     expect((screen.getByRole('combobox') as HTMLInputElement).value).toBe('');
   });
 });
+
+describe('Combobox popup near the inline-end edge (from 600 px)', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  const placePopup = (left: number, width: number) =>
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+      const shift = parseFloat(this.style.insetInlineStart || '0') || 0;
+      const x = this.classList.contains('combo-popup') ? left + shift : 0;
+      return { left: x, right: x + width, x, y: 0, top: 0, bottom: 10, width, height: 10, toJSON: () => ({}) } as DOMRect;
+    });
+
+  it('shifts back so its edge stays inside the viewport', () => {
+    media(['(min-width: 600px)']);
+    Object.defineProperty(document.documentElement, 'clientWidth', { configurable: true, value: 1000 });
+    placePopup(700, 448);
+    setup();
+    fireEvent.click(trigger());
+    const popup = document.querySelector('.combo-popup') as HTMLElement;
+    // 700 + 448 = 1148 > 1000 − 8: назад на 156 px.
+    expect(popup.style.insetInlineStart).toBe('-156px');
+  });
+
+  it('does not move past the start edge when the viewport is too narrow', () => {
+    media(['(min-width: 600px)']);
+    Object.defineProperty(document.documentElement, 'clientWidth', { configurable: true, value: 620 });
+    placePopup(100, 640);
+    setup();
+    fireEvent.click(trigger());
+    expect((document.querySelector('.combo-popup') as HTMLElement).style.insetInlineStart).toBe('-92px');
+  });
+
+  it('stays put when it fits, and on a phone (bottom sheet)', () => {
+    Object.defineProperty(document.documentElement, 'clientWidth', { configurable: true, value: 1000 });
+    placePopup(700, 448);
+    media([]);
+    setup();
+    fireEvent.click(trigger());
+    expect((document.querySelector('.combo-popup') as HTMLElement).style.insetInlineStart).toBe('');
+    cleanup();
+    media(['(min-width: 600px)']);
+    placePopup(100, 448);
+    setup();
+    fireEvent.click(trigger());
+    expect((document.querySelector('.combo-popup') as HTMLElement).style.insetInlineStart).toBe('');
+  });
+});
