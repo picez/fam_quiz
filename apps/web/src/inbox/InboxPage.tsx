@@ -1,11 +1,11 @@
-import { useEffect, useRef, useState, type JSX } from 'react';
+import { useCallback, useEffect, useRef, useState, type JSX } from 'react';
 import { Link, Navigate, useLocation } from 'react-router-dom';
 import { isAnnouncementUrl, type InboxItem, type InboxPage as InboxData } from '@quiz/shared';
 import { getInbox, markInboxRead } from '../api';
 import { formatDate } from '../format';
 import { t } from '../i18n';
 import { usePrivateData } from '../usePrivateData';
-import { setInboxUnread } from './useInboxBadge';
+import { setInboxUnread, useInboxBadge } from './useInboxBadge';
 
 const LOGIN = '/login?next=%2Finbox';
 
@@ -66,15 +66,24 @@ function ItemCard({ item }: { item: InboxItem }): JSX.Element {
   );
 }
 
-function InboxList({ page }: { page: InboxData }): JSX.Element {
+function InboxList({ page, onStale }: { page: InboxData; onStale: () => void }): JSX.Element {
   const marked = useRef(false);
+  // Скільки непрочитаного ця сторінка вже знає: з відповіді списку, а після позначення — з відповіді позначення.
+  const known = useRef(page.unread);
+  const badge = useInboxBadge(true);
+  // Опитування лічильника побачило більше, ніж знає показаний список: прийшло нове — список читається знову.
+  useEffect(() => {
+    if (badge > known.current) onStale();
+  }, [badge, onStale]);
   // Відкриття сторінки позначає прочитаним усе, що не новіше за найновіше показане; позначка «Нове» на цьому показі лишається.
   useEffect(() => {
     const newest = page.items[0];
     if (marked.current || newest === undefined || page.unread === 0) return;
     marked.current = true;
     void markInboxRead(newest.at).then((result) => {
-      if (result.ok) setInboxUnread(result.unread);
+      if (!result.ok) return;
+      known.current = result.unread;
+      setInboxUnread(result.unread);
     });
   }, [page]);
   return (
@@ -97,6 +106,7 @@ function InboxList({ page }: { page: InboxData }): JSX.Element {
 export function InboxPage(): JSX.Element {
   const { key } = useLocation();
   const [attempt, setAttempt] = useState(0);
+  const reload = useCallback(() => setAttempt((n) => n + 1), []);
   // Сигнал service worker «quiz:inbox» (прийшло сповіщення): список читається знову, не чекаючи переходу.
   useEffect(() => {
     const worker = typeof navigator !== 'undefined' && typeof navigator.serviceWorker === 'object' ? navigator.serviceWorker : null;
@@ -127,10 +137,10 @@ export function InboxPage(): JSX.Element {
         <p className="error" role="alert">
           {state.message}
         </p>
-        <button type="button" className="secondary" onClick={() => setAttempt((n) => n + 1)}>
+        <button type="button" className="btn" onClick={reload}>
           {t('prizesRetry')}
         </button>
       </main>
     );
-  return <InboxList key={`${key}:${attempt}`} page={state.data} />;
+  return <InboxList key={`${key}:${attempt}`} page={state.data} onStale={reload} />;
 }

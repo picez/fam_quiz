@@ -1073,8 +1073,43 @@ describe('final round views', () => {
     ]);
     const shown = hostView(must(next(toReveal(), 13_500, rng))).final;
     expect(shown?.entries.map((e) => e.playerId)).toEqual(['p3', 'p2', 'p1']);
-    expect(shown?.entries.find((e) => e.playerId === 'p1')).toMatchObject({ wager: 500, before: 1000, after: 1500, grade: 'correct' });
+    // Оцінка потрібна ведучому для «Зарахувати / Не зараховувати»; новий рахунок — лише після розкриття, як на сцені.
+    expect(shown?.entries.find((e) => e.playerId === 'p1')).toMatchObject({ wager: 500, before: 1000, after: 1000, grade: 'correct' });
     expect(shown?.shown).toHaveLength(1);
+  });
+
+  it('the host console keeps the stage spoiler rule: scores change only when a player is revealed', () => {
+    const locked = must(lock(toAnswered()));
+    const scores = (s: GameState) => Object.fromEntries(hostView(s).players.map((p) => [p.id, p.score]));
+    const table = (s: GameState) => Object.fromEntries(hostView(s).standings.map((row) => [row.participantId, row.score]));
+    const finalPart = (s: GameState, id: string) => hostView(s).breakdowns[id]?.parts.filter((part) => part.source === 'final').reduce((sum, part) => sum + part.plus + part.minus, 0) ?? 0;
+    const before = { p1: 1000, p2: 400, p3: -400 };
+    expect(scores(locked)).toEqual(before);
+    expect(table(locked)).toEqual(before);
+    expect(finalPart(locked, 'p1')).toBe(0);
+
+    const entered = toReveal();
+    expect(scores(entered)).toEqual(before);
+    expect(table(entered)).toEqual(before);
+    expect(hostView(entered).final?.entries.map((e) => [e.playerId, e.before, e.after])).toEqual([
+      ['p3', -400, -400],
+      ['p2', 400, 400],
+      ['p1', 1000, 1000],
+    ]);
+    // Оцінка лишається: без неї ведучий не виправить перевірку.
+    expect(hostView(entered).final?.entries.map((e) => e.grade)).toEqual(['wrong', 'wrong', 'correct']);
+
+    let s = must(next(entered, 13_500, rng)); // p3
+    s = must(next(s, 14_000, rng)); // p2
+    expect(scores(s)).toEqual({ p1: 1000, p2: 0, p3: -400 });
+    expect(table(s)).toEqual({ p1: 1000, p2: 0, p3: -400 });
+    expect(finalPart(s, 'p2')).toBe(-400);
+    expect(finalPart(s, 'p1')).toBe(0);
+    expect(hostView(s).final?.entries.find((e) => e.playerId === 'p1')?.after).toBe(1000);
+    s = must(next(s, 14_500, rng)); // p1
+    expect(scores(s)).toEqual({ p1: 1500, p2: 0, p3: -400 });
+    expect(hostView(s).final?.entries.find((e) => e.playerId === 'p1')?.after).toBe(1500);
+    expect(finalPart(s, 'p1')).toBe(500);
   });
 
   it('all-in shows on the reveal, in the host wagers and in the own wager', () => {

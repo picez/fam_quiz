@@ -30573,6 +30573,26 @@ details.editor-card > summary {
   justify-self: end;
 }
 
+/* Де браузер уміє ::details-content: розгорнута шестірня лишається в смузі раунду на своєму місці,
+   а вміст — панеллю на всю ширину наступного рядка (як задумано в 74). Інакше — запасний варіант вище. */
+@supports selector(::details-content) {
+  .round-bar-row details.round-settings[open] {
+    display: contents;
+  }
+
+  .round-bar-row details.round-settings[open]::details-content {
+    display: grid;
+    box-sizing: border-box;
+    flex-basis: 100%;
+    gap: 0.75rem;
+    min-inline-size: 0;
+    padding: 0.875rem;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--surface);
+  }
+}
+
 .round-bar-row .round-settings > summary {
   display: inline-flex;
   align-items: center;

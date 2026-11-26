@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { forgetAccount } from '../useAccount';
 import { getInbox, markInboxRead, me } from '../api';
 import { InboxPage } from './InboxPage';
-import { setInboxUnread } from './useInboxBadge';
+import { setInboxUnread, useInboxBadge } from './useInboxBadge';
 
 vi.mock('../api', () => ({ me: vi.fn(), getInbox: vi.fn(), markInboxRead: vi.fn() }));
 vi.mock('./useInboxBadge', () => ({ setInboxUnread: vi.fn(), useInboxBadge: vi.fn(() => 0), refreshInbox: vi.fn() }));
@@ -56,6 +56,8 @@ beforeEach(() => {
   vi.mocked(markInboxRead).mockReset();
   vi.mocked(markInboxRead).mockResolvedValue({ ok: true, unread: 0 });
   vi.mocked(setInboxUnread).mockReset();
+  vi.mocked(useInboxBadge).mockReset();
+  vi.mocked(useInboxBadge).mockReturnValue(0);
 });
 afterEach(cleanup);
 
@@ -153,8 +155,39 @@ describe('InboxPage (70)', () => {
     open();
     expect(await screen.findByRole('alert')).toBeTruthy();
     vi.mocked(getInbox).mockResolvedValue({ ok: true, items: [broadcast()], unread: 0 });
-    screen.getByRole('button', { name: 'Спробувати ще' }).click();
+    const retry = screen.getByRole('button', { name: 'Спробувати ще' });
+    // Кнопка — як інші кнопки застосунку (.btn), а не гола кнопка браузера.
+    expect(retry.classList.contains('btn')).toBe(true);
+    retry.click();
     expect(await screen.findByText('Субота')).toBeTruthy();
+  });
+
+  it('the unread-count poll seeing more than the list knows reads the list again', async () => {
+    vi.mocked(getInbox).mockResolvedValue({ ok: true, items: [reply], unread: 0 });
+    const view = open();
+    await screen.findByText('Відповідь на твоє повідомлення');
+    expect(getInbox).toHaveBeenCalledTimes(1);
+    vi.mocked(getInbox).mockResolvedValue({ ok: true, items: [broadcast({ title: 'Свіже' }), reply], unread: 1 });
+    vi.mocked(useInboxBadge).mockReturnValue(1);
+    view.rerender(
+      <MemoryRouter initialEntries={['/inbox']}>
+        <Routes>
+          <Route path="/inbox" element={<InboxPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    expect(await screen.findByText('Свіже')).toBeTruthy();
+    expect(getInbox).toHaveBeenCalledTimes(2);
+  });
+
+  it('the badge matching what the list shows (or dropping after mark-read) does not reload', async () => {
+    vi.mocked(useInboxBadge).mockReturnValue(1);
+    vi.mocked(getInbox).mockResolvedValue({ ok: true, items: [broadcast(), reply], unread: 1 });
+    open();
+    await screen.findByText('Субота');
+    await waitFor(() => expect(setInboxUnread).toHaveBeenCalledWith(0));
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(getInbox).toHaveBeenCalledTimes(1);
   });
 });
 
