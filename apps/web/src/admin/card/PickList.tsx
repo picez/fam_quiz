@@ -16,6 +16,13 @@ export function PickList({ title, items, action, danger = false, busy, onRun }: 
   const chosen = items.filter((item) => picked.has(item.id));
   const all = items.length > 0 && chosen.length === items.length;
 
+  // Після перечитування (і після невдалої дії, що встигла частину) вибір зниклих рядків забуваємо: рядок, що повернувся, — не вибраний.
+  const ids = items.map((item) => item.id).join(' ');
+  useEffect(() => {
+    const present = new Set(ids.split(' '));
+    setPicked((now) => ([...now].every((id) => present.has(id)) ? now : new Set([...now].filter((id) => present.has(id)))));
+  }, [ids]);
+
   useEffect(() => {
     if (allRef.current !== null) allRef.current.indeterminate = chosen.length > 0 && !all;
   }, [chosen.length, all]);
