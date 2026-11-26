@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { QUESTION_TYPES } from '@quiz/shared';
+import { GROUP_LIMITS, QUESTION_TYPES } from '@quiz/shared';
 import golden from './__fixtures__/uk-golden.json';
 import ar from './locales/ar.json';
 import de from './locales/de.json';
@@ -1002,7 +1002,8 @@ describe('uk golden (22a)', () => {
     for (const key of ADDED_72) expect(uk[key]?.trim(), key).toBeTruthy();
     expect(uk.adminLog_group_member_add).toBe('{admin} додав(-ла) {target} до групи «{title}»');
     expect(uk.adminLog_group_item_add).toBe('{admin} додав(-ла) запис «{text}» у групу «{title}» від Квіз-бота ({target})');
-    expect(uk.err_member_too_many_groups).toBe('Людина вже в 10 групах — це межа.');
+    expect(uk.err_member_too_many_groups).toBe('Людина вже в {limit} групах — це межа.');
+    expect(errorText('member_too_many_groups')).toBe(`Людина вже в ${GROUP_LIMITS.groupsPerUser} групах — це межа.`);
     expect(uk.inboxGroupAdded).toBe('Тебе додали до групи «{title}»');
     // Сповіщення людини — завжди у «Вхідних»; пуш — лише додатково.
     expect(uk.adminGroupAddedNoPush).toContain('«Вхідних»');

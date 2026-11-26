@@ -5224,7 +5224,7 @@
   "err_member_banned": "The person is blocked — they cannot be added to a group.",
   "err_group_hidden": "The group is hidden — restore it first.",
   "err_already_member": "This person is already in the group.",
-  "err_member_too_many_groups": "The person is already in 10 groups — that’s the limit.",
+  "err_member_too_many_groups": "The person is already in {limit} groups — that’s the limit.",
   "adminLog_group_member_add": "{admin} added {target} to the group «{title}»",
   "adminLog_group_item_add": "{admin} added the record «{text}» to the group «{title}» from Quiz bot ({target})",
   "inboxGroupAdded": "You were added to the group «{title}»",

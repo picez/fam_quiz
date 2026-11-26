@@ -5325,7 +5325,7 @@
   "err_member_banned": "Osoba jest zablokowana — nie można jej dodać do grupy.",
   "err_group_hidden": "Grupa jest ukryta — najpierw ją przywróć.",
   "err_already_member": "Ta osoba jest już w grupie.",
-  "err_member_too_many_groups": "Ta osoba jest już w 10 grupach — to limit.",
+  "err_member_too_many_groups": "Ta osoba jest już w {limit} grupach — to limit.",
   "adminLog_group_member_add": "{admin} dodał(-a) {target} do grupy «{title}»",
   "adminLog_group_item_add": "{admin} dodał(-a) wpis «{text}» do grupy «{title}» od Bota quizu ({target})",
   "inboxGroupAdded": "Dodano Cię do grupy «{title}»",

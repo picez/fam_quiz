@@ -5224,7 +5224,7 @@
   "err_member_banned": "Die Person ist gesperrt — sie kann keiner Gruppe hinzugefügt werden.",
   "err_group_hidden": "Die Gruppe ist ausgeblendet — stelle sie zuerst wieder her.",
   "err_already_member": "Diese Person ist schon in der Gruppe.",
-  "err_member_too_many_groups": "Die Person ist schon in 10 Gruppen — das ist die Grenze.",
+  "err_member_too_many_groups": "Die Person ist schon in {limit} Gruppen — das ist die Grenze.",
   "adminLog_group_member_add": "{admin} hat {target} zur Gruppe «{title}» hinzugefügt",
   "adminLog_group_item_add": "{admin} hat den Eintrag «{text}» in der Gruppe «{title}» im Namen des Quiz-Bots hinzugefügt ({target})",
   "inboxGroupAdded": "Du wurdest zur Gruppe «{title}» hinzugefügt",

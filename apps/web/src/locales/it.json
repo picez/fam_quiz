@@ -5301,7 +5301,7 @@
   "err_member_banned": "La persona è bloccata: non si può aggiungere a un gruppo.",
   "err_group_hidden": "Il gruppo è nascosto: ripristinalo prima.",
   "err_already_member": "Questa persona è già nel gruppo.",
-  "err_member_too_many_groups": "La persona è già in 10 gruppi: è il limite.",
+  "err_member_too_many_groups": "La persona è già in {limit} gruppi: è il limite.",
   "adminLog_group_member_add": "{admin} ha aggiunto {target} al gruppo «{title}»",
   "adminLog_group_item_add": "{admin} ha aggiunto la voce «{text}» al gruppo «{title}» a nome del bot dei quiz ({target})",
   "inboxGroupAdded": "Sei stato aggiunto al gruppo «{title}»",
