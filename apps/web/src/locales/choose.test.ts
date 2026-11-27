@@ -222,4 +222,10 @@ describe('syncAccountLocale', () => {
     await syncAccountLocale('en', 'a');
     expect(currentLocale()).toBe('en');
   });
+
+  it('switches on the «Вподобані» tab: /quizzes/liked is not the editor (77)', async () => {
+    window.history.replaceState(null, '', '/quizzes/liked');
+    await syncAccountLocale('en', 'a');
+    expect(currentLocale()).toBe('en');
+  });
 });

@@ -63,7 +63,7 @@ async function undo12a() {
   expect(saved.ok(), await saved.text()).toBe(true);
 
   await host.goto(`${base}/quizzes`);
-  await host.locator('.quiz-list li', { hasText: 'Скасування 12a' }).getByRole('button', { name: 'Грати', ...exact }).click();
+  await host.locator('.quiz-list li', { hasText: 'Скасування 12a' }).getByRole('button', { name: 'Провести', ...exact }).click();
   await host.waitForURL(/\/host\/\d{6}$/);
   const code = host.url().slice(-6);
   const stageUrl = (await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href'))!;
@@ -346,7 +346,7 @@ async function live12b() {
   expect(saved.ok(), await saved.text()).toBe(true);
 
   await host.goto(`${base}/quizzes`);
-  await host.locator('.quiz-list li', { hasText: 'Наживо 12b' }).getByRole('button', { name: 'Грати', ...exact }).click();
+  await host.locator('.quiz-list li', { hasText: 'Наживо 12b' }).getByRole('button', { name: 'Провести', ...exact }).click();
   await host.waitForURL(/\/host\/\d{6}$/);
   const code = host.url().slice(-6);
   const stageUrl = (await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href'))!;
@@ -570,7 +570,7 @@ async function selfClues12c() {
 
   // 1. Редактор на 375 px.
   await host.goto(`${base}/quizzes`);
-  await host.locator('.quiz-list li', { hasText: 'Хто я 12c' }).getByRole('link', { name: 'Редагувати' }).click();
+  await host.locator('.quiz-list li', { hasText: 'Хто я 12c' }).getByRole('link', { name: 'Змінити' }).click();
   await host.locator('main.editor').waitFor();
   // На 375 px єдине запитання вже відкрите (перемикач «1 / 1»), кнопки «Запитання 1» немає.
   const pace = host.getByRole('group', { name: 'Підказки відкриваються' });
@@ -599,7 +599,7 @@ async function selfClues12c() {
   expect(stored.rounds[0]!.questions![0]!.timeLimit).toBe(60);
 
   // Гра.
-  await host.locator('.quiz-list li', { hasText: 'Хто я 12c' }).getByRole('button', { name: 'Грати', ...exact }).click();
+  await host.locator('.quiz-list li', { hasText: 'Хто я 12c' }).getByRole('button', { name: 'Провести', ...exact }).click();
   await host.waitForURL(/\/host\/\d{6}$/);
   const code = host.url().slice(-6);
   const stageUrl = (await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href'))!;
@@ -803,7 +803,7 @@ async function stats12d() {
   expect(saved.ok(), await saved.text()).toBe(true);
 
   await host.goto(`${base}/quizzes`);
-  await host.locator('.quiz-list li', { hasText: 'Цікавинки 12d' }).getByRole('button', { name: 'Грати', ...exact }).click();
+  await host.locator('.quiz-list li', { hasText: 'Цікавинки 12d' }).getByRole('button', { name: 'Провести', ...exact }).click();
   await host.waitForURL(/\/host\/\d{6}$/);
   const code = host.url().slice(-6);
   const stageUrl = (await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href'))!;
@@ -1131,7 +1131,7 @@ async function away12e() {
 
   // 1. Редактор на 375 px: прапорець «Штраф за вихід із гри» позначено, довідка поруч.
   await host.goto(`${base}/quizzes`);
-  await host.locator('.quiz-list li', { hasText: 'Антигугл 12e' }).getByRole('link', { name: 'Редагувати' }).click();
+  await host.locator('.quiz-list li', { hasText: 'Антигугл 12e' }).getByRole('link', { name: 'Змінити' }).click();
   await host.locator('main.editor').waitFor();
   await editorTab(host, 'Загальне');
   const penaltySwitch = host.getByLabel('Штраф за вихід із гри', exact);
@@ -1152,7 +1152,7 @@ async function away12e() {
 
   // Гра.
   await host.goto(`${base}/quizzes`);
-  await host.locator('.quiz-list li', { hasText: 'Антигугл 12e' }).getByRole('button', { name: 'Грати', ...exact }).click();
+  await host.locator('.quiz-list li', { hasText: 'Антигугл 12e' }).getByRole('button', { name: 'Провести', ...exact }).click();
   await host.waitForURL(/\/host\/\d{6}$/);
   const code = host.url().slice(-6);
   const stageUrl = (await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href'))!;

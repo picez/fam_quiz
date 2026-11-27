@@ -4,11 +4,12 @@ import type { LibraryDetail } from '@quiz/shared';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { forgetAccount } from '../useAccount';
-import { me } from '../api';
+import { createGame, me } from '../api';
+import { loadHost } from '../storage';
 import { copyLibrary, libraryQuiz, likeLibrary, sendReport } from '../library/library-api';
 import { LibraryQuiz } from './LibraryQuiz';
 
-vi.mock('../api', () => ({ me: vi.fn() }));
+vi.mock('../api', () => ({ me: vi.fn(), createGame: vi.fn() }));
 vi.mock('../library/library-api', () => ({ libraryQuiz: vi.fn(), likeLibrary: vi.fn(), copyLibrary: vi.fn(), sendReport: vi.fn() }));
 
 const detail = (over: Partial<LibraryDetail> = {}): LibraryDetail => ({
@@ -33,6 +34,7 @@ const show = () =>
     <MemoryRouter initialEntries={['/library/e1']}>
       <Routes>
         <Route path="/library/:id" element={<LibraryQuiz />} />
+        <Route path="/host/:code" element={<p>пульт</p>} />
       </Routes>
     </MemoryRouter>,
   );
@@ -45,6 +47,7 @@ beforeEach(() => {
   vi.mocked(likeLibrary).mockResolvedValue({ ok: true, data: { likes: 4, liked: true } });
   vi.mocked(copyLibrary).mockResolvedValue({ ok: true, data: { id: 'q9' } });
   vi.mocked(sendReport).mockResolvedValue({ ok: true });
+  vi.mocked(createGame).mockResolvedValue({ ok: true, gameId: 'g1', code: '123456', hostToken: 'h', stageToken: 's' });
 });
 afterEach(cleanup);
 
@@ -76,6 +79,55 @@ describe('LibraryQuiz', () => {
     expect(spy).not.toHaveBeenCalled();
     expect(libraryQuiz).toHaveBeenCalledWith('e1');
     spy.mockRestore();
+  });
+
+  it('«Провести гру» copies the quiz and starts hosting the copy at once (77)', async () => {
+    show();
+    fireEvent.click(await screen.findByRole('button', { name: 'Провести гру' }));
+    expect(await screen.findByText('пульт')).toBeTruthy();
+    expect(copyLibrary).toHaveBeenCalledWith('e1');
+    expect(createGame).toHaveBeenCalledWith('q9');
+    expect(loadHost('123456')).toEqual({ hostToken: 'h', stageToken: 's' });
+  });
+
+  it('«Провести гру» reuses an earlier copy without copying again (77)', async () => {
+    vi.mocked(libraryQuiz).mockResolvedValue({ ok: true, data: detail({ hostQuizId: 'q5' }) });
+    show();
+    fireEvent.click(await screen.findByRole('button', { name: 'Провести гру' }));
+    expect(await screen.findByText('пульт')).toBeTruthy();
+    expect(copyLibrary).not.toHaveBeenCalled();
+    expect(createGame).toHaveBeenCalledWith('q5');
+  });
+
+  it('the author hosts the own quiz from its library page (77)', async () => {
+    vi.mocked(libraryQuiz).mockResolvedValue({ ok: true, data: detail({ mine: true, hostQuizId: 'q1' }) });
+    show();
+    fireEvent.click(await screen.findByRole('button', { name: 'Провести гру' }));
+    expect(await screen.findByText('пульт')).toBeTruthy();
+    expect(copyLibrary).not.toHaveBeenCalled();
+    expect(createGame).toHaveBeenCalledWith('q1');
+  });
+
+  it('a failed start after copying keeps the copy link and explains (77)', async () => {
+    vi.mocked(createGame).mockResolvedValue({ ok: false, error: 'server_busy' });
+    show();
+    fireEvent.click(await screen.findByRole('button', { name: 'Провести гру' }));
+    expect((await screen.findByRole('alert')).textContent).toBe('Сервер перевантажений. Спробуйте за хвилину.');
+    expect(screen.getByRole('link', { name: 'Відкрити копію' }).getAttribute('href')).toBe('/quizzes/q9');
+    // Повторне «Провести гру» бере ту саму копію.
+    vi.mocked(createGame).mockResolvedValue({ ok: true, gameId: 'g1', code: '123456', hostToken: 'h', stageToken: 's' });
+    fireEvent.click(screen.getByRole('button', { name: 'Провести гру' }));
+    expect(await screen.findByText('пульт')).toBeTruthy();
+    expect(copyLibrary).toHaveBeenCalledTimes(1);
+    expect(createGame).toHaveBeenLastCalledWith('q9');
+  });
+
+  it('a guest gets «Увійти, щоб провести» that returns to this page (77)', async () => {
+    vi.mocked(me).mockResolvedValue({ ok: false, error: 'unauthorized' });
+    show();
+    const link = await screen.findByRole('link', { name: 'Увійти, щоб провести' });
+    expect(link.getAttribute('href')).toBe('/login?next=%2Flibrary%2Fe1');
+    expect(screen.queryByRole('button', { name: 'Провести гру' })).toBeNull();
   });
 
   it('likes and updates the counter', async () => {

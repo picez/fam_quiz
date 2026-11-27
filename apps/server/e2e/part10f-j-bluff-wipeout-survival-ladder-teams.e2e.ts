@@ -81,7 +81,7 @@ async function bluffGame() {
 
   // 1. Редактор.
   await host.goto(`${base}/quizzes`);
-  await host.locator('.quiz-list li', { hasText: 'Блеф 10f' }).getByRole('link', { name: 'Редагувати' }).click();
+  await host.locator('.quiz-list li', { hasText: 'Блеф 10f' }).getByRole('link', { name: 'Змінити' }).click();
   await host.locator('main.editor').waitFor();
   await host.getByRole('button', { name: /^Запитання 1 / }).click();
   expect(await field(host, 'Правда').inputValue()).toBe('Барселона');
@@ -114,7 +114,7 @@ async function bluffGame() {
   expect(storedB1.lies).toHaveLength(3);
 
   // 2. Гра.
-  await host.locator('.quiz-list li', { hasText: 'Блеф 10f' }).getByRole('button', { name: 'Грати', ...exact }).click();
+  await host.locator('.quiz-list li', { hasText: 'Блеф 10f' }).getByRole('button', { name: 'Провести', ...exact }).click();
   await host.waitForURL(/\/host\/\d{6}$/);
   const code = host.url().slice(-6);
   const stageUrl = (await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href'))!;
@@ -396,7 +396,7 @@ async function wipeoutGame() {
 
   // 1. Редактор.
   await host.goto(`${base}/quizzes`);
-  await host.locator('.quiz-list li', { hasText: 'Ва-банк 10g' }).getByRole('link', { name: 'Редагувати' }).click();
+  await host.locator('.quiz-list li', { hasText: 'Ва-банк 10g' }).getByRole('link', { name: 'Змінити' }).click();
   await host.locator('main.editor').waitFor();
   await pickRound(host, 'Драбина');
   await expect.poll(() => host.locator('.question-list .question-item-price').allTextContents()).toEqual(['100', '200', '300', '400', '500']);
@@ -426,7 +426,7 @@ async function wipeoutGame() {
   await host.waitForURL(/\/quizzes$/);
 
   // 2. Гра.
-  await host.locator('.quiz-list li', { hasText: 'Ва-банк 10g' }).getByRole('button', { name: 'Грати', ...exact }).click();
+  await host.locator('.quiz-list li', { hasText: 'Ва-банк 10g' }).getByRole('button', { name: 'Провести', ...exact }).click();
   await host.waitForURL(/\/host\/\d{6}$/);
   const code = host.url().slice(-6);
   const stageUrl = (await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href'))!;
@@ -674,7 +674,7 @@ async function survivalGame() {
 
   // 1. Редактор.
   await host.goto(`${base}/quizzes`);
-  await host.locator('.quiz-list li', { hasText: 'Вибування 10h' }).getByRole('link', { name: 'Редагувати' }).click();
+  await host.locator('.quiz-list li', { hasText: 'Вибування 10h' }).getByRole('link', { name: 'Змінити' }).click();
   await host.locator('main.editor').waitFor();
   await expect.poll(() => host.locator('.question-list .question-item').count()).toBe(5);
   await openRoundSettings(host);
@@ -710,7 +710,7 @@ async function survivalGame() {
   await host.waitForURL(/\/quizzes$/);
 
   // 2. Гра.
-  await host.locator('.quiz-list li', { hasText: 'Вибування 10h' }).getByRole('button', { name: 'Грати', ...exact }).click();
+  await host.locator('.quiz-list li', { hasText: 'Вибування 10h' }).getByRole('button', { name: 'Провести', ...exact }).click();
   await host.waitForURL(/\/host\/\d{6}$/);
   const code = host.url().slice(-6);
   const stageUrl = (await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href'))!;
@@ -1013,7 +1013,7 @@ async function ladderGame() {
 
   // 1. Редактор.
   await host.goto(`${base}/quizzes`);
-  await host.locator('.quiz-list li', { hasText: 'Мільйонер 10i' }).getByRole('link', { name: 'Редагувати' }).click();
+  await host.locator('.quiz-list li', { hasText: 'Мільйонер 10i' }).getByRole('link', { name: 'Змінити' }).click();
   await host.locator('main.editor').waitFor();
   await pickRound(host, 'Драбина Олі');
   await expect.poll(() => host.locator('.question-list .question-item').count(), POLL).toBe(5);
@@ -1056,7 +1056,7 @@ async function ladderGame() {
   await host.waitForURL(/\/quizzes$/);
 
   // 2. Гра.
-  await host.locator('.quiz-list li', { hasText: 'Мільйонер 10i' }).getByRole('button', { name: 'Грати', ...exact }).click();
+  await host.locator('.quiz-list li', { hasText: 'Мільйонер 10i' }).getByRole('button', { name: 'Провести', ...exact }).click();
   await host.waitForURL(/\/host\/\d{6}$/);
   const code = host.url().slice(-6);
   const stageUrl = (await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href'))!;
@@ -1349,7 +1349,7 @@ async function teamsGame() {
 
   // 1. Редактор: «Командна гра» (375 px теж).
   await host.goto(`${base}/quizzes`);
-  await host.locator('.quiz-list li', { hasText: 'Команди 10j' }).getByRole('link', { name: 'Редагувати' }).click();
+  await host.locator('.quiz-list li', { hasText: 'Команди 10j' }).getByRole('link', { name: 'Змінити' }).click();
   await host.locator('main.editor').waitFor();
   await editorTab(host, 'Загальне');
   const teamsBlock = host.locator('section.editor-card.teams');
@@ -1375,7 +1375,7 @@ async function teamsGame() {
   await host.waitForURL(/\/quizzes$/);
 
   // 2. Лобі: чотири людини, вибір команди й кубики.
-  await host.locator('.quiz-list li', { hasText: 'Команди 10j' }).getByRole('button', { name: 'Грати', ...exact }).click();
+  await host.locator('.quiz-list li', { hasText: 'Команди 10j' }).getByRole('button', { name: 'Провести', ...exact }).click();
   await host.waitForURL(/\/host\/\d{6}$/);
   const code = host.url().slice(-6);
   const stageUrl = (await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href'))!;
@@ -1689,7 +1689,7 @@ async function fullLobby() {
   const saved = await host.request.post(`${base}/api/quizzes`, { data });
   expect(saved.ok(), await saved.text()).toBe(true);
   await host.goto(`${base}/quizzes`);
-  await host.locator('.quiz-list li', { hasText: 'Повне лобі 10j' }).getByRole('button', { name: 'Грати', ...exact }).click();
+  await host.locator('.quiz-list li', { hasText: 'Повне лобі 10j' }).getByRole('button', { name: 'Провести', ...exact }).click();
   await host.waitForURL(/\/host\/\d{6}$/);
   const code = host.url().slice(-6);
   const stageUrl = (await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href'))!;

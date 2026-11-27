@@ -106,6 +106,8 @@ export interface LibraryCard {
 }
 export interface LibraryDetail extends LibraryCard {
   rounds: { title: string; type: RoundType }[];
+  /** 77: що провести з цієї сторінки — своя вікторина автора або найсвіжіша ще жива копія глядача; лише з акаунтом. */
+  hostQuizId?: string;
   openedAt: string;
   updatedAt: string;
 }

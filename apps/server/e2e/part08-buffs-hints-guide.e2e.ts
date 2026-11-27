@@ -67,7 +67,7 @@ async function buffsGame() {
 
   // Редактор: розділ «Бафи й дебафи» з чинними значеннями; «Жодного» / «Усі» / знову два дебафи.
   await host.goto(`${base}/quizzes`);
-  await host.locator('.quiz-list li', { hasText: 'Бафи' }).getByRole('link', { name: 'Редагувати' }).click();
+  await host.locator('.quiz-list li', { hasText: 'Бафи' }).getByRole('link', { name: 'Змінити' }).click();
   await openGeneralFold(host, 'powers');
   const debuffGroup = host.locator('fieldset.powers-group').nth(0);
   const buffGroup = host.locator('fieldset.powers-group').nth(1);
@@ -102,7 +102,7 @@ async function buffsGame() {
   await host.waitForURL(/\/quizzes$/);
 
   // Гра: сцена 1600 × 900, Оля 375, Петро 360, Іра 390.
-  await host.locator('.quiz-list li', { hasText: 'Бафи' }).getByRole('button', { name: 'Грати', ...exact }).click();
+  await host.locator('.quiz-list li', { hasText: 'Бафи' }).getByRole('button', { name: 'Провести', ...exact }).click();
   await host.waitForURL(/\/host\/\d{6}$/);
   const code = host.url().slice(-6);
   const stageUrl = await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href');
@@ -386,7 +386,7 @@ async function sparesGame() {
 
   // Редактор: підказка q1; заміна без пулу не зберігається; три запасні без часу, балів і підказки.
   await host.goto(`${base}/quizzes`);
-  await host.locator('.quiz-list li', { hasText: 'Бафи 2' }).getByRole('link', { name: 'Редагувати' }).click();
+  await host.locator('.quiz-list li', { hasText: 'Бафи 2' }).getByRole('link', { name: 'Змінити' }).click();
   await host.locator('label.hint-field', { hasText: "Підказка (необов'язково)" }).first().waitFor();
   expect(await host.locator('.hint-field textarea').first().inputValue()).toBe('Тече через Київ');
   await shot(host, 'buff8b-editor-hint');
@@ -428,7 +428,7 @@ async function sparesGame() {
   await host.waitForURL(/\/quizzes$/);
 
   // Гра: сцена 1600 × 900, Оля 375, Петро 360, Іра 390.
-  await host.locator('.quiz-list li', { hasText: 'Бафи 2' }).getByRole('button', { name: 'Грати', ...exact }).click();
+  await host.locator('.quiz-list li', { hasText: 'Бафи 2' }).getByRole('button', { name: 'Провести', ...exact }).click();
   await host.waitForURL(/\/host\/\d{6}$/);
   const code = host.url().slice(-6);
   const stageUrl = await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href');
@@ -738,7 +738,7 @@ async function transitionsGame() {
 
   // Гра: сцена 1600 × 900, Оля 375, Петро 360, Іра 390 з «менше руху».
   await host.goto(`${base}/quizzes`);
-  await host.locator('.quiz-list li', { hasText: 'Переходи' }).getByRole('button', { name: 'Грати', ...exact }).click();
+  await host.locator('.quiz-list li', { hasText: 'Переходи' }).getByRole('button', { name: 'Провести', ...exact }).click();
   await host.waitForURL(/\/host\/\d{6}$/);
   const code = host.url().slice(-6);
   const stageUrl = await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href');
@@ -1001,7 +1001,7 @@ async function newcomersGame() {
 
   // 1. Редактор: у «Правилах гри» прапорець «Пояснення для новачків» увімкнений.
   await host.goto(`${base}/quizzes`);
-  await host.locator('.quiz-list li', { hasText: 'Для новачків' }).getByRole('link', { name: 'Редагувати' }).click();
+  await host.locator('.quiz-list li', { hasText: 'Для новачків' }).getByRole('link', { name: 'Змінити' }).click();
   await editorTab(host, 'Загальне');
   const flag = host.locator('label.field-check', { hasText: 'Пояснення для новачків' }).locator('input');
   expect(await flag.isChecked(), 'the newcomers flag').toBe(true);
@@ -1009,7 +1009,7 @@ async function newcomersGame() {
   await host.goto(`${base}/quizzes`);
 
   // Гра: сцена 1280 × 720, Оля 375, Петро 360.
-  await host.locator('.quiz-list li', { hasText: 'Для новачків' }).getByRole('button', { name: 'Грати', ...exact }).click();
+  await host.locator('.quiz-list li', { hasText: 'Для новачків' }).getByRole('button', { name: 'Провести', ...exact }).click();
   await host.waitForURL(/\/host\/\d{6}$/);
   const code = host.url().slice(-6);
   const stageUrl = await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href');
@@ -1215,7 +1215,7 @@ async function denseGuide() {
   expect(saved.ok(), await saved.text()).toBe(true);
 
   await host.goto(`${base}/quizzes`);
-  await host.locator('.quiz-list li', { hasText: 'Щільний гайд' }).getByRole('button', { name: 'Грати', ...exact }).click();
+  await host.locator('.quiz-list li', { hasText: 'Щільний гайд' }).getByRole('button', { name: 'Провести', ...exact }).click();
   await host.waitForURL(/\/host\/\d{6}$/);
   const code = host.url().slice(-6);
   const stageUrl = await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href');

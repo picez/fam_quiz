@@ -268,7 +268,7 @@ async function editor38() {
 
   // ── Повторне відкриття: загальне слово, підказка й час голосування на місці. ──
   await host.goto(`${base}/quizzes`);
-  await host.locator('.quiz-list li', { hasText: 'Шпигун 38' }).getByRole('link', { name: 'Редагувати' }).click();
+  await host.locator('.quiz-list li', { hasText: 'Шпигун 38' }).getByRole('link', { name: 'Змінити' }).click();
   await host.locator('main.editor').waitFor();
   await expect.poll(() => host.getByRole('textbox', { name: 'Загальне слово', ...exact }).inputValue().catch(() => ''), POLL).toBe('потяг');
   expect(await field(host, HINT_FIELD38).inputValue()).toBe('їздить рейками');
@@ -288,7 +288,7 @@ async function game38() {
   expect(saved.ok(), await saved.text()).toBe(true);
   await host.goto(`${base}/quizzes`);
   const hostFrames = socketFrames(host);
-  await host.locator('.quiz-list li', { hasText: 'Шпигун гра 38' }).getByRole('button', { name: 'Грати', ...exact }).click();
+  await host.locator('.quiz-list li', { hasText: 'Шпигун гра 38' }).getByRole('button', { name: 'Провести', ...exact }).click();
   await host.waitForURL(/\/host\/\d{6}$/);
   const code = host.url().slice(-6);
   const stageUrl = (await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href'))!;
@@ -489,7 +489,7 @@ async function restart38() {
   const saved = await host.request.post(`${base}/api/quizzes`, { data });
   expect(saved.ok(), await saved.text()).toBe(true);
   await host.goto(`${base}/quizzes`);
-  await host.locator('.quiz-list li', { hasText: 'Шпигун перезапуск 38' }).getByRole('button', { name: 'Грати', ...exact }).click();
+  await host.locator('.quiz-list li', { hasText: 'Шпигун перезапуск 38' }).getByRole('button', { name: 'Провести', ...exact }).click();
   await host.waitForURL(/\/host\/\d{6}$/);
   const code = host.url().slice(-6);
   const stageUrl = (await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href'))!;
@@ -560,7 +560,7 @@ async function restart38() {
   const skipSaved = await host2.request.post(`${base}/api/quizzes`, { data: skip });
   expect(skipSaved.ok(), await skipSaved.text()).toBe(true);
   await host2.goto(`${base}/quizzes`);
-  await host2.locator('.quiz-list li', { hasText: 'Шпигун двоє 38' }).getByRole('button', { name: 'Грати', ...exact }).click();
+  await host2.locator('.quiz-list li', { hasText: 'Шпигун двоє 38' }).getByRole('button', { name: 'Провести', ...exact }).click();
   await host2.waitForURL(/\/host\/\d{6}$/);
   const code2 = host2.url().slice(-6);
   const stage2Url = (await host2.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href'))!;
@@ -609,7 +609,7 @@ async function crowd38(sockets: Socket[]) {
   const saved = await host.request.post(`${base}/api/quizzes`, { data });
   expect(saved.ok(), await saved.text()).toBe(true);
   await host.goto(`${base}/quizzes`);
-  await host.locator('.quiz-list li', { hasText: 'Шпигун натовп 38' }).getByRole('button', { name: 'Грати', ...exact }).click();
+  await host.locator('.quiz-list li', { hasText: 'Шпигун натовп 38' }).getByRole('button', { name: 'Провести', ...exact }).click();
   await host.waitForURL(/\/host\/\d{6}$/);
   const code = host.url().slice(-6);
   const stageUrl = (await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href'))!;

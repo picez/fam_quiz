@@ -164,8 +164,11 @@ export async function chooseLocale(locale: Locale, opts: { signedIn: boolean }):
   return { saved };
 }
 
-/** Сторінки живої гри (гравець, пульт, сцена) і редактор вікторини: тут дерево не перемонтовуємо, бо це обірвало б гру чи стерло незбережене. */
-const LIVE_GAME_PATH = /^\/(play|host|stage|quizzes)\//;
+/**
+ * Сторінки живої гри (гравець, пульт, сцена) і редактор вікторини: тут дерево не перемонтовуємо, бо це обірвало б гру чи стерло незбережене.
+ * 77: /quizzes/liked — вкладка «Вподобані», не редактор.
+ */
+const LIVE_GAME_PATH = /^\/(play|host|stage)\/|^\/quizzes\/(?!liked\/?$)/;
 
 function inLiveGame(): boolean {
   return typeof window !== 'undefined' && LIVE_GAME_PATH.test(window.location.pathname);

@@ -5,7 +5,7 @@ import { type Socket } from 'socket.io-client';
 import { expect, it } from 'vitest';
 import es from '../../web/src/locales/es.json';
 import { ukMessages } from '../../web/src/i18n';
-import { open, click, field, questionText, join, openRoundSettings, bodyText, expectNoSideScroll, register, POLL, socketFrames, NL, pickTeamOn, sleep, pilotPlayer, frame, emitOk, stateViews, join22a, step27a, next27a, phoneScore27a, select27b, reveal28a, writeWord35, hostWords35, hearts35, roundAction, editorTab, pickRound } from './helpers/common';
+import { open, click, field, questionText, join, openRoundSettings, bodyText, expectNoSideScroll, register, POLL, socketFrames, NL, pickTeamOn, sleep, pilotPlayer, frame, emitOk, stateViews, join22a, step27a, next27a, phoneScore27a, select27b, reveal28a, writeWord35, hostWords35, hearts35, roundAction, editorTab, pickRound, cardAction } from './helpers/common';
 import { exact, base, problems, snapshot, afterSplash, shot, useE2eServer } from './helpers/setup';
 
 /**
@@ -138,7 +138,7 @@ async function thinkGame35() {
   expect(stored.rounds[0]!.questions.map((q) => [q.text, q.points, q.timeLimit, q.words.map((w) => w.word)])).toEqual(prompts.map(([text, words]) => [text, 0, 30, words]));
 
   // ── Гра: сцена 1600 × 900; Оля 375 × 812, Тарас 360 × 740, Хосе 320 × 640 (es). ──
-  await click(host, 'Грати');
+  await click(host, 'Провести');
   await host.waitForURL(/\/host\/\d{6}$/);
   const code = host.url().slice(-6);
   const stageUrl = (await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href'))!;
@@ -334,7 +334,7 @@ async function thinkSolo35() {
   const saved = await host.request.post(`${base}/api/quizzes`, { data });
   expect(saved.ok(), await saved.text()).toBe(true);
   await host.goto(`${base}/quizzes`);
-  await host.locator('.quiz-list li', { hasText: 'Думай інакше соло 35' }).getByRole('button', { name: 'Грати', ...exact }).click();
+  await host.locator('.quiz-list li', { hasText: 'Думай інакше соло 35' }).getByRole('button', { name: 'Провести', ...exact }).click();
   await host.waitForURL(/\/host\/\d{6}$/);
   const code = host.url().slice(-6);
   const stageUrl = (await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href'))!;
@@ -371,7 +371,7 @@ async function thinkTeams35() {
   const saved = await host.request.post(`${base}/api/quizzes`, { data });
   expect(saved.ok(), await saved.text()).toBe(true);
   await host.goto(`${base}/quizzes`);
-  await host.locator('.quiz-list li', { hasText: 'Думай інакше команди 35' }).getByRole('button', { name: 'Грати', ...exact }).click();
+  await host.locator('.quiz-list li', { hasText: 'Думай інакше команди 35' }).getByRole('button', { name: 'Провести', ...exact }).click();
   await host.waitForURL(/\/host\/\d{6}$/);
   const code = host.url().slice(-6);
   const stageUrl = (await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href'))!;
@@ -440,7 +440,7 @@ async function thinkAutopilot35(sockets: Socket[]) {
     expect(saved.ok(), await saved.text()).toBe(true);
   }
   await author.goto(`${base}/quizzes`);
-  await author.locator('.quiz-list li', { hasText: 'Без слів 35' }).getByRole('button', { name: 'Провести ботом', ...exact }).click();
+  await cardAction(author, 'Без слів 35', 'Провести ботом');
   const dialog = author.getByRole('dialog', { name: 'Гра без ведучого', ...exact });
   await dialog.locator('.autopilot-blocks').getByText(ukMessages.autopilotBlock_think_words, exact).waitFor();
   expect(await dialog.locator('.autopilot-blocks li').innerText()).toMatch(/1$/);
@@ -451,7 +451,7 @@ async function thinkAutopilot35(sockets: Socket[]) {
   await dialog.waitFor({ state: 'detached' });
 
   // ── Вікторина з усіма словами: запуск, автор — глядач, двоє гравців-сокетів пишуть. ──
-  await author.locator('.quiz-list li', { hasText: 'Бот і слова 35' }).getByRole('button', { name: 'Провести ботом', ...exact }).click();
+  await cardAction(author, 'Бот і слова 35', 'Провести ботом');
   await dialog.getByLabel('Твій нікнейм у грі').fill('Марта');
   const authorFrames = socketFrames(author);
   await dialog.getByRole('button', { name: 'Створити кімнату', ...exact }).click();
@@ -520,7 +520,7 @@ async function thinkCrowd35(sockets: Socket[]) {
   const saved = await host.request.post(`${base}/api/quizzes`, { data });
   expect(saved.ok(), await saved.text()).toBe(true);
   await host.goto(`${base}/quizzes`);
-  await host.locator('.quiz-list li', { hasText: 'Думай інакше натовп 35' }).getByRole('button', { name: 'Грати', ...exact }).click();
+  await host.locator('.quiz-list li', { hasText: 'Думай інакше натовп 35' }).getByRole('button', { name: 'Провести', ...exact }).click();
   await host.waitForURL(/\/host\/\d{6}$/);
   const code = host.url().slice(-6);
   const stageUrl = (await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href'))!;

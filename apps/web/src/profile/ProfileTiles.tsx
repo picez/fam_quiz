@@ -5,13 +5,14 @@ import { t, type TextKey } from '../i18n';
 type Counted = 'quizzes' | 'prizes' | 'achievements';
 
 /** Вісім розділів профілю в порядку специфікації; число — лише в трьох перших. */
-const TILES: { path: string; icon: string; label: TextKey; count?: Counted }[] = [
+const TILES: { path: string; icon: string; label: TextKey; count?: Counted; to?: string }[] = [
   { path: 'quizzes', icon: '📝', label: 'profileTileQuizzes', count: 'quizzes' },
   { path: 'prizes', icon: '🎁', label: 'profileTilePrizes', count: 'prizes' },
   { path: 'achievements', icon: '🏅', label: 'profileTileAchievements', count: 'achievements' },
   { path: 'friends', icon: '👥', label: 'profileTileFriends' },
   { path: 'stats', icon: '📊', label: 'profileTileStats' },
-  { path: 'likes', icon: '❤️', label: 'profileTileLikes' },
+  // 77: вподобані вікторини живуть у «Вікторинах»; плитка лишається посиланням туди (до перегрупування профілю, етап 4).
+  { path: 'likes', icon: '❤️', label: 'profileTileLikes', to: '/quizzes/liked' },
   { path: 'looks', icon: '🎨', label: 'profileTileLooks' },
   { path: 'settings', icon: '⚙️', label: 'profileTileSettings' },
 ];
@@ -35,7 +36,7 @@ export function ProfileTiles({ counts, groups }: { counts: Record<Counted, numbe
         const label = t(tile.label);
         const count = tile.count === undefined ? null : counts[tile.count];
         return (
-          <Link key={tile.path} className="profile-tile" to={`/profile/${tile.path}`} aria-label={count === null ? undefined : `${label}, ${count}`}>
+          <Link key={tile.path} className="profile-tile" to={tile.to ?? `/profile/${tile.path}`} aria-label={count === null ? undefined : `${label}, ${count}`}>
             {count !== null && (
               <span className="tile-count" aria-hidden="true">
                 {count}

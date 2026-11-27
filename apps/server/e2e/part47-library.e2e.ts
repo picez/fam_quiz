@@ -6,7 +6,7 @@ import { type Page } from 'playwright-core';
 import { expect, it } from 'vitest';
 import { adminEmails } from '../src/config';
 import { user } from '../src/db/schema';
-import { bodyText, click, expectNoSideScroll, expectPhoneFit, MENU, MENU_ITEMS_23A, menuLinks, myId, open, pickOption, register, toNextQuestion, editorTab } from './helpers/common';
+import { bodyText, click, expectNoSideScroll, expectPhoneFit, MENU, MENU_ITEMS_23A, menuLinks, myId, open, pickOption, register, toNextQuestion, editorTab, cardAction } from './helpers/common';
 import { ARTIFACTS, avatarPng, base, db, exact, flags, problems, relisten, shot, snapshot, useE2eServer, ctx } from './helpers/setup';
 
 /**
@@ -153,17 +153,17 @@ async function library47() {
 
   // ── 2. Олена: п'ять запитань — мінімум; знімок і «Оновити в бібліотеці». ──
   await olena.goto(`${base}/quizzes`);
-  await olena.getByRole('link', { name: '📚 Бібліотека', ...exact }).waitFor();
+  await olena.locator('nav.history-tabs').getByRole('link', { name: 'Бібліотека', ...exact }).waitFor();
   const rowOf = (page: Page, title: string) => page.locator('.quiz-list li', { hasText: title });
   const sheet = (page: Page) => page.getByRole('dialog', { name: '📚 Відкрити для всіх', ...exact });
-  await rowOf(olena, SMALL).getByRole('button', { name: '📚 Бібліотека', ...exact }).click();
+  await cardAction(olena, SMALL, 'Поділитися в бібліотеку');
   await sheet(olena).waitFor();
   await click(olena, 'Відкрити для всіх');
   await olena.getByRole('alert').filter({ hasText: 'Для бібліотеки потрібно щонайменше 5 запитань.' }).waitFor();
   await click(olena, 'Скасувати');
   await sheet(olena).waitFor({ state: 'detached' });
 
-  await rowOf(olena, TITLE).getByRole('button', { name: '📚 Бібліотека', ...exact }).click();
+  await cardAction(olena, TITLE, 'Поділитися в бібліотеку');
   await sheet(olena).waitFor();
   await sheet(olena).getByText('Вікторину побачать усі користувачі сайту', { exact: false }).waitFor();
   await sheet(olena).locator('select').selectOption({ label: 'Українська' });
@@ -188,7 +188,7 @@ async function library47() {
   ]);
   expect(await titles(guest, '?q=%D0%B4%D0%BD%D1%96%D0%BF%D1%80')).toEqual([TITLE]);
   await olena.goto(`${base}/quizzes`);
-  await rowOf(olena, NEW_TITLE).getByRole('button', { name: '📚 Бібліотека', ...exact }).click();
+  await cardAction(olena, NEW_TITLE, 'Поділитися в бібліотеку');
   await sheet(olena).getByText('У бібліотеці — знімок на мить відкриття', { exact: false }).waitFor();
   await click(olena, 'Оновити в бібліотеці');
   await expect.poll(() => titles(guest, '?q=%D0%B4%D0%BD%D1%96%D0%BF%D1%80')).toEqual([NEW_TITLE]);
@@ -200,7 +200,7 @@ async function library47() {
   // ── 3. Гість: меню з «Бібліотекою», пошук «дніпр» за описом, сторінка без запитань, 401 на ❤️ й копію. ──
   await guest.goto(base);
   await guest.locator(MENU).getByRole('link', { name: 'Увійти' }).waitFor();
-  expect(await menuLinks(guest)).toEqual(['Меню', 'Бібліотека', 'Увійти']);
+  expect(await menuLinks(guest)).toEqual(['Головна', 'Бібліотека', 'Увійти']);
   await phoneFit(guest, 'p47-guest-home');
   await guest.getByRole('link', { name: '📚 Бібліотека вікторин', ...exact }).click();
   await guest.waitForURL(/\/library$/);
@@ -259,7 +259,7 @@ async function library47() {
   expect((await olena.request.post(`${base}/api/library/${entryId}/copy`, { data: { locale: 'uk' } })).status()).toBe(409);
 
   await taras.goto(`${base}/quizzes`);
-  await rowOf(taras, NEW_TITLE).getByRole('button', { name: 'Грати', ...exact }).click();
+  await rowOf(taras, NEW_TITLE).getByRole('button', { name: 'Провести', ...exact }).click();
   await taras.waitForURL(/\/host\/\d{6}$/);
   const code = taras.url().slice(-6);
   await iryna.goto(`${base}/play/${code}`);
@@ -351,7 +351,7 @@ async function library47() {
   const reopened = await olena.request.put(`${base}/api/library/mine/${riversId}`, { data: { language: 'uk' } });
   expect(reopened.status()).toBe(409);
   expect(await reopened.json()).toEqual({ error: 'library_hidden' });
-  await rowOf(olena, NEW_TITLE).getByRole('button', { name: '📚 Бібліотека', ...exact }).click();
+  await cardAction(olena, NEW_TITLE, 'Поділитися в бібліотеку');
   await sheet(olena).waitFor();
   expect(await sheet(olena).getByRole('button', { name: 'Відкрити для всіх', ...exact }).count(), 'no way to open a hidden quiz').toBe(0);
   expect(await titles(guest, '?q=%D0%B4%D0%BD%D1%96%D0%BF%D1%80')).toEqual([]);
@@ -383,7 +383,7 @@ async function library47() {
   expect(second409.status()).toBe(409);
   expect(await second409.json()).toEqual({ error: 'library_appeal_used' });
   await olena.goto(`${base}/quizzes`);
-  await rowOf(olena, NEW_TITLE).getByRole('button', { name: '📚 Бібліотека', ...exact }).click();
+  await cardAction(olena, NEW_TITLE, 'Поділитися в бібліотеку');
   await sheet(olena).getByText('Оскарження вже використано', exact).waitFor();
   expect(await sheet(olena).getByRole('button', { name: 'Оскаржити', ...exact }).count()).toBe(0);
   await click(olena, 'Скасувати');
@@ -426,6 +426,22 @@ async function library47() {
     expect(await isLight(page), `${name}: light theme class`).toBe(true);
   }
   await shot(olena, 'p47-end');
+
+  // ── 10 (77). «Провести гру» зі сторінки бібліотеки: копія й одразу пульт; удруге — та сама копія; гість — «Увійти, щоб провести». ──
+  const hostId = await create(olena, withTitle('Провести 77', cities, 'Міста для гри з бібліотеки.'));
+  const hostOpened = await olena.request.put(`${base}/api/library/mine/${hostId}`, { data: { language: 'uk' } });
+  expect(hostOpened.status(), await hostOpened.text()).toBeLessThan(300);
+  const hostEntry = ((await hostOpened.json()) as { entryId: string }).entryId;
+  const tarasQuizzes = async () => ((await (await taras.request.get(`${base}/api/quizzes`)).json()) as { title: string }[]).filter((one) => one.title === 'Провести 77').length;
+  for (const round of [1, 2]) {
+    await taras.goto(`${base}/library/${hostEntry}`);
+    await click(taras, 'Провести гру');
+    await taras.waitForURL(/\/host\/\d{6}$/);
+    expect(await tarasQuizzes(), `round ${round}: one copy`).toBe(1);
+  }
+  await guest.goto(`${base}/library/${hostEntry}`);
+  const signIn = guest.getByRole('link', { name: 'Увійти, щоб провести', ...exact });
+  expect(await signIn.getAttribute('href')).toBe(`/login?next=${encodeURIComponent(`/library/${hostEntry}`)}`);
   // 401/404/409 — очікувані відповіді запитів (гість, прихована вікторина, повторна скарга), а не збої сторінок.
   expect(problems.filter((problem) => !/\b(401|404|409)\b/.test(problem))).toEqual([]);
 }

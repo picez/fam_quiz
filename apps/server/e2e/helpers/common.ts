@@ -245,7 +245,8 @@ export async function expectNoSideScroll(page: Page, name: string) {
 }
 
 export const MENU = 'nav.menu';
-export const MENU_ITEMS_23A = ['Меню', 'Стрічка', 'Мої вікторини', 'Історія', 'Профіль'];
+/** 77: Головна · Вікторини · Стрічка · Історія · Профіль (назва лишилась з 23a). */
+export const MENU_ITEMS_23A = ['Головна', 'Вікторини', 'Стрічка', 'Історія', 'Профіль'];
 /** Меню адміна: шостий пункт «Адмінка». */
 export const MENU_ITEMS_ADMIN = [...MENU_ITEMS_23A, 'Адмінка'];
 /** Пункти меню без дзвіночка «Вхідних» (70). */
@@ -843,10 +844,17 @@ export function stateViews(frames: string[]): PlayerView[] {
   return views;
 }
 
+/** Дія з меню «⋯» картки «Мої вікторини» (77): автопілот, виклик, бібліотека, експорт, видалити. */
+export async function cardAction(page: Page, title: string, name: string) {
+  const row = page.locator('.quiz-list li', { hasText: title });
+  await row.getByRole('button', { name: /^Ще дії: / }).click();
+  await row.getByRole('menuitem', { name, ...exact }).click();
+}
+
 /** «Провести ботом» у списку вікторин → нікнейм → «Створити кімнату»; повертає код кімнати. */
 export async function launchBot11h(page: Page, title: string, nickname: string): Promise<string> {
   await page.goto(`${base}/quizzes`);
-  await page.locator('.quiz-list li', { hasText: title }).getByRole('button', { name: 'Провести ботом', ...exact }).click();
+  await cardAction(page, title, 'Провести ботом');
   const dialog = page.getByRole('dialog', { name: 'Гра без ведучого', ...exact });
   await dialog.getByLabel('Твій нікнейм у грі').fill(nickname);
   await dialog.getByRole('button', { name: 'Створити кімнату', ...exact }).click();

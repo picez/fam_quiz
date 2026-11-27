@@ -99,7 +99,7 @@ async function likes17a() {
   const stage = await open('stage17a', 1280, 720);
   const guest = await open('guest17a', 375, 812);
   await host.goto(`${base}/quizzes`);
-  await host.locator('.quiz-list li', { hasText: TITLE }).getByRole('button', { name: 'Грати', ...exact }).click();
+  await host.locator('.quiz-list li', { hasText: TITLE }).getByRole('button', { name: 'Провести', ...exact }).click();
   await host.waitForURL(/\/host\/\d{6}$/);
   const code = host.url().slice(-6);
   await stage.goto((await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href'))!);
@@ -243,7 +243,7 @@ async function likes17a() {
   const tileValue = async (page: Page, label: string) =>
     (await page.locator('section.likes-card .likes-tile', { hasText: label }).locator('strong').innerText()).replace(/\D/g, '');
   await host.setViewportSize({ width: 375, height: 812 });
-  await host.goto(`${base}/profile/likes`);
+  await host.goto(`${base}/quizzes/liked`);
   // На сторінці «Вподобання» заголовок лише в шапці сторінки, картка без свого (24b).
   await host.locator('section.likes-card .likes-tile').first().waitFor();
   expect(await host.locator('section.likes-card h2').count(), 'no second «Вподобання» heading').toBe(0);
@@ -261,7 +261,7 @@ async function likes17a() {
   await host.setViewportSize({ width: 1280, height: 800 });
   const openEditor = async (questions: number) => {
     await host.goto(`${base}/quizzes`);
-    await host.locator('.quiz-list li', { hasText: TITLE }).getByRole('link', { name: 'Редагувати' }).click();
+    await host.locator('.quiz-list li', { hasText: TITLE }).getByRole('link', { name: 'Змінити' }).click();
     await host.locator('main.editor').waitFor();
     await expect.poll(() => host.locator('.question-list .question-item').count(), POLL).toBe(questions);
   };
@@ -294,7 +294,7 @@ async function likes17a() {
   await click(host, 'Зберегти');
   await host.waitForURL(/\/quizzes$/);
   await expect.poll(likeRows, { timeout: 15_000 }).toContain('olya question l2 → host hidden');
-  await host.goto(`${base}/profile/likes`);
+  await host.goto(`${base}/quizzes/liked`);
   await host.locator('section.likes-card').waitFor();
   await expect.poll(() => tileValue(host, 'як автор'), POLL).toBe('2');
   await openEditor(3);
@@ -323,19 +323,20 @@ function feedQuestions18a() {
 }
 
 /**
- * Бейдж «Стрічки» в меню телефона (18a): пункт «Стрічка» (другий) містить бейдж цілком, бейдж не налазить на сусідні пункти,
+ * Бейдж «Стрічки» в меню телефона (18a): пункт «Стрічка» (з 77 — третій; шукаємо за адресою) містить бейдж цілком, бейдж не налазить на сусідні пункти,
  * сторінка не гортається вбік. Повертає список порушень.
  */
 const FEED_BADGE_FITS_18A = `(() => {
   const links = [...document.querySelectorAll('nav.menu a')];
-  const badge = links[1]?.querySelector('.menu-badge');
-  if (!badge) return ['no badge on the second item'];
+  const at = links.findIndex((a) => a.getAttribute('href') === '/feed');
+  const badge = links[at]?.querySelector('.menu-badge');
+  if (!badge) return ['no badge on the feed item'];
   const bad = [];
   const b = badge.getBoundingClientRect();
-  const own = links[1].getBoundingClientRect();
+  const own = links[at].getBoundingClientRect();
   if (b.left < own.left - 0.5 || b.right > own.right + 0.5 || b.top < own.top - 0.5 || b.bottom > own.bottom + 0.5)
     bad.push('the badge leaves its item: ' + [b.left, b.right, b.top, b.bottom].map((n) => n.toFixed(1)).join(',') + ' in ' + [own.left, own.right, own.top, own.bottom].map((n) => n.toFixed(1)).join(','));
-  for (const i of [0, 2]) {
+  for (const i of [at - 1, at + 1].filter((n) => n >= 0 && n < links.length)) {
     const r = links[i].getBoundingClientRect();
     if (b.left < r.right - 0.5 && r.left < b.right - 0.5 && b.top < r.bottom && r.top < b.bottom) bad.push('the badge overlaps item ' + i);
   }
@@ -407,7 +408,7 @@ async function feed18a() {
   expect(created.ok(), await created.text()).toBe(true);
   const stage = await open('stage18a', 1280, 720);
   await host.goto(`${base}/quizzes`);
-  await host.locator('.quiz-list li', { hasText: TITLE }).getByRole('button', { name: 'Грати', ...exact }).click();
+  await host.locator('.quiz-list li', { hasText: TITLE }).getByRole('button', { name: 'Провести', ...exact }).click();
   await host.waitForURL(/\/host\/\d{6}$/);
   const code = host.url().slice(-6);
   await stage.goto((await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href'))!);
@@ -1322,7 +1323,7 @@ async function admin21a() {
     });
     expect(prized.status(), await prized.text()).toBe(201);
     await bohdan.goto(`${base}/quizzes`);
-    await bohdan.locator('.quiz-list li', { hasText: BAN_QUIZ }).getByRole('button', { name: 'Грати', ...exact }).click();
+    await bohdan.locator('.quiz-list li', { hasText: BAN_QUIZ }).getByRole('button', { name: 'Провести', ...exact }).click();
     await bohdan.waitForURL(/\/host\/\d{6}$/);
     const code = bohdan.url().slice(-6);
     await join(olya, code, 'Оля', false);

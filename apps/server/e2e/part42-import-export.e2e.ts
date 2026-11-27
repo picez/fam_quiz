@@ -118,13 +118,15 @@ async function importExport42() {
   // ── 2. Експорт файлу вікторини. ──
   await author.goto(`${base}/quizzes`);
   await row(oldId).waitFor();
-  await row(oldId).locator('summary', { hasText: 'Експорт' }).click();
-  await row(oldId).getByRole('button', { name: 'Файл вікторини', ...exact }).waitFor();
-  const lastItem = await row(oldId).getByRole('button', { name: 'Таблиця (Excel)', ...exact }).boundingBox();
+  // 77: експорт — пункти меню «⋯» картки.
+  const more = () => row(oldId).getByRole('button', { name: /^Ще дії: / }).click();
+  await more();
+  await row(oldId).getByRole('menuitem', { name: 'Експорт: файл вікторини', ...exact }).waitFor();
+  const lastItem = await row(oldId).getByRole('menuitem', { name: 'Видалити', ...exact }).boundingBox();
   const navBox = await author.locator('.menu').boundingBox();
-  expect(lastItem && navBox && lastItem.y + lastItem.height <= navBox.y, 'the opened export menu ends above the bottom nav').toBe(true);
+  expect(lastItem && navBox && lastItem.y + lastItem.height <= navBox.y, 'the opened «⋯» menu ends above the bottom nav').toBe(true);
   await expectNoSideScroll(author, 'p42-export-menu');
-  const file = await pickedDownload(author, () => row(oldId).getByRole('button', { name: 'Файл вікторини', ...exact }).click());
+  const file = await pickedDownload(author, () => row(oldId).getByRole('menuitem', { name: 'Експорт: файл вікторини', ...exact }).click());
   expect(file.name).toBe(`${FILE_BASE}.quiz`);
   expect(file.bytes.subarray(0, 2).toString('latin1'), 'a zip signature').toBe('PK');
 
@@ -157,8 +159,8 @@ async function importExport42() {
   expect(await author.locator('.quiz-list li h2', { hasText: TITLE }).count(), 'two quizzes with the same title').toBe(2);
 
   // ── 4. Експорт таблиці старої вікторини: чотири типи, чотири пропущених. ──
-  await row(oldId).locator('summary', { hasText: 'Експорт' }).click();
-  const table = await pickedDownload(author, () => row(oldId).getByRole('button', { name: 'Таблиця (Excel)', ...exact }).click());
+  await more();
+  const table = await pickedDownload(author, () => row(oldId).getByRole('menuitem', { name: 'Експорт: таблиця (Excel)', ...exact }).click());
   expect(table.name).toBe(`${FILE_BASE}.xlsx`);
   await row(oldId).getByText('Пропущено 4 запитання інших типів чи з медіа (вони є лише у файлі вікторини)', exact).waitFor();
   expect(table.bytes.subarray(0, 2).toString('latin1'), 'an xlsx zip signature').toBe('PK');

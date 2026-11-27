@@ -132,7 +132,7 @@ describe('Home for a signed-in person', () => {
       </MemoryRouter>,
     );
 
-  it('a signed-in person sees «Створити гру» and «Приєднатися» on top and six tiles below', async () => {
+  it('a signed-in person sees «Провести гру» and «Приєднатися» on top and six tiles below', async () => {
     vi.mocked(me).mockResolvedValue(OLENA);
     at('/');
     const nav = await screen.findByRole('navigation', { name: 'Стартове меню' });
@@ -140,12 +140,12 @@ describe('Home for a signed-in person', () => {
     expect(tiles).toEqual([
       ['A', '👥Друзі', '/profile/friends'],
       ['A', '📰Стрічка', '/feed'],
-      ['A', '📝Мої вікторини', '/quizzes'],
+      ['A', '📝Вікторини', '/quizzes'],
       ['A', '📚Бібліотека', '/library'],
       ['A', '🕘Історія', '/history'],
       ['A', '👤Профіль', '/profile'],
     ]);
-    const create = screen.getByRole('link', { name: 'Створити гру' });
+    const create = screen.getByRole('link', { name: 'Провести гру' });
     expect(create.getAttribute('href')).toBe('/create');
     const join = screen.getByRole('button', { name: 'Приєднатися' });
     const actions = create.closest('.home-actions')!;
@@ -276,7 +276,7 @@ describe('Home for a signed-in person', () => {
     const join = screen.getByRole('button', { name: 'Приєднатися' });
     expect(join.getAttribute('aria-expanded')).toBe('true');
     expect(join.getAttribute('aria-controls')).toBe('join-form');
-    expect(screen.getByRole('link', { name: 'Створити гру' }).getAttribute('href')).toBe('/create');
+    expect(screen.getByRole('link', { name: 'Провести гру' }).getAttribute('href')).toBe('/create');
     expect(join.compareDocumentPosition(input) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(screen.queryByRole('navigation', { name: 'Стартове меню' })).toBeNull();
   });

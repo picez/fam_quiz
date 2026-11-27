@@ -112,7 +112,7 @@ const createQuiz = async (page: Page, title: string): Promise<string> => {
 async function hostLobby(page: Page, title: string): Promise<string> {
   await createQuiz(page, title);
   await page.goto(`${base}/quizzes`);
-  await page.locator('.quiz-list li', { hasText: title }).getByRole('button', { name: 'Грати', ...exact }).click();
+  await page.locator('.quiz-list li', { hasText: title }).getByRole('button', { name: 'Провести', ...exact }).click();
   await page.waitForURL(/\/host\/\d{6}$/);
   return page.url().slice(-6);
 }
@@ -423,7 +423,7 @@ async function home53() {
   await homeOf(olya);
   expect(await isLight(olya)).toBe(true);
   const actions = await olya.locator('.home-actions').evaluate((el) => [...el.children].map((child) => ({ text: child.textContent, top: child.getBoundingClientRect().top, width: child.getBoundingClientRect().width })));
-  expect(actions.map((a) => a.text)).toEqual(['Створити гру', 'Приєднатися']);
+  expect(actions.map((a) => a.text)).toEqual(['Провести гру', 'Приєднатися']);
   expect(actions[0]!.top).toBe(actions[1]!.top);
   expect(Math.min(...actions.map((a) => a.width))).toBeGreaterThan(140);
   expect(await olya.locator('nav.start-menu > *').count()).toBe(6);

@@ -79,7 +79,7 @@ async function hostOff51(_sockets: Socket[]) {
   const saved = await host.request.post(`${base}/api/quizzes`, { data });
   expect(saved.ok(), await saved.text()).toBe(true);
   await host.goto(`${base}/quizzes`);
-  await host.locator('.quiz-list li', { hasText: 'Не на тему 51' }).getByRole('button', { name: 'Грати', ...exact }).click();
+  await host.locator('.quiz-list li', { hasText: 'Не на тему 51' }).getByRole('button', { name: 'Провести', ...exact }).click();
   await host.waitForURL(/\/host\/\d{6}$/);
   const code = host.url().slice(-6);
   const stageUrl = (await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href'))!;
@@ -309,7 +309,7 @@ async function noVote51(sockets: Socket[]) {
   const offId = await post('Вимкнене 51');
   await author.setViewportSize({ width: 360, height: 800 });
   await author.goto(`${base}/quizzes`);
-  await author.locator('.quiz-list li', { hasText: 'Вимкнене 51' }).getByRole('link', { name: 'Редагувати' }).click();
+  await author.locator('.quiz-list li', { hasText: 'Вимкнене 51' }).getByRole('link', { name: 'Змінити' }).click();
   await author.locator('details.round-settings').waitFor();
   await openRoundSettings(author);
   const box = author.getByRole('checkbox', { name: ukMessages.thinkOffVoteSetting, ...exact });

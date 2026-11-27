@@ -3,7 +3,7 @@ import { blitzRound, bool, classicRound, makeRoundsQuiz, multi, numeric, order, 
 import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { buildApp } from './app';
-import { libraryEntry, profile, userBan, userLike, userReport } from './db/schema';
+import { libraryCopy, libraryEntry, profile, userBan, userLike, userReport } from './db/schema';
 import { TEST_AUTH, signUp } from './testing/accounts';
 import { createTestDb } from './testing/test-db';
 
@@ -175,6 +175,32 @@ describe('library routes (38g)', () => {
     let last = 0;
     for (let i = 0; i < 31; i += 1) last = (await call('PUT', url, fan.cookie, { liked: i % 2 === 0 })).statusCode;
     expect(last).toBe(429);
+  });
+
+  it('the detail names the quiz to host: own quiz for the author, the newest living copy for others (77)', async () => {
+    const olena = await person('Олена');
+    const taras = await person('Тарас');
+    const { entryId, quizId } = await opened(olena);
+    const detail = async (cookie?: string) => (await call('GET', `/api/library/${entryId}`, cookie)).json() as LibraryDetail;
+
+    expect(await detail()).not.toHaveProperty('hostQuizId');
+    expect((await detail(olena.cookie)).hostQuizId).toBe(quizId);
+    expect(await detail(taras.cookie)).not.toHaveProperty('hostQuizId');
+
+    const first = ((await call('POST', `/api/library/${entryId}/copy`, taras.cookie, { locale: 'uk' })).json() as { id: string }).id;
+    expect((await detail(taras.cookie)).hostQuizId).toBe(first);
+    // Дві копії в ту саму мілісекунду не розрізнити — перша свідомо давніша.
+    await db.update(libraryCopy).set({ at: new Date('2026-01-01T00:00:00Z') }).where(eq(libraryCopy.quizId, first));
+    const second = ((await call('POST', `/api/library/${entryId}/copy`, taras.cookie, { locale: 'uk' })).json() as { id: string }).id;
+    expect((await detail(taras.cookie)).hostQuizId).toBe(second);
+    // Чужа копія не видна іншому: Петро копії не робив.
+    const petro = await person('Петро');
+    expect(await detail(petro.cookie)).not.toHaveProperty('hostQuizId');
+
+    expect((await call('DELETE', `/api/quizzes/${second}`, taras.cookie)).statusCode).toBeLessThan(300);
+    expect((await detail(taras.cookie)).hostQuizId).toBe(first);
+    expect((await call('DELETE', `/api/quizzes/${first}`, taras.cookie)).statusCode).toBeLessThan(300);
+    expect(await detail(taras.cookie)).not.toHaveProperty('hostQuizId');
   });
 
   it('copy needs an account', async () => {

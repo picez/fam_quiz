@@ -102,7 +102,7 @@ async function playShortGame(tag: string) {
   const data = { ...makeRoundsQuiz([classicRound('c71', [{ ...common, id: 'q71', type: 'boolean', text: QUESTION, correct: true }] as never, { title: 'Річки', speedBonus: false, shuffleOptions: false })]), title };
   expect((await host.request.post(`${base}/api/quizzes`, { data })).ok()).toBe(true);
   await host.goto(`${base}/quizzes`);
-  await host.locator('.quiz-list li', { hasText: title }).getByRole('button', { name: 'Грати', ...exact }).click();
+  await host.locator('.quiz-list li', { hasText: title }).getByRole('button', { name: 'Провести', ...exact }).click();
   await host.waitForURL(/\/host\/\d{6}$/);
   const code = host.url().slice(-6);
   const players: [Page, string][] = [

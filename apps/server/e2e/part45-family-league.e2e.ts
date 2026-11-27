@@ -114,7 +114,7 @@ async function league45() {
   // ── 2. Лобі: «🏆 Сімейна ліга», вибір групи, телефони з рядком «Гра для ліги». ──
   const hostLobby = async (title: string) => {
     await olena.goto(`${base}/quizzes`);
-    await olena.locator('.quiz-list li', { hasText: title }).getByRole('button', { name: 'Грати', ...exact }).click();
+    await olena.locator('.quiz-list li', { hasText: title }).getByRole('button', { name: 'Провести', ...exact }).click();
     await olena.waitForURL(/\/host\/\d{6}$/);
     return olena.url().slice(-6);
   };

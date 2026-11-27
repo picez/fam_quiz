@@ -161,7 +161,7 @@ async function l10n22a() {
   const created = await bohdan.request.post(`${base}/api/quizzes`, { data: quiz });
   expect(created.status()).toBe(201);
   await bohdan.goto(`${base}/quizzes`);
-  await bohdan.locator('.quiz-list li', { hasText: QUIZ }).getByRole('button', { name: label(en, 'Грати'), ...exact }).click();
+  await bohdan.locator('.quiz-list li', { hasText: QUIZ }).getByRole('button', { name: label(en, 'Провести'), ...exact }).click();
   await bohdan.waitForURL(/\/host\/\d{6}$/);
   const code = bohdan.url().slice(-6);
   const spaced = `${code.slice(0, 3)} ${code.slice(3)}`;
@@ -464,18 +464,18 @@ async function bloodMoon23a() {
   expect(await noSideScroll(petro)).toBe(true);
   await shot(petro, 'p23a-public');
 
-  // ── 9. Старі й нові адреси без сесії ведуть на вхід і назад. ──
-  for (const [path, title] of [
-    ['/friends', 'Друзі'],
-    ['/profile/settings', 'Налаштування'],
+  // ── 9. Старі й нові адреси без сесії ведуть на вхід і назад; стара (/friends) — уже на канонічну (77). ──
+  for (const [path, canonical, title] of [
+    ['/friends', '/profile/friends', 'Друзі'],
+    ['/profile/settings', '/profile/settings', 'Налаштування'],
   ] as const) {
     const visitor = await open(`visitor23a${path.replaceAll('/', '-')}`, 375, 812);
     await visitor.goto(`${base}${path}`);
-    await visitor.waitForURL(`${base}/login?next=${encodeURIComponent(path)}`);
+    await visitor.waitForURL(`${base}/login?next=${encodeURIComponent(canonical)}`);
     await field(visitor, 'Email').fill('olya23a@example.com');
     await field(visitor, 'Пароль').fill(PASSWORD);
     await click(visitor, 'Увійти');
-    await visitor.waitForURL(`${base}${path}`);
+    await visitor.waitForURL(`${base}${canonical}`);
     await visitor.getByRole('heading', { level: 1, name: title, ...exact }).waitFor();
   }
 
@@ -488,7 +488,7 @@ async function bloodMoon23a() {
   const created = await taras.request.post(`${base}/api/quizzes`, { data: quiz });
   expect(created.status()).toBe(201);
   await taras.goto(`${base}/quizzes`);
-  await taras.locator('.quiz-list li', { hasText: QUIZ }).getByRole('button', { name: 'Грати', ...exact }).click();
+  await taras.locator('.quiz-list li', { hasText: QUIZ }).getByRole('button', { name: 'Провести', ...exact }).click();
   await taras.waitForURL(/\/host\/\d{6}$/);
   const code = taras.url().slice(-6);
   const stageHref = await taras.locator('a[href*="/stage/"]').first().getAttribute('href');
@@ -598,7 +598,7 @@ it('part 24a: start menu — a signed-in player sees the two big buttons and six
 
 async function startMenu24a() {
   const START = 'nav.start-menu';
-  const TILES = ['Друзі', 'Стрічка', 'Мої вікторини', 'Бібліотека', 'Історія', 'Профіль'];
+  const TILES = ['Друзі', 'Стрічка', 'Вікторини', 'Бібліотека', 'Історія', 'Профіль'];
   const host = await open('host24a', 1280, 800);
   const olya = await open('olya24a', 375, 812);
   await register(host, 'menu', 'Ведуча 24a', 'host24a@example.com');
@@ -617,7 +617,7 @@ async function startMenu24a() {
       expect(actions.length, `p24a-${lang}-${width}: two buttons`).toBe(2);
       expect(actions[0]!.top, `p24a-${lang}-${width}: the buttons are side by side`).toBe(actions[1]!.top);
       expect(actions[0]!.top, `p24a-${lang}-${width}: the buttons are above the tiles`).toBeLessThan((await olya.locator(START).boundingBox())!.y);
-      if (lang === 'uk') expect(actions.map((a) => a.text)).toEqual(['Створити гру', 'Приєднатися']);
+      if (lang === 'uk') expect(actions.map((a) => a.text)).toEqual(['Провести гру', 'Приєднатися']);
       if (lang === 'uk') expect(await olya.locator(`${START} .start-label`).allTextContents()).toEqual(TILES);
       expect(await noSideScroll(olya), `p24a-${lang}-${width}: horizontal scroll`).toBe(true);
       const clipped = await olya.locator(`${START} > *`).evaluateAll((tiles) => tiles.filter((tile) => tile.scrollWidth > tile.clientWidth).map((tile) => tile.textContent));
@@ -637,9 +637,9 @@ async function startMenu24a() {
   const saved = await host.request.post(`${base}/api/quizzes`, { data: { ...makeQuiz([single], { speedBonus: false }), title: 'Старт 24a' } });
   expect(saved.ok(), await saved.text()).toBe(true);
   await host.goto(base);
-  await host.locator('.home-actions').getByRole('link', { name: 'Створити гру', ...exact }).click();
+  await host.locator('.home-actions').getByRole('link', { name: 'Провести гру', ...exact }).click();
   await host.waitForURL(`${base}/create`);
-  await host.getByRole('heading', { level: 1, name: 'Створити гру', ...exact }).waitFor();
+  await host.getByRole('heading', { level: 1, name: 'Провести гру', ...exact }).waitFor();
   await host.getByRole('heading', { level: 2, name: 'Старт 24a', ...exact }).waitFor();
   await shot(host, 'p24a-create');
   await click(host, 'Почати гру');
@@ -724,7 +724,7 @@ async function likedQuizzes24b() {
   const titles = (page: Page, panel: string) => page.locator(`#liked-panel-${panel} .liked-title`).allTextContents();
 
   // ── 3. Оля: «Мені сподобались». ──
-  await olya.goto(`${base}/profile/likes`);
+  await olya.goto(`${base}/quizzes/liked`);
   await tab(olya, MINE).waitFor();
   expect(await tab(olya, MINE).getAttribute('aria-selected')).toBe('true');
   await olya.locator('#liked-panel-mine li.liked-row').nth(2).waitFor();
@@ -753,7 +753,7 @@ async function likedQuizzes24b() {
   expect((await olya.locator('#liked-panel-others p.liked-empty').textContent())!.trim()).toBe(ukMessages.likedOthersEmpty);
 
   // ── 5. Авторка: «Сподобались іншим». ──
-  await author.goto(`${base}/profile/likes`);
+  await author.goto(`${base}/quizzes/liked`);
   await tab(author, OTHERS).click();
   await author.locator('#liked-panel-others li.liked-row').nth(1).waitFor();
   expect(await titles(author, 'others')).toEqual(['Ліси Карпат 24b', 'Річки 24b']);
@@ -768,10 +768,10 @@ async function likedQuizzes24b() {
   await author.waitForURL(new RegExp(`/quizzes/${forest}$`));
 
   // ── 6. Порожні стани і Петро. ──
-  await author.goto(`${base}/profile/likes`);
+  await author.goto(`${base}/quizzes/liked`);
   await author.locator('#liked-panel-mine p.liked-empty').waitFor();
   expect((await author.locator('#liked-panel-mine p.liked-empty').textContent())!.trim()).toBe(ukMessages.likedMineEmpty);
-  await petro.goto(`${base}/profile/likes`);
+  await petro.goto(`${base}/quizzes/liked`);
   await petro.locator('#liked-panel-mine li.liked-row').first().waitFor();
   expect(await titles(petro, 'mine')).toEqual(['Ліси Карпат 24b']);
   expect(await petro.locator('#liked-panel-mine li.liked-row .liked-count [aria-hidden="true"]').textContent()).toBe('❤️ 1');
@@ -784,7 +784,7 @@ async function likedQuizzes24b() {
     expect((await olya.request.put(`${base}/api/me/locale`, { data: { locale: lang } })).status()).toBe(200);
     for (const width of [320, 375]) {
       await olya.setViewportSize({ width, height: 812 });
-      await olya.goto(`${base}/profile/likes`);
+      await olya.goto(`${base}/quizzes/liked`);
       await expect.poll(() => htmlLang(olya), POLL).toBe(lang);
       await olya.locator('#liked-panel-mine li.liked-row').nth(2).waitFor();
       await olya.locator('#liked-panel-mine li.liked-row').nth(0).locator('button.liked-toggle').click();
@@ -803,7 +803,7 @@ async function likedQuizzes24b() {
   // Авторка: «Сподобались іншим» в ar на 320 px.
   expect((await author.request.put(`${base}/api/me/locale`, { data: { locale: 'ar' } })).status()).toBe(200);
   await author.setViewportSize({ width: 320, height: 812 });
-  await author.goto(`${base}/profile/likes`);
+  await author.goto(`${base}/quizzes/liked`);
   await expect.poll(() => htmlLang(author), POLL).toBe('ar');
   await author.locator('#liked-tab-others').click();
   await author.locator('#liked-panel-others li.liked-row').nth(1).waitFor();
@@ -850,7 +850,7 @@ async function lobbyList24c() {
   const saved = await host.request.post(`${base}/api/quizzes`, { data: { ...makeQuiz([single], { speedBonus: false }), title: TITLE } });
   expect(saved.ok(), await saved.text()).toBe(true);
   await host.goto(`${base}/quizzes`);
-  await click(host, 'Грати');
+  await click(host, 'Провести');
   await host.waitForURL(/\/host\/\d{6}$/);
   const code = host.url().slice(-6);
   const access = host.locator('.lobby-access');
@@ -1076,7 +1076,7 @@ async function profileLooks24d() {
   const quiz24d = await host.request.post(`${base}/api/quizzes`, { data: { ...makeQuiz([single], { speedBonus: false }), title: 'Вікторина 24d' } });
   expect(quiz24d.ok(), await quiz24d.text()).toBe(true);
   await host.goto(`${base}/quizzes`);
-  await click(host, 'Грати');
+  await click(host, 'Провести');
   await host.waitForURL(/\/host\/\d{6}$/);
   const code = host.url().slice(-6);
   await olya.setViewportSize({ width: 320, height: 640 });

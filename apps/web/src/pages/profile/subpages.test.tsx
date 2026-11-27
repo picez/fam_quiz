@@ -121,7 +121,6 @@ const SUBPAGES: [path: string, title: string][] = [
   ['/profile/achievements', 'Досягнення'],
   ['/profile/friends', 'Друзі'],
   ['/profile/stats', 'Статистика'],
-  ['/profile/likes', 'Вподобання'],
   ['/profile/looks', 'Вигляд'],
   ['/profile/settings', 'Налаштування'],
 ];
@@ -140,21 +139,21 @@ describe('profile sub-pages', () => {
     ['/prizes', 'Призи'],
     ['/achievements', 'Досягнення'],
     ['/friends', 'Друзі'],
-  ])('the old address %s is an alias with the same page', async (path, title) => {
+  ])('the old address %s redirects to the profile page (77)', async (path, title) => {
     open(path);
     expect(await screen.findByRole('heading', { level: 1, name: title })).toBeTruthy();
     expect(screen.getByRole('link', { name: 'Назад: Профіль' }).getAttribute('href')).toBe('/profile');
-    expect(where()).toBe(path);
+    expect(where()).toBe(`/profile${path}`);
   });
 
   it.each([
     ['/profile/settings', '/login?next=%2Fprofile%2Fsettings'],
     ['/profile/settings?edit=1', '/login?next=%2Fprofile%2Fsettings%3Fedit%3D1'],
-    ['/prizes?tab=x', '/login?next=%2Fprizes%3Ftab%3Dx'],
+    ['/prizes?tab=x', '/login?next=%2Fprofile%2Fprizes%3Ftab%3Dx'],
     ['/profile/quizzes', '/login?next=%2Fprofile%2Fquizzes'],
-    ['/prizes', '/login?next=%2Fprizes'],
-    ['/achievements', '/login?next=%2Fachievements'],
-    ['/friends', '/login?next=%2Ffriends'],
+    ['/prizes', '/login?next=%2Fprofile%2Fprizes'],
+    ['/achievements', '/login?next=%2Fprofile%2Fachievements'],
+    ['/friends', '/login?next=%2Fprofile%2Ffriends'],
   ])('a visitor on %s is sent to sign in and back', async (path, login) => {
     vi.mocked(me).mockResolvedValue({ ok: false, error: 'unauthorized' });
     open(path);
@@ -182,9 +181,11 @@ describe('profile sub-pages', () => {
     expect(screen.getByText(`${formatDate(mine.wins[0]!.startedAt)} — «Кіно 90-х», 1 місце`)).toBeTruthy();
   });
 
-  it('«Вподобання» shows the likes', async () => {
+  it('the old «Вподобання» address opens «Вікторини» → «Вподобані» (77)', async () => {
     open('/profile/likes');
     expect(await screen.findByText('як автор')).toBeTruthy();
+    expect(screen.getByRole('heading', { level: 1, name: 'Вподобані вікторини' })).toBeTruthy();
+    expect(where()).toBe('/quizzes/liked');
   });
 
   it('«Вигляд» shows the level rewards', async () => {

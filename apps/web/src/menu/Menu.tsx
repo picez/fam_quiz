@@ -3,26 +3,35 @@ import { Link, useLocation } from 'react-router-dom';
 import { feedBadgeLabel, feedBadgeTotal } from '@quiz/shared';
 import { refreshInbox, useInboxBadge } from '../inbox/useInboxBadge';
 import { t, type TextKey } from '../i18n';
+import { menuSection, type MenuSection } from '../nav/menu-section';
 import { ThemeToggle } from '../ThemeToggle';
 import { useAccount } from '../useAccount';
 import { useFeedBadge } from '../useFeedBadge';
 import { useGroupInvites } from '../useGroupInvites';
 import { useInvites } from '../useInvites';
 
-type Item = { label: TextKey; short: TextKey; icon: string; to: string; active: (path: string) => boolean };
+/** tight — коротший підпис для шести пунктів (меню адміна) на вузькому екрані. */
+type Item = { label: TextKey; short: TextKey; tight?: TextKey; icon: string; to: string; section: MenuSection };
 
-const under = (base: string) => (path: string) => path === base || path.startsWith(`${base}/`);
-
-const JOIN: Item = { label: 'menuJoin', short: 'menuShortJoin', icon: '🎮', to: '/', active: (path) => path === '/' };
-const FEED: Item = { label: 'menuFeed', short: 'menuShortFeed', icon: '📰', to: '/feed', active: under('/feed') };
-// Бібліотека — самостійний пункт лише для гостя; з акаунтом лишається п'ять пунктів, а «Мої вікторини» світяться й на /library.
-const QUIZZES: Item = { label: 'menuQuizzes', short: 'menuShortQuizzes', icon: '📝', to: '/quizzes', active: (path) => under('/quizzes')(path) || under('/library')(path) };
-const LIBRARY: Item = { label: 'menuLibrary', short: 'menuShortLibrary', icon: '📚', to: '/library', active: under('/library') };
-const HISTORY: Item = { label: 'menuHistory', short: 'menuShortHistory', icon: '🕘', to: '/history', active: (path) => under('/history')(path) || path === '/me' };
-const PROFILE: Item = { label: 'menuProfile', short: 'menuShortProfile', icon: '👤', to: '/profile', active: (path) => ['/profile', '/prizes', '/achievements', '/friends', '/groups'].some((base) => under(base)(path)) };
+// 77: пʼять пунктів — Головна · Вікторини · Стрічка · Історія · Профіль; що світиться, вирішує menuSection.
+const HOME: Item = { label: 'menuJoin', short: 'menuShortJoin', icon: '🏠', to: '/', section: 'home' };
+// «Вікторини» — сторінка з вкладками Мої · Бібліотека · Вподобані; світиться й на /library, /create, /help, /challenge.
+const QUIZZES: Item = { label: 'menuQuizzes', short: 'menuShortQuizzes', tight: 'menuShortQuizzesTight', icon: '📝', to: '/quizzes', section: 'quizzes' };
+const FEED: Item = { label: 'menuFeed', short: 'menuShortFeed', icon: '📰', to: '/feed', section: 'feed' };
+const HISTORY: Item = { label: 'menuHistory', short: 'menuShortHistory', icon: '🕘', to: '/history', section: 'history' };
+const PROFILE: Item = { label: 'menuProfile', short: 'menuShortProfile', icon: '👤', to: '/profile', section: 'profile' };
+// Бібліотека — самостійний пункт лише для гостя; з акаунтом вона — вкладка «Вікторин».
+const LIBRARY: Item = { label: 'menuLibrary', short: 'menuShortLibrary', icon: '📚', to: '/library', section: 'quizzes' };
 
 // Адмінка — лише для адміна з акаунтом; останній пункт, світиться на /admin і глибше.
-const ADMIN: Item = { label: 'menuAdmin', short: 'menuShortAdmin', icon: '🛠️', to: '/admin', active: under('/admin') };
+const ADMIN: Item = { label: 'menuAdmin', short: 'menuShortAdmin', icon: '🛠️', to: '/admin', section: 'admin' };
+
+/** Який пункт світиться: гість має з розділу «Вікторини» лише бібліотеку, решта (довідка) — під «Головною». */
+function activeItem(items: Item[], pathname: string): Item | null {
+  const section = menuSection(pathname);
+  if (items.includes(LIBRARY) && section === 'quizzes') return pathname === '/library' || pathname.startsWith('/library/') ? LIBRARY : HOME;
+  return items.find((item) => item.section === section) ?? (section === 'inbox' ? null : HOME);
+}
 
 export function Menu() {
   const location = useLocation();
@@ -44,10 +53,13 @@ export function Menu() {
     label: 'menuSignIn', short: 'menuShortSignIn',
     icon: '🔑',
     to: location.pathname === '/login' ? `/login${location.search}` : `/login?next=${encodeURIComponent(location.pathname + location.search)}`,
-    active: (path) => path === '/login',
+    section: 'login',
   };
   const items =
-    account.status === 'signed-in' ? (account.account.admin ? [JOIN, FEED, QUIZZES, HISTORY, PROFILE, ADMIN] : [JOIN, FEED, QUIZZES, HISTORY, PROFILE]) : account.status === 'anonymous' ? [JOIN, LIBRARY, signIn] : [JOIN];
+    account.status === 'signed-in' ? (account.account.admin ? [HOME, QUIZZES, FEED, HISTORY, PROFILE, ADMIN] : [HOME, QUIZZES, FEED, HISTORY, PROFILE]) : account.status === 'anonymous' ? [HOME, LIBRARY, signIn] : [HOME];
+  const active = activeItem(items, location.pathname);
+  // 77: у шести пунктах (адмін) «Вікторини» не влазять у шосту частину 320 px — там коротший підпис.
+  const short = (item: Item) => t(items.length > 5 && item.tight !== undefined ? item.tight : item.short);
 
   const name = (item: Item) =>
     item === PROFILE && total > 0
@@ -59,7 +71,7 @@ export function Menu() {
   return (
     <nav className="menu" aria-label={t('menuLabel')}>
       {items.map((item) => (
-        <Link key={item.label} to={item.to} aria-label={name(item)} data-short={t(item.short)} aria-current={item.active(location.pathname) ? 'page' : undefined}>
+        <Link key={item.label} to={item.to} aria-label={name(item)} data-short={short(item)} aria-current={item === active ? 'page' : undefined}>
           <span aria-hidden="true">{item.icon}</span>
           <span className="menu-full">{t(item.label)}</span>
           {item === PROFILE && total > 0 && (

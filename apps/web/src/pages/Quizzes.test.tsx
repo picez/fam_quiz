@@ -8,7 +8,7 @@ import { checkCode, createGame, createQuiz, deleteQuiz, getAutopilotCheck, getCh
 import { t } from '../i18n';
 import { loadHost, loadLastGame, saveAuthor, saveHost, saveLastGame } from '../storage';
 import { myLibrary } from '../library/library-api';
-import { importQuizFile } from '../quiz-io/actions';
+import { exportQuizTable, importQuizFile } from '../quiz-io/actions';
 import { listFolders, moveQuizToFolder } from '../quiz-folders/folder-api';
 import { Quizzes } from './Quizzes';
 
@@ -85,6 +85,12 @@ const open = (url = '/quizzes') =>
     </MemoryRouter>,
   );
 
+/** Дія з меню «⋯» картки вікторини (77). */
+async function action(title: string, name: string) {
+  fireEvent.click(await screen.findByRole('button', { name: `Ще дії: ${title}` }));
+  fireEvent.click(screen.getByRole('menuitem', { name }));
+}
+
 const mineEntry = { quizId: 'q1', entryId: 'e1', listed: true, moderation: 'ok' as const, appealed: false, appealOpen: false, language: 'uk' as const, updatedAt: '2026-10-12T10:00:00.000Z', likes: 0, plays: 0 };
 
 describe('Quizzes', () => {
@@ -107,10 +113,13 @@ describe('Quizzes', () => {
     expect(screen.queryByText('📚 Відкрито для всіх')).toBeNull();
   });
 
-  it('opens the library sheet from the row and links to the library', async () => {
+  it('opens the library sheet from the row; the library itself is a tab (77)', async () => {
     open();
-    expect((await screen.findByRole('link', { name: '📚 Бібліотека' })).getAttribute('href')).toBe('/library');
-    fireEvent.click(await screen.findByRole('button', { name: '📚 Бібліотека' }));
+    const tabs = await screen.findByRole('navigation', { name: 'Вікторини' });
+    expect([...tabs.querySelectorAll('a')].map((a) => a.getAttribute('href'))).toEqual(['/quizzes', '/library', '/quizzes/liked']);
+    expect(screen.getByRole('link', { name: 'Мої' }).getAttribute('aria-current')).toBe('page');
+    expect(screen.queryByRole('link', { name: '📚 Бібліотека' })).toBeNull();
+    await action('Географія', 'Поділитися в бібліотеку');
     expect(await screen.findByRole('dialog', { name: '📚 Відкрити для всіх' })).toBeTruthy();
     expect(screen.getByText(t('libraryShareWarning'))).toBeTruthy();
   });
@@ -146,7 +155,7 @@ describe('Quizzes', () => {
     open();
     expect(await screen.findByText('Географія')).toBeTruthy();
     expect(screen.getByText('Запитань: 6')).toBeTruthy();
-    expect(screen.getByRole('link', { name: 'Редагувати' }).getAttribute('href')).toBe('/quizzes/q1');
+    expect(screen.getByRole('link', { name: 'Змінити' }).getAttribute('href')).toBe('/quizzes/q1');
     expect(screen.getByRole('link', { name: 'Нова вікторина' }).getAttribute('href')).toBe('/quizzes/new');
   });
 
@@ -159,7 +168,7 @@ describe('Quizzes', () => {
   it('starts a game, remembers the host tokens and opens the control panel', async () => {
     vi.mocked(createGame).mockResolvedValue({ ok: true, gameId: 'g1', code: '123456', hostToken: 'h', stageToken: 's' });
     open();
-    fireEvent.click(await screen.findByRole('button', { name: 'Грати' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Провести' }));
     expect(await screen.findByText('пульт')).toBeTruthy();
     expect(createGame).toHaveBeenCalledWith('q1');
     expect(loadHost('123456')).toEqual({ hostToken: 'h', stageToken: 's' });
@@ -168,7 +177,7 @@ describe('Quizzes', () => {
   it('explains why a game could not be started', async () => {
     vi.mocked(createGame).mockResolvedValue({ ok: false, error: 'server_busy' });
     open();
-    fireEvent.click(await screen.findByRole('button', { name: 'Грати' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Провести' }));
     expect((await screen.findByRole('alert')).textContent).toBe('Сервер перевантажений. Спробуйте за хвилину.');
   });
 
@@ -176,12 +185,12 @@ describe('Quizzes', () => {
     const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
     vi.mocked(deleteQuiz).mockResolvedValue({ ok: true });
     open();
-    fireEvent.click(await screen.findByRole('button', { name: 'Видалити' }));
+    await action('Географія', 'Видалити');
     expect(deleteQuiz).not.toHaveBeenCalled();
     expect(confirm).toHaveBeenCalledWith('Видалити вікторину «Географія»? Це не можна скасувати.');
 
     confirm.mockReturnValue(true);
-    fireEvent.click(screen.getByRole('button', { name: 'Видалити' }));
+    await action('Географія', 'Видалити');
     await waitFor(() => expect(deleteQuiz).toHaveBeenCalledWith('q1'));
     await waitFor(() => expect(listQuizzes).toHaveBeenCalledTimes(2));
   });
@@ -195,11 +204,29 @@ describe('Quizzes', () => {
     await waitFor(() => expect(listQuizzes).toHaveBeenCalledTimes(2));
   });
 
-  it('offers Export on each quiz and Import next to the new quiz', async () => {
+  it('a card has two main buttons and «⋯» with every other action (77)', async () => {
     open();
-    await screen.findByText('Географія');
-    expect(screen.getAllByText('Експорт')).toHaveLength(1);
+    const card = (await screen.findByText('Географія')).closest('li')!;
+    const actions = card.querySelector('.quiz-card-actions')!;
+    expect([...actions.querySelectorAll('button, a')].map((el) => el.getAttribute('aria-label') ?? el.textContent)).toEqual(['Провести', 'Змінити', 'Ще дії: Географія']);
+    fireEvent.click(screen.getByRole('button', { name: 'Ще дії: Географія' }));
+    expect(screen.getAllByRole('menuitem').map((item) => item.textContent)).toEqual([
+      'Провести ботом',
+      '🏁 Виклик',
+      'Поділитися в бібліотеку',
+      'Експорт: файл вікторини',
+      'Експорт: таблиця (Excel)',
+      'Видалити',
+    ]);
     expect(screen.getByRole('button', { name: 'Імпорт' })).toBeTruthy();
+  });
+
+  it('exports from the «⋯» menu and shows the progress under the card (77)', async () => {
+    vi.mocked(exportQuizTable).mockResolvedValueOnce({ ok: true, skipped: 2 });
+    open();
+    await action('Географія', 'Експорт: таблиця (Excel)');
+    expect(await screen.findByText('Пропущено 2 запитання інших типів чи з медіа (вони є лише у файлі вікторини)')).toBeTruthy();
+    expect(exportQuizTable).toHaveBeenCalledWith('q1');
   });
 
   it('imports a file, opens the editor and returns focus on close', async () => {
@@ -230,8 +257,8 @@ describe('Quizzes', () => {
     const link = [...first.querySelectorAll('a')].find((a) => a.textContent === 'Таблиця')!;
     expect(link.getAttribute('href')).toBe('/challenge/abcdefghjkmn');
     expect(second.textContent).not.toContain('лишилося');
-    expect(screen.getAllByRole('button', { name: '🏁 Виклик' })).toHaveLength(2);
-    fireEvent.click(screen.getAllByRole('button', { name: '🏁 Виклик' })[1]!);
+    expect(screen.getAllByRole('button', { name: /^Ще дії: / })).toHaveLength(2);
+    await action('Історія', '🏁 Виклик');
     expect(screen.getByRole('dialog', { name: 'Виклик другові' })).toBeTruthy();
     expect(getChallengeCheck).toHaveBeenCalledWith('q2');
   });
@@ -247,7 +274,7 @@ describe('Quizzes: a game in progress', () => {
   it('remembers the game it starts', async () => {
     vi.mocked(createGame).mockResolvedValue({ ok: true, gameId: 'g1', code: '123456', hostToken: 'h', stageToken: 's' });
     open();
-    fireEvent.click(await screen.findByRole('button', { name: 'Грати' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Провести' }));
     await screen.findByText('пульт');
     expect(loadLastGame()).toBe('123456');
   });
@@ -289,12 +316,12 @@ describe('Quizzes: when the session check fails', () => {
     expect(listQuizzes).not.toHaveBeenCalled();
   });
 
-  it('opens the no-host launch for the quiz from «Провести ботом» and leaves «Грати» alone', async () => {
+  it('opens the no-host launch for the quiz from «Провести ботом» and leaves «Провести» alone', async () => {
     vi.mocked(getAutopilotCheck).mockResolvedValue({ ok: true, blocked: [], changed: [] });
     vi.mocked(getMyProfile).mockResolvedValue({ ok: true, data: { nickname: 'Олена' } as never });
     vi.mocked(createGame).mockResolvedValue({ ok: true, gameId: 'g', code: '123456', hostToken: 'h', stageToken: 's' });
     open();
-    fireEvent.click(await screen.findByRole('button', { name: t('autopilotLaunch') }));
+    await action('Географія', t('autopilotLaunch'));
     const dialog = await screen.findByRole('dialog');
     expect(dialog.textContent).toContain('Географія');
     expect(createGame).not.toHaveBeenCalled();

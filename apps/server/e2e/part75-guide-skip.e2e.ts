@@ -144,7 +144,7 @@ async function guideSkip75(sockets: Socket[]) {
   });
   expect(hostSaved.ok(), await hostSaved.text()).toBe(true);
   await host.goto(`${base}/quizzes`);
-  await host.locator('.quiz-list li', { hasText: 'Ведучий 75' }).getByRole('button', { name: 'Грати', ...exact }).click();
+  await host.locator('.quiz-list li', { hasText: 'Ведучий 75' }).getByRole('button', { name: 'Провести', ...exact }).click();
   await host.waitForURL(/\/host\/\d{6}$/);
   const hostCode = host.url().slice(-6);
   const lina = await open('lina75', 360, 800);

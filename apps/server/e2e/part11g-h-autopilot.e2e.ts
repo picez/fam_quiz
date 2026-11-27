@@ -3,7 +3,7 @@ import { type StageView, type StateMeta } from '@quiz/shared';
 import { type Page } from 'playwright-core';
 import { io as connectSocket, type Socket } from 'socket.io-client';
 import { expect, it } from 'vitest';
-import { open, click, field, bodyText, expectPhoneFit, register, socketFrames, silentMp3, expectStageFits, expectStageInView, writeLie, pickBluff, sleep, EARLY, pilotSocket, type Pilot, pilotPlayer, frame, emitOk, expectGap, createAutopilot, stateViews, launchBot11h, joinBy11h, label } from './helpers/common';
+import { open, click, field, bodyText, expectPhoneFit, register, socketFrames, silentMp3, expectStageFits, expectStageInView, writeLie, pickBluff, sleep, EARLY, pilotSocket, type Pilot, pilotPlayer, frame, emitOk, expectGap, createAutopilot, stateViews, launchBot11h, joinBy11h, label, cardAction } from './helpers/common';
 import { exact, base, problems, rigged, snapshot, shot, restart, useE2eServer } from './helpers/setup';
 
 /**
@@ -485,7 +485,7 @@ async function authorInterface11h(sockets: Socket[]) {
 
   // 1–2. Вікно запуску на телефоні: зміни, «грай чесно», нікнейм профілю, довідка.
   await marta.goto(`${base}/quizzes`);
-  await marta.locator('.quiz-list li', { hasText: 'Бот веде 11h' }).getByRole('button', { name: 'Провести ботом', ...exact }).click();
+  await cardAction(marta, 'Бот веде 11h', 'Провести ботом');
   const dialog = marta.getByRole('dialog', { name: 'Гра без ведучого', ...exact });
   await dialog.locator('.autopilot-changes li').first().waitFor();
   const changes = await dialog.locator('.autopilot-changes li').allTextContents();

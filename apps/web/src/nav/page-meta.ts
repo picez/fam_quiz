@@ -11,6 +11,7 @@ const TITLES: [pattern: string, key: TextKey][] = [
   ['/create', 'startCreate'],
   ['/quizzes', 'quizzesTitle'],
   ['/quizzes/new', 'editorNew'],
+  ['/quizzes/liked', 'quizzesLikedTitle'],
   ['/quizzes/:id', 'editorEdit'],
   ['/library', 'libraryTitle'],
   ['/library/:id', 'libraryTitle'],
@@ -28,7 +29,6 @@ const TITLES: [pattern: string, key: TextKey][] = [
   ['/profile/friends', 'profileTileFriends'],
   ['/friends', 'profileTileFriends'],
   ['/profile/stats', 'profileTileStats'],
-  ['/profile/likes', 'profileTileLikes'],
   ['/profile/levels', 'levelMapTitle'],
   ['/profile/looks', 'profileTileLooks'],
   ['/profile/settings', 'profileTileSettings'],
@@ -73,6 +73,8 @@ export function tabGroup(pathname: string): string | null {
   const path = pathname.length > 1 ? pathname.replace(/\/+$/, '') : pathname;
   if (path === '/feed' || path === '/feed/calendar') return 'feed';
   if (path === '/history' || path === '/me') return 'history';
+  // 77: вкладки «Вікторин» — Мої · Бібліотека · Вподобані.
+  if (path === '/quizzes' || path === '/library' || path === '/quizzes/liked') return 'quizzes';
   if (path === '/admin' || /^\/admin\/[^/]+$/.test(path) || path.startsWith('/admin/appeals')) return 'admin';
   return null;
 }

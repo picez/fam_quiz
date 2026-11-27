@@ -121,7 +121,7 @@ async function afterThirdGame() {
   expect(saved.ok(), await saved.text()).toBe(true);
 
   await host.goto(`${base}/quizzes`);
-  await host.locator('.quiz-list li', { hasText: 'Після третьої гри' }).getByRole('button', { name: 'Грати', ...exact }).click();
+  await host.locator('.quiz-list li', { hasText: 'Після третьої гри' }).getByRole('button', { name: 'Провести', ...exact }).click();
   await host.waitForURL(/\/host\/\d{6}$/);
   const code = host.url().slice(-6);
   const stageUrl = await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href');
@@ -442,7 +442,7 @@ async function restartGame() {
   expect(saved.ok(), await saved.text()).toBe(true);
 
   await host.goto(`${base}/quizzes`);
-  await host.locator('.quiz-list li', { hasText: 'Перезапуск' }).getByRole('button', { name: 'Грати', ...exact }).click();
+  await host.locator('.quiz-list li', { hasText: 'Перезапуск' }).getByRole('button', { name: 'Провести', ...exact }).click();
   await host.waitForURL(/\/host\/\d{6}$/);
   const code = host.url().slice(-6);
   const stageUrl = await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href');
@@ -667,7 +667,7 @@ async function debuffShopGame() {
 
   // Редактор: ціни Туману й Тремтіння, решта — плейсхолдер 200.
   await host.goto(`${base}/quizzes`);
-  await host.locator('.quiz-list li', { hasText: 'Дебафи' }).getByRole('link', { name: 'Редагувати' }).click();
+  await host.locator('.quiz-list li', { hasText: 'Дебафи' }).getByRole('link', { name: 'Змінити' }).click();
   await openGeneralFold(host, 'powers');
   const price = (name: string) => host.locator('.powers-row', { hasText: name }).getByLabel('Ціна, балів', exact);
   await price('Туман').fill('100');
@@ -683,7 +683,7 @@ async function debuffShopGame() {
   await click(host, 'Зберегти');
   await host.waitForURL(/\/quizzes$/);
 
-  await host.locator('.quiz-list li', { hasText: 'Дебафи' }).getByRole('button', { name: 'Грати', ...exact }).click();
+  await host.locator('.quiz-list li', { hasText: 'Дебафи' }).getByRole('button', { name: 'Провести', ...exact }).click();
   await host.waitForURL(/\/host\/\d{6}$/);
   const code = host.url().slice(-6);
   const stageUrl = await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href');
@@ -1046,7 +1046,7 @@ async function categorySparesGame() {
 
   // 1. Редактор: попередження про категорії без запасних; запасне для «Міста»; збереження не блокується.
   await host.goto(`${base}/quizzes`);
-  await host.locator('.quiz-list li', { hasText: 'Запасні 9d' }).getByRole('link', { name: 'Редагувати' }).click();
+  await host.locator('.quiz-list li', { hasText: 'Запасні 9d' }).getByRole('link', { name: 'Змінити' }).click();
   await openGeneralFold(host, 'powers');
   const buffGroup = host.locator('fieldset.powers-group').nth(1);
   const warns = () => buffGroup.locator('.powers-warn').allTextContents();
@@ -1088,7 +1088,7 @@ async function categorySparesGame() {
   await host.waitForURL(/\/quizzes$/);
 
   // 2. Гра: сцена 1600 × 900, три телефони 375 × 812; черга поля — Оля, Петро, Іра.
-  await host.locator('.quiz-list li', { hasText: 'Запасні 9d' }).getByRole('button', { name: 'Грати', ...exact }).click();
+  await host.locator('.quiz-list li', { hasText: 'Запасні 9d' }).getByRole('button', { name: 'Провести', ...exact }).click();
   await host.waitForURL(/\/host\/\d{6}$/);
   const code = host.url().slice(-6);
   const stageUrl = await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href');

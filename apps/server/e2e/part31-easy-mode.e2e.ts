@@ -75,7 +75,7 @@ async function play31(host: Page, quiz: Quiz): Promise<{ code: string; stageUrl:
   expect(saved.ok(), await saved.text()).toBe(true);
   const id = ((await saved.json()) as { id: string }).id;
   await host.goto(`${base}/quizzes`);
-  await host.locator('.quiz-list li', { hasText: quiz.title }).getByRole('button', { name: 'Грати', ...exact }).click();
+  await host.locator('.quiz-list li', { hasText: quiz.title }).getByRole('button', { name: 'Провести', ...exact }).click();
   await host.waitForURL(/\/host\/\d{6}$/);
   const code = host.url().slice(-6);
   const stageUrl = (await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href'))!;
@@ -243,7 +243,7 @@ async function familyGame31() {
   await shot(host, 'p31-editor-family');
 
   await host.goto(`${base}/quizzes`);
-  await host.locator('.quiz-list li', { hasText: 'Сімейна розминка 31' }).getByRole('button', { name: 'Грати', ...exact }).click();
+  await host.locator('.quiz-list li', { hasText: 'Сімейна розминка 31' }).getByRole('button', { name: 'Провести', ...exact }).click();
   await host.waitForURL(/\/host\/\d{6}$/);
   const code = host.url().slice(-6);
   const stageUrl = (await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href'))!;

@@ -59,7 +59,7 @@ describe('the menu pages while offline', () => {
       <MemoryRouter initialEntries={['/']}>
         <Routes>
           <Route element={<WithMenu />}>
-            <Route path="/" element={<p>Головна</p>} />
+            <Route path="/" element={<p>Головна сторінка</p>} />
           </Route>
         </Routes>
       </MemoryRouter>,
@@ -67,7 +67,7 @@ describe('the menu pages while offline', () => {
 
   it('shows «Немає інтернету…» as a status while offline and hides it when the connection is back', async () => {
     page();
-    await screen.findByText('Головна');
+    await screen.findByText('Головна сторінка');
     expect(screen.queryByText(t('netOffline'))).toBeNull();
     go(false);
     const banner = screen.getByText(t('netOffline'));

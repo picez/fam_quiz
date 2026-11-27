@@ -269,7 +269,7 @@ async function editor37() {
 
   // ── Повторне відкриття: «Крок» 50, бали ті самі; у числовому — перемикач увімкнено, допуску немає. ──
   await host.goto(`${base}/quizzes`);
-  await host.locator('.quiz-list li', { hasText: 'Крок 37' }).getByRole('link', { name: 'Редагувати' }).click();
+  await host.locator('.quiz-list li', { hasText: 'Крок 37' }).getByRole('link', { name: 'Змінити' }).click();
   await host.getByRole('button', { name: /^Запитання 1 Порівняйте пари/ }).click();
   await expect.poll(() => field(host, 'Крок').inputValue(), POLL).toBe('50');
   expect(await pointsOf37(host, 4)).toEqual(['100', '150', '500', '550']);
@@ -291,7 +291,7 @@ async function game37() {
   expect(saved.ok(), await saved.text()).toBe(true);
   await host.goto(`${base}/quizzes`);
   const hostFrames = socketFrames(host);
-  await host.locator('.quiz-list li', { hasText: 'Як усі 37' }).getByRole('button', { name: 'Грати', ...exact }).click();
+  await host.locator('.quiz-list li', { hasText: 'Як усі 37' }).getByRole('button', { name: 'Провести', ...exact }).click();
   await host.waitForURL(/\/host\/\d{6}$/);
   const code = host.url().slice(-6);
   const stageUrl = (await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href'))!;
@@ -455,7 +455,7 @@ async function teams37() {
   const saved = await host.request.post(`${base}/api/quizzes`, { data });
   expect(saved.ok(), await saved.text()).toBe(true);
   await host.goto(`${base}/quizzes`);
-  await host.locator('.quiz-list li', { hasText: 'Як усі команди 37' }).getByRole('button', { name: 'Грати', ...exact }).click();
+  await host.locator('.quiz-list li', { hasText: 'Як усі команди 37' }).getByRole('button', { name: 'Провести', ...exact }).click();
   await host.waitForURL(/\/host\/\d{6}$/);
   const code = host.url().slice(-6);
   const stageUrl = (await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href'))!;
@@ -551,7 +551,7 @@ async function crowd37(sockets: Socket[]) {
   const saved = await host.request.post(`${base}/api/quizzes`, { data });
   expect(saved.ok(), await saved.text()).toBe(true);
   await host.goto(`${base}/quizzes`);
-  await host.locator('.quiz-list li', { hasText: 'Як усі натовп 37' }).getByRole('button', { name: 'Грати', ...exact }).click();
+  await host.locator('.quiz-list li', { hasText: 'Як усі натовп 37' }).getByRole('button', { name: 'Провести', ...exact }).click();
   await host.waitForURL(/\/host\/\d{6}$/);
   const code = host.url().slice(-6);
   const stageUrl = (await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href'))!;
