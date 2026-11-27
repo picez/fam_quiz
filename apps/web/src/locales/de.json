@@ -5643,5 +5643,6 @@
   "quizExportFile": "Export: Quiz-Datei",
   "quizExportTable": "Export: Tabelle (Excel)",
   "libraryHost": "Spiel leiten",
-  "libraryHostSignIn": "Anmelden, um zu leiten"
+  "libraryHostSignIn": "Anmelden, um zu leiten",
+  "menuShortQuizzesTight": "Quiz"
 }

@@ -97,6 +97,20 @@ describe('Menu', () => {
     expect(items()).toHaveLength(5);
   });
 
+  it('six items (admin) use the tighter short label «Вікт.», five items keep «Вікторини» (77)', async () => {
+    vi.mocked(me).mockResolvedValue({ ...OK, admin: true });
+    show('/');
+    await screen.findByRole('link', { name: 'Адмінка' });
+    const quizzes = screen.getByRole('link', { name: 'Вікторини' });
+    expect(quizzes.getAttribute('data-short')).toBe('Вікт.');
+    expect(menuLinks().map((l) => l.getAttribute('data-short'))).toEqual(['Головна', 'Вікт.', 'Стрічка', 'Історія', 'Профіль', 'Адмінка']);
+    cleanup();
+    forgetAccount();
+    vi.mocked(me).mockResolvedValue(OK);
+    show('/');
+    expect((await screen.findByRole('link', { name: 'Вікторини' })).getAttribute('data-short')).toBe('Вікторини');
+  });
+
   it('an admin gets the admin panel last, marked under /admin; others and visitors do not', async () => {
     vi.mocked(me).mockResolvedValue({ ...OK, admin: true });
     show('/admin/users');

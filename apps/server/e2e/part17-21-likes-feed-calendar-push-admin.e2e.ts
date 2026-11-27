@@ -323,19 +323,20 @@ function feedQuestions18a() {
 }
 
 /**
- * Бейдж «Стрічки» в меню телефона (18a): пункт «Стрічка» (другий) містить бейдж цілком, бейдж не налазить на сусідні пункти,
+ * Бейдж «Стрічки» в меню телефона (18a): пункт «Стрічка» (з 77 — третій; шукаємо за адресою) містить бейдж цілком, бейдж не налазить на сусідні пункти,
  * сторінка не гортається вбік. Повертає список порушень.
  */
 const FEED_BADGE_FITS_18A = `(() => {
   const links = [...document.querySelectorAll('nav.menu a')];
-  const badge = links[1]?.querySelector('.menu-badge');
-  if (!badge) return ['no badge on the second item'];
+  const at = links.findIndex((a) => a.getAttribute('href') === '/feed');
+  const badge = links[at]?.querySelector('.menu-badge');
+  if (!badge) return ['no badge on the feed item'];
   const bad = [];
   const b = badge.getBoundingClientRect();
-  const own = links[1].getBoundingClientRect();
+  const own = links[at].getBoundingClientRect();
   if (b.left < own.left - 0.5 || b.right > own.right + 0.5 || b.top < own.top - 0.5 || b.bottom > own.bottom + 0.5)
     bad.push('the badge leaves its item: ' + [b.left, b.right, b.top, b.bottom].map((n) => n.toFixed(1)).join(',') + ' in ' + [own.left, own.right, own.top, own.bottom].map((n) => n.toFixed(1)).join(','));
-  for (const i of [0, 2]) {
+  for (const i of [at - 1, at + 1].filter((n) => n >= 0 && n < links.length)) {
     const r = links[i].getBoundingClientRect();
     if (b.left < r.right - 0.5 && r.left < b.right - 0.5 && b.top < r.bottom && r.top < b.bottom) bad.push('the badge overlaps item ' + i);
   }

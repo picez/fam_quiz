@@ -5951,5 +5951,6 @@
   "quizExportFile": "تصدير: ملف الاختبار",
   "quizExportTable": "تصدير: جدول (Excel)",
   "libraryHost": "أدر لعبة",
-  "libraryHostSignIn": "سجّل الدخول لتدير اللعبة"
+  "libraryHostSignIn": "سجّل الدخول لتدير اللعبة",
+  "menuShortQuizzesTight": "اختبارات"
 }

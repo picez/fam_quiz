@@ -4812,6 +4812,8 @@ const uk = {
   menuLibrary: 'Бібліотека',
   menuShortLibrary: 'Бібліотека',
   // 77: вкладки сторінки «Вікторини»
+  // 77: короткий підпис «Вікторин» у меню адміна з шести пунктів на вузькому екрані
+  menuShortQuizzesTight: 'Вікт.',
   quizzesTabMine: 'Мої',
   quizzesTabLiked: 'Вподобані',
   quizzesLikedTitle: 'Вподобані вікторини',

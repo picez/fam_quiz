@@ -244,7 +244,7 @@ describe('uk golden (22a)', () => {
   /** 76: навігація, етап 1 — головна, «назад» зі словом, стани сторінки, редактор. */
   const ADDED_76 = ['pageHome', 'backTo', 'retryLoad', 'emptyHostGame', 'emptyJoinByCode', 'libraryClearSearch', 'leaveUnsaved', 'editorHostGame', 'editorSaveAndHost'];
   /** 77: навігація, етап 2 — вкладки «Вікторин», картка з «⋯», «Провести гру» з бібліотеки. */
-  const ADDED_77 = ['quizzesTabMine', 'quizzesTabLiked', 'quizzesLikedTitle', 'quizMoreActions', 'quizShareLibrary', 'quizExportFile', 'quizExportTable', 'libraryHost', 'libraryHostSignIn'];
+  const ADDED_77 = ['menuShortQuizzesTight', 'quizzesTabMine', 'quizzesTabLiked', 'quizzesLikedTitle', 'quizMoreActions', 'quizShareLibrary', 'quizExportFile', 'quizExportTable', 'libraryHost', 'libraryHostSignIn'];
   /** 77: змінені uk-тексти, чиї переклади теж оновлено. */
   const CHANGED_77 = ['menuJoin', 'menuShortJoin', 'menuQuizzes', 'menuShortQuizzes', 'startCreate', 'play', 'adminRestoreQuizConfirm'];
   /** Пояснення після відповіді: телефон, редактор, імпорт таблиці й перегляд адміна. */

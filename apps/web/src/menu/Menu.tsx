@@ -10,12 +10,13 @@ import { useFeedBadge } from '../useFeedBadge';
 import { useGroupInvites } from '../useGroupInvites';
 import { useInvites } from '../useInvites';
 
-type Item = { label: TextKey; short: TextKey; icon: string; to: string; section: MenuSection };
+/** tight — коротший підпис для шести пунктів (меню адміна) на вузькому екрані. */
+type Item = { label: TextKey; short: TextKey; tight?: TextKey; icon: string; to: string; section: MenuSection };
 
 // 77: пʼять пунктів — Головна · Вікторини · Стрічка · Історія · Профіль; що світиться, вирішує menuSection.
 const HOME: Item = { label: 'menuJoin', short: 'menuShortJoin', icon: '🏠', to: '/', section: 'home' };
 // «Вікторини» — сторінка з вкладками Мої · Бібліотека · Вподобані; світиться й на /library, /create, /help, /challenge.
-const QUIZZES: Item = { label: 'menuQuizzes', short: 'menuShortQuizzes', icon: '📝', to: '/quizzes', section: 'quizzes' };
+const QUIZZES: Item = { label: 'menuQuizzes', short: 'menuShortQuizzes', tight: 'menuShortQuizzesTight', icon: '📝', to: '/quizzes', section: 'quizzes' };
 const FEED: Item = { label: 'menuFeed', short: 'menuShortFeed', icon: '📰', to: '/feed', section: 'feed' };
 const HISTORY: Item = { label: 'menuHistory', short: 'menuShortHistory', icon: '🕘', to: '/history', section: 'history' };
 const PROFILE: Item = { label: 'menuProfile', short: 'menuShortProfile', icon: '👤', to: '/profile', section: 'profile' };
@@ -57,6 +58,8 @@ export function Menu() {
   const items =
     account.status === 'signed-in' ? (account.account.admin ? [HOME, QUIZZES, FEED, HISTORY, PROFILE, ADMIN] : [HOME, QUIZZES, FEED, HISTORY, PROFILE]) : account.status === 'anonymous' ? [HOME, LIBRARY, signIn] : [HOME];
   const active = activeItem(items, location.pathname);
+  // 77: у шести пунктах (адмін) «Вікторини» не влазять у шосту частину 320 px — там коротший підпис.
+  const short = (item: Item) => t(items.length > 5 && item.tight !== undefined ? item.tight : item.short);
 
   const name = (item: Item) =>
     item === PROFILE && total > 0
@@ -68,7 +71,7 @@ export function Menu() {
   return (
     <nav className="menu" aria-label={t('menuLabel')}>
       {items.map((item) => (
-        <Link key={item.label} to={item.to} aria-label={name(item)} data-short={t(item.short)} aria-current={item === active ? 'page' : undefined}>
+        <Link key={item.label} to={item.to} aria-label={name(item)} data-short={short(item)} aria-current={item === active ? 'page' : undefined}>
           <span aria-hidden="true">{item.icon}</span>
           <span className="menu-full">{t(item.label)}</span>
           {item === PROFILE && total > 0 && (

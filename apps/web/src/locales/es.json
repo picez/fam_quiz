@@ -5720,5 +5720,6 @@
   "quizExportFile": "Exportar: archivo del quiz",
   "quizExportTable": "Exportar: tabla (Excel)",
   "libraryHost": "Dirigir una partida",
-  "libraryHostSignIn": "Inicia sesión para dirigir"
+  "libraryHostSignIn": "Inicia sesión para dirigir",
+  "menuShortQuizzesTight": "Quiz"
 }
