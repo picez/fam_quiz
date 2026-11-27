@@ -1,11 +1,12 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, Navigate } from 'react-router-dom';
 import type { GameSummary, SavedInfo } from '@quiz/shared';
-import { deleteSavedGame, listGames } from '../api';
+import { deleteSavedGame, listGames, myHistory } from '../api';
+import { HISTORY_TAB_PATH, landingTab, type HistoryTab } from '../history-landing';
 import { formatDate } from '../format';
 import { useContinueSaved } from '../host-game';
 import { errorText, t } from '../i18n';
-import { loadAuthor, loadHost } from '../storage';
+import { loadAuthor, loadHistoryTab, loadHost } from '../storage';
 import { usePrivateData } from '../usePrivateData';
 import { HistoryTabs } from './HistoryTabs';
 import { EmptyState, Loading, LoadError } from '../ui/PageState';
@@ -93,13 +94,43 @@ function SavedGame({ game, saved, onDeleted }: { game: GameSummary; saved: Saved
   );
 }
 
+/**
+ * 79: скільки ігор у «Зіграних» — лише коли вкладку на цьому пристрої ще не обирали (інакше не питаємо);
+ * undefined — ще рахуємо, null — збій.
+ */
+function usePlayedCount(ask: boolean, signedIn: boolean): number | null | undefined {
+  const [count, setCount] = useState<number | null | undefined>(undefined);
+  useEffect(() => {
+    if (!ask || !signedIn) return;
+    let alive = true;
+    void myHistory().then((result) => {
+      if (alive) setCount(result.ok ? result.data.length : null);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [ask, signedIn]);
+  return count;
+}
+
 export function History() {
   const [reads, setReads] = useState(0);
   const state = usePrivateData(listGames, String(reads));
+  // Вибір вкладки читаємо раз: «Проведені», натиснуті щойно, вже записані до переходу сюди.
+  const [chosen] = useState(loadHistoryTab);
+  const played = usePlayedCount(chosen === null, state.status !== 'signed-out');
+  // Вирішуємо раз за відкриття: видалена збережена гра (перечитування списку) не перекидає на «Зіграні».
+  const decided = useRef<HistoryTab | null>(null);
 
   if (state.status === 'signed-out') return <Navigate to="/login?next=%2Fhistory" replace />;
+  // 79: типова вкладка — та, де більше ігор, або обрана раніше на цьому пристрої.
+  // Поки «Зіграні» ще рахуються — скелет списку замість «Проведених», щоб гравця не смикало; збій «Проведених» — лишаємось тут.
+  const deciding = chosen === null && state.status === 'ready' && played === undefined;
+  if (decided.current === null && (chosen !== null || (!deciding && state.status !== 'loading'))) decided.current = landingTab(chosen, state.status === 'ready' ? state.data.length : null, played ?? null);
+  const tab = decided.current ?? 'hosted';
+  if (tab !== 'hosted') return <Navigate to={HISTORY_TAB_PATH[tab]} replace />;
 
-  const games = state.status === 'ready' ? state.data : [];
+  const games = state.status === 'ready' && !deciding ? state.data : [];
   const saved = games.filter((game) => game.saved !== undefined);
   const done = games.filter((game) => game.saved === undefined);
 
@@ -108,9 +139,9 @@ export function History() {
       <HistoryTabs />
       <h1 className="brand">{t('historyTitle')}</h1>
 
-      {state.status === 'loading' && <Loading list />}
+      {(state.status === 'loading' || deciding) && <Loading list />}
       {state.status === 'error' && <LoadError message={state.message} onRetry={state.retry} />}
-      {state.status === 'ready' && games.length === 0 && (
+      {state.status === 'ready' && !deciding && games.length === 0 && (
         <EmptyState text={t('historyEmpty')}>
           <Link className="btn btn-primary" to="/create">
             {t('emptyHostGame')}

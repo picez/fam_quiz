@@ -77,6 +77,10 @@ export function GroupPage() {
       <p className="meta">
         {countText('groupPeople', group.people, { count: group.people })} · {countText('groupItems', group.items, { count: group.items })}
       </p>
+      {/* 79: гра для ліги групи — «Провести гру» з уже вибраною групою (вибір лишається в лобі). */}
+      <Link className="btn btn-primary group-host" to={`/create?group=${encodeURIComponent(group.id)}`}>
+        {t('groupHostGame')}
+      </Link>
       <div role="tablist" className="group-tabs" aria-label={t('groupTabsLabel')}>
         {tabs.map((entry) => (
           <button

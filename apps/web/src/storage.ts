@@ -1,4 +1,5 @@
 import { isObjectLike } from '@quiz/shared';
+import type { HistoryTab } from './history-landing';
 
 export interface HostTokens {
   hostToken: string;
@@ -130,3 +131,11 @@ export const saveAnnouncementSeen = (id: string): void => write(ANNOUNCEMENT_SEE
 const welcomeKey = (accountId: string) => `quiz:welcome-done:${accountId}`;
 export const loadWelcomeDone = (accountId: string): boolean => read(welcomeKey(accountId)) === 'yes';
 export const saveWelcomeDone = (accountId: string): void => write(welcomeKey(accountId), 'yes');
+
+/** 79: остання вкладка «Історії», яку людина обрала на цьому пристрої; null — ще не обирала. */
+const HISTORY_TAB = 'quiz:history-tab';
+export const loadHistoryTab = (): HistoryTab | null => {
+  const value = read(HISTORY_TAB);
+  return value === 'hosted' || value === 'played' || value === 'challenges' ? value : null;
+};
+export const saveHistoryTab = (tab: HistoryTab): void => write(HISTORY_TAB, tab);

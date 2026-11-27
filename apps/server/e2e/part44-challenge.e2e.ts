@@ -326,6 +326,19 @@ async function challenge44() {
   expect(await olena.locator('table.challenge-results tr.is-me').innerText()).toContain('автор');
   await viewportShot(olena, 'p44-results-author-viewport');
 
+  // 79: «Історія» → «Виклики»: надісланий виклик зі спробами, найкращим результатом і посиланням на таблицю.
+  await olena.goto(`${base}/history/challenges`);
+  await olena.getByRole('heading', { level: 1, name: 'Мої виклики', ...exact }).waitFor();
+  const sentRow = olena.locator('section.challenges-part li', { hasText: 'Річки 44' });
+  await sentRow.waitFor();
+  expect(await sentRow.innerText()).toMatch(/зіграл[аи] \d+ (людина|людини|людей)/);
+  expect(await sentRow.innerText()).toContain('Найкраще: ');
+  expect(await sentRow.getByRole('link', { name: 'Таблиця', ...exact }).getAttribute('href')).toBe(new URL(url).pathname);
+  await olena.getByText('Нових викликів від друзів немає.', exact).waitFor();
+  expect(await olena.locator('nav.history-tabs a[aria-current="page"]').innerText()).toBe('Виклики');
+  await expectNoSideScroll(olena, 'p79-my-challenges');
+  await viewportShot(olena, 'p79-my-challenges-viewport');
+
   // ── 8. «Петро» стартує й кидає; термін спливає. ──
   const petro = await light(await open('petro44', 360, 740));
   await register(petro, 'menu', 'Петро', 'petro44@example.com');

@@ -2,7 +2,7 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { downloadTemplate, exportQuizFile, exportQuizTable, importQuizFile, problemText } from './actions';
-import { ExportMenu } from './ExportMenu';
+import { useQuizExport } from './ExportMenu';
 import { ImportDialog } from './ImportDialog';
 
 vi.mock('./actions');
@@ -21,15 +21,30 @@ const pending = <T,>() => {
   return { promise, resolve };
 };
 
-describe('ExportMenu', () => {
-  it('export menu offers the file and the table', async () => {
+/** Найменша обгортка над useQuizExport (79: сам компонент ExportMenu прибрано — експорт живе в меню «⋯» картки). */
+function ExportProbe({ quizId }: { quizId: string }) {
+  const exporter = useQuizExport(quizId);
+  return (
+    <div>
+      <button type="button" disabled={exporter.busy} onClick={() => exporter.run('file')}>
+        Файл вікторини
+      </button>
+      <button type="button" disabled={exporter.busy} onClick={() => exporter.run('table')}>
+        Таблиця (Excel)
+      </button>
+      {exporter.status}
+    </div>
+  );
+}
+
+describe('useQuizExport', () => {
+  it('shows progress and keeps both exports busy while one runs', async () => {
     const gate = pending<{ ok: true }>();
     vi.mocked(exportQuizFile).mockImplementation(async (_id, onProgress) => {
       onProgress({ stage: 'media', done: 1, total: 3 });
       return gate.promise;
     });
-    render(<ExportMenu quizId="q1" />);
-    fireEvent.click(screen.getByText('Експорт'));
+    render(<ExportProbe quizId="q1" />);
     const file = screen.getByRole('button', { name: 'Файл вікторини' });
     const table = screen.getByRole('button', { name: 'Таблиця (Excel)' });
     fireEvent.click(file);
@@ -44,7 +59,7 @@ describe('ExportMenu', () => {
 
   it('table export reports skipped questions', async () => {
     vi.mocked(exportQuizTable).mockResolvedValueOnce({ ok: true, skipped: 2 });
-    render(<ExportMenu quizId="q1" />);
+    render(<ExportProbe quizId="q1" />);
     fireEvent.click(screen.getByRole('button', { name: 'Таблиця (Excel)' }));
     expect(await screen.findByText('Пропущено 2 запитання інших типів чи з медіа (вони є лише у файлі вікторини)')).toBeTruthy();
     vi.mocked(exportQuizTable).mockResolvedValueOnce({ ok: true, skipped: 5 });
@@ -55,48 +70,9 @@ describe('ExportMenu', () => {
     await waitFor(() => expect(screen.queryByText(/Пропущено/)).toBeNull());
   });
 
-  it('opening the menu scrolls it into view', () => {
-    const scroll = vi.fn();
-    Element.prototype.scrollIntoView = scroll;
-    render(<ExportMenu quizId="q1" />);
-    const details = document.querySelector('details') as HTMLDetailsElement;
-    details.open = true;
-    fireEvent(details, new Event('toggle'));
-    expect(scroll).toHaveBeenCalledWith({ block: 'nearest' });
-    // @ts-expect-error — прибираємо підставку jsdom
-    delete Element.prototype.scrollIntoView;
-  });
-
-  it('the menu closes on an outside click and on Escape, not on a click inside', () => {
-    render(<ExportMenu quizId="q1" />);
-    const details = document.querySelector('details') as HTMLDetailsElement;
-    details.open = true;
-    fireEvent.pointerDown(screen.getByRole('button', { name: 'Файл вікторини' }));
-    expect(details.open).toBe(true);
-    fireEvent.pointerDown(document.body);
-    expect(details.open).toBe(false);
-    details.open = true;
-    fireEvent.keyDown(document, { key: 'Enter' });
-    expect(details.open).toBe(true);
-    fireEvent.keyDown(document, { key: 'Escape' });
-    expect(details.open).toBe(false);
-  });
-
-  it('a busy menu does not toggle from its summary', async () => {
-    const gate = pending<{ ok: true }>();
-    vi.mocked(exportQuizFile).mockReturnValueOnce(gate.promise);
-    render(<ExportMenu quizId="q1" />);
-    fireEvent.click(screen.getByRole('button', { name: 'Файл вікторини' }));
-    await screen.findByRole('status');
-    const summary = screen.getByText('Експорт');
-    expect(fireEvent.click(summary)).toBe(false);
-    gate.resolve({ ok: true });
-    await waitFor(() => expect(screen.queryByRole('status')).toBeNull());
-  });
-
   it('export error is an alert', async () => {
     vi.mocked(exportQuizFile).mockResolvedValueOnce({ ok: false, error: 'io_media_fetch' });
-    render(<ExportMenu quizId="q1" />);
+    render(<ExportProbe quizId="q1" />);
     fireEvent.click(screen.getByRole('button', { name: 'Файл вікторини' }));
     expect((await screen.findByRole('alert')).textContent).toBe('Не вдалося прочитати картинки чи аудіо вікторини.');
   });

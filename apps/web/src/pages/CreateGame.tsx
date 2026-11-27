@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Link, Navigate } from 'react-router-dom';
-import { listQuizzes, type QuizSummary } from '../api';
+import { Link, Navigate, useSearchParams } from 'react-router-dom';
+import { getGroups, listQuizzes, type QuizSummary } from '../api';
 import { addDemoQuiz, useStartGame } from '../host-game';
 import { quizSizeText } from '../format';
 import { errorText, t } from '../i18n';
@@ -23,6 +23,22 @@ export function CreateGame() {
   /** Збій самого списку (76): окремо від помилок дій, щоб замість вічного «Завантажуємо…» була помилка з повтором. */
   const [loadError, setLoadError] = useState<string | null>(null);
   const signedIn = account.status === 'signed-in';
+  // 79: «Провести гру для групи» — ?group=<id>; лише моя видима група, інакше параметр мовчки ігнорується.
+  const [params] = useSearchParams();
+  const groupId = params.get('group');
+  const [forGroup, setForGroup] = useState<{ id: string; name: string } | null>(null);
+  useEffect(() => {
+    setForGroup(null);
+    if (!signedIn || groupId === null) return;
+    let alive = true;
+    void getGroups().then((result) => {
+      const found = result.ok ? result.groups.find((group) => group.id === groupId && group.hidden === undefined) : undefined;
+      if (alive && found !== undefined) setForGroup({ id: found.id, name: found.name });
+    });
+    return () => {
+      alive = false;
+    };
+  }, [signedIn, groupId]);
 
   const fail = useCallback((code: string) => {
     if (code === 'unauthorized') setExpired(true);
@@ -77,6 +93,7 @@ export function CreateGame() {
 
   return (
     <ProfileSubpage title={t('startCreate')} back="/" className="create-game">
+      {forGroup !== null && <p className="meta create-for-group">{t('createForGroup', { group: forGroup.name })}</p>}
       {error !== null && (
         <p className="error" role="alert">
           {error}
@@ -119,7 +136,7 @@ export function CreateGame() {
                   <p className="meta">{quizSizeText(t('questionCount', { count: quiz.questionCount }), quiz.questionCount, quiz.truth)}</p>
                 </div>
                 <div className="toolbar">
-                  <button type="button" className="btn btn-primary" disabled={busy} onClick={() => void run(() => startGame(quiz.id))}>
+                  <button type="button" className="btn btn-primary" disabled={busy} onClick={() => void run(() => startGame(quiz.id, forGroup?.id))}>
                     {t('start')}
                   </button>
                 </div>

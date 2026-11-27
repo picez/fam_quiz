@@ -157,6 +157,8 @@ export interface GroupCard {
   joinedAt: string;
   /** 63: групу сховав адміністратор — лише в картці власника. */
   hidden?: { reason: string | null };
+  /** 79: ліга поточного місяця — лише якщо цього місяця в групі вже є бали; place null — у мене балів ще немає. */
+  league?: { place: number | null; points: number };
 }
 export interface GroupMember extends ProfileCard {
   role: GroupRole;

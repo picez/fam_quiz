@@ -1372,6 +1372,22 @@ async function menuProfileFriends() {
   expect(await stat(olya, 'правильних відповідей').textContent()).toBe('100%правильних відповідей');
   await olya.locator('.profile-list li', { hasText: '«Тестова вікторина», 1 місце' }).waitFor();
 
+  // 79: «Статистика» → «Зіграні ігри» → гра відкривається: місце, таблиця й лише свої відповіді; меню «Історія» гравця, що не проводив, — одразу «Зіграні».
+  await olya.getByRole('link', { name: /^Зіграні ігри/ }).click();
+  await olya.waitForURL(`${base}/me`);
+  await olya.locator('.quiz-list h2 a', { hasText: 'Тестова вікторина' }).click();
+  await olya.waitForURL(/\/me\/[0-9a-f-]{36}$/);
+  await olya.getByRole('heading', { level: 1, name: 'Тестова вікторина', ...exact }).waitFor();
+  await olya.locator('.standings li.is-me').waitFor();
+  await olya.getByRole('heading', { level: 2, name: 'Твої відповіді', ...exact }).waitFor();
+  expect(await olya.locator('.played-answer-list > li').count()).toBeGreaterThan(0);
+  expect(await olya.locator('.played-answer-list > li.is-correct').count()).toBeGreaterThan(0);
+  await expectPhoneFit(olya, 'p79-played-game');
+  await olya.getByRole('link', { name: /^Уся статистика/ }).click();
+  await olya.waitForURL(`${base}/profile/stats`);
+  await olya.locator(MENU).getByRole('link', { name: 'Історія' }).click();
+  await olya.waitForURL(`${base}/me`);
+
   // Нік і аватар — на «Налаштуваннях», розділ «Нікнейм і аватар».
   await openProfileTile(olya, 'Налаштування');
   await olya.getByRole('heading', { level: 2, name: 'Нікнейм і аватар', ...exact }).waitFor();

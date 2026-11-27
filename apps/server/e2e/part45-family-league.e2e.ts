@@ -262,7 +262,7 @@ async function league45() {
   const open45 = async (page: Page) => {
     await page.goto(`${base}/profile`);
     await page.locator(MENU).getByRole('link', { name: 'Профіль' }).click();
-    await page.locator('nav.profile-tiles a.is-wide').click();
+    await page.locator('nav.profile-tiles a[href="/profile/groups"]').click();
     await page.getByRole('link', { name: new RegExp(GROUP) }).click();
     await page.getByRole('tab', { name: 'Ліга', ...exact }).click();
     await page.locator('section.group-league').waitFor();
@@ -286,6 +286,29 @@ async function league45() {
   expect((await oksana.request.get(`${base}/api/groups/${groupId}/league`)).status()).toBe(404);
   expect((await guest.request.get(`${base}/api/groups/${groupId}/league`)).status()).toBe(401);
   expect((await olena.request.get(`${base}/api/groups/${groupId}/league`)).status()).toBe(200);
+
+  // ── 6a (79). Ліга видно в списку груп і в профілі («Люди»); «Провести гру для групи» одразу вибирає лігу в лобі. ──
+  await taras.goto(`${base}/profile/groups`);
+  await taras.locator('ul.group-cards a', { hasText: GROUP }).locator('.group-card-league', { hasText: 'Ліга: місце 1 · бали місяця: 20' }).waitFor();
+  await expectNoSideScroll(taras, 'p79-groups-league');
+  await shot(taras, 'p79-groups-league');
+  await taras.goto(`${base}/profile`);
+  const leagueLine = taras.locator('.profile-block-people .profile-league a', { hasText: GROUP });
+  await leagueLine.waitFor();
+  expect(await leagueLine.innerText()).toContain('Ліга: місце 1 · бали місяця: 20');
+  await expectNoSideScroll(taras, 'p79-profile-league');
+  await shot(taras, 'p79-profile-league');
+  await leagueLine.click();
+  await taras.locator('section.group-league').waitFor();
+  expect(new URL(taras.url()).search).toBe('?tab=league');
+  await olena.goto(`${base}/profile/groups/${groupId}`);
+  await olena.getByRole('link', { name: 'Провести гру для групи', ...exact }).click();
+  await olena.waitForURL(`${base}/create?group=${groupId}`);
+  await olena.getByText(`Бали гри підуть у лігу групи «${GROUP}». Змінити можна в лобі.`, exact).waitFor();
+  await olena.locator('.quiz-list li', { hasText: 'Міста 45' }).getByRole('button', { name: 'Почати гру', ...exact }).click();
+  await olena.waitForURL(/\/host\/\d{6}$/);
+  await expect.poll(() => olena.getByLabel('Гра для групи', { exact: true }).inputValue(), { timeout: 10_000 }).toBe(groupId);
+  await olena.goto(base);
 
   // ── 7. Підміна часу: усі ігри й бали — у минулому місяці; поточний порожній, минулий — та сама таблиця й «Зала переможців». ──
   const past = previousMonth(thisMonth);

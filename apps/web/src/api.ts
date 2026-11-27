@@ -1,5 +1,5 @@
 import { AUDIO_LIMITS, isObjectLike } from '@quiz/shared';
-import type { LeaguePickInfo, LeagueTable, NickLooks, PrizeContent, PrizeItem, PrizePlacesInfo, AchievementsPage, Announcement, AutopilotCheck, CalendarEvent, CalendarInput, CalendarPage, CalendarRequestStatus, ContinueResponse, FeedBadge, FeedPage, FriendCard, GameDetail, GameInvite, GameSummary, OwnProfile, Phase, PlayedGame, ProfileCard, ProfileUpdate, PublicProfile, PushSubscriptionInput, Quiz, QuizLikes, ResumeOption, SlotsResponse, Versus } from '@quiz/shared';
+import type { LeaguePickInfo, LeagueTable, NickLooks, PrizeContent, PrizeItem, PrizePlacesInfo, AchievementsPage, Announcement, AutopilotCheck, CalendarEvent, CalendarInput, CalendarPage, CalendarRequestStatus, ContinueResponse, FeedBadge, FeedPage, FriendCard, GameDetail, GameInvite, GameSummary, OwnProfile, Phase, PlayedGame, PlayedGameDetail, ProfileCard, ProfileUpdate, PublicProfile, PushSubscriptionInput, Quiz, QuizLikes, ResumeOption, SlotsResponse, Versus } from '@quiz/shared';
 import type { AchievementShares, ShowcasePin, ShowcasePins } from '@quiz/shared';
 import type { CodeInfo, LobbyRow, LobbySettings } from '@quiz/shared';
 import type { GivenLike, LikesPage, ReceivedLike } from '@quiz/shared';
@@ -8,7 +8,7 @@ import type { HostTokens } from './storage';
 import { loadDeviceId } from './storage';
 import type { Locale } from '@quiz/shared';
 import type { QuestionBankPage, QuestionType } from '@quiz/shared';
-import type { ChallengeAttemptStart, ChallengeCheck, ChallengeMine, ChallengePreview, ChallengeResultRow, FriendChallenge } from '@quiz/shared';
+import type { ChallengeAttemptStart, ChallengeCheck, ChallengeMine, ChallengePreview, ChallengeResultRow, FriendChallenge, SentChallenge } from '@quiz/shared';
 import type { GroupDetail, GroupInput, GroupInviteCard, GroupItem, GroupItemInput, GroupJoinPreview, GroupsPage, GroupUsesInput } from '@quiz/shared';
 import type { MyProblemReport, ProblemReportInput } from '@quiz/shared';
 import type { InboxBadge, InboxPage } from '@quiz/shared';
@@ -199,6 +199,8 @@ export const createChallenge = (quizId: string) => fetchData<ChallengeMine>(`${q
 export const listMyChallenges = () => fetchData<ChallengeMine[]>('/api/challenges');
 /** 78: активні виклики тих, хто додав мене в друзі (картка «Що далі»). */
 export const listFriendChallenges = () => fetchData<FriendChallenge[]>('/api/me/friend-challenges');
+/** 79: виклики, які я надіслав, — для «Мої виклики». */
+export const listSentChallenges = () => fetchData<SentChallenge[]>('/api/me/sent-challenges');
 export const getChallenge = (code: string) => fetchData<ChallengePreview>(challengePath(code));
 export const startChallenge = (code: string) => fetchData<ChallengeAttemptStart>(`${challengePath(code)}/attempt`, { method: 'POST' });
 export const getChallengeResults = (code: string) => fetchData<ChallengeResultRow[]>(`${challengePath(code)}/results`);
@@ -259,6 +261,8 @@ export const pickLeague = (code: string, groupId: string | null) =>
 export const listGames = () => fetchData<GameSummary[]>('/api/games');
 export const getGame = (id: string) => fetchData<GameDetail>(`/api/games/${encodeURIComponent(id)}`);
 export const myHistory = () => fetchData<PlayedGame[]>('/api/me/history');
+/** 79: зіграна гра — таблиця й лише мої відповіді. */
+export const getPlayedGame = (id: string) => fetchData<PlayedGameDetail>(`/api/me/history/${encodeURIComponent(id)}`);
 /** «Продовжити» збережену гру (13b): нова кімната; ведучий отримує пульт і сцену, автор автопілота — сцену й свій токен гравця. */
 export const continueGame = (id: string) => request<ContinueResponse>(`/api/games/${encodeURIComponent(id)}/continue`, { body: {} });
 export const deleteSavedGame = (id: string) => request<object>(`/api/games/${encodeURIComponent(id)}`, { method: 'DELETE' });

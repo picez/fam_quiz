@@ -39,5 +39,14 @@ describe('page meta (76)', () => {
     expect(tabGroup('/library')).toBe(tabGroup('/quizzes/liked'));
     expect(tabGroup('/library/e1')).toBeNull();
     expect(tabGroup('/history/g1')).toBeNull();
+    // 79: «Виклики» — третя вкладка історії; зіграна гра — окрема сторінка.
+    expect(tabGroup('/history/challenges')).toBe(tabGroup('/history'));
+    expect(tabGroup('/me/g1')).toBeNull();
+  });
+
+  it('79: names «Мої виклики» and a played game', () => {
+    expect(pageTitle('/history/challenges')).toBe('Мої виклики');
+    expect(pageTitle('/history/g1')).toBe('Історія ігор');
+    expect(pageTitle('/me/g1')).toBe('Мої ігри');
   });
 });

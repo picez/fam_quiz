@@ -45,6 +45,7 @@ import {
   type GameStatus,
   type GameSummary,
   type PlayedGame,
+  type PlayedGameDetail,
   type FinalRound,
   type Question,
   type QuestionType,
@@ -1158,6 +1159,57 @@ export async function answeredTypes(db: Db, userId: string, exceptGameId: string
 export async function answeredTypesAround(db: Db, userId: string, gameId: string): Promise<{ all: Set<QuestionType>; without: Set<QuestionType> }> {
   const rows = await answeredTypeRows(db, userId, gameId, null);
   return { all: new Set(rows.map((row) => row.type)), without: new Set(rows.filter((row) => row.elsewhere).map((row) => row.type)) };
+}
+
+/**
+ * 79: завершена гра, у якій userId має рядок учасника (сам чи член команди), — для сторінки «Зіграні» → гра.
+ * Зводиться з деталей ведучого: таблиця без participantId, раундів і розбивки; у запитаннях — лише рядки відповідей
+ * свого рядка (у командній грі — команди й власні голоси). null — не грав, гра не завершена чи id не той.
+ */
+export async function playedGameDetail(db: Db, userId: string, id: string): Promise<PlayedGameDetail | null> {
+  if (!UUID.test(id)) return null;
+  const [own] = await db
+    .select({ id: participant.id, teamId: participant.teamId, nickname: participant.nickname })
+    .from(participant)
+    .innerJoin(game, eq(game.id, participant.gameId))
+    .where(and(eq(participant.gameId, id), eq(participant.userId, userId), eq(participant.isTeam, false), eq(game.status, 'finished')))
+    .limit(1);
+  if (own === undefined) return null;
+  const found = await hostGameWithFacts(db, null, id);
+  if (found === null) return null;
+  const { detail } = found;
+  const playing = detail.standings.find((row) => row.participantId === (own.teamId ?? own.id));
+  // Рядки відповідей у деталях підписані ніком: у командній грі рядки запитань з балами — команд, голоси — людей.
+  // Назва команди може збігатися з ніком людини іншої команди, тож для кожного запитання — лише один нік, як у деталях.
+  const team = own.teamId === null ? null : (playing?.nickname ?? null);
+  const mineAs = (question: Question) => (own.teamId === null || isUnscored(question) ? own.nickname : team);
+  return {
+    gameId: detail.id,
+    title: detail.title,
+    startedAt: detail.startedAt,
+    autopilot: detail.autopilot,
+    nickname: own.nickname,
+    team,
+    teams: detail.teams,
+    rank: playing?.rank ?? null,
+    score: playing?.score ?? 0,
+    playerCount: detail.standings.length,
+    standings: detail.standings.map((row) => ({
+      rank: row.rank,
+      nickname: row.nickname,
+      score: row.score,
+      ...(row.members === undefined ? {} : { members: row.members }),
+      me: row === playing,
+    })),
+    questions: detail.questions.map((q) => ({
+      index: q.index,
+      roundIndex: q.roundIndex,
+      text: q.text,
+      type: q.type,
+      question: q.question,
+      mine: q.responses.filter((r) => r.nickname === mineAs(q.question)).map((r) => ({ answer: r.answer, accepted: r.accepted, spare: r.spare })),
+    })),
+  };
 }
 
 export async function playerHistory(db: Db, userId: string): Promise<PlayedGame[]> {

@@ -3,6 +3,7 @@ import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { GROUP_LIMITS, type GroupInviteCard, type GroupsPage } from '@quiz/shared';
 import { acceptGroupInvite, createGroup, declineGroupInvite, getGroups } from '../api';
 import { GroupForm } from '../groups/GroupForm';
+import { leagueSpotText } from '../groups/league-spot';
 import { countText, errorText, t } from '../i18n';
 import { nickText } from '../nick';
 import { Avatar } from '../profile/Avatar';
@@ -125,6 +126,8 @@ export function Groups() {
                           {countText('groupPeople', group.people, { count: group.people })} · {countText('groupItems', group.items, { count: group.items })}
                           {group.role === 'owner' && ` · ${t('groupRoleOwner')}`}
                         </span>
+                        {/* 79: ліга видно просто зі списку — місце й бали поточного місяця. */}
+                        {group.league !== undefined && <span className="meta group-card-league">{`🏆 ${leagueSpotText(group.league)}`}</span>}
                       </span>
                     </Link>
                   </li>

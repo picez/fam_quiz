@@ -1,4 +1,5 @@
 import type { JSX } from 'react';
+import { Link } from 'react-router-dom';
 import { formatDate } from '../../format';
 import { t } from '../../i18n';
 import { SubpageData } from '../../profile/ProfileSubpage';
@@ -14,6 +15,13 @@ export function ProfileStats(): JSX.Element {
         <>
           <section className="profile-section">
             <StatsView stats={profile.stats} />
+            {/* 79: числа — з цих ігор; список зіграних — у «Історії». */}
+            <Link className="quiet-link" to="/me">
+              {t('statsPlayedLink')}{' '}
+              <span className="flip-rtl" aria-hidden="true">
+                ›
+              </span>
+            </Link>
           </section>
           <section className="profile-section">
             <h2>{t('winsTitle')}</h2>

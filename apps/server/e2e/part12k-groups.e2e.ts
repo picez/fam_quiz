@@ -45,7 +45,7 @@ async function groups12k() {
 
   // ── 2. Створення: «Профіль» → плитка «Групи» → порожньо → «Створити групу». ──
   await olya.locator(MENU).getByRole('link', { name: 'Профіль' }).click();
-  await olya.locator('nav.profile-tiles a.is-wide').click();
+  await olya.locator('nav.profile-tiles a[href="/profile/groups"]').click();
   await olya.getByRole('heading', { level: 1, name: 'Групи', ...exact }).waitFor();
   await olya.getByText(/^Ще жодної групи\./).waitFor();
   await olya.getByRole('button', { name: 'Створити групу', ...exact }).click();
@@ -96,7 +96,7 @@ async function groups12k() {
   await ira.reload();
   await ira.locator(MENU).getByRole('link', { name: 'Профіль, Запрошень: 1', ...exact }).waitFor();
   await ira.locator(MENU).getByRole('link', { name: 'Профіль, Запрошень: 1', ...exact }).click();
-  const wide = ira.locator('nav.profile-tiles a.is-wide');
+  const wide = ira.locator('nav.profile-tiles a[href="/profile/groups"]');
   await wide.locator('.menu-badge', { hasText: '1' }).waitFor();
   await wide.click();
   await ira.getByRole('heading', { name: 'Тебе запрошують', ...exact }).waitFor();
