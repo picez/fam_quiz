@@ -10,24 +10,9 @@ import { pickNextUp, type NextUp, type RunningGame } from '../home-next';
 import { errorText, t } from '../i18n';
 import { nickText } from '../nick';
 
-export const JOIN_FORM = 'join-form';
 const NEXT_UP_TITLE = 'next-up-title';
 
 const spacedCode = (code: string) => `${code.slice(0, 3)} ${code.slice(3)}`;
-
-/** Дві великі кнопки під заголовком головної (53): «Створити гру» і «Приєднатися» (розкриває форму коду під ними). */
-export function HomeActions({ joinOpen, onJoin }: { joinOpen: boolean; onJoin: () => void }): JSX.Element {
-  return (
-    <div className="home-actions" role="group" aria-label={t('homeActionsLabel')}>
-      <Link className="btn btn-primary home-action" to="/create">
-        {t('startCreate')}
-      </Link>
-      <button type="button" className="btn home-action" aria-expanded={joinOpen} aria-controls={joinOpen ? JOIN_FORM : undefined} onClick={onJoin}>
-        {t('homeJoin')}
-      </button>
-    </div>
-  );
-}
 
 /**
  * Що головна пропонує першим: гість — лише живу гру цього пристрою; акаунт — ще збережені ігри, запрошення, календар

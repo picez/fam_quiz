@@ -3,14 +3,14 @@ import { act, cleanup, fireEvent, render, screen, within } from '@testing-librar
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { forgetAccount } from '../useAccount';
-import { checkCode, continueGame, getCalendar, getFeedBadge, getMyInvites, listFriendChallenges, listGames, listLobbies, me } from '../api';
+import { checkCode, continueGame, createGame, getCalendar, getFeedBadge, getMyInvites, listFriendChallenges, listGames, listLobbies, listQuizzes, me, myHistory, type QuizSummary } from '../api';
 import { saveHost, saveLastGame, savePlayer } from '../storage';
 import { dayHeading, timeText, viewerZone } from '../calendar/calendar-time';
 import type { CalendarEvent, GameSummary } from '@quiz/shared';
 import { forgetRunningGame } from '../host-game';
 import { ACCOUNT_WAIT_MS, Home } from './Home';
 
-vi.mock('../api', () => ({ checkCode: vi.fn(), me: vi.fn(), getMyInvites: vi.fn(), getGroupInvites: vi.fn(async () => ({ ok: true, data: [] })), getFeedBadge: vi.fn(), createGame: vi.fn(), createQuiz: vi.fn(), listLobbies: vi.fn(), listGames: vi.fn(), getCalendar: vi.fn(), continueGame: vi.fn(), listFriendChallenges: vi.fn() }));
+vi.mock('../api', () => ({ checkCode: vi.fn(), me: vi.fn(), getMyInvites: vi.fn(), getGroupInvites: vi.fn(async () => ({ ok: true, data: [] })), getFeedBadge: vi.fn(), createGame: vi.fn(), createQuiz: vi.fn(), listLobbies: vi.fn(), listGames: vi.fn(), getCalendar: vi.fn(), continueGame: vi.fn(), listFriendChallenges: vi.fn(), listQuizzes: vi.fn(), myHistory: vi.fn(), setEasy: vi.fn(async () => ({ ok: true })) }));
 
 beforeEach(() => {
   // Відома людина (stale-while-revalidate) не переходить з тесту в тест.
@@ -24,6 +24,9 @@ beforeEach(() => {
   vi.mocked(getCalendar).mockReset().mockResolvedValue({ ok: true, events: [], asOf: new Date().toISOString() });
   vi.mocked(continueGame).mockReset();
   vi.mocked(listFriendChallenges).mockReset().mockResolvedValue({ ok: true, data: [] });
+  vi.mocked(listQuizzes).mockReset().mockResolvedValue({ ok: true, data: [] });
+  vi.mocked(myHistory).mockReset().mockResolvedValue({ ok: true, data: [] });
+  vi.mocked(createGame).mockReset();
   vi.mocked(checkCode).mockReset();
   forgetRunningGame();
 });
@@ -45,7 +48,7 @@ async function enter(code: string) {
 const STARTED = 'Ця гра вже почалася, приєднатися до неї не можна. Попросіть того, хто її запустив, створити нову.';
 
 describe('Home', () => {
-  it('shows a guest the code form even when the account check hangs', async () => {
+  it('78: the code field is there at once, even while the account check hangs; the rest waits', async () => {
     vi.useFakeTimers();
     try {
       vi.mocked(me).mockReturnValue(new Promise(() => {}));
@@ -54,11 +57,13 @@ describe('Home', () => {
           <Home />
         </MemoryRouter>,
       );
-      expect(screen.queryByLabelText('Код гри')).toBeNull();
+      expect(screen.getByLabelText('Код гри')).toBeTruthy();
+      expect(screen.queryByRole('link', { name: 'Переглянути бібліотеку' })).toBeNull();
+      expect(screen.queryByRole('link', { name: 'Провести гру' })).toBeNull();
       await act(async () => {
         vi.advanceTimersByTime(ACCOUNT_WAIT_MS);
       });
-      expect(screen.getByLabelText('Код гри')).toBeTruthy();
+      expect(screen.getByRole('link', { name: 'Переглянути бібліотеку' })).toBeTruthy();
     } finally {
       vi.useRealTimers();
     }
@@ -133,61 +138,83 @@ describe('Home for a signed-in person', () => {
       </MemoryRouter>,
     );
 
-  it('a signed-in person sees «Провести гру» and «Приєднатися» on top and six tiles below', async () => {
+  const QUIZ = (id: string, updatedAt: string): QuizSummary => ({ id, title: `Вікторина ${id}`, description: '', questionCount: 5, updatedAt, createdAt: '2026-10-01T10:00:00.000Z', folderId: null });
+  const position = (a: Element, b: Element) => (a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0;
+
+  it('78: a signed-in home goes code field → «Провести гру» → what\'s next → open games → quick start → help and look; no tiles', async () => {
     vi.mocked(me).mockResolvedValue(OLENA);
+    vi.mocked(getCalendar).mockResolvedValue({ ok: true, events: [EVENT], asOf: new Date().toISOString() });
+    vi.mocked(listQuizzes).mockResolvedValue({ ok: true, data: [QUIZ('a', '2026-11-01T10:00:00.000Z')] });
     at('/');
-    const nav = await screen.findByRole('navigation', { name: 'Стартове меню' });
-    const tiles = [...nav.children].map((tile) => [tile.tagName, tile.textContent, tile.getAttribute('href')]);
-    expect(tiles).toEqual([
-      ['A', '👥Друзі', '/profile/friends'],
-      ['A', '📰Стрічка', '/feed'],
-      ['A', '📝Вікторини', '/quizzes'],
-      ['A', '📚Бібліотека', '/library'],
-      ['A', '🕘Історія', '/history'],
-      ['A', '👤Профіль', '/profile'],
-    ]);
-    const create = screen.getByRole('link', { name: 'Провести гру' });
-    expect(create.getAttribute('href')).toBe('/create');
-    const join = screen.getByRole('button', { name: 'Приєднатися' });
-    const actions = create.closest('.home-actions')!;
-    expect(actions).not.toBeNull();
-    expect(actions.contains(join)).toBe(true);
-    expect(actions.compareDocumentPosition(nav) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(screen.queryByLabelText('Код гри')).toBeNull();
-    expect(screen.queryByRole('link', { name: 'Я ведучий' })).toBeNull();
-    // 64: посилання на скаргу — під плитками, не серед них.
+    const host = await screen.findByRole('link', { name: 'Провести гру' });
+    expect(host.getAttribute('href')).toBe('/create');
+    const field = screen.getByLabelText('Код гри');
+    const next = await screen.findByRole('heading', { name: 'Найближча подія' });
+    const lobbies = await screen.findByRole('heading', { name: 'Відкриті ігри' });
+    const quick = await screen.findByRole('heading', { name: 'Швидкий запуск' });
+    const help = screen.getByRole('link', { name: 'Довідка ведучого' });
+    const easy = screen.getByLabelText('Легкий режим');
+    const theme = screen.getByLabelText('Тема');
     const report = screen.getByRole('link', { name: 'Повідомити про проблему' });
+    const order = [field, host, next, lobbies, quick, help, easy, theme, report];
+    for (let i = 1; i < order.length; i++) expect(position(order[i - 1]!, order[i]!), `step ${i}`).toBe(true);
+    expect(help.getAttribute('href')).toBe('/help');
     expect(report.getAttribute('href')).toBe('/report?from=%2F');
-    expect(nav.contains(report)).toBe(false);
+    expect(document.querySelector('nav.start-menu')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Приєднатися' })).toBeNull();
+    expect(screen.queryByRole('link', { name: 'Я ведучий' })).toBeNull();
+    expect(screen.queryByRole('link', { name: 'Увійти, щоб проводити свої ігри' })).toBeNull();
   });
 
-  it('«Приєднатися» opens the code form under the buttons', async () => {
+  it('78: the code field joins a game without any extra tap', async () => {
     vi.mocked(me).mockResolvedValue(OLENA);
     at('/');
-    const join = await screen.findByRole('button', { name: 'Приєднатися' });
-    expect(join.getAttribute('aria-expanded')).toBe('false');
-    fireEvent.click(join);
-    expect(join.getAttribute('aria-expanded')).toBe('true');
-    expect(join.getAttribute('aria-controls')).toBe('join-form');
-    const input = screen.getByLabelText('Код гри');
-    expect(document.activeElement).toBe(input);
-    expect(join.compareDocumentPosition(input) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(input.compareDocumentPosition(screen.getByRole('navigation', { name: 'Стартове меню' })) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-
+    await screen.findByRole('link', { name: 'Провести гру' });
     vi.mocked(checkCode).mockResolvedValue({ ok: true, phase: 'lobby', title: 'Гра', locked: false, late: false });
-    fireEvent.change(input, { target: { value: '123 456' } });
+    fireEvent.change(screen.getByLabelText('Код гри'), { target: { value: '123 456' } });
     fireEvent.click(screen.getByRole('button', { name: 'Увійти' }));
     expect(await screen.findByText('сторінка гри')).toBeTruthy();
+  });
+
+  it('78: quick start offers my three latest changed quizzes and hosts one', async () => {
+    vi.mocked(me).mockResolvedValue(OLENA);
+    vi.mocked(listQuizzes).mockResolvedValue({
+      ok: true,
+      data: [QUIZ('old', '2026-10-01T10:00:00.000Z'), QUIZ('new', '2026-11-20T10:00:00.000Z'), QUIZ('mid', '2026-11-05T10:00:00.000Z'), QUIZ('newer', '2026-11-25T10:00:00.000Z')],
+    });
+    vi.mocked(createGame).mockResolvedValue({ ok: true, code: '445566', hostToken: 'h', stageToken: 's' } as never);
+    routes('/');
+    const section = (await screen.findByRole('heading', { name: 'Швидкий запуск' })).closest('section') as HTMLElement;
+    expect([...section.querySelectorAll('.quick-name')].map((el) => el.textContent)).toEqual(['Вікторина newer', 'Вікторина new', 'Вікторина mid']);
+    expect(within(section).getByRole('link', { name: 'Усі вікторини ›' }).getAttribute('href')).toBe('/quizzes');
+    fireEvent.click(within(section).getByRole('button', { name: 'Провести: Вікторина new' }));
+    expect(await screen.findByText('пульт ведучого')).toBeTruthy();
+    expect(createGame).toHaveBeenCalledWith('new');
+  });
+
+  it('78: quick start shows why a game did not start, and is hidden without quizzes', async () => {
+    vi.mocked(me).mockResolvedValue(OLENA);
+    vi.mocked(listQuizzes).mockResolvedValue({ ok: true, data: [QUIZ('a', '2026-11-01T10:00:00.000Z')] });
+    vi.mocked(createGame).mockResolvedValue({ ok: false, error: 'offline' } as never);
+    routes('/');
+    fireEvent.click(await screen.findByRole('button', { name: 'Провести: Вікторина a' }));
+    expect((await screen.findByRole('alert')).textContent).not.toBe('');
+    cleanup();
+
+    vi.mocked(listQuizzes).mockResolvedValue({ ok: true, data: [] });
+    routes('/');
+    await screen.findByRole('link', { name: 'Провести гру' });
+    await act(async () => {});
+    expect(screen.queryByRole('heading', { name: 'Швидкий запуск' })).toBeNull();
   });
 
   it('opens the code form at once with the code from ?code=', async () => {
     vi.mocked(me).mockResolvedValue(OLENA);
     at('/?code=123456');
     expect(((await screen.findByLabelText('Код гри')) as HTMLInputElement).value).toBe('123456');
-    expect(screen.getByRole('button', { name: 'Приєднатися' }).getAttribute('aria-expanded')).toBe('true');
   });
 
-  it('keeps the plain entry for a visitor', async () => {
+  it('78: a guest learns what the site is, gets the code field, the library and sign-in to host', async () => {
     render(
       <MemoryRouter initialEntries={['/']}>
         <Routes>
@@ -195,11 +222,20 @@ describe('Home for a signed-in person', () => {
         </Routes>
       </MemoryRouter>,
     );
-    expect((await screen.findByRole('link', { name: 'Я ведучий' })).getAttribute('href')).toBe('/quizzes');
-    expect(screen.queryByRole('link', { name: 'Мої ігри' })).toBeNull();
-    const library = screen.getByRole('link', { name: '📚 Бібліотека вікторин' });
+    const about = await screen.findByText('Сімейні вікторини: один проводить гру на великому екрані, а всі відповідають зі своїх телефонів.');
+    const field = screen.getByLabelText('Код гри');
+    expect(position(about, field)).toBe(true);
+    const library = screen.getByRole('link', { name: 'Переглянути бібліотеку' });
     expect(library.getAttribute('href')).toBe('/library');
-    expect(library.className).toContain('quiet-link');
+    const signIn = screen.getByRole('link', { name: 'Увійти, щоб проводити свої ігри' });
+    expect(signIn.getAttribute('href')).toBe('/login');
+    expect(position(field, library)).toBe(true);
+    expect(screen.getByRole('link', { name: 'Довідка ведучого' })).toBeTruthy();
+    expect(screen.getByLabelText('Легкий режим')).toBeTruthy();
+    expect(screen.queryByRole('link', { name: 'Я ведучий' })).toBeNull();
+    expect(screen.queryByRole('link', { name: '📚 Бібліотека вікторин' })).toBeNull();
+    expect(screen.queryByRole('link', { name: 'Провести гру' })).toBeNull();
+    expect(listQuizzes).not.toHaveBeenCalled();
   });
 
   it('sets the title and the code field over a decorative moon and crows', async () => {
@@ -258,17 +294,6 @@ describe('Home for a signed-in person', () => {
     requests: null,
     joinCode: '222222',
   };
-
-  it('a guest gets both buttons with the form already open', async () => {
-    at('/');
-    const input = await screen.findByLabelText('Код гри');
-    const join = screen.getByRole('button', { name: 'Приєднатися' });
-    expect(join.getAttribute('aria-expanded')).toBe('true');
-    expect(join.getAttribute('aria-controls')).toBe('join-form');
-    expect(screen.getByRole('link', { name: 'Провести гру' }).getAttribute('href')).toBe('/create');
-    expect(join.compareDocumentPosition(input) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(screen.queryByRole('navigation', { name: 'Стартове меню' })).toBeNull();
-  });
 
   it('«Продовжити гру» for a running game links back to the host panel and replaces the old banner', async () => {
     vi.mocked(me).mockResolvedValue(OLENA);
@@ -331,7 +356,7 @@ describe('Home for a signed-in person', () => {
     let answer: (value: Awaited<ReturnType<typeof listGames>>) => void = () => {};
     vi.mocked(listGames).mockReturnValue(new Promise((resolve) => (answer = resolve)));
     routes('/');
-    await screen.findByRole('navigation', { name: 'Стартове меню' });
+    await screen.findByRole('link', { name: 'Провести гру' });
     await act(async () => {});
     expect(getCalendar).toHaveBeenCalled();
     expect(document.querySelector('.next-up')).toBeNull();
@@ -342,7 +367,7 @@ describe('Home for a signed-in person', () => {
     vi.mocked(listGames).mockResolvedValue({ ok: true, data: [] });
     vi.mocked(getCalendar).mockResolvedValue({ ok: false, error: 'offline' });
     routes('/');
-    await screen.findByRole('navigation', { name: 'Стартове меню' });
+    await screen.findByRole('link', { name: 'Провести гру' });
     await act(async () => {});
     expect(listGames).toHaveBeenCalled();
     expect(document.querySelector('.next-up')).toBeNull();
@@ -366,7 +391,7 @@ describe('Home for a signed-in person', () => {
         signIn(OLENA);
         await vi.advanceTimersByTimeAsync(0);
       });
-      expect(screen.getByRole('navigation', { name: 'Стартове меню' })).toBeTruthy();
+      expect(screen.getByRole('link', { name: 'Провести гру' })).toBeTruthy();
       expect(screen.getByRole('link', { name: 'Повернутися' }).getAttribute('href')).toBe('/host/654321');
       expect(checkCode).toHaveBeenCalledTimes(1);
     } finally {
@@ -394,6 +419,63 @@ describe('Home for a signed-in person', () => {
     expect(card.textContent).toContain('Столиці');
     expect(card.textContent).toContain('від Ірина');
     expect(within(card).getByRole('link', { name: 'Прийняти виклик' }).getAttribute('href')).toBe('/challenge/abcdefghjkmn');
+  });
+
+  it('78: a brand-new account gets «З чого почати» with three steps; «Зрозуміло» hides it for good', async () => {
+    vi.mocked(me).mockResolvedValue(OLENA);
+    routes('/');
+    const card = (await screen.findByRole('heading', { name: 'З чого почати' })).closest('section') as HTMLElement;
+    const steps = [...card.querySelectorAll('ol > li')];
+    expect(steps).toHaveLength(3);
+    expect(steps[0]!.textContent).toBe('Увійди в гру за кодом — його показує ведучий на екрані.');
+    expect(within(card).getByRole('link', { name: 'Бібліотека' }).getAttribute('href')).toBe('/library');
+    expect(within(card).getByRole('link', { name: 'Нова вікторина' }).getAttribute('href')).toBe('/quizzes/new');
+    // Під полем коду й «Провести гру», над «Що далі» та рештою.
+    expect(position(screen.getByRole('link', { name: 'Провести гру' }), card)).toBe(true);
+    expect(position(card, screen.getByRole('heading', { name: 'Відкриті ігри' }))).toBe(true);
+    fireEvent.click(within(card).getByRole('button', { name: 'Зрозуміло' }));
+    expect(screen.queryByRole('heading', { name: 'З чого почати' })).toBeNull();
+    cleanup();
+
+    vi.mocked(myHistory).mockClear();
+    routes('/');
+    await screen.findByRole('link', { name: 'Провести гру' });
+    await act(async () => {});
+    expect(screen.queryByRole('heading', { name: 'З чого почати' })).toBeNull();
+    // Закрита картка нічого не питає.
+    expect(myHistory).not.toHaveBeenCalled();
+  });
+
+  it('78: the dismissal belongs to one account; another account on this device still sees the card', async () => {
+    vi.mocked(me).mockResolvedValue(OLENA);
+    routes('/');
+    fireEvent.click(await screen.findByRole('button', { name: 'Зрозуміло' }));
+    cleanup();
+    forgetAccount();
+    vi.mocked(me).mockResolvedValue({ ...OLENA, id: 'u2', name: 'Петро' });
+    routes('/');
+    expect(await screen.findByRole('heading', { name: 'З чого почати' })).toBeTruthy();
+  });
+
+  it('78: no «З чого почати» once there is a quiz, a hosted or a played game, or when a request fails', async () => {
+    vi.mocked(me).mockResolvedValue(OLENA);
+    const cases: (() => void)[] = [
+      () => vi.mocked(listQuizzes).mockResolvedValue({ ok: true, data: [QUIZ('a', '2026-11-01T10:00:00.000Z')] }),
+      () => vi.mocked(listGames).mockResolvedValue({ ok: true, data: [SAVED] }),
+      () => vi.mocked(myHistory).mockResolvedValue({ ok: true, data: [{}] as never }),
+      () => vi.mocked(myHistory).mockResolvedValue({ ok: false, error: 'offline' }),
+    ];
+    for (const [index, setUp] of cases.entries()) {
+      vi.mocked(listQuizzes).mockResolvedValue({ ok: true, data: [] });
+      vi.mocked(listGames).mockResolvedValue({ ok: true, data: [] });
+      vi.mocked(myHistory).mockResolvedValue({ ok: true, data: [] });
+      setUp();
+      routes('/');
+      await screen.findByRole('link', { name: 'Провести гру' });
+      await act(async () => {});
+      expect(screen.queryByRole('heading', { name: 'З чого почати' }), `case ${index}`).toBeNull();
+      cleanup();
+    }
   });
 
   it('a guest never asks for saved games or the calendar', async () => {

@@ -27,10 +27,6 @@ describe('53 fix wave styles', () => {
     expect(rule('.day-bars svg {')).toContain('direction: ltr');
   });
 
-  it('the «Приєднатися» button has an opaque face, so the moon behind the hero does not show through', () => {
-    expect(rule('.home-action:not(.btn-primary) {')).toContain('background: var(--surface)');
-  });
-
   it('the banner × sits in the top corner (logical sides, so RTL mirrors it) with room reserved for it', () => {
     const banner = rule('.announce-banner {');
     expect(banner).toContain('position: relative');
