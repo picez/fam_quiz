@@ -126,7 +126,7 @@ describe('AdminGroup (63)', () => {
     await screen.findByRole('heading', { name: '🌻 Родина Квіткових' });
     const button = screen.getByRole('button', { name: 'Видалити групу' }) as HTMLButtonElement;
     expect(button.disabled).toBe(true);
-    const field = screen.getByLabelText('Введіть назву групи: «Родина Квіткових»');
+    const field = screen.getByLabelText('Введи назву групи: «Родина Квіткових»');
     fireEvent.change(field, { target: { value: 'Родина' } });
     expect(button.disabled).toBe(true);
     fireEvent.change(field, { target: { value: '  Родина Квіткових  ' } });
@@ -142,7 +142,7 @@ describe('AdminGroup (63)', () => {
     await screen.findByRole('heading', { name: '🌻 Родина Квіткових' });
     const alert = container.querySelector('.admin-group-delete [role="alert"]')!;
     expect(alert.textContent).toBe('');
-    fireEvent.change(screen.getByLabelText('Введіть назву групи: «Родина Квіткових»'), { target: { value: 'Родина Квіткових' } });
+    fireEvent.change(screen.getByLabelText('Введи назву групи: «Родина Квіткових»'), { target: { value: 'Родина Квіткових' } });
     fireEvent.click(screen.getByRole('button', { name: 'Видалити групу' }));
     await waitFor(() => expect(alert.textContent).toBe('Назва не збігається з назвою групи.'));
     expect(screen.queryByText('список груп')).toBeNull();

@@ -162,7 +162,7 @@ describe('Quizzes', () => {
   it('invites to create the first quiz when there are none', async () => {
     vi.mocked(listQuizzes).mockResolvedValue({ ok: true, data: [] });
     open();
-    expect(await screen.findByText(/Тут з’являться ваші вікторини/)).toBeTruthy();
+    expect(await screen.findByText(/Тут з’являться твої вікторини/)).toBeTruthy();
   });
 
   it('starts a game, remembers the host tokens and opens the control panel', async () => {

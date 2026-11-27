@@ -169,7 +169,7 @@ describe('ImportDialog', () => {
     vi.mocked(importQuizFile).mockResolvedValueOnce({ ok: false, error: 'io_newer' });
     render(<ImportDialog onClose={vi.fn()} onImported={vi.fn()} />);
     choose(input(), file());
-    expect((await screen.findByRole('alert')).textContent).toBe('Файл з новішої версії додатку. Оновіть сторінку й спробуйте ще раз.');
+    expect((await screen.findByRole('alert')).textContent).toBe('Файл з новішої версії додатку. Онови сторінку й спробуй ще раз.');
   });
 
   it('Escape and close', () => {

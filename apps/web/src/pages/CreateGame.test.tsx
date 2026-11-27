@@ -133,7 +133,7 @@ describe('CreateGame', () => {
     vi.mocked(listQuizzes).mockResolvedValueOnce({ ok: true, data: [] }).mockResolvedValueOnce({ ok: true, data: [summary] });
     vi.mocked(createQuiz).mockResolvedValue({ ok: true, id: 'q1' });
     open();
-    expect(await screen.findByText('Тут з’являться ваші вікторини. Створіть першу або додайте приклад.')).toBeTruthy();
+    expect(await screen.findByText('Тут з’являться твої вікторини. Створи першу або додай приклад.')).toBeTruthy();
     expect(screen.getByRole('link', { name: 'Нова вікторина' }).getAttribute('href')).toBe('/quizzes/new');
     fireEvent.click(screen.getByRole('button', { name: 'Додати приклад' }));
     expect(await screen.findByRole('button', { name: 'Почати гру' })).toBeTruthy();

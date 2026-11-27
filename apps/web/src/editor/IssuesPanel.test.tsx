@@ -10,7 +10,7 @@ afterEach(cleanup);
 
 const errors: PlacedProblem[] = [
   { text: 'Впишіть назву вікторини.', place: { kind: 'title' } },
-  { text: 'Запитання 2: впишіть текст запитання.', place: { kind: 'question', round: 0, question: 1, card: 'question' } },
+  { text: 'Запитання 2: впиши текст запитання.', place: { kind: 'question', round: 0, question: 1, card: 'question' } },
 ];
 const reminders: Reminder[] = [{ text: 'У вікторини немає опису — додай кілька слів, про що вона.', place: { kind: 'general', card: 'about' } }];
 

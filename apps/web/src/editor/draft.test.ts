@@ -485,7 +485,7 @@ describe('problemsOf', () => {
   });
 
   it('asks for a title', () => {
-    expect(problemsOf({ ...quizWith(filled(newQuestion('boolean'))), title: '  ' })).toEqual(['Дайте вікторині назву.']);
+    expect(problemsOf({ ...quizWith(filled(newQuestion('boolean'))), title: '  ' })).toEqual(['Дай вікторині назву.']);
   });
 
   it('names the question and the reason', () => {
@@ -505,14 +505,14 @@ describe('problemsOf', () => {
         quizWith(...([noText, emptyOption, noCorrect, noAccepted, badNumber, badTolerance, badLimits, emptyItem] as Question[])),
       ),
     ).toEqual([
-      'Запитання 1: впишіть текст запитання.',
-      'Запитання 2: заповніть усі варіанти або приберіть порожні.',
-      'Запитання 3: позначте хоча б один правильний варіант.',
-      'Запитання 4: впишіть правильну відповідь.',
-      'Запитання 5: впишіть правильне число та відхилення (не менше 0).',
-      'Запитання 6: впишіть правильне число та відхилення (не менше 0).',
+      'Запитання 1: впиши текст запитання.',
+      'Запитання 2: заповни всі варіанти або прибери порожні.',
+      'Запитання 3: познач хоча б один правильний варіант.',
+      'Запитання 4: впиши правильну відповідь.',
+      'Запитання 5: впиши правильне число та відхилення (не менше 0).',
+      'Запитання 6: впиши правильне число та відхилення (не менше 0).',
       'Запитання 7: час має бути від 5 до 120 секунд, бали від 0 до 2000.',
-      'Запитання 8: заповніть усі варіанти або приберіть порожні.',
+      'Запитання 8: заповни всі варіанти або прибери порожні.',
     ]);
   });
 
@@ -622,11 +622,11 @@ describe('spare empty rows', () => {
   });
 
   it('still asks to fill the options when too few are left', () => {
-    expect(problemsOf(single(['Львів', ''], 0))).toEqual(['Запитання 1: заповніть усі варіанти або приберіть порожні.']);
+    expect(problemsOf(single(['Львів', ''], 0))).toEqual(['Запитання 1: заповни всі варіанти або прибери порожні.']);
   });
 
   it('does not silently drop the option that is marked correct', () => {
-    expect(problemsOf(single(['Львів', 'Київ', ''], 2))).toEqual(['Запитання 1: заповніть усі варіанти або приберіть порожні.']);
+    expect(problemsOf(single(['Львів', 'Київ', ''], 2))).toEqual(['Запитання 1: заповни всі варіанти або прибери порожні.']);
   });
 
   it('drops unmarked empty options of a multi-choice question', () => {
@@ -669,13 +669,13 @@ describe('spare empty rows', () => {
           ],
           correctIds: ['a', 'c'],
         });
-    expect(problemsOf(quiz)).toEqual(['Запитання 1: заповніть усі варіанти або приберіть порожні.']);
+    expect(problemsOf(quiz)).toEqual(['Запитання 1: заповни всі варіанти або прибери порожні.']);
   });
 
   it('does not close a gap in the middle of an order question on its own', () => {
     const items = ['Один', '', 'Два', 'Три'].map((text, index) => ({ id: `i${index}`, text }));
     const quiz: Quiz = quizWith({ id: 'q1', type: 'order', text: 'Порядок?', imageUrl: null, video: null, timeLimit: 20, points: 1000, items });
-    expect(problemsOf(quiz)).toEqual(['Запитання 1: заповніть усі варіанти або приберіть порожні.']);
+    expect(problemsOf(quiz)).toEqual(['Запитання 1: заповни всі варіанти або прибери порожні.']);
   });
 
   it('drops empty items at the end of an order question while at least three remain', () => {
@@ -715,7 +715,7 @@ describe('rounds', () => {
     const quiz = quizWith(filled(newQuestion('boolean')));
     const second = newClassicRound();
     const withTwo: Quiz = { ...quiz, rounds: [...quiz.rounds, second] };
-    expect(problemsOf(withTwo)).toEqual(['Раунд 2: Запитання 1: впишіть текст запитання.']);
+    expect(problemsOf(withTwo)).toEqual(['Раунд 2: Запитання 1: впиши текст запитання.']);
     expect(firstProblem(withTwo)).toEqual({ round: 1, question: 0, cell: null });
   });
 
@@ -1486,7 +1486,7 @@ describe('hints and the spare pool in the draft', () => {
   it('problemsOf names the spare with a problem', () => {
     const quiz = quizWith(filled(newQuestion('boolean')));
     const withPool: Quiz = { ...quiz, spares: [filled(newQuestion('boolean')), newQuestion('boolean')] };
-    expect(problemsOf(withPool)).toEqual(['Запасне 2: впишіть текст запитання.']);
+    expect(problemsOf(withPool)).toEqual(['Запасне 2: впиши текст запитання.']);
     expect(problemsOf({ ...withPool, spares: [filled(newQuestion('boolean'))] })).toEqual([]);
   });
 
@@ -1604,12 +1604,12 @@ describe('slider, audio and revealing picture drafts (10b)', () => {
 
   it('a right slider has no problems; a wrong one names what to check', () => {
     expect(problemsOf(quizWith(slider()))).toEqual([]);
-    expect(problemsOf(quizWith(slider({ min: 10, max: 10 })))).toEqual(['Запитання 1: повзунок — перевірте мінімум, максимум і крок.']);
+    expect(problemsOf(quizWith(slider({ min: 10, max: 10 })))).toEqual(['Запитання 1: повзунок — перевір мінімум, максимум і крок.']);
     expect(problemsOf(quizWith(slider({ step: 0 })))).toHaveLength(1);
-    expect(problemsOf(quizWith(slider({ step: 0.3 })))).toEqual(['Запитання 1: повзунок — перевірте мінімум, максимум і крок.']);
-    expect(problemsOf(quizWith(slider({ min: Number.NaN })))).toEqual(['Запитання 1: повзунок — перевірте мінімум, максимум і крок.']);
-    expect(problemsOf(quizWith(slider({ correct: 200 })))).toEqual(['Запитання 1: перевірте правильне значення й допуск: значення між мінімумом і максимумом, допуск не менше 0.']);
-    expect(problemsOf(quizWith(slider({ tolerance: -1 })))).toEqual(['Запитання 1: перевірте правильне значення й допуск: значення між мінімумом і максимумом, допуск не менше 0.']);
+    expect(problemsOf(quizWith(slider({ step: 0.3 })))).toEqual(['Запитання 1: повзунок — перевір мінімум, максимум і крок.']);
+    expect(problemsOf(quizWith(slider({ min: Number.NaN })))).toEqual(['Запитання 1: повзунок — перевір мінімум, максимум і крок.']);
+    expect(problemsOf(quizWith(slider({ correct: 200 })))).toEqual(['Запитання 1: перевір правильне значення й допуск: значення між мінімумом і максимумом, допуск не менше 0.']);
+    expect(problemsOf(quizWith(slider({ tolerance: -1 })))).toEqual(['Запитання 1: перевір правильне значення й допуск: значення між мінімумом і максимумом, допуск не менше 0.']);
     expect(problemsOf(quizWith(slider({ zeroBeyond: 1, tolerance: 2 })))).toEqual(['Запитання 1: межа «нуль балів» має бути більшою за допуск.']);
   });
 
@@ -1673,7 +1673,7 @@ describe('slider, audio and revealing picture drafts (10b)', () => {
     expect('zeroBeyond' in back).toBe(false);
     expect('audio' in back).toBe(false);
     expect('reveal' in back).toBe(false);
-    expect(problemsOf(loadDraft('slider-draft')!)).toEqual(['Запитання 1: повзунок — перевірте мінімум, максимум і крок.']);
+    expect(problemsOf(loadDraft('slider-draft')!)).toEqual(['Запитання 1: повзунок — перевір мінімум, максимум і крок.']);
   });
 
   it('junk in the zero line stays a problem instead of being dropped; a video drops reveal and audio', () => {
@@ -1711,20 +1711,20 @@ describe('clues and pin drafts (10c)', () => {
 
   it('clues: an empty clue, the time for the last clue, the interval', () => {
     expect(problemsOf(quizWith(clues()))).toEqual([]);
-    expect(problemsOf(quizWith(clues({ clues: ['Раз', '', 'Три'] })))).toEqual(['Запитання 1: заповніть кожну підказку.']);
+    expect(problemsOf(quizWith(clues({ clues: ['Раз', '', 'Три'] })))).toEqual(['Запитання 1: заповни кожну підказку.']);
     const six = clues({ clues: ['1', '2', '3', '4', '5', '6'], interval: 8, timeLimit: 30 });
     expect(problemsOf(quizWith(six))).toEqual([
-      'Запитання 1: остання підказка відкривається на 40-й секунді — дайте щонайменше 45 с часу або зменште інтервал.',
+      'Запитання 1: остання підказка відкривається на 40-й секунді — дай щонайменше 45 с часу або зменш інтервал.',
     ]);
     expect(problemsOf(quizWith({ ...six, timeLimit: 45 } as Question))).toEqual([]);
     expect(problemsOf(quizWith(clues({ interval: 2 })))).toEqual(['Запитання 1: інтервал між підказками — від 3 до 30 с.']);
     expect(problemsOf(quizWith(clues({ interval: Number.NaN })))).toHaveLength(1);
-    expect(problemsOf(quizWith(clues({ accepted: [] })))).toEqual(['Запитання 1: впишіть правильну відповідь.']);
+    expect(problemsOf(quizWith(clues({ accepted: [] })))).toEqual(['Запитання 1: впиши правильну відповідь.']);
   });
 
   it('pin: an own base without a picture, the radii', () => {
     expect(problemsOf(quizWith(pin()))).toEqual([]);
-    expect(problemsOf(quizWith(pin({ map: null, imageUrl: null })))).toEqual(['Запитання 1: завантажте картинку для точки або виберіть мапу.']);
+    expect(problemsOf(quizWith(pin({ map: null, imageUrl: null })))).toEqual(['Запитання 1: завантаж картинку для точки або вибери мапу.']);
     expect(problemsOf(quizWith(pin({ map: null, imageUrl: '/uploads/0123456789abcdef0123456789abcdef.png', aspect: 1.5 })))).toEqual([]);
     const radius = 'Запитання 1: радіус нуля має бути більшим за радіус повних балів (до 100 %).';
     expect(problemsOf(quizWith(pin({ zeroRadius: 2, fullRadius: 3 })))).toEqual([radius]);
@@ -1736,7 +1736,7 @@ describe('clues and pin drafts (10c)', () => {
 
   it('every schema code of clues and pin is a problem the editor explains', () => {
     // Те, що редактор не дає створити, усе одно не проходить мовчки: перевірка чернетки каже, що не так.
-    const generic = ['Запитання 1: перевірте заповнення.'];
+    const generic = ['Запитання 1: перевір заповнення.'];
     expect(problemsOf(quizWith(clues({ video: { id: 'dQw4w9WgXcQ', start: 0 } })))).toEqual(generic);
     expect(problemsOf(quizWith(pin({ video: { id: 'dQw4w9WgXcQ', start: 0 } })))).toEqual(generic);
     expect(problemsOf(quizWith(pin({ aspect: 3 })))).toEqual(generic);
@@ -1766,8 +1766,8 @@ describe('clues and pin drafts (10c)', () => {
 
   it('a voice clues cell does not tell the host to reduce a hidden interval', () => {
     const six = clues({ clues: ['1', '2', '3', '4', '5', '6'], interval: 8, timeLimit: 30 });
-    expect(problemsOf(boardWith(six, { answerMode: 'voice' }))).toEqual(['Категорія 1, запитання 1: для 6 підказок дайте щонайменше 45 с часу.']);
-    expect(problemsOf(boardWith(six, { answerMode: 'phone' }))[0]).toContain('зменште інтервал');
+    expect(problemsOf(boardWith(six, { answerMode: 'voice' }))).toEqual(['Категорія 1, запитання 1: для 6 підказок дай щонайменше 45 с часу.']);
+    expect(problemsOf(boardWith(six, { answerMode: 'phone' }))[0]).toContain('зменш інтервал');
   });
 
   it('cleaned trims the clues and the spellings', () => {
@@ -3976,15 +3976,15 @@ describe('placedProblemsOf (74)', () => {
     ];
     // Дослівні очікування (записані з виходу problemsOf до рефакторингу): тексти й порядок не мають змінитися.
     const expected: string[][] = [
-      ["Дайте вікторині назву.", "Запитання 2: впишіть текст запитання.", "Запитання 3: впишіть текст запитання."],
-      ["Категорія 1: немає назви.", "Категорія 1, запитання 1: заповніть усі варіанти або приберіть порожні."],
-      ["Категорія 1: немає назви.", "Категорія 1, запитання 1: впишіть текст запитання.", "Категорія 1, запитання 2: впишіть текст запитання.", "Категорія 1, запитання 3: впишіть текст запитання.", "Категорія 2: немає назви.", "Категорія 2, запитання 1: впишіть текст запитання.", "Категорія 2, запитання 2: впишіть текст запитання.", "Категорія 2, запитання 3: впишіть текст запитання.", "Категорія 3: немає назви.", "Категорія 3, запитання 1: впишіть текст запитання.", "Категорія 3, запитання 2: впишіть текст запитання.", "Категорія 3, запитання 3: впишіть текст запитання."],
-      ["Мінімальна ставка останнього запитання (400) більша за найбільшу ставку (300)", "Позначте, яку частину тексту видно під час ставок"],
-      ["Скільки має лишитися: ціле число від 1 до 10.", "Бонус виживання: ціле число від 0 до 2000.", "Питання на виживання 1: впишіть текст запитання."],
+      ["Дай вікторині назву.", "Запитання 2: впиши текст запитання.", "Запитання 3: впиши текст запитання."],
+      ["Категорія 1: немає назви.", "Категорія 1, запитання 1: заповни всі варіанти або прибери порожні."],
+      ["Категорія 1: немає назви.", "Категорія 1, запитання 1: впиши текст запитання.", "Категорія 1, запитання 2: впиши текст запитання.", "Категорія 1, запитання 3: впиши текст запитання.", "Категорія 2: немає назви.", "Категорія 2, запитання 1: впиши текст запитання.", "Категорія 2, запитання 2: впиши текст запитання.", "Категорія 2, запитання 3: впиши текст запитання.", "Категорія 3: немає назви.", "Категорія 3, запитання 1: впиши текст запитання.", "Категорія 3, запитання 2: впиши текст запитання.", "Категорія 3, запитання 3: впиши текст запитання."],
+      ["Мінімальна ставка останнього запитання (400) більша за найбільшу ставку (300)", "Познач, яку частину тексту видно під час ставок"],
+      ["Скільки має лишитися: ціле число від 1 до 10.", "Бонус виживання: ціле число від 0 до 2000.", "Питання на виживання 1: впиши текст запитання."],
       ["Суми рівнів мають зростати знизу вгору й не перевищувати 10000.", "Верхня сходинка не буває неспалимою."],
-      ["Дайте вікторині назву.", "Дуелі: у категорії 1 немає назви.", "Дуелі, «Категорія 1»: у запитанні 1 заповніть текст і хоча б одну правильну відповідь.", "Дуелі, «Категорія 1»: у запитанні 2 заповніть текст і хоча б одну правильну відповідь.", "Дуелі, «Категорія 1»: у запитанні 3 заповніть текст і хоча б одну правильну відповідь."],
-      ["Запасне 1: впишіть текст запитання.", "Назва команди не може бути порожньою.", "«Шпигун» не грається командами — вимкніть команди або приберіть запитання (запитання 2)"],
-      ["«Шпигун» не грається командами — вимкніть команди або приберіть запитання (запитання 1)", "Ціна дебафу — від 50 до 5000 балів."],
+      ["Дай вікторині назву.", "Дуелі: у категорії 1 немає назви.", "Дуелі, «Категорія 1»: у запитанні 1 заповни текст і хоча б одну правильну відповідь.", "Дуелі, «Категорія 1»: у запитанні 2 заповни текст і хоча б одну правильну відповідь.", "Дуелі, «Категорія 1»: у запитанні 3 заповни текст і хоча б одну правильну відповідь."],
+      ["Запасне 1: впиши текст запитання.", "Назва команди не може бути порожньою.", "«Шпигун» не грається командами — вимкни команди або прибери запитання (запитання 2)"],
+      ["«Шпигун» не грається командами — вимкни команди або прибери запитання (запитання 1)", "Ціна дебафу — від 50 до 5000 балів."],
     ];
     fixtures.forEach((quiz, at) => expect(problemsOf(quiz), `fixture ${at}`).toEqual(expected[at]));
     for (const quiz of fixtures) {

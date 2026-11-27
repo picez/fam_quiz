@@ -110,7 +110,7 @@ describe('PhotoTool', () => {
       .mockResolvedValueOnce({ ok: false, error: 'too_many' });
     open('cup');
     pick([png('a.png'), png('b.png'), png('c.png')]);
-    await waitFor(() => expect(screen.getByRole('alert').textContent).toBe('Забагато спроб. Зачекайте хвилину.'));
+    await waitFor(() => expect(screen.getByRole('alert').textContent).toBe('Забагато спроб. Зачекай хвилину.'));
     expect(uploadImage).toHaveBeenCalledTimes(2);
     expect(current.decor.photos.map((p) => p.url)).toEqual(['/uploads/1.png']);
     expect(fileInput().disabled).toBe(false);

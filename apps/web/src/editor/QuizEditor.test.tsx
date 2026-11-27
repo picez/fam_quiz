@@ -127,7 +127,7 @@ describe('QuizEditor', () => {
     fill('Назва вікторини', 'Географія');
     click('Зберегти');
     expect(onSave).not.toHaveBeenCalled();
-    expect(showProblems()).toContain('Запитання 1: впишіть текст запитання.');
+    expect(showProblems()).toContain('Запитання 1: впиши текст запитання.');
   });
 
   it('shows an error returned by the save', async () => {
@@ -375,7 +375,7 @@ describe('QuizEditor: problems and unsaved work', () => {
     expect(onSave).not.toHaveBeenCalled();
     const alert = screen.getByRole('alert');
     expect(alert.textContent).toContain('Не збережено — помилок: 1.');
-    expect(showProblems()).toContain('Запитання 2: впишіть текст запитання.');
+    expect(showProblems()).toContain('Запитання 2: впиши текст запитання.');
     expect(alert.closest('footer')).not.toBeNull();
     expect((screen.getByLabelText('Текст запитання') as HTMLTextAreaElement).value).toBe('');
   });
@@ -962,7 +962,7 @@ describe('QuizEditor: cancelled drag', () => {
       addRound('Класичний');
       chooseRound('Раунд 1');
       click('Зберегти');
-      expect(showProblems()).toContain('Раунд 2: Запитання 1: впишіть текст запитання.');
+      expect(showProblems()).toContain('Раунд 2: Запитання 1: впиши текст запитання.');
       expect(screen.getByRole('button', { name: /^Раунд: 2 · Раунд 2/ })).toBeTruthy();
       expect(screen.getByRole('button', { name: /^Запитання 1 / }).getAttribute('aria-current')).toBe('true');
     });
@@ -2087,7 +2087,7 @@ describe('QuizEditor: reveal, video and audio together (10b)', () => {
     fill('Нуль балів далі ніж ±', 'abc');
     expect((screen.getByLabelText('Нуль балів далі ніж ±') as HTMLInputElement).value).toBe('');
     fill('Нуль балів далі ніж ±', '.');
-    expect(screen.getByText('Впишіть число або залиште поле порожнім.')).toBeTruthy();
+    expect(screen.getByText('Впиши число або залиш поле порожнім.')).toBeTruthy();
     click('Зберегти');
     expect(onSave).not.toHaveBeenCalled();
   });
@@ -3841,7 +3841,7 @@ describe('issues (74)', () => {
     // Запитання.
     open(filled([answered('Перше?'), { ...newQuestion('single'), text: '' }]));
     fireEvent.click(itemOf(1));
-    fireEvent.click(openPanel().getByRole('button', { name: 'Запитання 2: впишіть текст запитання.' }));
+    fireEvent.click(openPanel().getByRole('button', { name: 'Запитання 2: впиши текст запитання.' }));
     expect(itemOf(2).getAttribute('aria-current')).toBe('true');
     expect(document.querySelector('.issues-panel')).toBeNull();
     cleanup();
@@ -3887,12 +3887,12 @@ describe('issues (74)', () => {
   it('the issues list follows a removed question', () => {
     vi.spyOn(window, 'confirm').mockReturnValue(true);
     open(filled([answered('Перше?'), { ...newQuestion('single'), text: '' }, answered('Третє?')]));
-    expect(openPanel().getByRole('button', { name: 'Запитання 2: впишіть текст запитання.' })).toBeTruthy();
+    expect(openPanel().getByRole('button', { name: 'Запитання 2: впиши текст запитання.' })).toBeTruthy();
     fireEvent.click(itemOf(1));
     click('Видалити запитання 1');
     fireEvent.click(itemOf(2));
-    expect(panel().queryByRole('button', { name: 'Запитання 2: впишіть текст запитання.' })).toBeNull();
-    fireEvent.click(panel().getByRole('button', { name: 'Запитання 1: впишіть текст запитання.' }));
+    expect(panel().queryByRole('button', { name: 'Запитання 2: впиши текст запитання.' })).toBeNull();
+    fireEvent.click(panel().getByRole('button', { name: 'Запитання 1: впиши текст запитання.' }));
     expect(itemOf(1).getAttribute('aria-current')).toBe('true');
   });
 
@@ -3903,7 +3903,7 @@ describe('issues (74)', () => {
     expect(onSave).not.toHaveBeenCalled();
     expect(screen.getByRole('alert').textContent).toContain('Не збережено — помилок: 1.');
     expect(document.querySelector('.issues-panel')).toBeNull();
-    expect(showProblems()).toContain('Запитання 2: впишіть текст запитання.');
+    expect(showProblems()).toContain('Запитання 2: впиши текст запитання.');
     expect(itemOf(2).getAttribute('aria-current')).toBe('true');
   });
 
@@ -3988,7 +3988,7 @@ describe('touched (74)', () => {
     expect(markOf(2, 'is-error')).toBeNull();
     expect(document.querySelector('[data-card="question"].has-error')).toBeNull();
     fireEvent.click(itemOf(1));
-    expect(document.querySelector('[data-card="question"].has-error')!.textContent).toContain('Запитання 1: впишіть текст запитання.');
+    expect(document.querySelector('[data-card="question"].has-error')!.textContent).toContain('Запитання 1: впиши текст запитання.');
   });
 
   it('marks the question touched when the round changes', () => {
