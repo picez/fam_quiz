@@ -5952,5 +5952,22 @@
   "quizExportTable": "تصدير: جدول (Excel)",
   "libraryHost": "أدر لعبة",
   "libraryHostSignIn": "سجّل الدخول لتدير اللعبة",
-  "menuShortQuizzesTight": "اختبارات"
+  "menuShortQuizzesTight": "اختبارات",
+  "homeGuestAbout": "مسابقات عائلية: يدير شخص واحد اللعبة على شاشة كبيرة، ويجيب الجميع من هواتفهم.",
+  "homeGuestHow": "لديك رمز لعبة؟ أدخله هنا. تريد إدارة لعبتك الخاصة؟ سجّل الدخول.",
+  "homeGuestLibrary": "تصفّح المكتبة",
+  "homeGuestSignIn": "سجّل الدخول لتدير ألعابك",
+  "homeInviteTitle": "أنت مدعو إلى لعبة",
+  "homeInviteFrom": "{host} يدعوك · الرمز {code}",
+  "homeChallengeTitle": "تحدٍّ من صديق",
+  "homeChallengePlay": "اقبل التحدي",
+  "homeQuickTitle": "بدء سريع",
+  "homeQuickHost": "أدِر: {title}",
+  "homeQuickAll": "كل المسابقات ›",
+  "homeFooterLabel": "المساعدة والمظهر",
+  "welcomeTitle": "من أين تبدأ",
+  "welcomeJoin": "انضم إلى لعبة بالرمز — يعرضه مدير اللعبة على الشاشة.",
+  "welcomeLibrary": "أدِر لعبة من المكتبة:",
+  "welcomeCreate": "أنشئ مسابقتك الخاصة:",
+  "welcomeDone": "فهمت"
 }

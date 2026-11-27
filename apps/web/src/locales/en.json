@@ -5644,5 +5644,22 @@
   "quizExportTable": "Export: spreadsheet (Excel)",
   "libraryHost": "Host a game",
   "libraryHostSignIn": "Sign in to host",
-  "menuShortQuizzesTight": "Quiz"
+  "menuShortQuizzesTight": "Quiz",
+  "homeGuestAbout": "Family quiz games: one person hosts on a big screen, and everyone answers from their own phone.",
+  "homeGuestHow": "Got a game code? Enter it here. Want to host your own? Sign in.",
+  "homeGuestLibrary": "Browse the library",
+  "homeGuestSignIn": "Sign in to host your own games",
+  "homeInviteTitle": "You are invited to a game",
+  "homeInviteFrom": "{host} invites you · code {code}",
+  "homeChallengeTitle": "A challenge from a friend",
+  "homeChallengePlay": "Take the challenge",
+  "homeQuickTitle": "Quick start",
+  "homeQuickHost": "Host: {title}",
+  "homeQuickAll": "All quizzes ›",
+  "homeFooterLabel": "Help and appearance",
+  "welcomeTitle": "Where to start",
+  "welcomeJoin": "Join a game with a code — the host shows it on the screen.",
+  "welcomeLibrary": "Host a game from the library:",
+  "welcomeCreate": "Create your own quiz:",
+  "welcomeDone": "Got it"
 }
