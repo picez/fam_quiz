@@ -64,21 +64,25 @@ export function Menu() {
   const short = (item: Item) => t(items.length > 5 && item.tight !== undefined ? item.tight : item.short);
 
   // 81: слова біля дзвіночка й «Вигляду» — лише коли вміщуються: якщо панель з ними ширша за екран (довгі назви мовою,
-  // легкий режим, адмін), клас is-tight лишає самі значки (назви — в aria-label). Перевірка до відмалювання і на кожну зміну ширини.
+  // легкий режим, адмін), клас is-tight лишає самі значки (назви — в aria-label). Перевірка до відмалювання, на зміну розміру вікна
+  // і після шрифтів. Не ResizeObserver на панелі: перемикання класу міняє її висоту, а це — цикл спостерігача й помилка в консолі.
   const nav = useRef<HTMLElement>(null);
   useLayoutEffect(() => {
     const bar = nav.current;
     if (bar === null) return;
+    let live = true;
     const fit = () => {
+      if (!live) return;
       bar.classList.remove('is-tight');
       if (bar.scrollWidth > bar.clientWidth) bar.classList.add('is-tight');
     };
     fit();
-    if (typeof ResizeObserver === 'undefined') return;
-    const watch = new ResizeObserver(fit);
-    watch.observe(bar);
+    window.addEventListener('resize', fit);
     void document.fonts?.ready.then(fit);
-    return () => watch.disconnect();
+    return () => {
+      live = false;
+      window.removeEventListener('resize', fit);
+    };
   });
 
   const name = (item: Item) =>
