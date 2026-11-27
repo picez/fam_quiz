@@ -325,6 +325,46 @@ describe('Menu', () => {
 const cssPath = ['apps/web/src/styles.css', 'src/styles.css'].find((path) => existsSync(path) as boolean)!;
 const css = (readFileSync(cssPath, 'utf8') as string).replace(/\r\n/g, '\n');
 
+describe('words next to the icons (81)', () => {
+  it('the bell shows «Вхідні» beside the icon (hidden from the reader — the name is the link name); a bar that does not fit keeps only the icons', async () => {
+    vi.mocked(me).mockResolvedValue(OK);
+    const wide = vi.spyOn(HTMLElement.prototype, 'scrollWidth', 'get').mockImplementation(function (this: HTMLElement) {
+      return this.classList.contains('menu') && !this.classList.contains('is-tight') ? 900 : 0;
+    });
+    const client = vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(800);
+    try {
+      show('/quizzes');
+      const bell = await screen.findByRole('link', { name: 'Вхідні' });
+      const word = bell.querySelector('.menu-word')!;
+      expect(word.textContent).toBe('Вхідні');
+      expect(word.getAttribute('aria-hidden')).toBe('true');
+      expect(bell.closest('nav')!.classList.contains('is-tight')).toBe(true);
+      expect(bell.closest('nav')!.querySelector('.appearance-word')?.textContent).toBe('Вигляд');
+    } finally {
+      wide.mockRestore();
+      client.mockRestore();
+    }
+  });
+
+  it('a bar that fits keeps the words', async () => {
+    vi.mocked(me).mockResolvedValue(OK);
+    show('/quizzes');
+    const bell = await screen.findByRole('link', { name: 'Вхідні' });
+    expect(bell.closest('nav')!.classList.contains('is-tight')).toBe(false);
+  });
+
+  it('CSS hides the words in a tight bar and the bell word on a phone; easy mode at ≤ 400 px sizes the label from the screen width', () => {
+    expect(css).toMatch(/\.menu\.is-tight \.menu-word,\n\.menu\.is-tight \.appearance-word \{\n  display: none;/);
+    expect(css).toMatch(/@media \(max-width: 700px\) \{\n  \.menu \.menu-word \{\n    display: none;/);
+    expect(css).toMatch(/@media \(max-width: 400px\) \{\n  :root\.is-easy \.menu a \{\n    font-size: clamp\(0\.5rem, 3\.4vw, 0\.8125rem\);/);
+  });
+
+  it('tabs without jumps: pages with the menu keep the scrollbar gutter on a computer; the admin fold arrow does not animate with reduced motion', () => {
+    expect(css).toMatch(/@media \(min-width: 701px\) \{\n  :root:has\(\.with-menu\) \{\n    scrollbar-gutter: stable;/);
+    expect(css).toMatch(/@media \(prefers-reduced-motion: reduce\) \{\n  details\.admin-fold > summary::before \{\n    transition: none;/);
+  });
+});
+
 describe('the inbox bell (70)', () => {
   it('a signed-in person has a bell to /inbox next to the theme switch; no badge at zero', async () => {
     vi.mocked(me).mockResolvedValue(OK);

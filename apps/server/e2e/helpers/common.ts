@@ -937,8 +937,8 @@ export function prizeQuestions14a() {
 /** Запити до 3D: файли моделей і чанк рушія трофеїв (three.js). */
 export const isTrophyRequest = (url: string) => /\.glb(\?|$)/.test(url) || /\/assets\/(trophy-engine|three)[^/]*\.js/.test(url);
 
-/** П'ять пунктів на ширині width: count 5; ≤ 700 px — висота ≤ 60 і один рядок; без прокрутки вбік; жоден підпис не ширший за пункт. Замінює expectEightItems18a. */
-export async function expectFiveItems(page: Page, width: number, count = 5): Promise<void> {
+/** П'ять пунктів на ширині width: count 5; ≤ 700 px — висота ≤ maxHeight (60; у легкому режимі 81 — 72) і один рядок; без прокрутки вбік; жоден підпис не ширший за пункт. Замінює expectEightItems18a. */
+export async function expectFiveItems(page: Page, width: number, count = 5, maxHeight = 60): Promise<void> {
   await page.setViewportSize({ width, height: 812 });
   const fit = (await page.evaluate(MENU_FITS_14A)) as { count: number; height: number; wide: boolean; sizes: string; wideBy: string; shown: string[]; clipped: string[] };
   expect(fit.count, `menu-${width}: items`).toBe(count);
@@ -949,7 +949,7 @@ export async function expectFiveItems(page: Page, width: number, count = 5): Pro
   );
   expect(rows.filter((r) => r.over), `menu-${width}: a label is wider than its item`).toEqual([]);
   if (width <= 700) {
-    expect((await page.locator(MENU).boundingBox())!.height, `menu-${width}: height`).toBeLessThanOrEqual(60);
+    expect((await page.locator(MENU).boundingBox())!.height, `menu-${width}: height`).toBeLessThanOrEqual(maxHeight);
     expect(new Set(rows.map((r) => r.y)).size, `menu-${width}: the items are not in one row`).toBe(1);
   }
 }

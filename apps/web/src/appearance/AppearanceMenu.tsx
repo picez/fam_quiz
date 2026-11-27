@@ -47,7 +47,7 @@ export function AppearanceMenu({ className }: { className?: string }): JSX.Eleme
         <span className="appearance-icon" aria-hidden="true">
           {light ? <SunIcon /> : <MoonIcon />}
         </span>
-        <span>{t('siteLooksButton')}</span>
+        <span className="appearance-word">{t('siteLooksButton')}</span>
       </button>
       {open && (
         <div className="appearance-pop" id={popId} role="dialog" aria-label={t('siteLooksTitle')} ref={pop}>

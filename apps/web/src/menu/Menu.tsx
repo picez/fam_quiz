@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useLayoutEffect, useRef } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { feedBadgeLabel, feedBadgeTotal } from '@quiz/shared';
 import { AppearanceMenu } from '../appearance/AppearanceMenu';
@@ -63,6 +63,24 @@ export function Menu() {
   // 77: у шести пунктах (адмін) «Вікторини» не влазять у шосту частину 320 px — там коротший підпис.
   const short = (item: Item) => t(items.length > 5 && item.tight !== undefined ? item.tight : item.short);
 
+  // 81: слова біля дзвіночка й «Вигляду» — лише коли вміщуються: якщо панель з ними ширша за екран (довгі назви мовою,
+  // легкий режим, адмін), клас is-tight лишає самі значки (назви — в aria-label). Перевірка до відмалювання і на кожну зміну ширини.
+  const nav = useRef<HTMLElement>(null);
+  useLayoutEffect(() => {
+    const bar = nav.current;
+    if (bar === null) return;
+    const fit = () => {
+      bar.classList.remove('is-tight');
+      if (bar.scrollWidth > bar.clientWidth + 1) bar.classList.add('is-tight');
+    };
+    fit();
+    if (typeof ResizeObserver === 'undefined') return;
+    const watch = new ResizeObserver(fit);
+    watch.observe(bar);
+    void document.fonts?.ready.then(fit);
+    return () => watch.disconnect();
+  });
+
   const name = (item: Item) =>
     item === PROFILE && total > 0
       ? `${t(item.label)}, ${t('invitesBadge', { count: total })}`
@@ -71,7 +89,7 @@ export function Menu() {
         : t(item.label);
 
   return (
-    <nav className="menu" aria-label={t('menuLabel')}>
+    <nav ref={nav} className="menu" aria-label={t('menuLabel')}>
       {items.map((item) => (
         <Link key={item.label} to={item.to} aria-label={name(item)} data-short={short(item)} aria-current={item === active ? 'page' : undefined}>
           <span aria-hidden="true">{item.icon}</span>
@@ -96,6 +114,9 @@ export function Menu() {
           aria-current={location.pathname === '/inbox' ? 'page' : undefined}
         >
           <span aria-hidden="true">🔔</span>
+          <span className="menu-word" aria-hidden="true">
+            {t('menuInbox')}
+          </span>
           {inbox > 0 && (
             <span className="menu-badge" aria-hidden="true">
               {feedBadgeLabel(inbox)}

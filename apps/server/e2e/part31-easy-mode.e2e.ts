@@ -2,7 +2,7 @@ import { classicRound, makeRoundsQuiz, single, slider } from '@quiz/engine/testi
 import { DEBUFF_KINDS, type Question, type Quiz } from '@quiz/shared';
 import { type Page } from 'playwright-core';
 import { expect, it } from 'vitest';
-import { open, click, field, seconds, join, expectNoSideScroll, expectStageInView, register, POLL, boxOf, pickOption, textAnswer, sleep, step27a, next27a, reveal28a, MENU, editorTab } from './helpers/common';
+import { open, click, field, seconds, join, expectNoSideScroll, expectStageInView, register, POLL, boxOf, pickOption, textAnswer, sleep, step27a, next27a, reveal28a, MENU, editorTab, expectFiveItems } from './helpers/common';
 import { exact, base, problems, snapshot, afterSplash, shot, useE2eServer } from './helpers/setup';
 
 /**
@@ -407,6 +407,19 @@ async function accountEasy31() {
   expect(saved.status()).toBe(200);
   await expect.poll(() => easyClass(hanna), POLL).toBe(true);
   await expectNoSideScroll(hanna, 'p31-settings-easy-375');
+
+  // ── 81: меню в легкому режимі — на 320 px підписи налазили один на одного («ГоловнаВікторини…»). 320/360/375 і компʼютер,
+  //    темна й світла тема: кожен підпис у своєму пункті, без прокрутки вбік, панель не вища за 72 px. ──
+  for (const theme of ['dark', 'light']) {
+    await hanna.evaluate(`localStorage.setItem('quiz:theme', '${theme}')`);
+    await hanna.reload();
+    await hanna.locator(MENU).getByRole('link', { name: 'Профіль' }).waitFor();
+    for (const width of [320, 360, 375, 768, 1024]) await expectFiveItems(hanna, width, 5, 72);
+    await hanna.setViewportSize({ width: 320, height: 812 });
+    await shot(hanna, `p81-easy-menu-320-${theme}`);
+  }
+  await hanna.evaluate("localStorage.removeItem('quiz:theme')");
+  await hanna.setViewportSize({ width: 375, height: 812 });
 
   // ── Новий пристрій без вибору: після входу режим уже є. ──
   const signIn = async (page: Page) => {
