@@ -45,6 +45,7 @@ const ProfileLooks = lazy(() => import('./pages/profile/ProfileLooks').then((m) 
 const ProfileStats = lazy(() => import('./pages/profile/ProfileStats').then((m) => ({ default: m.ProfileStats })));
 const InboxPage = lazy(() => import('./inbox/InboxPage').then((m) => ({ default: m.InboxPage })));
 const ProblemReport = lazy(() => import('./problems/ProblemReport').then((m) => ({ default: m.ProblemReport })));
+const ProblemMine = lazy(() => import('./problems/ProblemMine').then((m) => ({ default: m.ProblemMine })));
 
 /** Стара адреса сторінки (77): одна адреса на сторінку — перенаправлення на канонічну з тим самим ?query і #hash, без зайвого запису історії. */
 function Canonical({ to }: { to: string }) {
@@ -112,6 +113,7 @@ export function AppRoutes() {
           <Route path="/help/play" element={<PlayerHelp />} />
           {/* «Повідомити про проблему» (64): і гостям; ?from= — сторінка, з якої прийшли. */}
           <Route path="/report" element={<ProblemReport />} />
+          <Route path="/report/mine" element={<ProblemMine />} />
           <Route path="/inbox" element={<InboxPage />} />
           <Route path="/new" element={<Navigate to="/quizzes" replace />} />
         </Route>

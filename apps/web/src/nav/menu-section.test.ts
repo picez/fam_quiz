@@ -16,6 +16,7 @@ describe('menuSection (77)', () => {
     ['/help', 'quizzes'],
     // 80: «Як грати» для гравця — під «Головною», довідка ведучого — у «Вікторинах».
     ['/help/play', 'home'],
+    ['/report/mine', 'home'],
     ['/challenge/AB12', 'quizzes'],
     ['/feed', 'feed'],
     ['/feed/calendar', 'feed'],

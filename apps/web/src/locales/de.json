@@ -5081,8 +5081,7 @@
   "problemSend": "Senden",
   "problemSent": "Danke! Wir haben deine Nachricht erhalten.",
   "problemGuestHint": "Um eine Antwort zu bekommen, melde dich vor dem Senden an.",
-  "problemMine": "Meine Nachrichten",
-  "problemMineEmpty": "Noch keine Nachrichten.",
+  "problemMineEmpty": "Noch keine Meldungen.",
   "problemOpen": "Offen",
   "problemResolved": "Gelöst",
   "problemReplyFrom": "Antwort des Admins: {text}",
@@ -5386,7 +5385,6 @@
   "inboxReplyTitle": "Antwort auf deine Nachricht",
   "inboxYouWrote": "Du hast geschrieben: {text}",
   "inboxOpenLink": "Öffnen",
-  "inboxAllProblems": "Alle meine Nachrichten",
   "problemPageGame": "Spiel {code}: Runde {round}, Frage {question}",
   "problemPageGameLobby": "Spiel {code}: noch in der Lobby",
   "pushInviteTitle": "Verpasse keine Neuigkeiten",
@@ -5710,5 +5708,8 @@
   "settingsHelp": "Hilfe",
   "siteLooksButton": "Anzeige",
   "siteLooksTitle": "Anzeige der Seite",
-  "siteLooksLabel": "Anzeige der Seite: Design und einfacher Modus"
+  "siteLooksLabel": "Anzeige der Seite: Design und einfacher Modus",
+  "problemMineTitle": "Meine Meldungen",
+  "problemMineLead": "Deine Problemmeldungen und die Antworten des Admins. Eine Antwort kommt auch in deinen „Posteingang“.",
+  "problemRepliesWhere": "Die Antwort des Admins kommt in deinen „Posteingang“. Alle deine Meldungen und Antworten:"
 }

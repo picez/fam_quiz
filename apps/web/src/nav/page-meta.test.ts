@@ -54,5 +54,6 @@ describe('page meta (76)', () => {
     expect(pageTitle('/help/play')).toBe('Як грати');
     expect(pageTitle('/help')).toBe('Довідка ведучого');
     expect(pageTitle('/report')).toBe('Повідомити про проблему');
+    expect(pageTitle('/report/mine')).toBe('Мої звернення');
   });
 });

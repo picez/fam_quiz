@@ -93,7 +93,7 @@ describe('InboxPage (70)', () => {
     expect(within(answer).queryByText('Нове')).toBeNull();
     expect(within(answer).getByText('Ти писав(-ла): Кнопка не натискається')).toBeTruthy();
     expect(within(answer).getByText('Виправили, дякуємо!')).toBeTruthy();
-    expect(within(answer).getByRole('link', { name: 'Усі мої повідомлення' }).getAttribute('href')).toBe('/report');
+    expect(within(answer).getByRole('link', { name: 'Мої звернення' }).getAttribute('href')).toBe('/report/mine');
   });
 
   it('marks everything up to the newest shown as read once, and the badge drops', async () => {

@@ -50,7 +50,7 @@ function ItemCard({ item }: { item: InboxItem }): JSX.Element {
             {item.reply}
           </p>
           <p>
-            <Link to="/report">{t('inboxAllProblems')}</Link>
+            <Link to="/report/mine">{t('problemMineTitle')}</Link>
           </p>
         </>
       ) : (

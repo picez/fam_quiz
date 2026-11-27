@@ -5157,8 +5157,7 @@
   "problemSend": "Invia",
   "problemSent": "Grazie! Abbiamo ricevuto il tuo messaggio.",
   "problemGuestHint": "Per ricevere una risposta, accedi prima di inviare.",
-  "problemMine": "I miei messaggi",
-  "problemMineEmpty": "Ancora nessun messaggio.",
+  "problemMineEmpty": "Ancora nessuna segnalazione.",
   "problemOpen": "Aperto",
   "problemResolved": "Risolto",
   "problemReplyFrom": "Risposta dell'amministratore: {text}",
@@ -5463,7 +5462,6 @@
   "inboxReplyTitle": "Risposta al tuo messaggio",
   "inboxYouWrote": "Hai scritto: {text}",
   "inboxOpenLink": "Apri",
-  "inboxAllProblems": "Tutti i miei messaggi",
   "problemPageGame": "Partita {code}: round {round}, domanda {question}",
   "problemPageGameLobby": "Partita {code}: ancora nella lobby",
   "pushInviteTitle": "Non perdere le novità",
@@ -5787,5 +5785,8 @@
   "settingsHelp": "Aiuto",
   "siteLooksButton": "Aspetto",
   "siteLooksTitle": "Aspetto del sito",
-  "siteLooksLabel": "Aspetto del sito: tema e modalità facile"
+  "siteLooksLabel": "Aspetto del sito: tema e modalità facile",
+  "problemMineTitle": "Le mie segnalazioni",
+  "problemMineLead": "Le tue segnalazioni di problemi e le risposte dell’amministratore. La risposta arriva anche nella «Posta in arrivo».",
+  "problemRepliesWhere": "La risposta dell’amministratore arriverà nella «Posta in arrivo». Tutte le tue segnalazioni e risposte:"
 }

@@ -5081,8 +5081,7 @@
   "problemSend": "Send",
   "problemSent": "Thank you! We've received your message.",
   "problemGuestHint": "To get a reply, sign in before sending.",
-  "problemMine": "My messages",
-  "problemMineEmpty": "No messages yet.",
+  "problemMineEmpty": "No reports yet.",
   "problemOpen": "Open",
   "problemResolved": "Resolved",
   "problemReplyFrom": "Reply from the admin: {text}",
@@ -5386,7 +5385,6 @@
   "inboxReplyTitle": "Reply to your message",
   "inboxYouWrote": "You wrote: {text}",
   "inboxOpenLink": "Open",
-  "inboxAllProblems": "All my messages",
   "problemPageGame": "Game {code}: round {round}, question {question}",
   "problemPageGameLobby": "Game {code}: still in the lobby",
   "pushInviteTitle": "Don't miss the news",
@@ -5710,5 +5708,8 @@
   "settingsHelp": "Help",
   "siteLooksButton": "Display",
   "siteLooksTitle": "Site display",
-  "siteLooksLabel": "Site display: theme and easy mode"
+  "siteLooksLabel": "Site display: theme and easy mode",
+  "problemMineTitle": "My reports",
+  "problemMineLead": "Your problem reports and the admin's replies. A reply also arrives in your “Inbox”.",
+  "problemRepliesWhere": "The admin's reply will arrive in your “Inbox”. All your reports and replies:"
 }

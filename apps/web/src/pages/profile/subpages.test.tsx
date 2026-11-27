@@ -226,12 +226,13 @@ describe('«Налаштування»', () => {
     expect(link.getAttribute('href')).toBe('/report?from=%2Fprofile%2Fsettings');
   });
 
-  it('80: the «Допомога» section links both helps and the problem report', async () => {
+  it('80: the «Допомога» section links both helps, the problem report and «Мої звернення»', async () => {
     open('/profile/settings');
     const help = await screen.findByRole('region', { name: 'Допомога' });
     expect(within(help).getByRole('link', { name: 'Як грати' }).getAttribute('href')).toBe('/help/play');
     expect(within(help).getByRole('link', { name: 'Довідка ведучого' }).getAttribute('href')).toBe('/help');
     expect(within(help).getByRole('link', { name: 'Повідомити про проблему' }).getAttribute('href')).toBe('/report?from=%2Fprofile%2Fsettings');
+    expect(within(help).getByRole('link', { name: 'Мої звернення' }).getAttribute('href')).toBe('/report/mine');
   });
 
   it('31: has «Легкий режим» with the account hint in the «Вигляд сайту» section (80), with the theme', async () => {

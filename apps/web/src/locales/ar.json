@@ -5385,8 +5385,7 @@
   "problemSend": "إرسال",
   "problemSent": "شكرًا! وصلتنا رسالتك.",
   "problemGuestHint": "لتتلقى ردًا، سجّل الدخول قبل الإرسال.",
-  "problemMine": "رسائلي",
-  "problemMineEmpty": "لا توجد رسائل بعد.",
+  "problemMineEmpty": "لا توجد بلاغات بعد.",
   "problemOpen": "مفتوحة",
   "problemResolved": "تم حلّها",
   "problemReplyFrom": "رد المشرف: {text}",
@@ -5694,7 +5693,6 @@
   "inboxReplyTitle": "رد على رسالتك",
   "inboxYouWrote": "كتبتَ: {text}",
   "inboxOpenLink": "فتح",
-  "inboxAllProblems": "كل رسائلي",
   "problemPageGame": "اللعبة {code}: الجولة {round}، السؤال {question}",
   "problemPageGameLobby": "اللعبة {code}: ما زالت في الردهة",
   "pushInviteTitle": "لا تفوّت الأخبار",
@@ -6018,5 +6016,8 @@
   "settingsHelp": "المساعدة",
   "siteLooksButton": "العرض",
   "siteLooksTitle": "عرض الموقع",
-  "siteLooksLabel": "عرض الموقع: المظهر والوضع السهل"
+  "siteLooksLabel": "عرض الموقع: المظهر والوضع السهل",
+  "problemMineTitle": "بلاغاتي",
+  "problemMineLead": "بلاغاتك عن المشكلات وردود المشرف. يصل الرد أيضًا إلى «صندوق الوارد».",
+  "problemRepliesWhere": "سيصل ردّ المشرف إلى «صندوق الوارد». كل بلاغاتك والردود عليها:"
 }

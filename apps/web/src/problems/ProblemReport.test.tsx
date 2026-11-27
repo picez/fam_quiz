@@ -142,22 +142,21 @@ describe('ProblemReport', () => {
     });
   });
 
-  it('an account sees its messages and the admin reply', async () => {
-    server({
-      signedIn: true,
-      mine: [
-        { id: 'r2', at: '2026-11-19T10:00:00.000Z', text: 'Не видно таблиці', status: 'open', reply: null, repliedAt: null },
-        { id: 'r1', at: '2026-11-18T10:00:00.000Z', text: '<b>Зникла</b> музика', status: 'resolved', reply: 'Виправили, дякуємо!', repliedAt: '2026-11-18T12:00:00.000Z' },
-      ],
-    });
+  it('80: an account gets a link to «Мої звернення» instead of the list', async () => {
+    server({ signedIn: true, mine: [{ id: 'r1', at: '2026-11-18T10:00:00.000Z', text: 'Зникла музика', status: 'open', reply: null, repliedAt: null }] });
     open();
-    expect(await screen.findByRole('heading', { name: 'Мої повідомлення' })).toBeTruthy();
-    expect(await screen.findByText('Вирішене')).toBeTruthy();
-    expect(screen.getByText('Відкрите')).toBeTruthy();
-    expect(screen.getByText('Відповідь адміністратора: Виправили, дякуємо!')).toBeTruthy();
-    // Текст гравця — як текст, не розмітка.
-    expect(screen.getByText('<b>Зникла</b> музика')).toBeTruthy();
+    const link = await screen.findByRole('link', { name: 'Мої звернення' });
+    expect(link.getAttribute('href')).toBe('/report/mine');
+    expect(screen.getByText(/Відповідь адміністратора прийде у «Вхідні»/)).toBeTruthy();
+    expect(screen.queryByText('Зникла музика')).toBeNull();
     expect(screen.queryByText('Щоб отримати відповідь, увійди перед надсиланням.')).toBeNull();
+  });
+
+  it('80: a guest has no «Мої звернення» link', async () => {
+    server();
+    open();
+    await screen.findByText('Щоб отримати відповідь, увійди перед надсиланням.');
+    expect(screen.queryByRole('link', { name: 'Мої звернення' })).toBeNull();
   });
 
   it('too many is a clear error', async () => {

@@ -91,6 +91,9 @@ export function ProfileSettings(): JSX.Element {
               <li>
                 <ProblemLink />
               </li>
+              <li>
+                <Link to="/report/mine">{t('problemMineTitle')}</Link>
+              </li>
             </ul>
           </section>
           <div className="toolbar">

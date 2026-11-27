@@ -5180,8 +5180,7 @@
   "problemSend": "Wyślij",
   "problemSent": "Dziękujemy! Otrzymaliśmy wiadomość.",
   "problemGuestHint": "Aby dostać odpowiedź, zaloguj się przed wysłaniem.",
-  "problemMine": "Moje wiadomości",
-  "problemMineEmpty": "Nie było jeszcze wiadomości.",
+  "problemMineEmpty": "Nie było jeszcze zgłoszeń.",
   "problemOpen": "Otwarte",
   "problemResolved": "Rozwiązane",
   "problemReplyFrom": "Odpowiedź administratora: {text}",
@@ -5487,7 +5486,6 @@
   "inboxReplyTitle": "Odpowiedź na Twoją wiadomość",
   "inboxYouWrote": "Napisałeś(-aś): {text}",
   "inboxOpenLink": "Otwórz",
-  "inboxAllProblems": "Wszystkie moje wiadomości",
   "problemPageGame": "Gra {code}: runda {round}, pytanie {question}",
   "problemPageGameLobby": "Gra {code}: jeszcze w lobby",
   "pushInviteTitle": "Nie przegap nowości",
@@ -5811,5 +5809,8 @@
   "settingsHelp": "Pomoc",
   "siteLooksButton": "Wygląd",
   "siteLooksTitle": "Wygląd strony",
-  "siteLooksLabel": "Wygląd strony: motyw i tryb łatwy"
+  "siteLooksLabel": "Wygląd strony: motyw i tryb łatwy",
+  "problemMineTitle": "Moje zgłoszenia",
+  "problemMineLead": "Twoje zgłoszenia problemów i odpowiedzi administratora. Odpowiedź trafia też do zakładki „Skrzynka”.",
+  "problemRepliesWhere": "Odpowiedź administratora trafi do zakładki „Skrzynka”. Wszystkie twoje zgłoszenia i odpowiedzi:"
 }

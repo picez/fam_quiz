@@ -44,6 +44,7 @@ const TITLES: [pattern: string, key: TextKey][] = [
   ['/help', 'helpTitle'],
   ['/help/play', 'playHelpTitle'],
   ['/report', 'problemLink'],
+  ['/report/mine', 'problemMineTitle'],
   ['/inbox', 'inboxTitle'],
 ];
 
