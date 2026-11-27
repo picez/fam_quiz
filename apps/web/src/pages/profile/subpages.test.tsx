@@ -121,7 +121,6 @@ const SUBPAGES: [path: string, title: string][] = [
   ['/profile/achievements', 'Досягнення'],
   ['/profile/friends', 'Друзі'],
   ['/profile/stats', 'Статистика'],
-  ['/profile/likes', 'Вподобання'],
   ['/profile/looks', 'Вигляд'],
   ['/profile/settings', 'Налаштування'],
 ];
@@ -182,9 +181,11 @@ describe('profile sub-pages', () => {
     expect(screen.getByText(`${formatDate(mine.wins[0]!.startedAt)} — «Кіно 90-х», 1 місце`)).toBeTruthy();
   });
 
-  it('«Вподобання» shows the likes', async () => {
+  it('the old «Вподобання» address opens «Вікторини» → «Вподобані» (77)', async () => {
     open('/profile/likes');
     expect(await screen.findByText('як автор')).toBeTruthy();
+    expect(screen.getByRole('heading', { level: 1, name: 'Вподобані вікторини' })).toBeTruthy();
+    expect(where()).toBe('/quizzes/liked');
   });
 
   it('«Вигляд» shows the level rewards', async () => {

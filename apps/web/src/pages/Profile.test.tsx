@@ -172,7 +172,7 @@ describe('Profile', () => {
       '/profile/achievements',
       '/profile/friends',
       '/profile/stats',
-      '/profile/likes',
+      '/quizzes/liked',
       '/profile/looks',
       '/profile/settings',
       '/profile/groups',

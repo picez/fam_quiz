@@ -5711,5 +5711,8 @@
   "libraryClearSearch": "Cancella ricerca",
   "leaveUnsaved": "Le modifiche non sono ancora salvate. Lasciare la pagina? La bozza resta in questa scheda.",
   "editorHostGame": "Conduci una partita",
-  "editorSaveAndHost": "Salva e conduci una partita"
+  "editorSaveAndHost": "Salva e conduci una partita",
+  "quizzesTabMine": "Miei",
+  "quizzesTabLiked": "Preferiti",
+  "quizzesLikedTitle": "Quiz preferiti"
 }

@@ -7,6 +7,8 @@ import { LibraryCardView } from '../library/LibraryCardView';
 import { libraryCatalog } from '../library/library-api';
 import { ENABLED_LOCALES, LOCALE_NAMES } from '../locales/locales';
 import { EmptyState, LoadError, Loading } from '../ui/PageState';
+import { useAccount } from '../useAccount';
+import { QuizzesTabs } from './QuizzesTabs';
 
 /** Пауза після останньої літери, перш ніж іти за новим списком. */
 export const SEARCH_DELAY_MS = 300;
@@ -15,6 +17,8 @@ const SORT_LABELS: Record<LibrarySort, TextKey> = { popular: 'librarySortPopular
 /** /library: каталог відкритих вікторин; бачить і гість. Пошук, порядок і мова живуть в адресі. */
 export function Library(): JSX.Element {
   const [params, setParams] = useSearchParams();
+  // 77: з акаунтом бібліотека — вкладка «Вікторин»; гість бачить її окремо, як пункт меню.
+  const signedIn = useAccount().status === 'signed-in';
   const q = params.get('q') ?? '';
   const sortParam = params.get('sort');
   const sort: LibrarySort = LIBRARY_SORTS.find((one) => one === sortParam) ?? 'popular';
@@ -95,6 +99,7 @@ export function Library(): JSX.Element {
 
   return (
     <main className="app wide">
+      {signedIn && <QuizzesTabs />}
       <div className="autopilot-head">
         <h1>{t('libraryTitle')}</h1>
         <HelpButton id="setting.library" />

@@ -4811,6 +4811,10 @@ const uk = {
   err_library_appeal_used: 'Оскарження вже використано.',
   menuLibrary: 'Бібліотека',
   menuShortLibrary: 'Бібліотека',
+  // 77: вкладки сторінки «Вікторини»
+  quizzesTabMine: 'Мої',
+  quizzesTabLiked: 'Вподобані',
+  quizzesLikedTitle: 'Вподобані вікторини',
   libraryGuestLink: '📚 Бібліотека вікторин',
   librarySearch: 'Пошук за назвою чи описом',
   librarySort: 'Порядок',

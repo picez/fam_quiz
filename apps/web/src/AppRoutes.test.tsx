@@ -39,7 +39,7 @@ vi.mock('./pages/Friends', () => ({ Friends: () => <p>Friends</p> }));
 vi.mock('./pages/PublicProfile', () => ({ PublicProfile: () => <p>PublicProfile</p> }));
 vi.mock('./pages/profile/ProfileQuizzes', () => ({ ProfileQuizzes: () => <p>ProfileQuizzes</p> }));
 vi.mock('./pages/profile/ProfileStats', () => ({ ProfileStats: () => <p>ProfileStats</p> }));
-vi.mock('./pages/profile/ProfileLikes', () => ({ ProfileLikes: () => <p>ProfileLikes</p> }));
+vi.mock('./pages/QuizzesLiked', () => ({ QuizzesLiked: () => <p>QuizzesLiked</p> }));
 vi.mock('./pages/profile/ProfileLooks', () => ({ ProfileLooks: () => <p>ProfileLooks</p> }));
 vi.mock('./pages/profile/ProfileSettings', () => ({ ProfileSettings: () => <p>ProfileSettings</p> }));
 vi.mock('./pages/Library', () => ({ Library: () => <p>Library</p> }));
@@ -128,7 +128,7 @@ describe('AppRoutes', () => {
     ['/profile/achievements', 'Achievements'],
     ['/profile/friends', 'Friends'],
     ['/profile/stats', 'ProfileStats'],
-    ['/profile/likes', 'ProfileLikes'],
+    ['/quizzes/liked', 'QuizzesLiked'],
     ['/profile/looks', 'ProfileLooks'],
     ['/profile/settings', 'ProfileSettings'],
     ['/profile/u2', 'PublicProfile'],
@@ -152,6 +152,7 @@ describe('AppRoutes', () => {
     ['/prizes', '/profile/prizes', 'Prizes'],
     ['/achievements?pin=1', '/profile/achievements?pin=1', 'Achievements'],
     ['/groups', '/profile/groups', 'Groups'],
+    ['/profile/likes', '/quizzes/liked', 'QuizzesLiked'],
   ])('the old address %s redirects to %s keeping the query (77)', async (path, target, page) => {
     vi.mocked(me).mockResolvedValue({ ok: false, error: 'unauthorized' });
     open(path);

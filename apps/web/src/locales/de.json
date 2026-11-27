@@ -5634,5 +5634,8 @@
   "libraryClearSearch": "Suche leeren",
   "leaveUnsaved": "Die Änderungen sind noch nicht gespeichert. Seite verlassen? Der Entwurf bleibt in diesem Tab.",
   "editorHostGame": "Spiel leiten",
-  "editorSaveAndHost": "Speichern und Spiel leiten"
+  "editorSaveAndHost": "Speichern und Spiel leiten",
+  "quizzesTabMine": "Meine",
+  "quizzesTabLiked": "Favoriten",
+  "quizzesLikedTitle": "Lieblingsquizze"
 }

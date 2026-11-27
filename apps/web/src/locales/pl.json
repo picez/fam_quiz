@@ -5735,5 +5735,8 @@
   "libraryClearSearch": "Wyczyść wyszukiwanie",
   "leaveUnsaved": "Zmiany nie są jeszcze zapisane. Opuścić stronę? Szkic zostanie w tej karcie.",
   "editorHostGame": "Poprowadź grę",
-  "editorSaveAndHost": "Zapisz i poprowadź grę"
+  "editorSaveAndHost": "Zapisz i poprowadź grę",
+  "quizzesTabMine": "Moje",
+  "quizzesTabLiked": "Polubione",
+  "quizzesLikedTitle": "Polubione quizy"
 }

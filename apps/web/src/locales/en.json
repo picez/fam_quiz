@@ -5634,5 +5634,8 @@
   "libraryClearSearch": "Clear search",
   "leaveUnsaved": "Your changes aren't saved yet. Leave the page? The draft stays in this tab.",
   "editorHostGame": "Host a game",
-  "editorSaveAndHost": "Save and host a game"
+  "editorSaveAndHost": "Save and host a game",
+  "quizzesTabMine": "Mine",
+  "quizzesTabLiked": "Liked",
+  "quizzesLikedTitle": "Liked quizzes"
 }

@@ -18,6 +18,7 @@ import { QuizSortField } from '../quiz-folders/QuizSortField';
 import { listFolders, moveQuizToFolder } from '../quiz-folders/folder-api';
 import { AutopilotLaunch } from './AutopilotLaunch';
 import { Loading, LoadError } from '../ui/PageState';
+import { QuizzesTabs } from './QuizzesTabs';
 
 const LOGIN = '/login?next=%2Fquizzes';
 
@@ -184,6 +185,7 @@ export function Quizzes() {
 
   return (
     <main className="app wide">
+      <QuizzesTabs />
       <h1 className="brand">{t('quizzesTitle')}</h1>
 
       <RunningGameBanner enabled={signedIn} />
@@ -198,9 +200,6 @@ export function Quizzes() {
         <button type="button" className="btn" disabled={busy} onClick={() => setImportOpen(true)}>
           {t('ioImport')}
         </button>
-        <Link className="btn" to="/library">
-          {t('libraryButton')}
-        </Link>
         <Link className="btn" to="/help">
           {t('helpLink')}
         </Link>

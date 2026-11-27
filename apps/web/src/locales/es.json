@@ -5711,5 +5711,8 @@
   "libraryClearSearch": "Borrar búsqueda",
   "leaveUnsaved": "Los cambios aún no están guardados. ¿Salir de la página? El borrador se queda en esta pestaña.",
   "editorHostGame": "Dirigir una partida",
-  "editorSaveAndHost": "Guardar y dirigir una partida"
+  "editorSaveAndHost": "Guardar y dirigir una partida",
+  "quizzesTabMine": "Míos",
+  "quizzesTabLiked": "Favoritos",
+  "quizzesLikedTitle": "Quizzes favoritos"
 }

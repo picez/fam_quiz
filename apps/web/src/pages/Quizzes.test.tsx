@@ -107,9 +107,12 @@ describe('Quizzes', () => {
     expect(screen.queryByText('📚 Відкрито для всіх')).toBeNull();
   });
 
-  it('opens the library sheet from the row and links to the library', async () => {
+  it('opens the library sheet from the row; the library itself is a tab (77)', async () => {
     open();
-    expect((await screen.findByRole('link', { name: '📚 Бібліотека' })).getAttribute('href')).toBe('/library');
+    const tabs = await screen.findByRole('navigation', { name: 'Вікторини' });
+    expect([...tabs.querySelectorAll('a')].map((a) => a.getAttribute('href'))).toEqual(['/quizzes', '/library', '/quizzes/liked']);
+    expect(screen.getByRole('link', { name: 'Мої' }).getAttribute('aria-current')).toBe('page');
+    expect(screen.queryByRole('link', { name: '📚 Бібліотека' })).toBeNull();
     fireEvent.click(await screen.findByRole('button', { name: '📚 Бібліотека' }));
     expect(await screen.findByRole('dialog', { name: '📚 Відкрити для всіх' })).toBeTruthy();
     expect(screen.getByText(t('libraryShareWarning'))).toBeTruthy();

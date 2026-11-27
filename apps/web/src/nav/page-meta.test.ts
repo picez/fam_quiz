@@ -34,7 +34,10 @@ describe('page meta (76)', () => {
     expect(tabGroup('/feed/calendar')).toBe(tabGroup('/feed'));
     expect(tabGroup('/admin/users')).toBe(tabGroup('/admin'));
     expect(tabGroup('/admin/users/1')).toBeNull();
-    expect(tabGroup('/quizzes')).toBeNull();
+    expect(tabGroup('/quizzes/q1')).toBeNull();
+    expect(tabGroup('/quizzes')).toBe('quizzes');
+    expect(tabGroup('/library')).toBe(tabGroup('/quizzes/liked'));
+    expect(tabGroup('/library/e1')).toBeNull();
     expect(tabGroup('/history/g1')).toBeNull();
   });
 });

@@ -5942,5 +5942,8 @@
   "libraryClearSearch": "امسح البحث",
   "leaveUnsaved": "لم تُحفظ التغييرات بعد. هل تغادر الصفحة؟ تبقى المسودة في هذا التبويب.",
   "editorHostGame": "أدر لعبة",
-  "editorSaveAndHost": "احفظ وأدر لعبة"
+  "editorSaveAndHost": "احفظ وأدر لعبة",
+  "quizzesTabMine": "اختباراتي",
+  "quizzesTabLiked": "المفضلة",
+  "quizzesLikedTitle": "الاختبارات المفضلة"
 }

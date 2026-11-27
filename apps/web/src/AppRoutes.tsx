@@ -19,10 +19,10 @@ import { Play } from './pages/Play';
 import { Prizes } from './pages/Prizes';
 import { Profile } from './pages/Profile';
 import { PublicProfile } from './pages/PublicProfile';
-import { ProfileLikes } from './pages/profile/ProfileLikes';
 import { ProfileQuizzes } from './pages/profile/ProfileQuizzes';
 import { ProfileSettings } from './pages/profile/ProfileSettings';
 import { Quizzes } from './pages/Quizzes';
+import { QuizzesLiked } from './pages/QuizzesLiked';
 import { Stage } from './pages/Stage';
 
 // Сторінки, без яких обходиться гравець, вантажаться окремими чанками (32): телефон, що входить у гру,
@@ -61,6 +61,8 @@ export function AppRoutes() {
           <Route path="/create" element={<CreateGame />} />
           <Route path="/quizzes" element={<Quizzes />} />
           <Route path="/quizzes/new" element={<EditQuiz />} />
+          {/* 77: вкладка «Вподобані»; статичний сегмент — вище за /quizzes/:id. */}
+          <Route path="/quizzes/liked" element={<QuizzesLiked />} />
           <Route path="/quizzes/:id" element={<EditQuiz />} />
           <Route path="/library" element={<Library />} />
           <Route path="/library/:id" element={<LibraryQuiz />} />
@@ -79,7 +81,8 @@ export function AppRoutes() {
           <Route path="/profile/achievements" element={<Achievements />} />
           <Route path="/profile/friends" element={<Friends />} />
           <Route path="/profile/stats" element={<ProfileStats />} />
-          <Route path="/profile/likes" element={<ProfileLikes />} />
+          {/* 77: «Вподобання» переїхали у «Вікторини» → «Вподобані». */}
+          <Route path="/profile/likes" element={<Canonical to="/quizzes/liked" />} />
           <Route path="/profile/levels" element={<ProfileLevels />} />
           <Route path="/profile/looks" element={<ProfileLooks />} />
           <Route path="/profile/settings" element={<ProfileSettings />} />
