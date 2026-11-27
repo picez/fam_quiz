@@ -165,7 +165,7 @@ describe('host help', () => {
     expect(ids.indexOf('setting.live')).toBe(ids.indexOf('setting.pacing') + 1);
     filled('setting.live');
     const body = text('setting.live').toLowerCase();
-    for (const part of ['чекаємо', 'чекає рішення', 'вибір капітана', 'лише ви']) expect(body).toContain(part);
+    for (const part of ['чекаємо', 'чекає рішення', 'вибір капітана', 'лише ти']) expect(body).toContain(part);
     for (const part of ['відкритому випробуванні «вибування»', 'на межі', 'дуелі', 'спроби кожного дуелянта', '«ва-банк»', 'ще в грі']) expect(body).toContain(part);
     expect(text('team.captain')).toContain('Відповідях наживо');
     expect(searchHelp('наживо')).toContain('setting.live');
