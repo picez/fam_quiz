@@ -5709,7 +5709,7 @@
   "emptyHostGame": "Conduci una partita",
   "emptyJoinByCode": "Entra con un codice",
   "libraryClearSearch": "Cancella ricerca",
-  "leaveUnsaved": "Le modifiche non sono ancora salvate. Lasciare la pagina? La bozza resta su questo dispositivo.",
+  "leaveUnsaved": "Le modifiche non sono ancora salvate. Lasciare la pagina? La bozza resta in questa scheda.",
   "editorHostGame": "Conduci una partita",
   "editorHostSaveFirst": "Salva prima le modifiche: la partita parte dalla versione salvata."
 }

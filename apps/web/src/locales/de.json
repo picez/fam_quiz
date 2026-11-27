@@ -5632,7 +5632,7 @@
   "emptyHostGame": "Spiel leiten",
   "emptyJoinByCode": "Mit Code beitreten",
   "libraryClearSearch": "Suche leeren",
-  "leaveUnsaved": "Die Änderungen sind noch nicht gespeichert. Seite verlassen? Der Entwurf bleibt auf diesem Gerät.",
+  "leaveUnsaved": "Die Änderungen sind noch nicht gespeichert. Seite verlassen? Der Entwurf bleibt in diesem Tab.",
   "editorHostGame": "Spiel leiten",
   "editorHostSaveFirst": "Speichere zuerst die Änderungen: Das Spiel startet mit der gespeicherten Version."
 }

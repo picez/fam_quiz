@@ -5632,7 +5632,7 @@
   "emptyHostGame": "Host a game",
   "emptyJoinByCode": "Join a game by code",
   "libraryClearSearch": "Clear search",
-  "leaveUnsaved": "Your changes aren't saved yet. Leave the page? The draft stays on this device.",
+  "leaveUnsaved": "Your changes aren't saved yet. Leave the page? The draft stays in this tab.",
   "editorHostGame": "Host a game",
   "editorHostSaveFirst": "Save your changes first: the game starts from the saved version."
 }
