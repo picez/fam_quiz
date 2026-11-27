@@ -218,7 +218,7 @@ async function editor38() {
   await expect.poll(() => questionText(host).inputValue(), POLL).toBe(SPY_DEFAULT38);
   await expect.poll(() => field(host, 'Час, с').inputValue(), POLL).toBe('40');
   await expect.poll(() => field(host, 'Час голосування, с').inputValue(), POLL).toBe('30');
-  await host.getByText('Шпигуна вибере програма; він бачитиме лише «Ви — шпигун» і вашу підказку. Потрібно щонайменше 3 гравці; з меншою кількістю запитання пропуститься.', exact).waitFor();
+  await host.getByText('Шпигуна вибере програма; він бачитиме лише «Ви — шпигун» і твою підказку. Потрібно щонайменше 3 гравці; з меншою кількістю запитання пропуститься.', exact).waitFor();
   await host.getByRole('textbox', { name: 'Загальне слово', ...exact }).fill('потяг');
   await field(host, HINT_FIELD38).fill('їздить рейками');
   await field(host, 'Час голосування, с').fill('30');
@@ -235,7 +235,7 @@ async function editor38() {
   const teams = host.locator('section.editor-card.teams');
   await teams.getByRole('checkbox', { name: 'Грати командами', ...exact }).check();
   await click(host, 'Зберегти');
-  const teamsProblem = '«Шпигун» не грається командами — вимкніть команди або приберіть запитання (запитання 1)';
+  const teamsProblem = '«Шпигун» не грається командами — вимкни команди або прибери запитання (запитання 1)';
   await (await showProblems(host)).filter({ hasText: teamsProblem }).waitFor();
   const listed = async () => ((await (await host.request.get(`${base}/api/quizzes`)).json()) as { title: string }[]).filter((entry) => entry.title === 'Шпигун 38').length;
   expect(await listed(), 'a spy quiz with teams was saved').toBe(0);

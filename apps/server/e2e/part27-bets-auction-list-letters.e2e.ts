@@ -387,7 +387,7 @@ async function auctionGame27b() {
   await field(host, 'Бали').fill('400');
 
   // Без обрізу збереження називає проблему.
-  const problem = 'Позначте, яку частину тексту видно під час торгу';
+  const problem = 'Познач, яку частину тексту видно під час торгу';
   await click(host, 'Зберегти');
   await host.getByText(problem).first().waitFor();
   await shot(host, 'auction27b-editor');

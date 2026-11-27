@@ -261,7 +261,7 @@ async function puzzlesGame28d() {
   const custom = generateSudoku(28, 'medium');
   const customGivens = [...custom.givens].flatMap((digit, i): [number, string][] => (digit === '0' ? [] : [[i, digit]]));
   for (const [i, digit] of customGivens.slice(0, 4)) await inputs.nth(i).fill(digit);
-  await expect.poll(() => status.textContent(), POLL).toBe('Розв’язків кілька — додайте цифри.');
+  await expect.poll(() => status.textContent(), POLL).toBe('Розв’язків кілька — додай цифри.');
   await shot(host, 'puzzles28d-editor-custom-many');
   const [i0, d0] = customGivens[0]!;
   const twin = Math.floor(i0 / 6) * 6 + (((i0 % 6) + 1) % 6);
@@ -298,7 +298,7 @@ async function puzzlesGame28d() {
   await fillWords28d(host, KEY_WORDS28D);
   await field(host, 'Ключове слово').check();
   await field(host, 'Слово-ключ').fill('футбол');
-  await expect.poll(() => host.locator('.crossword-editor-warning').textContent(), POLL).toBe('У словах бракує літер для ключа: ф, у, т, б — додайте слово з ними або змініть ключ.');
+  await expect.poll(() => host.locator('.crossword-editor-warning').textContent(), POLL).toBe('У словах бракує літер для ключа: ф, у, т, б — додай слово з ними або зміни ключ.');
   expect(await host.locator('.crossword-editor-grid td.is-key').count(), 'key cells for a key with missing letters').toBe(0);
   await shot(host, 'puzzles28d-editor-key-missing');
   await field(host, 'Слово-ключ').fill('ліс');

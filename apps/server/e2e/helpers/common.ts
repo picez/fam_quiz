@@ -294,7 +294,7 @@ export async function register(page: Page, via: 'host' | 'menu', name: string, e
   if (via === 'host') await page.getByRole('link', { name: 'Увійти, щоб проводити свої ігри', ...exact }).click();
   else await page.locator(MENU).getByRole('link', { name: 'Увійти' }).click();
   await click(page, 'Створити акаунт');
-  await field(page, 'Ваше ім’я').fill(name);
+  await field(page, 'Твоє ім’я').fill(name);
   await field(page, 'Email').fill(email);
   await field(page, 'Пароль').fill('correct horse battery');
   await click(page, 'Зареєструватися');

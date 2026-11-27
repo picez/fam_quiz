@@ -395,11 +395,11 @@ async function sparesGame() {
   expect(await buffGroup.getByText('скоро').count()).toBe(0);
   for (const item of await buffGroup.locator('label.powers-item input').all()) expect(await item.isDisabled()).toBe(false);
   await buffGroup.locator('label.powers-item', { hasText: 'Заміна запитання' }).locator('input').check();
-  await buffGroup.locator('.powers-warn').getByText('Заміна запитання: додайте запасні запитання', exact).waitFor();
+  await buffGroup.locator('.powers-warn').getByText('Заміна запитання: додай запасні запитання', exact).waitFor();
   const sparesBox = host.locator('details.spares');
   expect(await sparesBox.getAttribute('open')).toBeNull();
   await click(host, 'Зберегти');
-  await (await showProblems(host)).getByText('Заміна запитання: додайте запасні запитання.', exact).waitFor();
+  await (await showProblems(host)).getByText('Заміна запитання: додай запасні запитання.', exact).waitFor();
   await expect.poll(() => sparesBox.getAttribute('open')).not.toBeNull();
   expect(host.url()).not.toMatch(/\/quizzes$/);
   await shot(host, 'buff8b-editor-empty');
