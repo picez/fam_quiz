@@ -504,7 +504,6 @@ const uk = {
   haveAccount: 'У мене вже є акаунт',
   backHome: 'На головну',
   signOut: 'Вийти',
-  hostEntry: 'Я ведучий',
   // Перемикач мови (вхід і профіль)
   languageLabel: 'Мова',
   languageSaveFailed: 'Мову змінено на цьому пристрої, але не збережено в профілі. Спробуй ще раз.',
@@ -2450,7 +2449,6 @@ const uk = {
   menuShortAdmin: 'Адмінка',
   menuShortSignIn: 'Вхід',
   // Стартове меню на головній (24a) і сторінка «Провести гру» (77: була «Створити гру»)
-  startMenuLabel: 'Стартове меню',
   startCreate: 'Провести гру',
   startJoin: 'Доєднатись до гри',
   // Картинка запитання на весь екран
@@ -4788,7 +4786,6 @@ const uk = {
   ioWaitLimit: 'Забагато завантажень поспіль — чекаю хвилинку…',
   ioCreating: 'Створюю вікторину…',
   libraryTitle: 'Бібліотека',
-  libraryButton: '📚 Бібліотека',
   libraryShareTitle: '📚 Відкрити для всіх',
   libraryShareWarning: 'Вікторину побачать усі користувачі сайту, і будь-хто зможе її скопіювати. Не додавай особисті фото чи дані — свої, рідних чи друзів.',
   libraryShareLanguage: 'Мова вікторини',
@@ -4825,7 +4822,6 @@ const uk = {
   // 77: «Провести гру» зі сторінки бібліотечної вікторини
   libraryHost: 'Провести гру',
   libraryHostSignIn: 'Увійти, щоб провести',
-  libraryGuestLink: '📚 Бібліотека вікторин',
   librarySearch: 'Пошук за назвою чи описом',
   librarySort: 'Порядок',
   librarySortPopular: 'Популярні',
@@ -4840,7 +4836,6 @@ const uk = {
   libraryCopy: 'Копіювати собі',
   libraryCopied: 'Скопійовано в «Мої вікторини»',
   libraryOpenCopy: 'Відкрити копію',
-  librarySignIn: 'Увійди, щоб копіювати, вподобати чи поскаржитись',
   libraryNoAnswers: 'Запитань і відповідей тут не видно — щоб не підглядати.',
   err_library_own: 'Це твоя вікторина — вона вже є в «Мої вікторини».',
   reportButton: 'Поскаржитись',
@@ -5036,8 +5031,6 @@ const uk = {
   announceLabel: 'Оголошення',
   announceMore: 'Детальніше',
   announceClose: 'Закрити оголошення',
-  homeJoin: 'Приєднатися',
-  homeActionsLabel: 'Почати',
   homeContinueTitle: 'Продовжити гру',
   homeContinueRunning: 'Гра {code} ще триває',
   homeContinueBack: 'Повернутися',

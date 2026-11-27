@@ -27211,43 +27211,7 @@ input.sudoku-editor-cell:focus-visible {
   gap: 0.5rem;
 }
 
-/* Імпорт і експорт вікторин (38e): меню «Експорт» у картці, діалог «Імпорт»; кольори — зі змінних теми. */
-.io-export-wrap {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-  max-width: 100%;
-}
-
-.io-export > summary {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  box-sizing: border-box;
-  list-style: none;
-}
-
-.io-export > summary::-webkit-details-marker {
-  display: none;
-}
-
-.io-export[open] > summary {
-  border-color: var(--paper);
-}
-
-.io-export-menu {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-  margin-top: 0.5rem;
-  padding: 0.5rem;
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  background: var(--stage);
-  /* Відкрите меню прокручується так, щоб не ховатися під нижнім меню. */
-  scroll-margin-block-end: calc(var(--menu-h, 0px) + 0.75rem + env(safe-area-inset-bottom, 0px));
-}
-
+/* Імпорт і експорт вікторин (38e): рядок стану експорту в картці, діалог «Імпорт»; кольори — зі змінних теми. */
 .io-status {
   margin: 0;
   overflow-wrap: anywhere;
@@ -27261,12 +27225,6 @@ input.sudoku-editor-cell:focus-visible {
 
 .io-hint-help {
   flex: none;
-}
-
-@media (max-width: 480px) {
-  .io-export-wrap {
-    flex: 1 1 100%;
-  }
 }
 
 .io-backdrop {
