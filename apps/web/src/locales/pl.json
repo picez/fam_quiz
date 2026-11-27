@@ -1851,7 +1851,7 @@
   "historyDebuffNoTarget": "{buyer} kupuje {debuff}: {points}",
   "historyDuel": "Pojedynek: {winner} {plus}, {loser} {minus}",
   "historyDuelOne": "Pojedynek: {name} {points}",
-  "historyEmpty": "Tu pojawią się gry, które poprowadziłeś(-aś). Uruchom grę z listy quizów.",
+  "historyEmpty": "Tu pojawią się gry, które poprowadzisz.",
   "historyFactAccuracy": "Celność",
   "historyFactAccuracyValue": "{percent} % ({correct} z {answered})",
   "historyFactAvg": "Średni czas",
@@ -2453,7 +2453,7 @@
   "moveRoundUp": "Runda {index} wyżej",
   "moveUp": "Przesuń w górę: {item}",
   "moveUpShort": "Wyżej",
-  "myGamesEmpty": "Tu pojawią się gry, w które zagrałeś(-aś) po zalogowaniu. Zaloguj się, zanim wpiszesz kod gry.",
+  "myGamesEmpty": "Tu pojawią się gry, w które zagrasz ze swojego konta.",
   "myGamesTeam": "Drużyna „{name}”",
   "myGamesTitle": "Moje gry",
   "myPrizeGuest": "Grasz jako gość: nagroda nie trafi do gabloty.",
@@ -5726,5 +5726,14 @@
   "typeDesc_crossword": "Wpisać słowa według podpowiedzi.",
   "typeDesc_sudoku": "Wypełnić siatkę 6×6 bez powtórzeń.",
   "typeDesc_poll": "Ankieta bez poprawnej odpowiedzi.",
-  "typeDesc_wordcloud": "Chmura słów od graczy."
+  "typeDesc_wordcloud": "Chmura słów od graczy.",
+  "pageHome": "Strona główna",
+  "backTo": "Wstecz: {page}",
+  "retryLoad": "Spróbuj ponownie",
+  "emptyHostGame": "Poprowadź grę",
+  "emptyJoinByCode": "Dołącz do gry kodem",
+  "libraryClearSearch": "Wyczyść wyszukiwanie",
+  "leaveUnsaved": "Zmiany nie są jeszcze zapisane. Opuścić stronę? Szkic zostanie na tym urządzeniu.",
+  "editorHostGame": "Poprowadź grę",
+  "editorHostSaveFirst": "Najpierw zapisz zmiany: gra zacznie się od zapisanej wersji."
 }

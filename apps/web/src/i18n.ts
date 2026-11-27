@@ -1663,13 +1663,13 @@ const uk = {
   historyDebuffNoTarget: '{buyer} купує {debuff}: {points}',
   // Історія
   historyTitle: 'Історія ігор',
-  historyEmpty: 'Тут з’являться ігри, які ви провели. Запустіть гру зі списку вікторин.',
+  historyEmpty: 'Тут з’являться ігри, які ти проведеш.',
   myGamesTitle: 'Мої ігри',
   myGamesTeam: 'Команда «{name}»',
   historyTeamGame: 'Командна гра',
   historyAutopilot: 'Провів бот',
   historyMembers: 'Склад: {names}',
-  myGamesEmpty: 'Тут з’являться ігри, у які ви зіграли, увійшовши в акаунт. Увійдіть перед тим, як вводити код гри.',
+  myGamesEmpty: 'Тут з’являться ігри, у які ти зіграєш зі свого акаунта.',
   status_running: 'триває',
   status_finished: 'завершено',
   status_aborted: 'перервано',
@@ -5783,6 +5783,16 @@ const uk = {
   chartPointsValue: "{value} п.п.",
   adminHealthRefreshing: "Оновлення…",
   adminHealthRefreshFailed: "Не вдалося оновити — показано попередні дані.",
+  // 76: навігація, етап 1 — назва головної, «назад» зі словом, стани сторінки, редактор.
+  pageHome: 'Головна',
+  backTo: 'Назад: {page}',
+  retryLoad: 'Спробувати ще раз',
+  emptyHostGame: 'Провести гру',
+  emptyJoinByCode: 'Увійти в гру за кодом',
+  libraryClearSearch: 'Очистити пошук',
+  leaveUnsaved: 'Зміни ще не збережено. Піти зі сторінки? Чернетка лишиться на цьому пристрої.',
+  editorHostGame: 'Провести гру',
+  editorHostSaveFirst: 'Спершу збережи зміни: гра почнеться зі збереженої версії.',
 } as const;
 
 /** uk-словник — той самий об'єкт, що читає t(); інші мови перевіряються проти нього. */

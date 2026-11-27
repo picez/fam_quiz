@@ -1851,7 +1851,7 @@
   "historyDebuffNoTarget": "{buyer} compra {debuff}: {points}",
   "historyDuel": "Duelo: {winner} {plus}, {loser} {minus}",
   "historyDuelOne": "Duelo: {name} {points}",
-  "historyEmpty": "Aquí aparecerán las partidas que hayas dirigido. Lanza una partida desde la lista de quizzes.",
+  "historyEmpty": "Aquí aparecerán las partidas que dirijas.",
   "historyFactAccuracy": "Precisión",
   "historyFactAccuracyValue": "{percent} % ({correct} de {answered})",
   "historyFactAvg": "Tiempo medio",
@@ -2453,7 +2453,7 @@
   "moveRoundUp": "Subir la ronda {index}",
   "moveUp": "Subir: {item}",
   "moveUpShort": "Subir",
-  "myGamesEmpty": "Aquí aparecerán las partidas que hayas jugado con la sesión iniciada. Inicia sesión antes de escribir el código de la partida.",
+  "myGamesEmpty": "Aquí aparecerán las partidas que juegues con tu cuenta.",
   "myGamesTeam": "Equipo «{name}»",
   "myGamesTitle": "Mis partidas",
   "myPrizeGuest": "Juegas como invitado: el premio no irá a la vitrina.",
@@ -5702,5 +5702,14 @@
   "typeDesc_crossword": "Escribir palabras según las pistas.",
   "typeDesc_sudoku": "Rellenar la cuadrícula de 6×6 sin repeticiones.",
   "typeDesc_poll": "Una encuesta sin respuesta correcta.",
-  "typeDesc_wordcloud": "Una nube de palabras de los jugadores."
+  "typeDesc_wordcloud": "Una nube de palabras de los jugadores.",
+  "pageHome": "Inicio",
+  "backTo": "Volver: {page}",
+  "retryLoad": "Intentar de nuevo",
+  "emptyHostGame": "Dirigir una partida",
+  "emptyJoinByCode": "Entrar con un código",
+  "libraryClearSearch": "Borrar búsqueda",
+  "leaveUnsaved": "Los cambios aún no están guardados. ¿Salir de la página? El borrador se queda en este dispositivo.",
+  "editorHostGame": "Dirigir una partida",
+  "editorHostSaveFirst": "Guarda primero los cambios: la partida empieza con la versión guardada."
 }

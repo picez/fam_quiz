@@ -1829,7 +1829,7 @@
   "historyDebuffNoTarget": "{buyer} buys {debuff}: {points}",
   "historyDuel": "Duel: {winner} {plus}, {loser} {minus}",
   "historyDuelOne": "Duel: {name} {points}",
-  "historyEmpty": "Games you've hosted will appear here. Start a game from the quiz list.",
+  "historyEmpty": "Games you host will appear here.",
   "historyFactAccuracy": "Accuracy",
   "historyFactAccuracyValue": "{percent}% ({correct} of {answered})",
   "historyFactAvg": "Average time",
@@ -2426,7 +2426,7 @@
   "moveRoundUp": "Round {index} up",
   "moveUp": "Move up: {item}",
   "moveUpShort": "Up",
-  "myGamesEmpty": "Games you've played while signed in will appear here. Sign in before entering the game code.",
+  "myGamesEmpty": "Games you play from your account will appear here.",
   "myGamesTeam": "Team “{name}”",
   "myGamesTitle": "My games",
   "myPrizeGuest": "You're playing as a guest: the prize won't go into a showcase.",
@@ -5625,5 +5625,14 @@
   "typeDesc_crossword": "Fill in words from the clues.",
   "typeDesc_sudoku": "Fill the 6×6 grid without repeats.",
   "typeDesc_poll": "A poll with no correct answer.",
-  "typeDesc_wordcloud": "A word cloud from the players."
+  "typeDesc_wordcloud": "A word cloud from the players.",
+  "pageHome": "Home",
+  "backTo": "Back: {page}",
+  "retryLoad": "Try again",
+  "emptyHostGame": "Host a game",
+  "emptyJoinByCode": "Join a game by code",
+  "libraryClearSearch": "Clear search",
+  "leaveUnsaved": "Your changes aren't saved yet. Leave the page? The draft stays on this device.",
+  "editorHostGame": "Host a game",
+  "editorHostSaveFirst": "Save your changes first: the game starts from the saved version."
 }

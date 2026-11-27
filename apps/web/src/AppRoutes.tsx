@@ -1,6 +1,7 @@
 import { lazy } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { WithMenu } from './menu/WithMenu';
+import { RouteEffects } from './nav/RouteEffects';
 import { BotHost } from './pages/BotHost';
 import { Achievements } from './pages/Achievements';
 import { CreateGame } from './pages/CreateGame';
@@ -44,61 +45,65 @@ const ProblemReport = lazy(() => import('./problems/ProblemReport').then((m) => 
 
 export function AppRoutes() {
   return (
-    <Routes>
-      <Route element={<WithMenu />}>
-        <Route path="/" element={<Home />} />
-        <Route path="/login" element={<Login />} />
-        <Route path="/create" element={<CreateGame />} />
-        <Route path="/quizzes" element={<Quizzes />} />
-        <Route path="/quizzes/new" element={<EditQuiz />} />
-        <Route path="/quizzes/:id" element={<EditQuiz />} />
-        <Route path="/library" element={<Library />} />
-        <Route path="/library/:id" element={<LibraryQuiz />} />
-        <Route path="/feed" element={<Feed />} />
-        <Route path="/feed/calendar" element={<Calendar />} />
-        <Route path="/history" element={<History />} />
-        <Route path="/history/:id" element={<GameHistory />} />
-        <Route path="/me" element={<MyGames />} />
-        <Route path="/profile" element={<Profile />} />
-        {/* Підсторінки плиток профілю: статичні сегменти react-router ставить вище за /profile/:id. */}
-        <Route path="/profile/quizzes" element={<ProfileQuizzes />} />
-        <Route path="/profile/prizes" element={<Prizes />} />
-        {/* Повноекранний редактор призу: шар поверх меню (position: fixed). */}
-        <Route path="/profile/prizes/new" element={<PrizeStudioPage />} />
-        <Route path="/profile/prizes/:id" element={<PrizeStudioPage />} />
-        <Route path="/profile/achievements" element={<Achievements />} />
-        <Route path="/profile/friends" element={<Friends />} />
-        <Route path="/profile/stats" element={<ProfileStats />} />
-        <Route path="/profile/likes" element={<ProfileLikes />} />
-        <Route path="/profile/levels" element={<ProfileLevels />} />
-        <Route path="/profile/looks" element={<ProfileLooks />} />
-        <Route path="/profile/settings" element={<ProfileSettings />} />
-        {/* Групи (12k): список, група, форма запису; вступ за коротким посиланням. */}
-        <Route path="/profile/groups" element={<Groups />} />
-        <Route path="/profile/groups/:id" element={<GroupPage />} />
-        <Route path="/profile/groups/:id/new" element={<GroupItemPage />} />
-        <Route path="/profile/groups/:id/items/:itemId" element={<GroupItemPage />} />
-        <Route path="/groups" element={<Groups />} />
-        <Route path="/groups/join/:code" element={<GroupJoin />} />
-        <Route path="/challenge/:code" element={<ChallengePage />} />
-        {/* Старі адреси — аліаси тих самих сторінок, не редірект. */}
-        <Route path="/prizes" element={<Prizes />} />
-        <Route path="/achievements" element={<Achievements />} />
-        <Route path="/friends" element={<Friends />} />
-        <Route path="/profile/:id" element={<PublicProfile />} />
-        <Route path="/profile/:id/achievements" element={<Achievements />} />
-        <Route path="/admin/*" element={<Admin />} />
-        <Route path="/help" element={<HostHelp />} />
-        {/* «Повідомити про проблему» (64): і гостям; ?from= — сторінка, з якої прийшли. */}
-        <Route path="/report" element={<ProblemReport />} />
-        <Route path="/inbox" element={<InboxPage />} />
-        <Route path="/new" element={<Navigate to="/quizzes" replace />} />
-      </Route>
-      <Route path="/play/:code" element={<Play />} />
-      <Route path="/host/:code" element={<Host />} />
-      <Route path="/bot-host/:code" element={<BotHost />} />
-      <Route path="/stage/:code" element={<Stage />} />
-      <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
+    <>
+      {/* 76: заголовок вкладки, прокрутка й фокус на кожен перехід. */}
+      <RouteEffects />
+      <Routes>
+        <Route element={<WithMenu />}>
+          <Route path="/" element={<Home />} />
+          <Route path="/login" element={<Login />} />
+          <Route path="/create" element={<CreateGame />} />
+          <Route path="/quizzes" element={<Quizzes />} />
+          <Route path="/quizzes/new" element={<EditQuiz />} />
+          <Route path="/quizzes/:id" element={<EditQuiz />} />
+          <Route path="/library" element={<Library />} />
+          <Route path="/library/:id" element={<LibraryQuiz />} />
+          <Route path="/feed" element={<Feed />} />
+          <Route path="/feed/calendar" element={<Calendar />} />
+          <Route path="/history" element={<History />} />
+          <Route path="/history/:id" element={<GameHistory />} />
+          <Route path="/me" element={<MyGames />} />
+          <Route path="/profile" element={<Profile />} />
+          {/* Підсторінки плиток профілю: статичні сегменти react-router ставить вище за /profile/:id. */}
+          <Route path="/profile/quizzes" element={<ProfileQuizzes />} />
+          <Route path="/profile/prizes" element={<Prizes />} />
+          {/* Повноекранний редактор призу: шар поверх меню (position: fixed). */}
+          <Route path="/profile/prizes/new" element={<PrizeStudioPage />} />
+          <Route path="/profile/prizes/:id" element={<PrizeStudioPage />} />
+          <Route path="/profile/achievements" element={<Achievements />} />
+          <Route path="/profile/friends" element={<Friends />} />
+          <Route path="/profile/stats" element={<ProfileStats />} />
+          <Route path="/profile/likes" element={<ProfileLikes />} />
+          <Route path="/profile/levels" element={<ProfileLevels />} />
+          <Route path="/profile/looks" element={<ProfileLooks />} />
+          <Route path="/profile/settings" element={<ProfileSettings />} />
+          {/* Групи (12k): список, група, форма запису; вступ за коротким посиланням. */}
+          <Route path="/profile/groups" element={<Groups />} />
+          <Route path="/profile/groups/:id" element={<GroupPage />} />
+          <Route path="/profile/groups/:id/new" element={<GroupItemPage />} />
+          <Route path="/profile/groups/:id/items/:itemId" element={<GroupItemPage />} />
+          <Route path="/groups" element={<Groups />} />
+          <Route path="/groups/join/:code" element={<GroupJoin />} />
+          <Route path="/challenge/:code" element={<ChallengePage />} />
+          {/* Старі адреси — аліаси тих самих сторінок, не редірект. */}
+          <Route path="/prizes" element={<Prizes />} />
+          <Route path="/achievements" element={<Achievements />} />
+          <Route path="/friends" element={<Friends />} />
+          <Route path="/profile/:id" element={<PublicProfile />} />
+          <Route path="/profile/:id/achievements" element={<Achievements />} />
+          <Route path="/admin/*" element={<Admin />} />
+          <Route path="/help" element={<HostHelp />} />
+          {/* «Повідомити про проблему» (64): і гостям; ?from= — сторінка, з якої прийшли. */}
+          <Route path="/report" element={<ProblemReport />} />
+          <Route path="/inbox" element={<InboxPage />} />
+          <Route path="/new" element={<Navigate to="/quizzes" replace />} />
+        </Route>
+        <Route path="/play/:code" element={<Play />} />
+        <Route path="/host/:code" element={<Host />} />
+        <Route path="/bot-host/:code" element={<BotHost />} />
+        <Route path="/stage/:code" element={<Stage />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </>
   );
 }
