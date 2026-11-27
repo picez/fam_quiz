@@ -1432,6 +1432,19 @@ describe('History: unfinished games (13b)', () => {
     expect(deleteSavedGame).toHaveBeenCalledWith('g7');
   });
 
+  it('79: deleting a saved game does not move a host with as many played games to «Зіграні»', async () => {
+    vi.mocked(listGames).mockResolvedValueOnce({ ok: true, data: [saved, summary] }).mockResolvedValue({ ok: true, data: [summary] });
+    vi.mocked(myHistory).mockResolvedValue({ ok: true, data: [{ gameId: 'p1', title: 'Кіно', status: 'finished' as const, autopilot: false, startedAt: '2026-10-12T15:30:00.000Z', nickname: 'Олена', score: 10, rank: 1, playerCount: 3, correct: 1, answered: 1, questionsPlayed: 1, team: null }, { ...{ gameId: 'p1', title: 'Кіно', status: 'finished' as const, autopilot: false, startedAt: '2026-10-12T15:30:00.000Z', nickname: 'Олена', score: 10, rank: 1, playerCount: 3, correct: 1, answered: 1, questionsPlayed: 1, team: null }, gameId: 'p2' }] });
+    vi.mocked(deleteSavedGame).mockResolvedValue({ ok: true });
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    open('/history');
+    await screen.findByRole('link', { name: 'Річки' }, { timeout: 5000 });
+    fireEvent.click(within(savedItem()).getByRole('button', { name: 'Видалити' }));
+    await waitFor(() => expect(listGames).toHaveBeenCalledTimes(2), { timeout: 5000 });
+    expect(await screen.findByRole('link', { name: 'Географія' }, { timeout: 5000 })).toBeTruthy();
+    expect(screen.queryByText('зіграні')).toBeNull();
+  });
+
   it('«Видалити» without the confirmation sends nothing', async () => {
     vi.mocked(listGames).mockResolvedValue({ ok: true, data: [saved] });
     const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
