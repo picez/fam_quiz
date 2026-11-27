@@ -13,7 +13,7 @@ describe('en', () => {
     expect(t('no')).toBe('No');
     expect(countText('questionCount', 1, { count: 1 })).toBe('1 question');
     expect(countText('questionCount', 5, { count: 5 })).toBe('5 questions');
-    expect(t('menuShortJoin')).toBe('Menu');
+    expect(t('menuShortJoin')).toBe('Home');
     expect(t('menuShortProfile')).toBe('Profile');
   });
 });
