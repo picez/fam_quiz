@@ -1338,12 +1338,18 @@ async function admin21a() {
     await admin.getByText('Живих ігор зараз', exact).waitFor();
     expect(await menuLinks(admin)).toEqual(MENU_ITEMS_ADMIN);
     for (const width of [320, 360, 375]) await expectFiveItems(admin, width, 6);
-    // Знімки меню адміна на 360 px у обох темах (лише з E2E_SHOTS=1); перемикач вертає тему назад.
+    // Знімки меню адміна на 360 px у обох темах (лише з E2E_SHOTS=1). 80: у нижній панелі телефона перемикача теми немає
+    // («Вигляд» — на компʼютері, на телефоні — унизу головної), тож тема перемикається сховищем і вертається назад.
     await admin.setViewportSize({ width: 360, height: 812 });
     await shot(admin, 'p21a-admin-menu-360-a');
-    await admin.locator('.menu-theme').click();
+    expect(await admin.locator('nav.menu .appearance-button').isVisible(), 'no «Вигляд» in the phone bar').toBe(false);
+    await admin.evaluate("localStorage.setItem('quiz:theme', 'light')");
+    await admin.reload();
+    await admin.getByText('Користувачів усього', exact).waitFor();
     await shot(admin, 'p21a-admin-menu-360-b');
-    await admin.locator('.menu-theme').click();
+    await admin.evaluate("localStorage.removeItem('quiz:theme')");
+    await admin.reload();
+    await admin.getByText('Користувачів усього', exact).waitFor();
     await admin.setViewportSize({ width: 375, height: 812 });
     expect(await noSideScroll(admin)).toBe(true);
     const tabs = admin.locator('.admin-tabs a');

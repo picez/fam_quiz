@@ -211,11 +211,11 @@ async function appealsInbox70() {
   await admin.goto(`${base}/admin/errors`);
   await admin.waitForURL(`${base}/admin/appeals/errors`);
   await admin.goto(`${base}/admin/appeals`);
-  // Голий адрес відкриває першу підвкладку, де є нове: скарг на вікторини немає, «Щось не працює» — одна.
+  // Голий адрес відкриває першу підвкладку, де є нове: скарг на вікторини немає, «Повідомлення про проблеми» — одна.
   await admin.waitForURL(`${base}/admin/appeals/problems`);
   const views = admin.locator('nav.admin-appeals-views a');
   expect(await views.count()).toBe(3);
-  expect((await views.allInnerTexts()).map((text) => text.replace(/\s*\d+$/, '').trim())).toEqual(['Скарги на вікторини й профілі', 'Щось не працює', 'Збої сервера']);
+  expect((await views.allInnerTexts()).map((text) => text.replace(/\s*\d+$/, '').trim())).toEqual(['Скарги на вікторини й профілі', 'Повідомлення про проблеми', 'Збої сервера']);
   expect(await views.nth(1).getAttribute('aria-current')).toBe('page');
   const card = admin.locator('li.admin-card', { hasText: PROBLEM });
   await card.waitFor();
@@ -234,7 +234,7 @@ async function appealsInbox70() {
   await card.getByRole('button', { name: 'Надіслати відповідь', ...exact }).click();
   await admin.getByText('Відповідь у вхідних гравця (сповіщень у нього немає).', exact).waitFor();
 
-  // ── 4. Оля: дзвіночок «1» → /inbox: відповідь із цитатою; після показу бейдж 0; на /report відповідь теж є. ──
+  // ── 4. Оля: дзвіночок «1» → /inbox: відповідь із цитатою; після показу бейдж 0; у «Моїх зверненнях» (80) відповідь теж є. ──
   await olya.goto(base);
   await expect.poll(() => bell(olya).getAttribute('aria-label'), POLL).toBe('Вхідні, непрочитаних: 1');
   await bell(olya).click();
@@ -247,8 +247,8 @@ async function appealsInbox70() {
   expect(replyText).toContain('Нове');
   await expect.poll(() => bell(olya).getAttribute('aria-label'), POLL).toBe('Вхідні');
   await view(olya, 'p70-inbox-reply-360');
-  await replyCard.getByRole('link', { name: 'Усі мої повідомлення', ...exact }).click();
-  await olya.waitForURL(`${base}/report`);
+  await replyCard.getByRole('link', { name: 'Мої звернення', ...exact }).click();
+  await olya.waitForURL(`${base}/report/mine`);
   await olya.locator('section[aria-labelledby="problem-mine-title"] li', { hasText: PROBLEM }).getByText(`Відповідь адміністратора: ${REPLY}`, exact).waitFor();
 
   // ── Темна тема: «Вхідні» Олі й «Звернення» адміна. ──

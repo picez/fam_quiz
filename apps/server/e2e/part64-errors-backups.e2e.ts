@@ -116,16 +116,20 @@ async function errorsBackups64() {
   for (let i = 0; i < 3; i += 1) statuses.push((await guest.request.post(`${base}/api/problem-reports`, { data: { text: '', page: null } })).status());
   expect(statuses, 'the guest limit: 4th request in an hour').toEqual([400, 400, 429]);
 
-  // ── 3. Оля з налаштувань профілю → посилання → скарга; «Мої повідомлення» — «Відкрите». ──
+  // ── 3. Оля з налаштувань профілю → посилання → скарга; 80: з /report — «Мої звернення», там «Відкрите». ──
   await olya.goto(`${base}/profile/settings`);
   await olya.getByRole('link', { name: 'Повідомити про проблему', ...exact }).click();
   await olya.waitForURL(`${base}/report?from=%2Fprofile%2Fsettings`);
   await olya.getByLabel('Що сталося', exact).fill(OLYA_TEXT);
   await olya.getByRole('button', { name: 'Надіслати', ...exact }).click();
   await olya.getByText('Дякуємо! Ми отримали повідомлення.', exact).waitFor();
+  await view(olya, 'problem64-olya-360');
+  await olya.locator('main').getByRole('link', { name: 'Мої звернення', ...exact }).click();
+  await olya.waitForURL(`${base}/report/mine`);
+  await olya.getByRole('heading', { level: 1, name: 'Мої звернення', ...exact }).waitFor();
   const mine = olya.locator('section[aria-labelledby="problem-mine-title"]');
   await mine.locator('li', { hasText: OLYA_TEXT }).getByText('Відкрите', exact).waitFor();
-  await view(olya, 'problem64-olya-360');
+  await view(olya, 'problem64-olya-mine-360');
 
   // ── 4. Адмін: бейдж «3» на «Зверненнях» (70: один спільний); список збоїв замаскований; вирішення. ──
   await admin.goto(`${base}/admin`);
@@ -134,7 +138,7 @@ async function errorsBackups64() {
   const sub = (name: 'complaints' | 'problems' | 'errors') => admin.locator(`nav.admin-appeals-views a[href="/admin/appeals/${name}"]`);
   await expect.poll(() => tab.locator('.menu-badge').innerText(), POLL).toBe('3');
   expect(await tab.locator('.menu-badge').getAttribute('aria-label')).toBe('Звернення, нових: 3');
-  // Голий адрес відкриває першу підвкладку, де є нове: скарги на вікторини порожні, «Щось не працює» — 2.
+  // Голий адрес відкриває першу підвкладку, де є нове: скарги на вікторини порожні, «Повідомлення про проблеми» — 2.
   await tab.click();
   await admin.waitForURL(`${base}/admin/appeals/problems`);
   await sub('errors').click();
@@ -180,7 +184,7 @@ async function errorsBackups64() {
   expect(replies[0]!.endpoint).toBe(endpointOf('olya'));
   expect(replies[0]!.payload).toMatchObject({ kind: 'problem_reply', text: REPLY });
   await admin.locator('li.admin-card', { hasText: GUEST_TEXT }).getByRole('button', { name: 'Вирішено', ...exact }).click();
-  await admin.getByText('Скарг немає.', exact).waitFor();
+  await admin.getByText('Повідомлень немає.', exact).waitFor();
   // Бейдж перечитується на кожен перехід (не на дію в тій самій адресі): клік по вкладці — новий location.key.
   await tab.click();
   await expect.poll(() => tab.locator('.menu-badge').count(), POLL).toBe(0);
@@ -190,8 +194,8 @@ async function errorsBackups64() {
   await admin.locator('li.admin-card', { hasText: GUEST_TEXT }).waitFor();
   await view(admin, 'problems64-list-360');
 
-  // ── 6. Оля перезавантажує /report: «Вирішене» і відповідь. ──
-  await olya.goto(`${base}/report`);
+  // ── 6. Оля перезавантажує «Мої звернення» (80): «Вирішене» і відповідь. ──
+  await olya.goto(`${base}/report/mine`);
   const item = olya.locator('section[aria-labelledby="problem-mine-title"] li', { hasText: OLYA_TEXT });
   await item.getByText('Вирішене', exact).waitFor();
   await item.getByText(`Відповідь адміністратора: ${REPLY}`, exact).waitFor();
@@ -226,8 +230,8 @@ async function errorsBackups64() {
   // ── 8. Журнал. ──
   await admin.goto(`${base}/admin/log`);
   await admin.getByText(/^Адмін 64 позначив\(-ла\) збій «e2e64: .*» як вирішений/).first().waitFor();
-  await admin.getByText(`Адмін 64 відповів(-ла) Оля на скаргу: «${REPLY}»`, exact).first().waitFor();
-  await admin.getByText(`Адмін 64 закрив(-ла) скаргу «${GUEST_TEXT}»`, exact).first().waitFor();
+  await admin.getByText(`Адмін 64 відповів(-ла) Оля на повідомлення про проблему: «${REPLY}»`, exact).first().waitFor();
+  await admin.getByText(`Адмін 64 закрив(-ла) повідомлення про проблему «${GUEST_TEXT}»`, exact).first().waitFor();
   await admin.getByText('Адмін 64 зробив(-ла) копію бази вручну', exact).first().waitFor();
   expect(await admin.locator('main').innerText(), 'the log has an email').not.toContain('@');
 

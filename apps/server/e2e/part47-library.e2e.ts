@@ -290,7 +290,7 @@ async function library47() {
   const report = async (page: Page, reason: string, text?: string, shotName?: string) => {
     await page.goto(`${base}/library/${entryId}`);
     await page.getByRole('heading', { name: NEW_TITLE, ...exact }).waitFor();
-    await click(page, 'Поскаржитись');
+    await click(page, 'Поскаржитися на вікторину');
     const dialog = page.getByRole('dialog', { name: 'Скарга', ...exact });
     await dialog.waitFor();
     await dialog.getByLabel(reason, exact).check();
@@ -395,7 +395,7 @@ async function library47() {
   expect((await petro.request.put(`${base}/api/me/profile`, { data: { nickname: NICK, avatar: null } })).ok()).toBe(true);
   await iryna.goto(`${base}/profile/${petroId}`);
   await iryna.getByRole('heading', { name: NICK, ...exact }).waitFor();
-  await click(iryna, 'Поскаржитись');
+  await click(iryna, 'Поскаржитися на профіль');
   const profileDialog = iryna.getByRole('dialog', { name: 'Скарга', ...exact });
   await profileDialog.getByLabel('Образливе', exact).check();
   await click(iryna, 'Надіслати');
