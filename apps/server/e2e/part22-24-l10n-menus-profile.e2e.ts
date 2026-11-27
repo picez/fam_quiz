@@ -895,7 +895,8 @@ async function lobbyList24c() {
   const listOf = async (page: Page, lang = 'uk') => {
     await page.goto(base);
     await expect.poll(() => htmlLang(page), POLL).toBe(lang);
-    await (await homeCodeField(page)).waitFor();
+    // 78: поле коду відкрите одразу в будь-якій мові.
+    await page.locator('main form.join-form input.code-input').waitFor();
     await page.locator('section.lobby-list').waitFor();
     return page.locator('section.lobby-list');
   };
