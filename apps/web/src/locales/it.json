@@ -4629,7 +4629,6 @@
   "libraryOpenCopy": "Apri la copia",
   "libraryNoAnswers": "Qui domande e risposte non si vedono — per non sbirciare.",
   "err_library_own": "Questo quiz è tuo — è già in «I miei quiz».",
-  "reportButton": "Segnala",
   "reportTitle": "Segnalazione",
   "reportReason": "Motivo",
   "reportReason_offensive": "Offensivo",
@@ -5433,7 +5432,7 @@
   "adminTabAppealsBadge": "Segnalazioni, nuove: {count}",
   "adminAppealsViews": "Sezioni delle segnalazioni",
   "adminAppealsComplaints": "Reclami su quiz e profili",
-  "adminAppealsProblems": "Qualcosa non funziona",
+  "adminAppealsProblems": "Segnalazioni di problemi",
   "adminAppealsErrors": "Errori del server",
   "adminAppealsNew": "{label}, nuove: {count}",
   "adminProblemGame": "Partita {code}",
@@ -5788,5 +5787,7 @@
   "siteLooksLabel": "Aspetto del sito: tema e modalità facile",
   "problemMineTitle": "Le mie segnalazioni",
   "problemMineLead": "Le tue segnalazioni di problemi e le risposte dell’amministratore. La risposta arriva anche nella «Posta in arrivo».",
-  "problemRepliesWhere": "La risposta dell’amministratore arriverà nella «Posta in arrivo». Tutte le tue segnalazioni e risposte:"
+  "problemRepliesWhere": "La risposta dell’amministratore arriverà nella «Posta in arrivo». Tutte le tue segnalazioni e risposte:",
+  "reportQuizButton": "Segnala il quiz",
+  "reportProfileButton": "Segnala il profilo"
 }

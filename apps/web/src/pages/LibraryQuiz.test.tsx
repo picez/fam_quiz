@@ -169,7 +169,7 @@ describe('LibraryQuiz', () => {
 
   it('opens the report dialog for an account and reports the quiz entry', async () => {
     show();
-    fireEvent.click(await screen.findByRole('button', { name: 'Поскаржитись' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Поскаржитися на вікторину' }));
     expect(screen.getByRole('dialog', { name: 'Скарга' })).toBeTruthy();
     expect(sendReport).not.toHaveBeenCalled();
     fireEvent.click(screen.getByLabelText('Спам'));
@@ -181,14 +181,14 @@ describe('LibraryQuiz', () => {
     vi.mocked(me).mockResolvedValue({ ok: false, error: 'unauthorized' });
     show();
     await screen.findByRole('link', { name: 'Увійти, щоб провести' });
-    expect(screen.queryByRole('button', { name: 'Поскаржитись' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Поскаржитися на вікторину' })).toBeNull();
     cleanup();
     forgetAccount();
     vi.mocked(me).mockResolvedValue(OLENA);
     vi.mocked(libraryQuiz).mockResolvedValue({ ok: true, data: detail({ mine: true }) });
     show();
     await screen.findByRole('heading', { level: 1 });
-    expect(screen.queryByRole('button', { name: 'Поскаржитись' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Поскаржитися на вікторину' })).toBeNull();
   });
 
   it('says not found for a missing quiz', async () => {

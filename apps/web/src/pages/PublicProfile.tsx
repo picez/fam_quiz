@@ -103,7 +103,7 @@ export function PublicProfile() {
           )}
           {following !== null && (
             <button type="button" className="btn btn-small" onClick={() => setReporting(true)}>
-              {t('reportButton')}
+              {t('reportProfileButton')}
             </button>
           )}
           {following === null && isOwner && <Link to="/profile">{t('thisIsYou')}</Link>}

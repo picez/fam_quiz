@@ -4629,7 +4629,6 @@
   "libraryOpenCopy": "Abrir la copia",
   "libraryNoAnswers": "Aquí no se ven las preguntas ni las respuestas — para no hacer trampa.",
   "err_library_own": "Este quiz es tuyo — ya está en «Mis quizzes».",
-  "reportButton": "Denunciar",
   "reportTitle": "Denuncia",
   "reportReason": "Motivo",
   "reportReason_offensive": "Ofensivo",
@@ -5433,7 +5432,7 @@
   "adminTabAppealsBadge": "Solicitudes, nuevas: {count}",
   "adminAppealsViews": "Secciones de solicitudes",
   "adminAppealsComplaints": "Quejas sobre cuestionarios y perfiles",
-  "adminAppealsProblems": "Algo no funciona",
+  "adminAppealsProblems": "Avisos de problemas",
   "adminAppealsErrors": "Errores del servidor",
   "adminAppealsNew": "{label}, nuevas: {count}",
   "adminProblemGame": "Partida {code}",
@@ -5788,5 +5787,7 @@
   "siteLooksLabel": "Aspecto del sitio: tema y modo fácil",
   "problemMineTitle": "Mis avisos",
   "problemMineLead": "Tus avisos de problemas y las respuestas del administrador. La respuesta también llega a tu «Bandeja de entrada».",
-  "problemRepliesWhere": "La respuesta del administrador llegará a tu «Bandeja de entrada». Todos tus avisos y respuestas:"
+  "problemRepliesWhere": "La respuesta del administrador llegará a tu «Bandeja de entrada». Todos tus avisos y respuestas:",
+  "reportQuizButton": "Denunciar el quiz",
+  "reportProfileButton": "Denunciar el perfil"
 }

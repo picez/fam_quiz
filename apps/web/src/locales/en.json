@@ -4564,7 +4564,6 @@
   "libraryOpenCopy": "Open the copy",
   "libraryNoAnswers": "Questions and answers aren’t shown here — no peeking.",
   "err_library_own": "This is your quiz — it’s already in “My quizzes”.",
-  "reportButton": "Report",
   "reportTitle": "Report",
   "reportReason": "Reason",
   "reportReason_offensive": "Offensive",
@@ -5356,7 +5355,7 @@
   "adminTabAppealsBadge": "Appeals, new: {count}",
   "adminAppealsViews": "Appeals sections",
   "adminAppealsComplaints": "Complaints about quizzes and profiles",
-  "adminAppealsProblems": "Something is broken",
+  "adminAppealsProblems": "Problem reports",
   "adminAppealsErrors": "Server errors",
   "adminAppealsNew": "{label}, new: {count}",
   "adminProblemGame": "Game {code}",
@@ -5711,5 +5710,7 @@
   "siteLooksLabel": "Site display: theme and easy mode",
   "problemMineTitle": "My reports",
   "problemMineLead": "Your problem reports and the admin's replies. A reply also arrives in your “Inbox”.",
-  "problemRepliesWhere": "The admin's reply will arrive in your “Inbox”. All your reports and replies:"
+  "problemRepliesWhere": "The admin's reply will arrive in your “Inbox”. All your reports and replies:",
+  "reportQuizButton": "Report this quiz",
+  "reportProfileButton": "Report this profile"
 }

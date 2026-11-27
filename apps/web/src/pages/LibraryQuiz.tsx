@@ -146,7 +146,7 @@ export function LibraryQuiz(): JSX.Element {
                 {t('libraryCopy')}
               </button>
               <button type="button" className="btn" onClick={() => setReporting(true)}>
-                {t('reportButton')}
+                {t('reportQuizButton')}
               </button>
             </>
           )}

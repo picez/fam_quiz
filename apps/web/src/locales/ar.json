@@ -4824,7 +4824,6 @@
   "libraryOpenCopy": "افتح النسخة",
   "libraryNoAnswers": "الأسئلة والأجوبة لا تظهر هنا — حتى لا يتلصص أحد.",
   "err_library_own": "هذا اختبارك — وهو موجود بالفعل في «اختباراتي».",
-  "reportButton": "إبلاغ",
   "reportTitle": "بلاغ",
   "reportReason": "السبب",
   "reportReason_offensive": "مسيء",
@@ -5664,7 +5663,7 @@
   "adminTabAppealsBadge": "البلاغات، الجديدة: {count}",
   "adminAppealsViews": "أقسام البلاغات",
   "adminAppealsComplaints": "شكاوى حول الاختبارات والملفات الشخصية",
-  "adminAppealsProblems": "شيء ما لا يعمل",
+  "adminAppealsProblems": "بلاغات المشكلات",
   "adminAppealsErrors": "أعطال الخادم",
   "adminAppealsNew": "{label}، الجديدة: {count}",
   "adminProblemGame": "اللعبة {code}",
@@ -6019,5 +6018,7 @@
   "siteLooksLabel": "عرض الموقع: المظهر والوضع السهل",
   "problemMineTitle": "بلاغاتي",
   "problemMineLead": "بلاغاتك عن المشكلات وردود المشرف. يصل الرد أيضًا إلى «صندوق الوارد».",
-  "problemRepliesWhere": "سيصل ردّ المشرف إلى «صندوق الوارد». كل بلاغاتك والردود عليها:"
+  "problemRepliesWhere": "سيصل ردّ المشرف إلى «صندوق الوارد». كل بلاغاتك والردود عليها:",
+  "reportQuizButton": "الإبلاغ عن الاختبار",
+  "reportProfileButton": "الإبلاغ عن الملف الشخصي"
 }

@@ -4564,7 +4564,6 @@
   "libraryOpenCopy": "Kopie öffnen",
   "libraryNoAnswers": "Fragen und Antworten sind hier nicht zu sehen — kein Spicken.",
   "err_library_own": "Das ist dein Quiz — es ist schon in „Meine Quizze“.",
-  "reportButton": "Melden",
   "reportTitle": "Meldung",
   "reportReason": "Grund",
   "reportReason_offensive": "Anstößig",
@@ -5356,7 +5355,7 @@
   "adminTabAppealsBadge": "Meldungen, neu: {count}",
   "adminAppealsViews": "Bereiche der Meldungen",
   "adminAppealsComplaints": "Beschwerden über Quizze und Profile",
-  "adminAppealsProblems": "Etwas funktioniert nicht",
+  "adminAppealsProblems": "Problemmeldungen",
   "adminAppealsErrors": "Serverfehler",
   "adminAppealsNew": "{label}, neu: {count}",
   "adminProblemGame": "Spiel {code}",
@@ -5711,5 +5710,7 @@
   "siteLooksLabel": "Anzeige der Seite: Design und einfacher Modus",
   "problemMineTitle": "Meine Meldungen",
   "problemMineLead": "Deine Problemmeldungen und die Antworten des Admins. Eine Antwort kommt auch in deinen „Posteingang“.",
-  "problemRepliesWhere": "Die Antwort des Admins kommt in deinen „Posteingang“. Alle deine Meldungen und Antworten:"
+  "problemRepliesWhere": "Die Antwort des Admins kommt in deinen „Posteingang“. Alle deine Meldungen und Antworten:",
+  "reportQuizButton": "Quiz melden",
+  "reportProfileButton": "Profil melden"
 }

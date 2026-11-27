@@ -61,7 +61,7 @@ describe('PublicProfile', () => {
     vi.mocked(getProfile).mockResolvedValueOnce({ ok: false, error: 'offline' });
     const { unmount } = open();
     fireEvent.click(await screen.findByRole('button', { name: 'Спробувати ще раз' }));
-    expect(await screen.findByRole('button', { name: 'Поскаржитись' })).toBeTruthy();
+    expect(await screen.findByRole('button', { name: 'Поскаржитися на профіль' })).toBeTruthy();
     unmount();
     vi.mocked(getProfile).mockResolvedValueOnce({ ok: false, error: 'not_found' });
     open();
@@ -71,7 +71,7 @@ describe('PublicProfile', () => {
 
   it('67: the page is two profile columns like the own profile, header and showcases first, then achievements and numbers', async () => {
     const { container } = open();
-    await screen.findByRole('button', { name: 'Поскаржитись' });
+    await screen.findByRole('button', { name: 'Поскаржитися на профіль' });
     const main = container.querySelector('main.app.profile-main');
     expect(main).not.toBeNull();
     const columns = [...main!.children].filter((child) => child.classList.contains('profile-col'));
@@ -84,7 +84,7 @@ describe('PublicProfile', () => {
     const spy = vi.spyOn(globalThis, 'fetch');
     vi.mocked(sendReport).mockResolvedValue({ ok: true });
     open();
-    const button = await screen.findByRole('button', { name: 'Поскаржитись' });
+    const button = await screen.findByRole('button', { name: 'Поскаржитися на профіль' });
     expect(getProfile).toHaveBeenCalledTimes(1);
     expect(me).toHaveBeenCalledTimes(1);
     expect(sendReport).not.toHaveBeenCalled();
@@ -101,12 +101,12 @@ describe('PublicProfile', () => {
     vi.mocked(getProfile).mockResolvedValue({ ok: true, data: profile({ following: null }) });
     open();
     await screen.findByRole('heading', { name: /Тарас/ });
-    expect(screen.queryByRole('button', { name: 'Поскаржитись' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Поскаржитися на профіль' })).toBeNull();
     cleanup();
     vi.mocked(me).mockResolvedValue({ ok: true, id: 'u2', name: 'Тарас', email: 't@example.com', admin: false });
     open();
     await screen.findByRole('heading', { name: /Тарас/ });
-    expect(screen.queryByRole('button', { name: 'Поскаржитись' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Поскаржитися на профіль' })).toBeNull();
   });
 
   it('shows the league titles, and nothing else about the league', async () => {

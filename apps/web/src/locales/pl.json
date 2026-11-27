@@ -4642,7 +4642,6 @@
   "libraryOpenCopy": "Otwórz kopię",
   "libraryNoAnswers": "Pytań i odpowiedzi tu nie widać — żeby nie podglądać.",
   "err_library_own": "To twój quiz — jest już w „Moje quizy”.",
-  "reportButton": "Zgłoś",
   "reportTitle": "Zgłoszenie",
   "reportReason": "Powód",
   "reportReason_offensive": "Obraźliwe",
@@ -5457,7 +5456,7 @@
   "adminTabAppealsBadge": "Zgłoszenia, nowych: {count}",
   "adminAppealsViews": "Sekcje zgłoszeń",
   "adminAppealsComplaints": "Skargi na quizy i profile",
-  "adminAppealsProblems": "Coś nie działa",
+  "adminAppealsProblems": "Zgłoszenia problemów",
   "adminAppealsErrors": "Błędy serwera",
   "adminAppealsNew": "{label}, nowych: {count}",
   "adminProblemGame": "Gra {code}",
@@ -5812,5 +5811,7 @@
   "siteLooksLabel": "Wygląd strony: motyw i tryb łatwy",
   "problemMineTitle": "Moje zgłoszenia",
   "problemMineLead": "Twoje zgłoszenia problemów i odpowiedzi administratora. Odpowiedź trafia też do zakładki „Skrzynka”.",
-  "problemRepliesWhere": "Odpowiedź administratora trafi do zakładki „Skrzynka”. Wszystkie twoje zgłoszenia i odpowiedzi:"
+  "problemRepliesWhere": "Odpowiedź administratora trafi do zakładki „Skrzynka”. Wszystkie twoje zgłoszenia i odpowiedzi:",
+  "reportQuizButton": "Zgłoś quiz",
+  "reportProfileButton": "Zgłoś profil"
 }
