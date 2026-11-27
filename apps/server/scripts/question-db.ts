@@ -36,6 +36,7 @@ import { BIG3_FILES, BIG3_PHOTOS, big3Quiz } from './big3-quiz';
 import { FANTASY_PHOTOS, fantasyQuiz } from './fantasy-quiz';
 import { kneeQuiz } from './knee-quiz';
 import { SCREEN_PHOTOS, screenQuiz } from './screen-quiz';
+import { partyEnQuiz } from './party-en-quiz';
 import { KNEE_KEYS } from './knee/images';
 import { CLASSROOM_IMAGES, classroomQuiz } from './classroom-quiz';
 import { compassQuiz } from './compass-quiz';
@@ -487,6 +488,7 @@ export const SEED_BUILDERS = {
   filmbluff: () => filmbluffQuiz(),
   fantasy: () => fantasyQuiz(seedImages('fantasy', FANTASY_PHOTOS)),
   screen: () => screenQuiz(seedImages('screen', SCREEN_PHOTOS)),
+  'party-en': () => partyEnQuiz(),
   knee: () => kneeQuiz(seedImages('knee', {}, { dir: 'knee', keys: KNEE_KEYS })),
   'pl-light': () => plLightQuiz(seedImages('pl-light', PL_LIGHT_PHOTOS)),
   'pl-geo': () => plGeoQuiz(seedImages('pl-geo', PL_GEO_PHOTOS)),

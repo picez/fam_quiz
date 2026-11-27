@@ -1,6 +1,6 @@
 /**
  * Додає демо-вікторину користувачу за email (чи «Квіз-боту» за --bot) або оновлює вже наявну вікторину за її id.
- * Запуск: DATABASE_URL=... pnpm --filter @quiz/server seed:demo you@example.com [demo|party|party-media|movies|erudite|school|mosaic|compass|horizon|teams|showcase|grand|family|family2|evening|classroom|movies90|logic|world|fun|halloween|mix|quick|mix2|mega|fest|detective|think|video|alike|spy|school3|wordle|big1|big2|big3|filmbluff|fantasy|pl-light|pl-geo|pl-big|pl-fun|knee|screen]
+ * Запуск: DATABASE_URL=... pnpm --filter @quiz/server seed:demo you@example.com [demo|party|party-media|movies|erudite|school|mosaic|compass|horizon|teams|showcase|grand|family|family2|evening|classroom|movies90|logic|world|fun|halloween|mix|quick|mix2|mega|fest|detective|think|video|alike|spy|school3|wordle|big1|big2|big3|filmbluff|fantasy|pl-light|pl-geo|pl-big|pl-fun|knee|screen|party-en]
  * Бот: DATABASE_URL=... pnpm --filter @quiz/server seed:demo --bot <seedName> — створює акаунт бота, якщо його ще нема, і дає йому вікторину.
  * Оновлення: DATABASE_URL=... pnpm --filter @quiz/server seed:demo --update <quizId> <seedName>
  * — замінює назву, опис, налаштування й раунди рядка новим вмістом сіда (як збереження в редакторі,
@@ -68,6 +68,7 @@ import { BIG3_FILES, BIG3_PHOTOS, big3Quiz } from './big3-quiz';
 import { FANTASY_PHOTOS, fantasyQuiz } from './fantasy-quiz';
 import { kneeQuiz } from './knee-quiz';
 import { SCREEN_PHOTOS, screenQuiz } from './screen-quiz';
+import { partyEnQuiz } from './party-en-quiz';
 import { KNEE_KEYS, KNEE_OUT_DIR, KNEE_PDF_DIR, renderKneeImages } from './knee/images';
 import { ARTICLES } from './seed-articles';
 import { PL_BIG_PHOTOS, PL_GEO_PHOTOS, PL_LIGHT_PHOTOS, plBigQuiz, plFunQuiz, plGeoQuiz, plLightQuiz } from './pl-quiz';
@@ -125,7 +126,7 @@ const uploadImages = (
   sources: () => Promise<Record<string, string>> = () => thumbnails(keys),
 ): Promise<Record<string, string>> => uploadSiteImages(site, db, keys, sources);
 
-const SEEDS = ['demo', 'party', 'party-media', 'movies', 'erudite', 'school', 'mosaic', 'compass', 'horizon', 'teams', 'showcase', 'grand', 'family', 'family2', 'evening', 'classroom', 'movies90', 'logic', 'world', 'fun', 'halloween', 'mix', 'quick', 'mix2', 'mega', 'fest', 'detective', 'think', 'video', 'alike', 'spy', 'school3', 'wordle', 'big1', 'big2', 'big3', 'filmbluff', 'fantasy', 'pl-light', 'pl-geo', 'pl-big', 'pl-fun', 'knee', 'screen'] as const;
+const SEEDS = ['demo', 'party', 'party-media', 'movies', 'erudite', 'school', 'mosaic', 'compass', 'horizon', 'teams', 'showcase', 'grand', 'family', 'family2', 'evening', 'classroom', 'movies90', 'logic', 'world', 'fun', 'halloween', 'mix', 'quick', 'mix2', 'mega', 'fest', 'detective', 'think', 'video', 'alike', 'spy', 'school3', 'wordle', 'big1', 'big2', 'big3', 'filmbluff', 'fantasy', 'pl-light', 'pl-geo', 'pl-big', 'pl-fun', 'knee', 'screen', 'party-en'] as const;
 type SeedName = (typeof SEEDS)[number];
 const isSeed = (arg: string | undefined): arg is SeedName => (SEEDS as readonly string[]).includes(arg ?? '');
 
@@ -154,6 +155,8 @@ async function seedQuiz(name: SeedName, db: Db, site: string | undefined): Promi
       return filmbluffQuiz();
     case 'pl-fun':
       return plFunQuiz();
+    case 'party-en':
+      return partyEnQuiz();
     case 'pl-light':
     case 'pl-geo':
     case 'pl-big': {
