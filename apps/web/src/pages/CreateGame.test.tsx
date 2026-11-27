@@ -41,6 +41,24 @@ const open = () =>
   );
 
 describe('CreateGame', () => {
+  it('a failed list shows the error with a retry, not an endless «Завантажуємо…» (76)', async () => {
+    vi.mocked(listQuizzes).mockResolvedValueOnce({ ok: false, error: 'offline' });
+    open();
+    expect((await screen.findByRole('alert')).textContent).toBe('Немає зв’язку із сервером.');
+    expect(screen.queryByText('Завантажуємо…')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Спробувати ще раз' }));
+    expect(await screen.findByRole('heading', { level: 2, name: 'Географія' })).toBeTruthy();
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  it('a failed start keeps the list on screen (76)', async () => {
+    vi.mocked(createGame).mockResolvedValue({ ok: false, error: 'offline' });
+    open();
+    fireEvent.click(await screen.findByRole('button', { name: 'Почати гру' }));
+    expect((await screen.findByRole('alert')).textContent).toBe('Немає зв’язку із сервером.');
+    expect(screen.getByRole('heading', { level: 2, name: 'Географія' })).toBeTruthy();
+  });
+
   it('lists the quizzes with their question count and links back home and to the full list', async () => {
     open();
     expect(await screen.findByRole('heading', { level: 1, name: 'Створити гру' })).toBeTruthy();

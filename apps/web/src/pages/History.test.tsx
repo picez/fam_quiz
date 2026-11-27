@@ -158,6 +158,15 @@ describe('History', () => {
     vi.mocked(listGames).mockResolvedValue({ ok: true, data: [] });
     open('/history');
     expect(await screen.findByText(/Тут з’являться ігри, які ти проведеш/)).toBeTruthy();
+    // 76: порожній список пропонує дію.
+    expect(screen.getByRole('link', { name: 'Провести гру' }).getAttribute('href')).toBe('/create');
+  });
+
+  it('a failed list offers «Спробувати ще раз» (76)', async () => {
+    vi.mocked(listGames).mockResolvedValueOnce({ ok: false, error: 'offline' }).mockResolvedValue({ ok: true, data: [summary] });
+    open('/history');
+    fireEvent.click(await screen.findByRole('button', { name: 'Спробувати ще раз' }));
+    expect(await screen.findByRole('link', { name: 'Географія' })).toBeTruthy();
   });
 
   it('switches between hosted and played games', () => {

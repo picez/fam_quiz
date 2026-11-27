@@ -100,6 +100,13 @@ const tiles = () => screen.getByRole('navigation', { name: 'Розділи пр�
 const before = (a: Node, b: Node) => Boolean(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
 
 describe('Profile', () => {
+  it('a failed load offers «Спробувати ще раз» (76)', async () => {
+    vi.mocked(getMyProfile).mockResolvedValueOnce({ ok: false, error: 'offline' });
+    open();
+    fireEvent.click(await screen.findByRole('button', { name: 'Спробувати ще раз' }));
+    expect(await screen.findByRole('navigation', { name: 'Розділи профілю' })).toBeTruthy();
+  });
+
   it('49: shows the recent form in the header and the link to all level rewards by the bar', async () => {
     vi.mocked(getMyProfile).mockResolvedValue({
       ok: true,

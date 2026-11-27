@@ -100,7 +100,7 @@ describe('Feed', () => {
     vi.mocked(getFeed).mockResolvedValueOnce({ ok: false, error: 'network' });
     show();
     expect(await screen.findByText('Не вдалося завантажити стрічку')).toBeTruthy();
-    fireEvent.click(screen.getByRole('button', { name: 'Спробувати ще' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Спробувати ще раз' }));
     await screen.findByText(/Гра e1/);
     expect(getFeed).toHaveBeenCalledTimes(2);
   });

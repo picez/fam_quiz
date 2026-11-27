@@ -141,6 +141,24 @@ describe('Library', () => {
     show();
     expect(await screen.findByText('Нічого не знайдено.')).toBeTruthy();
     expect(screen.queryByRole('list')).toBeNull();
+    // Без пошуку очищати нічого.
+    expect(screen.queryByRole('button', { name: 'Очистити пошук' })).toBeNull();
+  });
+
+  it('nothing found for a search offers «Очистити пошук» (76)', async () => {
+    vi.mocked(libraryCatalog).mockResolvedValue({ ok: true, data: { items: [], next: null } });
+    show('/library?q=xyz&lang=pl&sort=new');
+    fireEvent.click(await screen.findByRole('button', { name: 'Очистити пошук' }));
+    expect(screen.getByTestId('where').textContent).toBe('/library?sort=new');
+    expect((screen.getByRole('searchbox') as HTMLInputElement).value).toBe('');
+  });
+
+  it('a failed first page offers «Спробувати ще раз» (76)', async () => {
+    vi.mocked(libraryCatalog).mockResolvedValueOnce({ ok: false, error: 'offline' });
+    show();
+    fireEvent.click(await screen.findByRole('button', { name: 'Спробувати ще раз' }));
+    expect(await screen.findByRole('list')).toBeTruthy();
+    expect(screen.queryByRole('alert')).toBeNull();
   });
 
   it('shows an error when the catalog cannot be loaded', async () => {

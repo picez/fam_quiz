@@ -3,6 +3,7 @@ import { Navigate, useLocation } from 'react-router-dom';
 import { t } from '../i18n';
 import { BackLink } from '../nav/BackLink';
 import type { PrivateData } from '../usePrivateData';
+import { Loading, LoadError } from '../ui/PageState';
 
 /** Вхід із поверненням на ту саму адресу: шлях разом із ?query (напр. /profile/settings?edit=1). */
 export function loginFor(path: string): string {
@@ -28,12 +29,8 @@ export function SubpageData<T>({ state, title, className, children }: { state: P
   if (state.status === 'signed-out') return <Navigate to={loginFor(location.pathname + location.search)} replace />;
   return (
     <ProfileSubpage title={title} className={className}>
-      {state.status === 'loading' && <p className="meta">{t('loading')}</p>}
-      {state.status === 'error' && (
-        <p className="error" role="alert">
-          {state.message}
-        </p>
-      )}
+      {state.status === 'loading' && <Loading />}
+      {state.status === 'error' && <LoadError message={state.message} onRetry={state.retry} />}
       {state.status === 'ready' && children(state.data)}
     </ProfileSubpage>
   );

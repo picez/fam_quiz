@@ -14,8 +14,10 @@ import { StatsView } from '../profile/StatsView';
 import { VersusBlock } from '../profile/VersusBlock';
 import { useAccount } from '../useAccount';
 import { nickText } from '../nick';
+import { Loading, LoadError } from '../ui/PageState';
+import { useDocumentTitle } from '../nav/useDocumentTitle';
 
-type State = { status: 'loading' } | { status: 'ready'; profile: PublicProfileData } | { status: 'error'; message: string };
+type State = { status: 'loading' } | { status: 'ready'; profile: PublicProfileData } | { status: 'error'; message: string; retry: boolean };
 
 export function PublicProfile() {
   const { id = '' } = useParams();
@@ -26,6 +28,8 @@ export function PublicProfile() {
   const [busy, setBusy] = useState(false);
   const [allAwards, setAllAwards] = useState(false);
   const [reporting, setReporting] = useState(false);
+  // 76: «Спробувати ще раз» після збою перечитує профіль.
+  const [attempt, setAttempt] = useState(0);
   const inFlight = useRef(false);
 
   useEffect(() => {
@@ -37,13 +41,14 @@ export function PublicProfile() {
         setState({ status: 'ready', profile: result.data });
         setFollowing(result.data.following);
       } else {
-        setState({ status: 'error', message: result.error === 'not_found' ? t('profileNotFound') : errorText(result.error) });
+        setState({ status: 'error', message: result.error === 'not_found' ? t('profileNotFound') : errorText(result.error), retry: result.error !== 'not_found' });
       }
     });
     return () => {
       current = false;
     };
-  }, [id]);
+  }, [id, attempt]);
+  useDocumentTitle(state.status === 'ready' ? nickText(state.profile.nickname) : null);
 
   async function toggle() {
     if (inFlight.current) return;
@@ -61,16 +66,14 @@ export function PublicProfile() {
   if (state.status === 'loading') {
     return (
       <main className="app wide">
-        <p className="meta">{t('loading')}</p>
+        <Loading />
       </main>
     );
   }
   if (state.status === 'error') {
     return (
       <main className="app wide">
-        <p className="error" role="alert">
-          {state.message}
-        </p>
+        <LoadError message={state.message} onRetry={state.retry ? () => setAttempt((n) => n + 1) : undefined} />
       </main>
     );
   }

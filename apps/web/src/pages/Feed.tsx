@@ -7,6 +7,7 @@ import { FeedTabs } from '../feed/FeedTabs';
 import { errorText, t } from '../i18n';
 import { announceFeedSeen, useFeedBadge } from '../useFeedBadge';
 import { usePrivateData } from '../usePrivateData';
+import { Loading, LoadError } from '../ui/PageState';
 
 const LOGIN = '/login?next=%2Ffeed';
 
@@ -21,16 +22,16 @@ export function Feed(): JSX.Element {
     return { ok: true as const, data: data as FeedPage };
   }, `${key}:${attempt}`);
   if (state.status === 'signed-out') return <Navigate to={LOGIN} replace />;
-  if (state.status === 'loading') return <main className="app wide"><p className="meta">{t('loading')}</p></main>;
+  if (state.status === 'loading')
+    return (
+      <main className="app wide">
+        <Loading list />
+      </main>
+    );
   if (state.status === 'error')
     return (
       <main className="app wide">
-        <p className="error" role="alert">
-          {t('feedError')}
-        </p>
-        <button type="button" className="btn" onClick={() => setAttempt((n) => n + 1)}>
-          {t('prizesRetry')}
-        </button>
+        <LoadError message={t('feedError')} onRetry={() => setAttempt((n) => n + 1)} />
       </main>
     );
   return <FeedList key={state.data.asOf ?? ''} first={state.data} />;

@@ -25,6 +25,8 @@ import { usePrivateData } from '../usePrivateData';
 import { ResultImageButton } from '../result-image/ResultImage';
 import { resultFromHistory } from '../result-image/data';
 import { BackLink } from '../nav/BackLink';
+import { useDocumentTitle } from '../nav/useDocumentTitle';
+import { Loading, LoadError } from '../ui/PageState';
 
 /** Точки гравців на мініатюрі запитання-точки (відповіді на основне) і найближча з них; для інших типів — порожньо. */
 export function historyPinMarks(question: GameQuestionResult): { marks: PinBoardMark[]; nearest: string | undefined } {
@@ -327,6 +329,7 @@ export function ladderPrizeLines(adjustments: GameAdjustment[]): string[] {
 export function GameHistory() {
   const { id = '' } = useParams();
   const state = usePrivateData(() => getGame(id), id);
+  useDocumentTitle(state.status === 'ready' ? state.data.title : null);
 
   if (state.status === 'signed-out') {
     return <Navigate to={`/login?next=${encodeURIComponent(`/history/${id}`)}`} replace />;
@@ -342,13 +345,7 @@ export function GameHistory() {
     return (
       <main className="app wide">
         {back}
-        {state.status === 'loading' ? (
-          <p className="meta">{t('loading')}</p>
-        ) : (
-          <p className="error" role="alert">
-            {state.message}
-          </p>
-        )}
+        {state.status === 'loading' ? <Loading /> : <LoadError message={state.message} onRetry={state.retry} />}
       </main>
     );
   }

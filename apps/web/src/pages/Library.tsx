@@ -6,6 +6,7 @@ import { HelpButton } from '../help/HelpButton';
 import { LibraryCardView } from '../library/LibraryCardView';
 import { libraryCatalog } from '../library/library-api';
 import { ENABLED_LOCALES, LOCALE_NAMES } from '../locales/locales';
+import { EmptyState, LoadError, Loading } from '../ui/PageState';
 
 /** Пауза після останньої літери, перш ніж іти за новим списком. */
 export const SEARCH_DELAY_MS = 300;
@@ -25,6 +26,8 @@ export function Library(): JSX.Element {
   const [next, setNext] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // 76: «Спробувати ще раз» після збою першої сторінки.
+  const [attempt, setAttempt] = useState(0);
 
   // Свіжі параметри для таймера пошуку: зміна порядку чи мови за ці 300 мс не має бути перезаписаною.
   const latest = useRef(params);
@@ -66,7 +69,8 @@ export function Library(): JSX.Element {
         setItems(result.data.items);
         setNext(result.data.next);
       } else {
-        setItems([]);
+        // Список так і не прийшов: на місці списку — помилка з повтором.
+        setItems(null);
         setNext(null);
         setError(errorText(result.error));
       }
@@ -74,7 +78,7 @@ export function Library(): JSX.Element {
     return () => {
       current = false;
     };
-  }, [q, sort, lang]);
+  }, [q, sort, lang, attempt]);
 
   const more = async () => {
     if (next === null) return;
@@ -123,13 +127,29 @@ export function Library(): JSX.Element {
         </label>
       </div>
 
-      {error !== null && (
+      {items === null && error === null && <Loading list />}
+      {items === null && error !== null && <LoadError message={error} onRetry={() => setAttempt((n) => n + 1)} />}
+      {items !== null && error !== null && (
         <p className="error" role="alert">
           {error}
         </p>
       )}
-      {items === null && <p className="meta">{t('loading')}</p>}
-      {items !== null && items.length === 0 && error === null && <p className="lead">{t('libraryEmpty')}</p>}
+      {items !== null && items.length === 0 && error === null && (
+        <EmptyState text={t('libraryEmpty')}>
+          {(q !== '' || lang !== '') && (
+            <button
+              type="button"
+              className="btn"
+              onClick={() => {
+                setText('');
+                update({ q: '', lang: '' });
+              }}
+            >
+              {t('libraryClearSearch')}
+            </button>
+          )}
+        </EmptyState>
+      )}
       {items !== null && items.length > 0 && (
         <ul className="library-list">
           {items.map((card) => (

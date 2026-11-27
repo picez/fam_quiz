@@ -1,6 +1,6 @@
 import { withUniqueQuestionIds, type Quiz, type QuizLikes } from '@quiz/shared';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Link, Navigate, useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { Navigate, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { createQuiz, fetchQuizLikes, getQuiz, markGroupUses, updateQuiz } from '../api';
 import { newQuiz } from '../editor/draft';
 import { useEditorTime } from '../editor/editor-time';
@@ -11,11 +11,14 @@ import { QuizEditor, type EditorTab } from '../editor/QuizEditor';
 import { errorText, t } from '../i18n';
 import { useAccount } from '../useAccount';
 import { BackLink } from '../nav/BackLink';
+import { Loading, LoadError } from '../ui/PageState';
 
 export function EditQuiz() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const account = useAccount();
+  // 76: «Спробувати ще раз» — і для перевірки входу, і для самої вікторини.
+  const [attempt, setAttempt] = useState(0);
+  const account = useAccount(attempt === 0 ? undefined : attempt);
   const [params, setParams] = useSearchParams();
   // Вкладка редактора живе в адресі: ?tab=general; «Раунди й запитання» — типова, без параметра.
   const rawTab = params.get('tab');
@@ -40,7 +43,7 @@ export function EditQuiz() {
   const initialDrafts = useMemo(() => loadGroupDrafts(id), [id]);
   const groupDrafts = useRef<GroupDrafts | null>(initialDrafts);
   const [loaded, setLoaded] = useState<Quiz | null>(null);
-  const [loadError, setLoadError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<{ message: string; missing: boolean } | null>(null);
   const [likes, setLikes] = useState<QuizLikes | undefined>(undefined);
   const [expired, setExpired] = useState(false);
   const signedIn = account.status === 'signed-in';
@@ -54,12 +57,12 @@ export function EditQuiz() {
       if (!current) return;
       if (result.ok) setLoaded(withUniqueQuestionIds(result.data, newId));
       else if (result.error === 'unauthorized') setExpired(true);
-      else setLoadError(errorText(result.error));
+      else setLoadError({ message: errorText(result.error), missing: result.error === 'not_found' });
     });
     return () => {
       current = false;
     };
-  }, [signedIn, id]);
+  }, [signedIn, id, attempt]);
 
   // Лайки не блокують редактор: з'являться, коли прийдуть; збій — просто без сердець.
   useEffect(() => {
@@ -87,9 +90,8 @@ export function EditQuiz() {
   if (account.status === 'unknown') {
     return (
       <main className="app narrow">
-        <p className="error" role="alert">
-          {errorText(account.error)}
-        </p>
+        <BackLink parent="/quizzes" />
+        <LoadError message={errorText(account.error)} onRetry={() => setAttempt((n) => n + 1)} />
       </main>
     );
   }
@@ -97,12 +99,18 @@ export function EditQuiz() {
   if (loadError !== null) {
     return (
       <main className="app narrow">
-        <p className="error" role="alert">
-          {loadError}
-        </p>
-        <Link className="quiet-link" to="/quizzes">
-          {t('quizzesTitle')}
-        </Link>
+        <BackLink parent="/quizzes" />
+        <LoadError
+          message={loadError.message}
+          onRetry={
+            loadError.missing
+              ? undefined
+              : () => {
+                  setLoadError(null);
+                  setAttempt((n) => n + 1);
+                }
+          }
+        />
       </main>
     );
   }
@@ -111,7 +119,8 @@ export function EditQuiz() {
   if (account.status === 'loading' || initial === null) {
     return (
       <main className="app narrow">
-        <p className="lead">{t('loading')}</p>
+        <BackLink parent="/quizzes" />
+        <Loading />
       </main>
     );
   }

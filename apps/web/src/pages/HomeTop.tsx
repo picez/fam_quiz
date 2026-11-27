@@ -37,12 +37,15 @@ export function useNextUp(signedIn: boolean): NextUp | null {
     let current = true;
     setNext(null);
     // Спільна на кілька секунд: гостьова картка й картка після входу не питають двічі.
-    const running: Promise<RunningGame | null> = sharedRunningGame();
+    // 76: збій будь-якого запиту — просто без картки (і без необробленої відмови).
+    const running: Promise<RunningGame | null> = sharedRunningGame().catch(() => null);
     const games: Promise<GameSummary[] | null> = signedIn ? listGames().then((result) => (result.ok ? result.data : null), () => null) : Promise.resolve(null);
     const events: Promise<CalendarEvent[] | null> = signedIn ? getCalendar().then((result) => (result.ok ? result.events : null), () => null) : Promise.resolve(null);
-    void Promise.all([running, games, events]).then(([game, saved, calendar]) => {
-      if (current) setNext(pickNextUp(game, saved, calendar));
-    });
+    void Promise.all([running, games, events])
+      .then(([game, saved, calendar]) => {
+        if (current) setNext(pickNextUp(game, saved, calendar));
+      })
+      .catch(() => undefined);
     return () => {
       current = false;
     };

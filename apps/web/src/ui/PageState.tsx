@@ -52,7 +52,7 @@ export function EmptyState({ text, children }: { text: string; children?: ReactN
   return (
     <div className="empty-state">
       <p className="lead">{text}</p>
-      {children !== undefined && <div className="toolbar">{children}</div>}
+      {children ? <div className="toolbar">{children}</div> : null}
     </div>
   );
 }

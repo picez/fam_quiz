@@ -8,6 +8,7 @@ import { errorText, t } from '../i18n';
 import { loadAuthor, loadHost } from '../storage';
 import { usePrivateData } from '../usePrivateData';
 import { HistoryTabs } from './HistoryTabs';
+import { EmptyState, Loading, LoadError } from '../ui/PageState';
 
 /** Рядки картки, спільні для збереженої й завершеної гри. */
 function GameFacts({ game }: { game: GameSummary }) {
@@ -107,13 +108,15 @@ export function History() {
       <HistoryTabs />
       <h1 className="brand">{t('historyTitle')}</h1>
 
-      {state.status === 'loading' && <p className="meta">{t('loading')}</p>}
-      {state.status === 'error' && (
-        <p className="error" role="alert">
-          {state.message}
-        </p>
+      {state.status === 'loading' && <Loading list />}
+      {state.status === 'error' && <LoadError message={state.message} onRetry={state.retry} />}
+      {state.status === 'ready' && games.length === 0 && (
+        <EmptyState text={t('historyEmpty')}>
+          <Link className="btn btn-primary" to="/create">
+            {t('emptyHostGame')}
+          </Link>
+        </EmptyState>
       )}
-      {state.status === 'ready' && games.length === 0 && <p className="lead">{t('historyEmpty')}</p>}
       {saved.length > 0 && (
         <section aria-labelledby="saved-title" className="saved-games">
           <h2 id="saved-title">{t('savedTitle')}</h2>
