@@ -99,3 +99,47 @@ describe('ActionMenu (77)', () => {
     expect(screen.queryByRole('menu')).toBeNull();
   });
 });
+
+describe('ActionMenu on a phone (77)', () => {
+  it('scrolls the opened menu into view so the bottom bar does not hide it', () => {
+    const scroll = vi.fn();
+    Element.prototype.scrollIntoView = scroll;
+    const { button } = setup();
+    fireEvent.click(button);
+    expect(scroll).toHaveBeenCalledWith({ block: 'nearest' });
+    // @ts-expect-error — прибираємо підставку jsdom
+    delete Element.prototype.scrollIntoView;
+  });
+});
+
+describe('ActionMenu placement (77)', () => {
+  const size = (prop: 'offsetHeight' | 'offsetWidth', value: number) => Object.defineProperty(HTMLElement.prototype, prop, { configurable: true, get: () => value });
+  afterEach(() => {
+    // @ts-expect-error — повертаємо властивості jsdom
+    delete HTMLElement.prototype.offsetHeight;
+    // @ts-expect-error — повертаємо властивості jsdom
+    delete HTMLElement.prototype.offsetWidth;
+  });
+
+  it('opens upwards near the bottom of the screen and from the side where it fits', () => {
+    size('offsetHeight', 200);
+    size('offsetWidth', 200);
+    const { button } = setup();
+    vi.spyOn(button, 'getBoundingClientRect').mockReturnValue({ top: window.innerHeight - 60, bottom: window.innerHeight - 20, left: window.innerWidth - 50, right: window.innerWidth - 6 } as DOMRect);
+    fireEvent.click(button);
+    const menu = screen.getByRole('menu');
+    expect(menu.classList.contains('is-up')).toBe(true);
+    expect([menu.style.left, menu.style.right]).toEqual(['auto', '0px']);
+  });
+
+  it('opens downwards from the left edge when there is room', () => {
+    size('offsetHeight', 200);
+    size('offsetWidth', 200);
+    const { button } = setup();
+    vi.spyOn(button, 'getBoundingClientRect').mockReturnValue({ top: 100, bottom: 140, left: 20, right: 64 } as DOMRect);
+    fireEvent.click(button);
+    const menu = screen.getByRole('menu');
+    expect(menu.classList.contains('is-up')).toBe(false);
+    expect([menu.style.left, menu.style.right]).toEqual(['0px', 'auto']);
+  });
+});

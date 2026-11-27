@@ -30892,7 +30892,7 @@ main > .back-link {
   margin: 0;
 }
 
-/* 77: «⋯» картки вікторини — меню решти дій під кнопкою, від її правого краю (на телефоні не виходить за екран). */
+/* 77: «⋯» картки вікторини — меню решти дій під кнопкою (чи над нею); бік і напрям ставить ActionMenu, щоб меню не виходило за екран. */
 .action-menu-root {
   position: relative;
 }
@@ -30922,4 +30922,12 @@ main > .back-link {
 .action-menu .btn {
   justify-content: flex-start;
   text-align: start;
+}
+
+/* Біля низу екрана (над нижньою панеллю телефона) меню відкривається вгору. */
+.action-menu.is-up {
+  inset-block-start: auto;
+  inset-block-end: 100%;
+  margin-block-start: 0;
+  margin-block-end: 0.25rem;
 }
