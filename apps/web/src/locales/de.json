@@ -5637,5 +5637,11 @@
   "editorSaveAndHost": "Speichern und Spiel leiten",
   "quizzesTabMine": "Meine",
   "quizzesTabLiked": "Favoriten",
-  "quizzesLikedTitle": "Lieblingsquizze"
+  "quizzesLikedTitle": "Lieblingsquizze",
+  "quizMoreActions": "Weitere Aktionen: {title}",
+  "quizShareLibrary": "In der Bibliothek teilen",
+  "quizExportFile": "Export: Quiz-Datei",
+  "quizExportTable": "Export: Tabelle (Excel)",
+  "libraryHost": "Spiel leiten",
+  "libraryHostSignIn": "Anmelden, um zu leiten"
 }

@@ -5637,5 +5637,11 @@
   "editorSaveAndHost": "Save and host a game",
   "quizzesTabMine": "Mine",
   "quizzesTabLiked": "Liked",
-  "quizzesLikedTitle": "Liked quizzes"
+  "quizzesLikedTitle": "Liked quizzes",
+  "quizMoreActions": "More actions: {title}",
+  "quizShareLibrary": "Share to the library",
+  "quizExportFile": "Export: quiz file",
+  "quizExportTable": "Export: spreadsheet (Excel)",
+  "libraryHost": "Host a game",
+  "libraryHostSignIn": "Sign in to host"
 }

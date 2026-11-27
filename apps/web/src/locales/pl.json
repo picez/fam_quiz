@@ -5738,5 +5738,11 @@
   "editorSaveAndHost": "Zapisz i poprowadź grę",
   "quizzesTabMine": "Moje",
   "quizzesTabLiked": "Polubione",
-  "quizzesLikedTitle": "Polubione quizy"
+  "quizzesLikedTitle": "Polubione quizy",
+  "quizMoreActions": "Więcej działań: {title}",
+  "quizShareLibrary": "Udostępnij w bibliotece",
+  "quizExportFile": "Eksport: plik quizu",
+  "quizExportTable": "Eksport: tabela (Excel)",
+  "libraryHost": "Poprowadź grę",
+  "libraryHostSignIn": "Zaloguj się, aby poprowadzić"
 }

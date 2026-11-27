@@ -4815,6 +4815,14 @@ const uk = {
   quizzesTabMine: 'Мої',
   quizzesTabLiked: 'Вподобані',
   quizzesLikedTitle: 'Вподобані вікторини',
+  // 77: картка вікторини — «⋯» з рештою дій
+  quizMoreActions: 'Ще дії: {title}',
+  quizShareLibrary: 'Поділитися в бібліотеку',
+  quizExportFile: 'Експорт: файл вікторини',
+  quizExportTable: 'Експорт: таблиця (Excel)',
+  // 77: «Провести гру» зі сторінки бібліотечної вікторини
+  libraryHost: 'Провести гру',
+  libraryHostSignIn: 'Увійти, щоб провести',
   libraryGuestLink: '📚 Бібліотека вікторин',
   librarySearch: 'Пошук за назвою чи описом',
   librarySort: 'Порядок',

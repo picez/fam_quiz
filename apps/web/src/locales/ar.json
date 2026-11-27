@@ -5945,5 +5945,11 @@
   "editorSaveAndHost": "احفظ وأدر لعبة",
   "quizzesTabMine": "اختباراتي",
   "quizzesTabLiked": "المفضلة",
-  "quizzesLikedTitle": "الاختبارات المفضلة"
+  "quizzesLikedTitle": "الاختبارات المفضلة",
+  "quizMoreActions": "إجراءات أخرى: {title}",
+  "quizShareLibrary": "شارك في المكتبة",
+  "quizExportFile": "تصدير: ملف الاختبار",
+  "quizExportTable": "تصدير: جدول (Excel)",
+  "libraryHost": "أدر لعبة",
+  "libraryHostSignIn": "سجّل الدخول لتدير اللعبة"
 }

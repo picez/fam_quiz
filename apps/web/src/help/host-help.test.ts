@@ -509,7 +509,7 @@ describe('host help', () => {
     filled('setting.library');
     expect(helpEntry('setting.library').title).toBe('Бібліотека вікторин');
     const body = text('setting.library');
-    for (const part of [t('libraryButton'), t('libraryOpen'), t('libraryUpdate'), t('libraryClose'), t('librarySortPopular'), t('librarySortNew'), t('libraryCopy'), t('quizzesTitle'), 'щонайменше 5 запитань', 'знімок', 'Автор: …', 'особисті фото', 'трьох скарг', 'один раз оскаржити', 'нікнейм']) expect(body, part).toContain(part);
+    for (const part of [t('quizShareLibrary'), t('libraryOpen'), t('libraryUpdate'), t('libraryClose'), t('librarySortPopular'), t('librarySortNew'), t('libraryCopy'), t('quizzesTitle'), 'щонайменше 5 запитань', 'знімок', 'Автор: …', 'особисті фото', 'трьох скарг', 'один раз оскаржити', 'нікнейм']) expect(body, part).toContain(part);
     for (const wrong of ['натисніть', 'бачите', 'Ви ']) expect(body, wrong).not.toContain(wrong);
   });
 });

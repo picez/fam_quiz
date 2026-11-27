@@ -5714,5 +5714,11 @@
   "editorSaveAndHost": "Salva e conduci una partita",
   "quizzesTabMine": "Miei",
   "quizzesTabLiked": "Preferiti",
-  "quizzesLikedTitle": "Quiz preferiti"
+  "quizzesLikedTitle": "Quiz preferiti",
+  "quizMoreActions": "Altre azioni: {title}",
+  "quizShareLibrary": "Condividi nella biblioteca",
+  "quizExportFile": "Esporta: file del quiz",
+  "quizExportTable": "Esporta: tabella (Excel)",
+  "libraryHost": "Conduci una partita",
+  "libraryHostSignIn": "Accedi per condurre"
 }

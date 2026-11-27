@@ -18,34 +18,18 @@ export function progressText(progress: IoProgress): string {
   }
 }
 
-/** «Експорт» однієї вікторини: файл вікторини чи таблиця. Модулі quiz-io вантажаться лише при натисканні. */
-export function ExportMenu({ quizId, disabled }: { quizId: string; disabled?: boolean }): JSX.Element {
-  const menu = useRef<HTMLDetailsElement>(null);
+/** Експорт однієї вікторини (77: спільний для «Експорт» і пунктів меню «⋯» картки): запуск, зайнятість і рядок стану. */
+export function useQuizExport(quizId: string): { run: (kind: 'file' | 'table') => void; busy: boolean; status: JSX.Element | null } {
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState<IoProgress | null>(null);
   const [skipped, setSkipped] = useState(0);
   const [error, setError] = useState<string | null>(null);
-
-  // Відкрите меню закривається кліком поза ним і Escape.
-  useEffect(() => {
-    const close = (event: Event) => {
-      const el = menu.current;
-      if (el === null || !el.open) return;
-      if (event.type === 'keydown' && (event as KeyboardEvent).key !== 'Escape') return;
-      if (event.type === 'pointerdown' && el.contains(event.target as Node)) return;
-      el.open = false;
-    };
-    document.addEventListener('pointerdown', close);
-    document.addEventListener('keydown', close);
-    return () => {
-      document.removeEventListener('pointerdown', close);
-      document.removeEventListener('keydown', close);
-    };
-  }, []);
+  // Синхронна позначка: другий запуск до перемальовки не стартує.
+  const running = useRef(false);
 
   const run = async (kind: 'file' | 'table') => {
-    if (busy) return;
-    if (menu.current !== null) menu.current.open = false;
+    if (running.current) return;
+    running.current = true;
     setBusy(true);
     setError(null);
     setSkipped(0);
@@ -65,6 +49,52 @@ export function ExportMenu({ quizId, disabled }: { quizId: string; disabled?: bo
     }
     setProgress(null);
     setBusy(false);
+    running.current = false;
+  };
+
+  const status =
+    busy && progress !== null ? (
+      <p className="meta io-status" role="status">
+        {progressText(progress)}
+      </p>
+    ) : !busy && skipped > 0 ? (
+      <p className="meta io-status">{countText('ioSkipped', skipped, { count: skipped })}</p>
+    ) : error !== null ? (
+      <p className="error io-status" role="alert">
+        {error}
+      </p>
+    ) : null;
+
+  return { run: (kind) => void run(kind), busy, status };
+}
+
+/** «Експорт» однієї вікторини: файл вікторини чи таблиця. Модулі quiz-io вантажаться лише при натисканні. */
+export function ExportMenu({ quizId, disabled }: { quizId: string; disabled?: boolean }): JSX.Element {
+  const menu = useRef<HTMLDetailsElement>(null);
+  const exporter = useQuizExport(quizId);
+  const busy = exporter.busy;
+
+  // Відкрите меню закривається кліком поза ним і Escape.
+  useEffect(() => {
+    const close = (event: Event) => {
+      const el = menu.current;
+      if (el === null || !el.open) return;
+      if (event.type === 'keydown' && (event as KeyboardEvent).key !== 'Escape') return;
+      if (event.type === 'pointerdown' && el.contains(event.target as Node)) return;
+      el.open = false;
+    };
+    document.addEventListener('pointerdown', close);
+    document.addEventListener('keydown', close);
+    return () => {
+      document.removeEventListener('pointerdown', close);
+      document.removeEventListener('keydown', close);
+    };
+  }, []);
+
+  const run = (kind: 'file' | 'table') => {
+    if (busy) return;
+    if (menu.current !== null) menu.current.open = false;
+    exporter.run(kind);
   };
 
   return (
@@ -86,25 +116,15 @@ export function ExportMenu({ quizId, disabled }: { quizId: string; disabled?: bo
           {t('ioExport')}
         </summary>
         <div className="io-export-menu">
-          <button type="button" className="btn" disabled={disabled === true || busy} onClick={() => void run('file')}>
+          <button type="button" className="btn" disabled={disabled === true || busy} onClick={() => run('file')}>
             {t('ioExportFile')}
           </button>
-          <button type="button" className="btn" disabled={disabled === true || busy} onClick={() => void run('table')}>
+          <button type="button" className="btn" disabled={disabled === true || busy} onClick={() => run('table')}>
             {t('ioExportTable')}
           </button>
         </div>
       </details>
-      {busy && progress !== null && (
-        <p className="meta io-status" role="status">
-          {progressText(progress)}
-        </p>
-      )}
-      {!busy && skipped > 0 && <p className="meta io-status">{countText('ioSkipped', skipped, { count: skipped })}</p>}
-      {error !== null && (
-        <p className="error io-status" role="alert">
-          {error}
-        </p>
-      )}
+      {exporter.status}
     </div>
   );
 }

@@ -5714,5 +5714,11 @@
   "editorSaveAndHost": "Guardar y dirigir una partida",
   "quizzesTabMine": "Míos",
   "quizzesTabLiked": "Favoritos",
-  "quizzesLikedTitle": "Quizzes favoritos"
+  "quizzesLikedTitle": "Quizzes favoritos",
+  "quizMoreActions": "Más acciones: {title}",
+  "quizShareLibrary": "Compartir en la biblioteca",
+  "quizExportFile": "Exportar: archivo del quiz",
+  "quizExportTable": "Exportar: tabla (Excel)",
+  "libraryHost": "Dirigir una partida",
+  "libraryHostSignIn": "Inicia sesión para dirigir"
 }

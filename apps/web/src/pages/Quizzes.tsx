@@ -3,14 +3,11 @@ import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom';
 import { parseQuizSort, sortQuizzes, type ChallengeMine, type LibraryMine, type QuizFolder } from '@quiz/shared';
 import { deleteQuiz, listMyChallenges, listQuizzes, type QuizSummary } from '../api';
 import { ChallengeLaunch } from '../challenge/ChallengeLaunch';
-import { daysLeftText, playedText } from '../challenge/challenge-text';
 import { RunningGameBanner, addDemoQuiz, useStartGame } from '../host-game';
-import { quizDatesText, quizSizeText } from '../format';
 import { errorText, t } from '../i18n';
 import { myLibrary } from '../library/library-api';
-import { LibraryShare, libraryStatusText } from '../library/LibraryShare';
+import { LibraryShare } from '../library/LibraryShare';
 import { useAccount } from '../useAccount';
-import { ExportMenu } from '../quiz-io/ExportMenu';
 import { ImportDialog } from '../quiz-io/ImportDialog';
 import { FolderFilter, filterByFolder, folderless, type FolderPick } from '../quiz-folders/FolderFilter';
 import { FolderManager } from '../quiz-folders/FolderManager';
@@ -18,6 +15,7 @@ import { QuizSortField } from '../quiz-folders/QuizSortField';
 import { listFolders, moveQuizToFolder } from '../quiz-folders/folder-api';
 import { AutopilotLaunch } from './AutopilotLaunch';
 import { Loading, LoadError } from '../ui/PageState';
+import { QuizCard } from './QuizCard';
 import { QuizzesTabs } from './QuizzesTabs';
 
 const LOGIN = '/login?next=%2Fquizzes';
@@ -245,65 +243,22 @@ export function Quizzes() {
       {shown !== null && shown.length > 0 && (
         <ul className="quiz-list">
           {shown.map((quiz) => (
-            <li className="panel" key={quiz.id}>
-              <div>
-                <h2 dir="auto">{quiz.title}</h2>
-                {quiz.description !== '' && (
-                  <p className="meta quiz-description" dir="auto">
-                    {quiz.description}
-                  </p>
-                )}
-                <p className="meta quiz-dates">
-                  <time dateTime={quiz.createdAt}>{quizDatesText(quiz)}</time>
-                </p>
-                <p className="meta">{quizSizeText(t('questionCount', { count: quiz.questionCount }), quiz.questionCount, quiz.truth)}</p>
-                {library.filter((one) => one.quizId === quiz.id).map((one) => (
-                  <p className="meta library-line" key={one.entryId}>
-                    {libraryStatusText(one)}
-                  </p>
-                ))}
-                {challenges.filter((one) => one.quizId === quiz.id).map((one) => (
-                  <p className="meta challenge-line" key={one.code}>
-                    {t('challengeActive', { days: daysLeftText(one.expiresAt), played: playedText(one.played) })}{' '}
-                    <Link to={`/challenge/${one.code}`}>{t('challengeResultsLink')}</Link>
-                  </p>
-                ))}
-                {folders !== null && folders.length > 0 && (
-                  <label className="field quiz-folder-pick">
-                    <span>{t('quizFolderPick')}</span>
-                    <select value={folderless(quiz.folderId, folders) ? '' : quiz.folderId!} onChange={(event) => void moveTo(quiz, event.target.value === '' ? null : event.target.value)}>
-                      <option value="">{t('quizFolderPickNone')}</option>
-                      {folders.map((folder) => (
-                        <option key={folder.id} value={folder.id} dir="auto">
-                          {folder.name}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                )}
-              </div>
-              <div className="toolbar">
-                <button type="button" className="btn btn-primary" disabled={busy} onClick={() => play(quiz)}>
-                  {t('play')}
-                </button>
-                <button type="button" className="btn" disabled={busy} onClick={() => setLaunch(quiz)}>
-                  {t('autopilotLaunch')}
-                </button>
-                <button type="button" className="btn" disabled={busy} onClick={() => setChallengeFor(quiz)}>
-                  {t('challengeButton')}
-                </button>
-                <button type="button" className="btn" disabled={busy} onClick={() => setLibraryFor(quiz)}>
-                  {t('libraryButton')}
-                </button>
-                <Link className="btn" to={`/quizzes/${quiz.id}`}>
-                  {t('edit')}
-                </Link>
-                <ExportMenu quizId={quiz.id} disabled={busy} />
-                <button type="button" className="btn btn-danger" disabled={busy} onClick={() => remove(quiz)}>
-                  {t('remove')}
-                </button>
-              </div>
-            </li>
+            <QuizCard
+              key={quiz.id}
+              quiz={quiz}
+              busy={busy}
+              library={library.filter((one) => one.quizId === quiz.id)}
+              challenges={challenges.filter((one) => one.quizId === quiz.id)}
+              folders={folders}
+              actions={{
+                onPlay: () => void play(quiz),
+                onAutopilot: () => setLaunch(quiz),
+                onChallenge: () => setChallengeFor(quiz),
+                onLibrary: () => setLibraryFor(quiz),
+                onRemove: () => remove(quiz),
+                onMove: (folderId) => void moveTo(quiz, folderId),
+              }}
+            />
           ))}
         </ul>
       )}
