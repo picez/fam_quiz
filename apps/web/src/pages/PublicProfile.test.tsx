@@ -278,7 +278,7 @@ describe('PublicProfile', () => {
     vi.mocked(me).mockResolvedValue({ ok: false, error: 'unauthorized' });
     vi.mocked(getProfile).mockResolvedValue({ ok: true, data: profile({ following: null }) });
     open();
-    const link = await screen.findByRole('link', { name: 'Увійдіть, щоб додати в друзі' });
+    const link = await screen.findByRole('link', { name: 'Увійди, щоб додати в друзі' });
     expect(link.getAttribute('href')).toBe('/login?next=%2Fprofile%2Fu2');
     expect(screen.queryByRole('button', { name: 'Додати в друзі' })).toBeNull();
   });
@@ -287,7 +287,7 @@ describe('PublicProfile', () => {
     vi.mocked(me).mockResolvedValue({ ok: true, id: 'u2', name: 'Тарас', email: 't@example.com', admin: false });
     vi.mocked(getProfile).mockResolvedValue({ ok: true, data: profile({ following: null }) });
     open();
-    const link = await screen.findByRole('link', { name: 'Це ваш профіль' });
+    const link = await screen.findByRole('link', { name: 'Це твій профіль' });
     expect(link.getAttribute('href')).toBe('/profile');
   });
 
@@ -304,12 +304,12 @@ describe('PublicProfile', () => {
       },
     });
     open();
-    expect(await screen.findByText('Ви і Тарас')).toBeTruthy();
-    const block = within(screen.getByText('Ви і Тарас').closest('section')!);
-    for (const [value, label] of [['3', 'гри разом'], ['2', 'гри, де ви вище'], ['1', 'гра, де Тарас вище'], ['80%', 'правильних відповідей у вас'], ['60%', 'правильних відповідей — Тарас']]) {
+    expect(await screen.findByText('Ти і Тарас')).toBeTruthy();
+    const block = within(screen.getByText('Ти і Тарас').closest('section')!);
+    for (const [value, label] of [['3', 'гри разом'], ['2', 'гри, де ти вище'], ['1', 'гра, де Тарас вище'], ['80%', 'правильних відповідей у тебе'], ['60%', 'правильних відповідей — Тарас']]) {
       expect(block.getByText(label).previousElementSibling?.textContent).toBe(value);
     }
-    expect(block.getByText(/«Кіно»: ви — 1 місце, Тарас — 2 місце/)).toBeTruthy();
+    expect(block.getByText(/«Кіно»: ти — 1 місце, Тарас — 2 місце/)).toBeTruthy();
     expect(getVersus).toHaveBeenCalledWith('u2');
   });
 
@@ -319,8 +319,8 @@ describe('PublicProfile', () => {
       data: { together: 5, myAhead: 0, theirAhead: 5, myAccuracy: 40, theirAccuracy: 90, recent: [] },
     });
     open();
-    const block = within((await screen.findByText('Ви і Тарас')).closest('section')!);
-    for (const [value, label] of [['5', 'ігор разом'], ['0', 'ігор, де ви вище'], ['5', 'ігор, де Тарас вище']]) {
+    const block = within((await screen.findByText('Ти і Тарас')).closest('section')!);
+    for (const [value, label] of [['5', 'ігор разом'], ['0', 'ігор, де ти вище'], ['5', 'ігор, де Тарас вище']]) {
       expect(block.getByText(label).previousElementSibling?.textContent).toBe(value);
     }
   });
@@ -335,14 +335,14 @@ describe('PublicProfile', () => {
     vi.mocked(me).mockResolvedValue({ ok: false, error: 'unauthorized' });
     open();
     await screen.findByText('Статистика');
-    expect(screen.queryByText('Ви і Тарас')).toBeNull();
+    expect(screen.queryByText('Ти і Тарас')).toBeNull();
     expect(getVersus).not.toHaveBeenCalled();
     cleanup();
     vi.mocked(me).mockResolvedValue({ ok: true, id: 'u2', name: 'Тарас', email: 't@example.com', admin: false });
     vi.mocked(getProfile).mockResolvedValue({ ok: true, data: profile({ following: null }) });
     open();
     await screen.findByText('Статистика');
-    expect(screen.queryByText('Ви і Тарас')).toBeNull();
+    expect(screen.queryByText('Ти і Тарас')).toBeNull();
     expect(getVersus).not.toHaveBeenCalled();
   });
 
@@ -350,7 +350,7 @@ describe('PublicProfile', () => {
     vi.mocked(getVersus).mockResolvedValue({ ok: false, error: 'network' });
     open();
     expect(await screen.findByText('Статистика')).toBeTruthy();
-    expect(screen.queryByText('Ви і Тарас')).toBeNull();
+    expect(screen.queryByText('Ти і Тарас')).toBeNull();
     expect(document.querySelectorAll('.profile-section')).toHaveLength(4);
   });
 

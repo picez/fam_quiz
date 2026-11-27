@@ -174,7 +174,7 @@ async function card58() {
   const earned = (page: Page) => page.locator('.achievement-card:not(.is-locked)', { has: page.getByRole('heading', { name: /^Перша перемога/ }) }).count();
   const achievements = await openSection(admin, 'Досягнення');
   expect(await achievements.locator('li.admin-pick-row', { hasText: ACHIEVEMENT }).count()).toBe(0);
-  await achievements.getByLabel('Оберіть досягнення').selectOption({ label: ACHIEVEMENT });
+  await achievements.getByLabel('Обери досягнення').selectOption({ label: ACHIEVEMENT });
   await achievements.getByRole('button', { name: 'Видати досягнення', ...exact }).click();
   const granted = achievements.locator('li.admin-pick-row', { hasText: ACHIEVEMENT });
   await granted.waitFor();
@@ -226,7 +226,7 @@ async function card58() {
   await admin.getByRole('button', { name: 'Зберегти', ...exact }).click();
   await admin.waitForURL(`${base}/admin/users/${olyaId}`);
   await openSection(admin, 'Призи');
-  await prizes.getByLabel('Оберіть приз зі свого складу').selectOption({ label: PRIZE });
+  await prizes.getByLabel('Обери приз зі свого складу').selectOption({ label: PRIZE });
   await prizes.getByLabel('Підпис (необов’язково)', exact).fill(NOTE);
   await prizes.getByRole('button', { name: 'Подарувати приз', ...exact }).scrollIntoViewIfNeeded();
   await viewportShot(admin, 'card58-gift-form-360');
@@ -283,7 +283,7 @@ async function card58() {
   const removal = await openSection(admin, 'Видалити акаунт');
   const removeButton = removal.getByRole('button', { name: 'Видалити акаунт', ...exact });
   expect(await removeButton.isDisabled(), 'no nickname typed').toBe(true);
-  const typed = removal.getByLabel('Введіть нік «Тарас», щоб підтвердити', exact);
+  const typed = removal.getByLabel('Введи нік «Тарас», щоб підтвердити', exact);
   await typed.fill('Петро');
   expect(await removeButton.isDisabled(), 'a wrong nickname').toBe(true);
   await removal.evaluate((node) => node.scrollIntoView({ block: 'start' }));

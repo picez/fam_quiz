@@ -66,7 +66,7 @@ describe('MyGames', () => {
     expect(await screen.findByRole('heading', { name: 'Географія' })).toBeTruthy();
     expect(screen.getByText('1 місце з 5')).toBeTruthy();
     expect(screen.getByText('2000 балів, правильних відповідей: 4 з 5')).toBeTruthy();
-    expect(screen.getByText(/ви грали як Олена/)).toBeTruthy();
+    expect(screen.getByText(/твій нік у грі — Олена/)).toBeTruthy();
   });
 
   it('79: a played game opens its own page, and «Уся статистика» leads to the profile stats', async () => {

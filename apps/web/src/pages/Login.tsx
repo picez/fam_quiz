@@ -75,7 +75,7 @@ export function Login() {
       <form className="panel" onSubmit={submit}>
         {registering && (
           <label className="field">
-            <span>{t('nicknameLabel')}</span>
+            <span>{t('loginNicknameLabel')}</span>
             <input value={name} onChange={(event) => setName(event.target.value)} maxLength={60} autoComplete="name" />
           </label>
         )}

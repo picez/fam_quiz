@@ -1338,6 +1338,14 @@ async function admin21a() {
     await admin.getByText('Живих ігор зараз', exact).waitFor();
     expect(await menuLinks(admin)).toEqual(MENU_ITEMS_ADMIN);
     for (const width of [320, 360, 375]) await expectFiveItems(admin, width, 6);
+    // 81: шість пунктів у легкому режимі — і телефон, і верхня панель компʼютера (значок над словом) без накладань і прокрутки.
+    await admin.evaluate("localStorage.setItem('quiz:easy', 'on')");
+    await admin.reload();
+    await admin.getByText('Користувачів усього', exact).waitFor();
+    for (const width of [320, 360, 375, 768, 1024, 1280]) await expectFiveItems(admin, width, 6, 72);
+    await admin.evaluate("localStorage.removeItem('quiz:easy')");
+    await admin.reload();
+    await admin.getByText('Користувачів усього', exact).waitFor();
     // Знімки меню адміна на 360 px у обох темах (лише з E2E_SHOTS=1). 80: у нижній панелі телефона перемикача теми немає
     // («Вигляд» — на компʼютері, на телефоні — унизу головної), тож тема перемикається сховищем і вертається назад.
     await admin.setViewportSize({ width: 360, height: 812 });

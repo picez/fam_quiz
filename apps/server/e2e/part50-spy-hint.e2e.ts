@@ -159,7 +159,7 @@ async function editor50() {
   const types = host.locator('.editor-stage');
   await pickType(types, 'spy');
   await expect.poll(() => questionText(host).inputValue(), POLL).toBe('Напишіть одне слово-асоціацію до загального слова');
-  await host.getByText('Шпигуна вибере програма; він бачитиме лише «Ви — шпигун» і вашу підказку. Потрібно щонайменше 3 гравці; з меншою кількістю запитання пропуститься.', exact).waitFor();
+  await host.getByText('Шпигуна вибере програма; він бачитиме лише «Ви — шпигун» і твою підказку. Потрібно щонайменше 3 гравці; з меншою кількістю запитання пропуститься.', exact).waitFor();
   expect(await host.getByLabel('Слово шпигуна', exact).count(), 'the old spy word field').toBe(0);
 
   // ── Загальне слово й підказка з цим самим словом: попередження, але зберегти можна. ──

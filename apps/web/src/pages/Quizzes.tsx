@@ -117,8 +117,10 @@ export function Quizzes() {
     );
   }
   if (account.status === 'loading') {
+    // 81: та сама ширина й вкладки, що й у готового списку, — перехід з «Бібліотеки» чи «Вподобаних» не смикає сторінку.
     return (
-      <main className="app narrow">
+      <main className="app wide">
+        <QuizzesTabs />
         <Loading />
       </main>
     );

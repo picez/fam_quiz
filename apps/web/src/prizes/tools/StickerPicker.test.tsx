@@ -160,7 +160,7 @@ describe('StickerPicker', () => {
     cleanup();
     show('star', decorOf({ ...medallion, inscriptions: [back], stickers: stickers('front', 'base-left') }));
     expect(addButton().disabled).toBe(true);
-    expect(screen.getByText('Вільних місць немає — приберіть щось, щоб додати наліпку.')).toBeTruthy();
+    expect(screen.getByText('Вільних місць немає — прибери щось, щоб додати наліпку.')).toBeTruthy();
     cleanup();
     show('cup', decorOf({}));
     expect(addButton().disabled).toBe(false);
@@ -194,11 +194,11 @@ describe('StickerPicker', () => {
     fireEvent.click(addButton());
     const hint = () => document.getElementById(done().getAttribute('aria-describedby')!)!.textContent;
     expect(done().disabled).toBe(true);
-    expect(hint()).toBe('Оберіть наліпку.');
+    expect(hint()).toBe('Обери наліпку.');
     fireEvent.click(within(dialog()).getByRole('button', { name: first('nya').id }));
     expect(done().disabled).toBe(false);
     expect(done().hasAttribute('aria-describedby')).toBe(false);
-    expect(screen.queryByText('Оберіть наліпку.')).toBeNull();
+    expect(screen.queryByText('Обери наліпку.')).toBeNull();
   });
 
   it('focus lands on the sticker row when the opener is gone or disabled', () => {

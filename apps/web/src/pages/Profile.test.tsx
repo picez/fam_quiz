@@ -151,7 +151,7 @@ describe('Profile', () => {
       data: [{ code: '123456', title: 'Кіно', host: { id: 'h1', nickname: 'Галина', avatar: null }, invitedAt: '2026-10-23T10:00:00.000Z' }],
     });
     const { container } = open();
-    const invites = await screen.findByRole('heading', { name: 'Вас запросили' });
+    const invites = await screen.findByRole('heading', { name: 'Тебе запросили' });
     expect(before(container.querySelector('header.profile-head')!, invites)).toBe(true);
     expect(before(invites, tiles())).toBe(true);
   });
@@ -234,8 +234,8 @@ describe('Profile', () => {
       data: [{ code: '123456', title: 'Кіно', host: { id: 'h1', nickname: 'Галина', avatar: null }, invitedAt: '2026-10-23T10:00:00.000Z' }],
     });
     const { container } = open();
-    await screen.findByRole('heading', { name: 'Вас запросили' });
-    expect(before(container.querySelector('header.profile-head')!, screen.getByRole('heading', { name: 'Вас запросили' }))).toBe(true);
+    await screen.findByRole('heading', { name: 'Тебе запросили' });
+    expect(before(container.querySelector('header.profile-head')!, screen.getByRole('heading', { name: 'Тебе запросили' }))).toBe(true);
     expect(screen.getByText('Галина запрошує: «Кіно», код 123 456')).toBeTruthy();
     expect(screen.getByRole('link', { name: 'Приєднатися' }).getAttribute('href')).toBe('/play/123456');
     fireEvent.click(screen.getByRole('button', { name: 'Відхилити' }));
@@ -266,7 +266,7 @@ describe('Profile', () => {
   it('has no invite block without invites', async () => {
     open();
     await screen.findByRole('navigation', { name: 'Розділи профілю' });
-    expect(screen.queryByRole('heading', { name: 'Вас запросили' })).toBeNull();
+    expect(screen.queryByRole('heading', { name: 'Тебе запросили' })).toBeNull();
   });
 
   it('sends a visitor to sign in', async () => {

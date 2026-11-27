@@ -190,8 +190,8 @@ async function editorGame11a() {
   expect(listed.length, listed.join(' | ')).toBe(3);
   const all = listed.join('\n');
   expect(all).toContain('Категорія 3: немає назви.');
-  expect(all).toContain('Категорія 1, запитання 1: впишіть текст запитання.');
-  expect(all).toContain('Категорія 2, запитання 3: заповніть усі варіанти');
+  expect(all).toContain('Категорія 1, запитання 1: впиши текст запитання.');
+  expect(all).toContain('Категорія 2, запитання 3: заповни всі варіанти');
   expect(host.url()).toMatch(/\/quizzes\/.+/);
   await shot(host, 'p11a-editor-problems');
 

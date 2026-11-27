@@ -227,7 +227,7 @@ async function importExport42() {
   await author.getByRole('button', { name: 'Імпорт', ...exact }).click();
   const lastDialog = author.getByRole('dialog', { name: 'Імпорт вікторини', ...exact });
   await lastDialog.locator('input[type=file]').setInputFiles({ name: 'notes.txt', mimeType: 'text/plain', buffer: Buffer.from('просто текст') });
-  await lastDialog.getByRole('alert').filter({ hasText: 'Виберіть файл .quiz, .xlsx або .csv.' }).waitFor();
+  await lastDialog.getByRole('alert').filter({ hasText: 'Вибери файл .quiz, .xlsx або .csv.' }).waitFor();
   await shot(author, 'p42-unknown-file');
 
   // ── 9. Світла тема на кадрах. ──

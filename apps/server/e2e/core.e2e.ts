@@ -34,7 +34,7 @@ async function scenario() {
   await host.goto(base);
   await host.getByRole('link', { name: 'Увійти, щоб проводити свої ігри', ...exact }).click();
   await click(host, 'Створити акаунт');
-  await field(host, 'Ваше ім’я').fill('Олена Ведуча');
+  await field(host, 'Твоє ім’я').fill('Олена Ведуча');
   await field(host, 'Email').fill('host@example.com');
   await field(host, 'Пароль').fill('correct horse battery');
   await click(host, 'Зареєструватися');
@@ -274,7 +274,7 @@ async function twoRounds() {
   await host.goto(base);
   await host.getByRole('link', { name: 'Увійти, щоб проводити свої ігри', ...exact }).click();
   await click(host, 'Створити акаунт');
-  await field(host, 'Ваше ім’я').fill('Ірина Ведуча');
+  await field(host, 'Твоє ім’я').fill('Ірина Ведуча');
   await field(host, 'Email').fill('host2@example.com');
   await field(host, 'Пароль').fill('correct horse battery');
   await click(host, 'Зареєструватися');
@@ -438,7 +438,7 @@ async function blitzGame() {
   await host.goto(base);
   await host.getByRole('link', { name: 'Увійти, щоб проводити свої ігри', ...exact }).click();
   await click(host, 'Створити акаунт');
-  await field(host, 'Ваше ім’я').fill('Марія Ведуча');
+  await field(host, 'Твоє ім’я').fill('Марія Ведуча');
   await field(host, 'Email').fill('host3@example.com');
   await field(host, 'Пароль').fill('correct horse battery');
   await click(host, 'Зареєструватися');
@@ -576,7 +576,7 @@ async function boardGame() {
   await host.goto(base);
   await host.getByRole('link', { name: 'Увійти, щоб проводити свої ігри', ...exact }).click();
   await click(host, 'Створити акаунт');
-  await field(host, 'Ваше ім’я').fill('Катерина Ведуча');
+  await field(host, 'Твоє ім’я').fill('Катерина Ведуча');
   await field(host, 'Email').fill('host4@example.com');
   await field(host, 'Пароль').fill('correct horse battery');
   await click(host, 'Зареєструватися');
@@ -785,7 +785,7 @@ async function mixedBoard() {
   await host.goto(base);
   await host.getByRole('link', { name: 'Увійти, щоб проводити свої ігри', ...exact }).click();
   await click(host, 'Створити акаунт');
-  await field(host, 'Ваше ім’я').fill('Дарина Ведуча');
+  await field(host, 'Твоє ім’я').fill('Дарина Ведуча');
   await field(host, 'Email').fill('host5@example.com');
   await field(host, 'Пароль').fill('correct horse battery');
   await click(host, 'Зареєструватися');
@@ -1007,7 +1007,7 @@ async function videoGame() {
   await host.goto(base);
   await host.getByRole('link', { name: 'Увійти, щоб проводити свої ігри', ...exact }).click();
   await click(host, 'Створити акаунт');
-  await field(host, 'Ваше ім’я').fill('Марта Ведуча');
+  await field(host, 'Твоє ім’я').fill('Марта Ведуча');
   await field(host, 'Email').fill('host7@example.com');
   await field(host, 'Пароль').fill('correct horse battery');
   await click(host, 'Зареєструватися');
@@ -1122,7 +1122,7 @@ async function finalGame() {
   await host.goto(base);
   await host.getByRole('link', { name: 'Увійти, щоб проводити свої ігри', ...exact }).click();
   await click(host, 'Створити акаунт');
-  await field(host, 'Ваше ім’я').fill('Надія Ведуча');
+  await field(host, 'Твоє ім’я').fill('Надія Ведуча');
   await field(host, 'Email').fill('host9@example.com');
   await field(host, 'Пароль').fill('correct horse battery');
   await click(host, 'Зареєструватися');
@@ -1296,7 +1296,7 @@ async function menuProfileFriends() {
   await host.goto(base);
   await host.getByRole('link', { name: 'Увійти, щоб проводити свої ігри', ...exact }).click();
   await click(host, 'Створити акаунт');
-  await field(host, 'Ваше ім’я').fill('Галина Ведуча');
+  await field(host, 'Твоє ім’я').fill('Галина Ведуча');
   await field(host, 'Email').fill('host8@example.com');
   await field(host, 'Пароль').fill('correct horse battery');
   await click(host, 'Зареєструватися');
@@ -1323,7 +1323,7 @@ async function menuProfileFriends() {
   await olya.goto(base);
   await olya.locator(MENU).getByRole('link', { name: 'Увійти' }).click();
   await click(olya, 'Створити акаунт');
-  await field(olya, 'Ваше ім’я').fill('Оля Гравець');
+  await field(olya, 'Твоє ім’я').fill('Оля Гравець');
   await field(olya, 'Email').fill('olya8@example.com');
   await field(olya, 'Пароль').fill('correct horse battery');
   await click(olya, 'Зареєструватися');
@@ -1481,7 +1481,7 @@ async function chainGame() {
   await host.goto(base);
   await host.getByRole('link', { name: 'Увійти, щоб проводити свої ігри', ...exact }).click();
   await click(host, 'Створити акаунт');
-  await field(host, 'Ваше ім’я').fill('Ірина Ведуча');
+  await field(host, 'Твоє ім’я').fill('Ірина Ведуча');
   await field(host, 'Email').fill('host10@example.com');
   await field(host, 'Пароль').fill('correct horse battery');
   await click(host, 'Зареєструватися');
@@ -1677,7 +1677,7 @@ async function invitesAndVersus() {
   expect(mark.y + mark.height).toBeLessThanOrEqual(item.y + item.height + 0.5);
   await shot(olya, 'invite-badge-phone');
   await olya.locator(MENU).getByRole('link', { name: /Профіль/ }).click();
-  await olya.getByRole('heading', { name: 'Вас запросили' }).waitFor();
+  await olya.getByRole('heading', { name: 'Тебе запросили' }).waitFor();
   await olya.getByText(`Ніна запрошує: «Вечір друзів», код ${code.slice(0, 3)} ${code.slice(3)}`).waitFor();
   await expectPhoneFit(olya, 'invite-profile-phone-375');
 
@@ -1702,7 +1702,7 @@ async function invitesAndVersus() {
 
   // Ведуча не грала в спільних іграх.
   await host.goto(`${base}/profile/${olyaId}`);
-  await host.getByRole('heading', { name: 'Ви і Оксана' }).waitFor();
+  await host.getByRole('heading', { name: 'Ти і Оксана' }).waitFor();
   await host.getByText('Ви ще не грали разом.').waitFor();
 
   // Друга гра: Оксана й Віра з акаунтів.
@@ -1715,17 +1715,17 @@ async function invitesAndVersus() {
   await playOut(host, [[olya, true], [vira, false]]);
 
   await olya.goto(`${base}/profile/${viraId}`);
-  await olya.getByRole('heading', { name: 'Ви і Віра' }).waitFor();
+  await olya.getByRole('heading', { name: 'Ти і Віра' }).waitFor();
   await stat(olya, 'гра разом').waitFor();
   expect(await stat(olya, 'гра разом').textContent()).toBe('1гра разом');
-  expect(await stat(olya, 'гра, де ви вище').textContent()).toBe('1гра, де ви вище');
+  expect(await stat(olya, 'гра, де ти вище').textContent()).toBe('1гра, де ти вище');
   expect(await stat(olya, 'ігор, де Віра вище').textContent()).toBe('0ігор, де Віра вище');
-  expect(await stat(olya, 'правильних відповідей у вас').textContent()).toBe('100%правильних відповідей у вас');
+  expect(await stat(olya, 'правильних відповідей у тебе').textContent()).toBe('100%правильних відповідей у тебе');
   expect(await stat(olya, 'правильних відповідей — Віра').textContent()).toBe('0%правильних відповідей — Віра');
-  await olya.locator('.versus-games li', { hasText: '«Вечір друзів»: ви — 1 місце, Віра — 2 місце' }).waitFor();
+  await olya.locator('.versus-games li', { hasText: '«Вечір друзів»: ти — 1 місце, Віра — 2 місце' }).waitFor();
   await expectPhoneFit(olya, 'versus-phone-375');
   await vira.goto(`${base}/profile/${olyaId}`);
-  await vira.getByRole('heading', { name: 'Ви і Оксана' }).waitFor();
+  await vira.getByRole('heading', { name: 'Ти і Оксана' }).waitFor();
   await vira.setViewportSize({ width: 1280, height: 900 });
   await shot(vira, 'versus-desktop');
 

@@ -61,7 +61,7 @@ describe('ProfileLevels', () => {
     for (const row of all.slice(0, 12)) expect(row.classList.contains('is-future')).toBe(false);
     const current = all[11]!;
     expect(current.classList.contains('is-current')).toBe(true);
-    expect(within(current).getByText('Ви тут')).toBeTruthy();
+    expect(within(current).getByText('Ти тут')).toBeTruthy();
     expect(within(current).getByText(`Ще ${progress.nextAt - progress.xp} досвіду до рівня 13`)).toBeTruthy();
     const future = all[12]!;
     expect(future.classList.contains('is-future')).toBe(true);
@@ -90,7 +90,7 @@ describe('ProfileLevels', () => {
     await open();
     const all = rows();
     expect(all.filter((row) => row.classList.contains('is-current'))).toEqual([all[LEVEL_REWARDS_TOP - 1]]);
-    expect(within(all[LEVEL_REWARDS_TOP - 1]!).getByText('Ви тут')).toBeTruthy();
+    expect(within(all[LEVEL_REWARDS_TOP - 1]!).getByText('Ти тут')).toBeTruthy();
     expect(within(all[LEVEL_REWARDS_TOP - 1]!).getByText(/до рівня 44$/)).toBeTruthy();
     expect(all.some((row) => row.classList.contains('is-future'))).toBe(false);
   });

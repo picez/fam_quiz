@@ -128,10 +128,10 @@ async function challenge44() {
   await again.waitFor({ state: 'detached' });
   expect(((await (await olena.request.get(`${base}/api/challenges`)).json()) as { code: string }[]).map((c) => c.code)).toEqual([code]);
 
-  // ── 3. Гість: «Увійдіть, щоб прийняти виклик». ──
+  // ── 3. Гість: «Увійди, щоб прийняти виклик». ──
   const guest = await light(await open('guest44', 360, 740));
   await guest.goto(url);
-  await guest.getByText('Увійдіть, щоб прийняти виклик.', exact).waitFor();
+  await guest.getByText('Увійди, щоб прийняти виклик.', exact).waitFor();
   const signIn = guest.getByRole('main').getByRole('link', { name: 'Увійти', ...exact });
   expect(await signIn.getAttribute('href')).toBe(`/login?next=${encodeURIComponent(`/challenge/${code}`)}`);
   await expectNoSideScroll(guest, 'p44-guest');

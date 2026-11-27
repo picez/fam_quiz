@@ -57,7 +57,7 @@ describe('ChallengePage', () => {
   it('a guest is asked to sign in', () => {
     vi.mocked(useAccount).mockReturnValue({ status: 'anonymous' } as never);
     show();
-    expect(screen.getByText('Увійдіть, щоб прийняти виклик.')).toBeTruthy();
+    expect(screen.getByText('Увійди, щоб прийняти виклик.')).toBeTruthy();
     const link = screen.getByRole('link', { name: 'Увійти' });
     expect(link.getAttribute('href')).toBe(`/login?next=${encodeURIComponent(`/challenge/${CODE}`)}`);
     expect(getChallenge).not.toHaveBeenCalled();

@@ -98,7 +98,7 @@ describe('Login', () => {
     vi.mocked(signUp).mockResolvedValue({ ok: true });
     open();
     fireEvent.click(screen.getByRole('button', { name: 'Створити акаунт' }));
-    fill('Ваше ім’я', 'Олена');
+    fill('Твоє ім’я', 'Олена');
     fill('Email', 'o@example.com');
     fill('Пароль', 'password1');
     fireEvent.click(screen.getByRole('button', { name: 'Зареєструватися' }));
@@ -110,11 +110,11 @@ describe('Login', () => {
     vi.mocked(signUp).mockResolvedValueOnce({ ok: false, error: 'email_taken' });
     open();
     fireEvent.click(screen.getByRole('button', { name: 'Створити акаунт' }));
-    fill('Ваше ім’я', 'Олена');
+    fill('Твоє ім’я', 'Олена');
     fill('Email', 'o@example.com');
     fill('Пароль', 'password1');
     fireEvent.click(screen.getByRole('button', { name: 'Зареєструватися' }));
-    expect((await screen.findByRole('alert')).textContent).toBe('Акаунт із таким email уже існує. Спробуйте увійти.');
+    expect((await screen.findByRole('alert')).textContent).toBe('Акаунт із таким email уже існує. Спробуй увійти.');
 
     fill('Пароль', '1234567');
     expect((screen.getByRole('button', { name: 'Зареєструватися' }) as HTMLButtonElement).disabled).toBe(true);
@@ -124,7 +124,7 @@ describe('Login', () => {
     vi.mocked(signUp).mockResolvedValueOnce({ ok: false, error: 'email_merged' });
     open();
     fireEvent.click(screen.getByRole('button', { name: 'Створити акаунт' }));
-    fill('Ваше ім’я', 'Олена');
+    fill('Твоє ім’я', 'Олена');
     fill('Email', 'old@example.com');
     fill('Пароль', 'password1');
     fireEvent.click(screen.getByRole('button', { name: 'Зареєструватися' }));
@@ -170,7 +170,7 @@ describe('Login with Google', () => {
   it('tells a host with a password account to use the password instead of trying Google again', async () => {
     open('/login?error=account_not_linked');
     expect((await screen.findByRole('alert')).textContent).toBe(
-      'На цю адресу вже є акаунт із паролем. Увійдіть через email і пароль.',
+      'На цю адресу вже є акаунт із паролем. Увійди через email і пароль.',
     );
   });
 
@@ -186,7 +186,7 @@ describe('Login with Google', () => {
 
   it('explains a sign-in that Google or the server turned down', async () => {
     open('/login?error=access_denied');
-    expect((await screen.findByRole('alert')).textContent).toBe('Не вдалося увійти через Google. Спробуйте ще раз.');
+    expect((await screen.findByRole('alert')).textContent).toBe('Не вдалося увійти через Google. Спробуй ще раз.');
   });
 
   it('offers the language field to guests', () => {

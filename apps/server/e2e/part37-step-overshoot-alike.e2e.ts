@@ -236,7 +236,7 @@ async function editor37() {
   await pickType(types, 'thinkalike');
   await expect.poll(() => questionText(host).inputValue(), POLL).toBe(ALIKE_TEXT37);
   await expect.poll(() => field(host, 'Час, с').inputValue(), POLL).toBe('30');
-  await host.getByText('Тема — у тексті запитання. Схожі слова програма об’єднає сама; на розкритті ви зможете виправити групи.', exact).waitFor();
+  await host.getByText('Тема — у тексті запитання. Схожі слова програма об’єднає сама; на розкритті ти зможеш виправити групи.', exact).waitFor();
 
   // ── Бліц: «Як усі» в меню немає; числове з «Не перебільш» — проблема місця. ──
   await click(host, '+ Раунд');

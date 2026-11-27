@@ -17,6 +17,9 @@ const TYPE_GROUPS: [line: TextKey, types: Question['type'][]][] = [
 /** Кілька частих бафів; повний список — у довідці ведучого. */
 const BUFFS: BuffKind[] = ['fifty', 'double', 'retry', 'time', 'shield', 'hint'];
 
+/** 81: рядки бафів з гри (buffGuide_*) звертаються на «ви»; сторінка поза грою — на «ти», тож три з них мають свої ключі. */
+const BUFF_LINES: Partial<Record<BuffKind, TextKey>> = { retry: 'playHelpBuff_retry', time: 'playHelpBuff_time', hint: 'playHelpBuff_hint' };
+
 /** Розділ сторінки: значок, заголовок, текст і (за бажанням) маленький макет телефона праворуч. */
 function Part({ id, icon, title, picture, children }: { id: string; icon: string; title: TextKey; picture?: ReactNode; children: ReactNode }): JSX.Element {
   return (
@@ -110,7 +113,7 @@ export function PlayerHelp(): JSX.Element {
                 {BUFF_ICONS[kind]}
               </span>
               <span>
-                <strong>{buffName(kind)}</strong> <span>{t(`buffGuide_${kind}` as TextKey)}</span>
+                <strong>{buffName(kind)}</strong> <span>{t(BUFF_LINES[kind] ?? (`buffGuide_${kind}` as TextKey))}</span>
               </span>
             </li>
           ))}

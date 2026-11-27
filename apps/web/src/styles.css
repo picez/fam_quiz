@@ -3569,6 +3569,14 @@ button.match-item {
   border-bottom-color: var(--amber);
 }
 
+/* 81: на компʼютері сторінки з меню (не гра) тримають місце під смугу прокрутки: коротка й довга вкладка («Мої» й «Вподобані»,
+   «Стрічка» й «Календар») не зсувають сторінку вбік. На телефоні смуга накладна — місце не потрібне. */
+@media (min-width: 701px) {
+  :root:has(.with-menu) {
+    scrollbar-gutter: stable;
+  }
+}
+
 @media (max-width: 700px) {
   .menu {
     position: fixed;
@@ -14296,6 +14304,65 @@ button.wall-tile:disabled {
     gap: 0.3rem;
     padding-inline: 0.5rem;
     white-space: nowrap;
+  }
+}
+
+/* 81: легкий режим на телефоні до 400 px — підпис не ширший за пʼяту (шосту в адміна) частину ширини: на 320 px «Вікторини»
+   у 19-піксельному rem вилазили на сусідів («ГоловнаВікторини…»). Шрифт рахується від ширини екрана (на 320 px ≈ 10,9 px —
+   більше, ніж звичайні 10), значок трохи менший, дзвіночок вужчий; панель тієї самої висоти. */
+@media (max-width: 400px) {
+  :root.is-easy .menu a {
+    font-size: clamp(0.5rem, 3.4vw, 0.8125rem);
+    letter-spacing: -0.02em;
+  }
+
+  :root.is-easy .menu:has(> a:nth-of-type(6):not(.menu-inbox)) a {
+    font-size: clamp(0.5rem, 3.2vw, 0.75rem);
+  }
+
+  :root.is-easy .menu a > span[aria-hidden='true'] {
+    font-size: 1.125rem;
+  }
+
+  :root.is-easy .menu .menu-inbox {
+    flex-basis: 2rem;
+  }
+}
+
+/* 81: верхня панель у легкому режимі чи з шістьма пунктами (адмін) на 701–1100 px не влазила в рядок (прокрутка вбік):
+   значок над словом і вужчі поля — слова біля значків лишаються. До 1280 px — лише вужчі поля. */
+@media (min-width: 701px) and (max-width: 1280px) {
+  :root.is-easy .menu,
+  .menu:has(> a:nth-of-type(6):not(.menu-inbox)) {
+    gap: 0;
+    padding-inline: 0.25rem;
+  }
+
+  :root.is-easy .menu a,
+  :root.is-easy .menu .appearance-button,
+  .menu:has(> a:nth-of-type(6):not(.menu-inbox)) a,
+  .menu:has(> a:nth-of-type(6):not(.menu-inbox)) .appearance-button {
+    padding-inline: 0.55rem;
+    white-space: nowrap;
+  }
+}
+
+@media (min-width: 701px) and (max-width: 1100px) {
+  :root.is-easy .menu a,
+  .menu:has(> a:nth-of-type(6):not(.menu-inbox)) a {
+    flex-direction: column;
+    justify-content: center;
+    gap: 0;
+    padding-block: 0.3rem;
+    padding-inline: 0.45rem;
+    font-size: 0.8125rem;
+    line-height: 1.1;
+  }
+
+  :root.is-easy .menu a > span[aria-hidden='true'],
+  .menu:has(> a:nth-of-type(6):not(.menu-inbox)) a > span[aria-hidden='true'] {
+    font-size: 1.15rem;
+    line-height: 1.2;
   }
 }
 
@@ -28866,6 +28933,18 @@ details.admin-fold[open] > summary::before {
   transform: rotate(-45deg);
 }
 
+/* 81: «зменшити рух» — стрілка розділу адмінки повертається без анімації. */
+@media (prefers-reduced-motion: reduce) {
+  details.admin-fold > summary::before {
+    transition: none;
+  }
+}
+
+/* Легкий режим (31): те саме, що prefers-reduced-motion: reduce. */
+:where(:root.is-easy) details.admin-fold > summary::before {
+  transition: none;
+}
+
 .admin-fold-title {
   display: inline;
   margin: 0;
@@ -31323,13 +31402,22 @@ main > .back-link {
   font-size: 1.05rem;
 }
 
-/* 701–900 px: пʼять повних підписів і дзвіночок — «Вигляд» лише значком (назва лишається в aria-label). */
+/* 701–900 px: вужчі поля «Вигляду»; слово біля значка — лише коли вміщується (81: клас is-tight з Menu). */
 @media (min-width: 701px) and (max-width: 900px) {
   .menu .appearance-button {
     padding-inline: 0.5rem;
   }
+}
 
-  .menu .appearance-button > span:not(.appearance-icon) {
+/* 81: слова біля дзвіночка й «Вигляду» в меню компʼютера; Menu ставить is-tight, якщо панель з ними не вміщується в ширину,
+   тоді лишаються значки (назви — в aria-label). На телефоні дзвіночок лише значком. */
+.menu.is-tight .menu-word,
+.menu.is-tight .appearance-word {
+  display: none;
+}
+
+@media (max-width: 700px) {
+  .menu .menu-word {
     display: none;
   }
 }

@@ -1054,7 +1054,7 @@ async function categorySparesGame() {
     .locator('.powers-warn')
     .getByText('Заміна запитання: немає запасних у категоріях: Поле · Міста, Поле · Річки — на їхніх клітинках заміни не буде.', exact)
     .waitFor();
-  expect(await warns()).not.toContain('Заміна запитання: додайте запасні запитання');
+  expect(await warns()).not.toContain('Заміна запитання: додай запасні запитання');
   await editorTab(host, 'Раунди й запитання');
   await pickRound(host, 'Поле');
   await host.getByRole('button', { name: /^Категорія 2, клітинка 1: 100/ }).click();

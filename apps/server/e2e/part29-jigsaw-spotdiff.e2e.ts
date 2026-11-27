@@ -262,7 +262,7 @@ async function jigsawGame29c() {
   expect(await field(host, 'Час, с').inputValue(), 'the default jigsaw time').toBe('120');
   await expect.poll(() => field(host, 'Бали').inputValue(), POLL).toBe('300');
   expect(await host.getByLabel('Відео з YouTube', exact).count(), 'a jigsaw has no video').toBe(0);
-  await host.getByText('Додайте фото: з нього гра виріже шматочки.', exact).waitFor();
+  await host.getByText('Додай фото: з нього гра виріже шматочки.', exact).waitFor();
   await uploadPhoto29c(host);
   // Співвідношення й кількість: 16:9 — та сама сітка 4×3; 7 шматочків на 4:3 — 3×2 = 6; назад 12.
   await host.getByRole('radio', { name: '16:9', ...exact }).click();

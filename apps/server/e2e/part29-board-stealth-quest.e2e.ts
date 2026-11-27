@@ -677,7 +677,7 @@ async function questGame29g() {
   // Порожній квест: проблеми називають запитання й код.
   await click(host, 'Зберегти');
   const problems29g = await showProblems(host);
-  await problems29g.filter({ hasText: 'Квест із кодом: напишіть глобальне запитання.' }).waitFor();
+  await problems29g.filter({ hasText: 'Квест із кодом: напиши глобальне запитання.' }).waitFor();
   await problems29g.filter({ hasText: 'Квест із кодом: код — від 3 до 8 цифр чи літер.' }).waitFor();
   const types = host.locator('.editor-stage');
   await expect.poll(async () => (await typeOptions(types)).includes('single'), POLL).toBe(true);
@@ -693,7 +693,7 @@ async function questGame29g() {
   await field(host, 'Спроб').fill('3');
   await field(host, 'Бонус, балів').fill('1200');
   expect(await host.locator('.quest-settings option[value="buff"]').evaluate((el) => (el as HTMLOptionElement).disabled), 'a buff bonus without allowed buffs').toBe(true);
-  await host.locator('.quest-buff-none').getByText('Увімкніть бафи у вікторині, щоб дати баф', exact).waitFor();
+  await host.locator('.quest-buff-none').getByText('Увімкни бафи у вікторині, щоб дати баф', exact).waitFor();
 
   // Три запитання: число, так/ні, текст — а потрібно щонайменше 4.
   await pickQuestion29g(host, 1);

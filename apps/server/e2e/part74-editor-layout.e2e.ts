@@ -86,7 +86,7 @@ async function layout74() {
   expect(await listItem(marta, 2).locator('.question-item-mark').count(), 'the new question is not red yet').toBe(0);
   await listItem(marta, 1).locator('button.question-item').click();
   await expect.poll(() => questionCard(marta).getAttribute('class'), POLL).toContain('has-error');
-  expect((await questionCard(marta).locator('.card-error').textContent())?.trim()).toBe('Запитання 1: впишіть текст запитання.');
+  expect((await questionCard(marta).locator('.card-error').textContent())?.trim()).toBe('Запитання 1: впиши текст запитання.');
   await shot(marta, '74-touched-360');
 
   // ── 4. Текст є, таймер 15 с: сіре нагадування в «Час і бали», ⓘ у списку, розділ нагадувань у панелі. ──
@@ -106,7 +106,7 @@ async function layout74() {
   await expectNoSideScroll(marta, '74-issues-360-open');
 
   // ── 5. Рядок помилки веде на запитання 2. ──
-  await panel.locator('ul.problems').getByRole('button', { name: 'Запитання 2: впишіть текст запитання.', ...exact }).click();
+  await panel.locator('ul.problems').getByRole('button', { name: 'Запитання 2: впиши текст запитання.', ...exact }).click();
   await panel.waitFor({ state: 'detached' });
   await showList(marta);
   await expect.poll(() => listItem(marta, 2).locator('button.question-item').getAttribute('aria-current'), POLL).toBe('true');

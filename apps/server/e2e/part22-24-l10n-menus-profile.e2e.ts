@@ -146,7 +146,7 @@ async function l10n22a() {
   await bohdan.goto(`${base}/login`);
   await expect.poll(() => htmlLang(bohdan), POLL).toBe('en');
   await click(bohdan, label(en, 'Створити акаунт'));
-  await field(bohdan, label(en, 'Ваше ім’я')).fill('Богдан 22a');
+  await field(bohdan, label(en, 'Твоє ім’я')).fill('Богдан 22a');
   await field(bohdan, label(en, 'Email')).fill('bohdan22a@example.com');
   await field(bohdan, label(en, 'Пароль')).fill(PASSWORD);
   await click(bohdan, label(en, 'Зареєструватися'));

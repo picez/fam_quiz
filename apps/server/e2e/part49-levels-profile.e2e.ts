@@ -530,7 +530,7 @@ async function map49() {
   await count49(rows, 40);
   const current = olya.locator('.level-row.is-current');
   await count49(current, 1);
-  expect(squash49(await current.locator('.level-row-head').textContent())).toContain('Ви тут');
+  expect(squash49(await current.locator('.level-row-head').textContent())).toContain('Ти тут');
   expect(squash49(await current.locator('strong').first().textContent())).toBe(`Рівень ${level}`);
   expect(await current.locator('.level-row-next').count(), 'how much is left').toBe(1);
   expect(await olya.locator('.level-row.is-got').count(), 'received rows').toBe(level - 1);
