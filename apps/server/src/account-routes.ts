@@ -9,7 +9,7 @@ import { fromNodeHeaders } from 'better-auth/node';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { Auth } from './auth';
 import type { Db } from './db/client';
-import { hostGame, hostGames, playerHistory, resumeOptions } from './history';
+import { hostGame, hostGames, playedGameDetail, playerHistory, resumeOptions } from './history';
 import { openGameIds, savedSummaries } from './saved-games';
 import { profileAdminPush, profileEasy, profileLocale, touchSeen } from './profiles';
 import { isAdmin } from './admin';
@@ -288,6 +288,14 @@ export async function registerAccountRoutes(
     const user = await currentUser(request);
     if (user === null) return reply.code(401).send(UNAUTHORIZED);
     return playerHistory(db, user.id);
+  });
+
+  // 79: зіграна гра для її гравця — таблиця й лише свої відповіді; лише читання.
+  app.get<WithId>('/api/me/history/:id', async (request, reply) => {
+    const user = await currentUser(request);
+    if (user === null) return reply.code(401).send(UNAUTHORIZED);
+    const found = await playedGameDetail(db, user.id, request.params.id);
+    return found === null ? reply.code(404).send(NOT_FOUND) : found;
   });
 
   return { currentUser };

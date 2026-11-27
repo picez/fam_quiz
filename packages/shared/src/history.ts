@@ -225,6 +225,37 @@ export interface GameAdjustment {
 }
 
 /** Гра в історії гравця з акаунтом. */
+/**
+ * 79: зіграна гра для її гравця (GET /api/me/history/:id): підсумкова таблиця (лише те, що показав фінальний екран)
+ * і власні відповіді гравця — у командній грі ще й відповіді його команди; чужих відповідей, голосів і бафів немає.
+ */
+export interface PlayedGameDetail {
+  gameId: string;
+  title: string;
+  startedAt: string;
+  autopilot: boolean;
+  /** Нік гравця в цій грі. */
+  nickname: string;
+  /** Командна гра: назва команди гравця; null — соло. */
+  team: string | null;
+  teams: boolean;
+  /** Місце й бали рядка, що грав (команди чи самого гравця). */
+  rank: number | null;
+  score: number;
+  playerCount: number;
+  standings: { rank: number | null; nickname: string; score: number; members?: string[]; me: boolean }[];
+  questions: {
+    index: number;
+    roundIndex: number;
+    text: string;
+    type: Question['type'];
+    /** Знімок запитання з правильною відповіддю (її показали після запитання). */
+    question: Question;
+    /** Рядки відповіді гравця (чи його команди); [] — без відповіді. */
+    mine: { answer: Answer | null; accepted: boolean; spare: Question | null }[];
+  }[];
+}
+
 export interface PlayedGame {
   gameId: string;
   title: string;
