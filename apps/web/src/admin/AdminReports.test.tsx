@@ -91,7 +91,7 @@ describe('AdminReports', () => {
     expect(screen.queryByRole('button', { name: 'Сховати вікторину' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Відхилити скаргу' })).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Зняти приховування' }));
-    expect(window.confirm).toHaveBeenLastCalledWith('Зняти приховування з вікторини «Річки України»? Вона повернеться в каталог, якщо автор її не закрив.');
+    expect(window.confirm).toHaveBeenLastCalledWith('Зняти приховування з вікторини «Річки України»? Вона повернеться в бібліотеку, якщо автор її не закрив.');
     await waitFor(() => expect(actOnQuizReport).toHaveBeenCalledWith('e1', 'restore'));
   });
 
