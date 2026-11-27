@@ -1107,7 +1107,7 @@ export async function done28d(page: Page) {
   await page.locator('.puzzle-confirm').waitFor();
   await sleep(400);
   await click(page, 'Так, зафіксувати');
-  await page.getByText('Розв’язання зафіксовано. Чекаємо інших', exact).first().waitFor();
+  await page.getByText(/^Готово за [\d,]+ с\. Чекаємо інших$/).first().waitFor();
 }
 
 /** PNG з піксельної функції (як sectorsPng29c): без файлів з диска й без справжніх фото. */

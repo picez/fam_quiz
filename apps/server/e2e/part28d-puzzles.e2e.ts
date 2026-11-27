@@ -788,11 +788,11 @@ async function puzzlesTeams28d() {
 
   // «Готово» Тараса фіксує сітку всієї команди: у Олі клавіатури вже немає.
   await done28d(taras);
-  await olya.getByText('Розв’язання зафіксовано. Чекаємо інших', exact).first().waitFor();
+  await olya.getByText(/^Готово за [\d,]+ с\. Чекаємо інших$/).first().waitFor();
   expect(await olya.locator('.puzzle-keypad').count(), 'Olya’s keypad after Taras’s done').toBe(0);
   await expect.poll(() => stageThumb('Соняшники').locator('.puzzle-thumb-done').count(), POLL).toBe(1);
   await done28d(hanna);
-  await petro.getByText('Розв’язання зафіксовано. Чекаємо інших', exact).first().waitFor();
+  await petro.getByText(/^Готово за [\d,]+ с\. Чекаємо інших$/).first().waitFor();
   await host.getByRole('button', { name: 'Показати відповідь', ...exact }).waitFor({ timeout: 10_000 });
   await reveal28a(host);
   await expect.poll(() => stageThumb('Соняшники').locator('.score').textContent(), POLL).toBe('+300');
