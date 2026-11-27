@@ -152,13 +152,16 @@ describe('Home for a signed-in person', () => {
     const next = await screen.findByRole('heading', { name: 'Найближча подія' });
     const lobbies = await screen.findByRole('heading', { name: 'Відкриті ігри' });
     const quick = await screen.findByRole('heading', { name: 'Швидкий запуск' });
+    // 80: «Як грати» для гравця й довідка ведучого — поряд.
+    const play = screen.getByRole('link', { name: 'Як грати' });
     const help = screen.getByRole('link', { name: 'Довідка ведучого' });
     const easy = screen.getByLabelText('Легкий режим');
     const theme = screen.getByLabelText('Тема');
     const report = screen.getByRole('link', { name: 'Повідомити про проблему' });
-    const order = [field, host, next, lobbies, quick, help, easy, theme, report];
+    const order = [field, host, next, lobbies, quick, play, help, easy, theme, report];
     for (let i = 1; i < order.length; i++) expect(position(order[i - 1]!, order[i]!), `step ${i}`).toBe(true);
     expect(help.getAttribute('href')).toBe('/help');
+    expect(play.getAttribute('href')).toBe('/help/play');
     expect(report.getAttribute('href')).toBe('/report?from=%2F');
     expect(document.querySelector('nav.start-menu')).toBeNull();
     expect(screen.queryByRole('button', { name: 'Приєднатися' })).toBeNull();
@@ -231,6 +234,7 @@ describe('Home for a signed-in person', () => {
     expect(signIn.getAttribute('href')).toBe('/login');
     expect(position(field, library)).toBe(true);
     expect(screen.getByRole('link', { name: 'Довідка ведучого' })).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'Як грати' }).getAttribute('href')).toBe('/help/play');
     expect(screen.getByLabelText('Легкий режим')).toBeTruthy();
     expect(screen.queryByRole('link', { name: 'Я ведучий' })).toBeNull();
     expect(screen.queryByRole('link', { name: '📚 Бібліотека вікторин' })).toBeNull();

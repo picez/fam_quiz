@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useLocation } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { BUFF_ICONS } from '../buff-meta';
 import { DEBUFF_ICONS } from '../debuff-meta';
 import { ROUND_ICONS, TYPE_ICONS } from '../guide-text';
@@ -49,6 +49,10 @@ export function HostHelp() {
       <BackLink parent="/quizzes" />
       <h1 className="brand">{t('helpTitle')}</h1>
       <p className="lead">{t('helpLead')}</p>
+      {/* 80: довідки посилаються одна на одну. */}
+      <p className="meta">
+        {t('helpPlayersLead')} <Link to="/help/play">{t('playHelpTitle')}</Link>
+      </p>
       <label className="field help-search">
         <span>{t('helpSearch')}</span>
         <input type="search" value={query} onChange={(event) => setQuery(event.target.value)} />

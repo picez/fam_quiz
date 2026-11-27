@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter, useLocation } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ACHIEVEMENTS, levelProgress, type AchievementsPage, type OwnProfile } from '@quiz/shared';
@@ -224,6 +224,14 @@ describe('«Налаштування»', () => {
     open('/profile/settings');
     const link = await screen.findByRole('link', { name: 'Повідомити про проблему' });
     expect(link.getAttribute('href')).toBe('/report?from=%2Fprofile%2Fsettings');
+  });
+
+  it('80: the «Допомога» section links both helps and the problem report', async () => {
+    open('/profile/settings');
+    const help = await screen.findByRole('region', { name: 'Допомога' });
+    expect(within(help).getByRole('link', { name: 'Як грати' }).getAttribute('href')).toBe('/help/play');
+    expect(within(help).getByRole('link', { name: 'Довідка ведучого' }).getAttribute('href')).toBe('/help');
+    expect(within(help).getByRole('link', { name: 'Повідомити про проблему' }).getAttribute('href')).toBe('/report?from=%2Fprofile%2Fsettings');
   });
 
   it('31: has the «Легкий режим» section with the account hint', async () => {

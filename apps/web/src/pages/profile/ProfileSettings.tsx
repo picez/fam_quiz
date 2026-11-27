@@ -79,9 +79,20 @@ export function ProfileSettings(): JSX.Element {
               </Link>
             )}
           </div>
-          <section className="profile-section settings-row">
-            <h2>{t('problemReportTitle')}</h2>
-            <ProblemLink />
+          {/* 80: обидві довідки й «Повідомити про проблему» — в одному розділі. */}
+          <section className="profile-section settings-row settings-help" aria-labelledby="settings-help-title">
+            <h2 id="settings-help-title">{t('settingsHelp')}</h2>
+            <ul className="settings-links">
+              <li>
+                <Link to="/help/play">{t('playHelpTitle')}</Link>
+              </li>
+              <li>
+                <Link to="/help">{t('helpLink')}</Link>
+              </li>
+              <li>
+                <ProblemLink />
+              </li>
+            </ul>
           </section>
           <div className="toolbar">
             <button type="button" className="btn" disabled={leaving} onClick={() => void leave()}>

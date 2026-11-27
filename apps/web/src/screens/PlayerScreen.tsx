@@ -1070,6 +1070,14 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
       {/* «Легкий режим» (31): лише в лобі — посеред запитання випадковий дотик не перебудовує екран. */}
       {phase === 'lobby' && <EasyModeSwitch />}
       {phase === 'lobby' && <ThemeSwitch />}
+      {/* 80: «Як грати» — у новій вкладці, щоб гравець не виходив з гри (сокет лишається). */}
+      {phase === 'lobby' && (
+        <p className="lobby-help">
+          <a className="quiet-link" href="/help/play" target="_blank" rel="noopener" aria-label={t('playHelpNewTab')}>
+            {t('playHelpTitle')} <span aria-hidden="true">↗</span>
+          </a>
+        </p>
+      )}
       {phase === 'lobby' && <TeamLobby view={view} send={send} onError={setError} />}
       {/* Хто вже в лобі (беклог 5); у командній грі склад видно в командах. */}
       {phase === 'lobby' && view.team === null && view.lobby !== undefined && (

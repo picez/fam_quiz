@@ -5805,5 +5805,8 @@
   "playHelpAfterTitle": "Po grze",
   "playHelpAfterText": "Na koniec wszyscy widzą tabelę końcową i miejsca.",
   "playHelpAfterAccount": "Z kontem gra może dać doświadczenie i osiągnięcia, a sama gra zapisuje się w Historii → „Rozegrane”: widać tam miejsce, tabelę i twoje odpowiedzi.",
-  "playHelpHostLead": "Chcesz poprowadzić własną grę?"
+  "playHelpHostLead": "Chcesz poprowadzić własną grę?",
+  "playHelpNewTab": "Jak grać — otworzy się w nowej karcie",
+  "helpPlayersLead": "Dla graczy jest krótka strona:",
+  "settingsHelp": "Pomoc"
 }

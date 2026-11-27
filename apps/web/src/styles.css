@@ -31216,3 +31216,23 @@ main > .back-link {
     max-width: 14rem;
   }
 }
+
+/* 80: дві довідки поряд унизу головної; посилання розділу «Допомога» в налаштуваннях; «Як грати» в лобі гравця. */
+.home-footer-help {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1.25rem;
+  margin: 0;
+}
+
+.settings-links {
+  display: grid;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.lobby-help {
+  margin: 0.25rem 0;
+}

@@ -37,6 +37,11 @@ describe('HostHelp', () => {
     within(swap).getByRole('heading', { level: 4, name: 'Як іде в грі' });
   });
 
+  it('80: links the player help', () => {
+    renderAt('/help');
+    expect(screen.getByRole('link', { name: 'Як грати' }).getAttribute('href')).toBe('/help/play');
+  });
+
   it('searches by name and says when nothing is found', () => {
     renderAt('/help');
     fireEvent.change(screen.getByLabelText('Пошук за назвою'), { target: { value: 'щит' } });

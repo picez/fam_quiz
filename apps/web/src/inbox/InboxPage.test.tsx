@@ -74,6 +74,8 @@ describe('InboxPage (70)', () => {
     open();
     expect(await screen.findByText('Тут з\'являться повідомлення від адміністрації й відповіді на твої звернення.')).toBeTruthy();
     expect(markInboxRead).not.toHaveBeenCalled();
+    // 80: порожній список пропонує дію — сторінку «Як грати».
+    expect(screen.getByRole('link', { name: 'Як грати' }).getAttribute('href')).toBe('/help/play');
   });
 
   it('shows a broadcast and a reply, the unread one is marked «Нове»', async () => {

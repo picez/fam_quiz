@@ -93,7 +93,13 @@ function InboxList({ page, onStale }: { page: InboxData; onStale: () => void }):
       <BackLink parent="/" />
       <h1>{t('inboxTitle')}</h1>
       {page.items.length === 0 ? (
-        <p className="meta">{t('inboxEmpty')}</p>
+        <>
+          <p className="meta">{t('inboxEmpty')}</p>
+          {/* 80: порожній стан з дією — новачкові сторінка «Як грати». */}
+          <p>
+            <Link to="/help/play">{t('playHelpTitle')}</Link>
+          </p>
+        </>
       ) : (
         <ul className="inbox-list">
           {page.items.map((item) => (

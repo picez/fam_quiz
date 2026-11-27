@@ -5704,5 +5704,8 @@
   "playHelpAfterTitle": "Nach dem Spiel",
   "playHelpAfterText": "Am Ende sehen alle die Abschlusstabelle und die Platzierungen.",
   "playHelpAfterAccount": "Mit einem Konto kann ein Spiel dir XP und Erfolge bringen, und das Spiel selbst wird unter Verlauf → „Gespielt“ gespeichert: dein Platz, die Tabelle und deine Antworten.",
-  "playHelpHostLead": "Willst du selbst ein Spiel leiten?"
+  "playHelpHostLead": "Willst du selbst ein Spiel leiten?",
+  "playHelpNewTab": "So wird gespielt – öffnet sich in einem neuen Tab",
+  "helpPlayersLead": "Für Spieler gibt es eine kurze Seite:",
+  "settingsHelp": "Hilfe"
 }

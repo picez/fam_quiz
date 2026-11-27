@@ -5704,5 +5704,8 @@
   "playHelpAfterTitle": "After the game",
   "playHelpAfterText": "At the end everyone sees the final table and the places.",
   "playHelpAfterAccount": "With an account a game can give you XP and achievements, and the game itself is saved under History → “Played”: your place, the table and your answers.",
-  "playHelpHostLead": "Want to host your own game?"
+  "playHelpHostLead": "Want to host your own game?",
+  "playHelpNewTab": "How to play — opens in a new tab",
+  "helpPlayersLead": "Players have a short page of their own:",
+  "settingsHelp": "Help"
 }
