@@ -1,10 +1,10 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { and, eq } from 'drizzle-orm';
 import { classicRound, makeQuiz, makeRoundsQuiz, poll, single, truthRound, withId } from '@quiz/engine/testing';
-import type { ChallengeAttemptStart, ChallengeCheck, ChallengeMine, ChallengePreview, ChallengeResultRow, ContinueResponse } from '@quiz/shared';
+import { FRIEND_CHALLENGES_MAX, type ChallengeAttemptStart, type ChallengeCheck, type ChallengeMine, type ChallengePreview, type ChallengeResultRow, type ContinueResponse, type FriendChallenge } from '@quiz/shared';
 import { buildApp } from './app';
 import type { Db } from './db/client';
-import { challenge, challengeAttempt, game, savedGame, user } from './db/schema';
+import { challenge, challengeAttempt, game, savedGame, user, userBan } from './db/schema';
 import { TEST_AUTH, signUp } from './testing/accounts';
 import { FakeScheduler } from './testing/fake-scheduler';
 import { createTestDb } from './testing/test-db';
@@ -471,5 +471,59 @@ describe('the challenge by its code (44)', () => {
     await db.update(challenge).set({ expiresAt: new Date(Date.now() - 1000) }).where(eq(challenge.code, mine.code));
     expect((await call('POST', `/api/games/${gameId}/continue`, olena.cookie)).statusCode).toBe(404);
     expect((await call('DELETE', `/api/games/${gameId}`, olena.cookie)).statusCode).toBe(404);
+  });
+});
+
+describe('challenges from friends (78)', () => {
+  const friendChallenges = async (who: Account) => {
+    const response = await call('GET', '/api/me/friend-challenges', who.cookie);
+    expect(response.statusCode).toBe(200);
+    return response.json() as FriendChallenge[];
+  };
+
+  it('shows active challenges of people who added me, until I try them', async () => {
+    nextAddress();
+    const olena = await account('Олена');
+    const petro = await account('Петро');
+    const iryna = await account('Ірина');
+    // Олена додала Петра (не Ірину); Ірина сама додала Олену — це нічого не відкриває.
+    expect((await call('PUT', `/api/me/friends/${petro.id}`, olena.cookie)).statusCode).toBeLessThan(300);
+    expect((await call('PUT', `/api/me/friends/${olena.id}`, iryna.cookie)).statusCode).toBeLessThan(300);
+    const { quizId, mine } = await ready(olena);
+
+    const seen = await friendChallenges(petro);
+    expect(seen).toEqual([{ code: mine.code, title: expect.any(String), author: { id: olena.id, nickname: expect.stringMatching(/^Олена/) }, expiresAt: mine.expiresAt }]);
+    expect(await friendChallenges(iryna)).toEqual([]);
+    // Свій виклик — не «від друга».
+    expect(await friendChallenges(olena)).toEqual([]);
+
+    // Новий виклик на ту саму вікторину закриває старий: видно лише новий.
+    const replaced = (await call('POST', `/api/quizzes/${quizId}/challenge`, olena.cookie)).json() as ChallengeMine;
+    expect((await friendChallenges(petro)).map((item) => item.code)).toEqual([replaced.code]);
+
+    // Друга вікторина — найновіший перший.
+    const second = await ready(olena);
+    expect((await friendChallenges(petro)).map((item) => item.code)).toEqual([second.mine.code, replaced.code]);
+
+    // Спробував — зникає.
+    expect((await attempt(second.mine.code, petro)).statusCode).toBe(201);
+    expect((await friendChallenges(petro)).map((item) => item.code)).toEqual([replaced.code]);
+
+    // Прострочений — зникає.
+    await db.update(challenge).set({ expiresAt: new Date(Date.now() - 1000) }).where(eq(challenge.code, replaced.code));
+    expect(await friendChallenges(petro)).toEqual([]);
+
+    expect((await call('GET', '/api/me/friend-challenges')).statusCode).toBe(401);
+  });
+
+  it('hides a banned author and keeps at most five', async () => {
+    nextAddress();
+    const olena = await account('Олена');
+    const petro = await account('Петро');
+    expect((await call('PUT', `/api/me/friends/${petro.id}`, olena.cookie)).statusCode).toBeLessThan(300);
+    for (let i = 0; i < FRIEND_CHALLENGES_MAX + 1; i++) await ready(olena);
+    expect(await friendChallenges(petro)).toHaveLength(FRIEND_CHALLENGES_MAX);
+    await db.insert(userBan).values({ userId: olena.id, reason: null, bannedBy: null, bannedAt: new Date() });
+    expect(await friendChallenges(petro)).toEqual([]);
   });
 });
