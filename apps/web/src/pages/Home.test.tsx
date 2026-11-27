@@ -478,6 +478,30 @@ describe('Home for a signed-in person', () => {
     }
   });
 
+  it('78: an account with a quiz is checked once; later visits ask nothing, a failed check is retried', async () => {
+    vi.mocked(me).mockResolvedValue(OLENA);
+    vi.mocked(myHistory).mockResolvedValue({ ok: false, error: 'offline' });
+    routes('/');
+    await screen.findByRole('link', { name: 'Провести гру' });
+    await act(async () => {});
+    cleanup();
+
+    // Збій — нічого не відомо, тож наступного разу питаємо знову.
+    vi.mocked(myHistory).mockClear().mockResolvedValue({ ok: true, data: [{}] as never });
+    routes('/');
+    await screen.findByRole('link', { name: 'Провести гру' });
+    await act(async () => {});
+    expect(myHistory).toHaveBeenCalledTimes(1);
+    cleanup();
+
+    vi.mocked(myHistory).mockClear();
+    routes('/');
+    await screen.findByRole('link', { name: 'Провести гру' });
+    await act(async () => {});
+    expect(screen.queryByRole('heading', { name: 'З чого почати' })).toBeNull();
+    expect(myHistory).not.toHaveBeenCalled();
+  });
+
   it('a guest never asks for saved games or the calendar', async () => {
     saveHost('654321', { hostToken: 'h', stageToken: 's' });
     saveLastGame('654321');
