@@ -1,5 +1,5 @@
 import { lazy } from 'react';
-import { Navigate, Route, Routes } from 'react-router-dom';
+import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { WithMenu } from './menu/WithMenu';
 import { RouteEffects } from './nav/RouteEffects';
 import { BotHost } from './pages/BotHost';
@@ -43,6 +43,12 @@ const ProfileStats = lazy(() => import('./pages/profile/ProfileStats').then((m) 
 const InboxPage = lazy(() => import('./inbox/InboxPage').then((m) => ({ default: m.InboxPage })));
 const ProblemReport = lazy(() => import('./problems/ProblemReport').then((m) => ({ default: m.ProblemReport })));
 
+/** Стара адреса сторінки (77): одна адреса на сторінку — перенаправлення на канонічну з тим самим ?query і #hash, без зайвого запису історії. */
+function Canonical({ to }: { to: string }) {
+  const { search, hash } = useLocation();
+  return <Navigate to={{ pathname: to, search, hash }} replace />;
+}
+
 export function AppRoutes() {
   return (
     <>
@@ -82,13 +88,13 @@ export function AppRoutes() {
           <Route path="/profile/groups/:id" element={<GroupPage />} />
           <Route path="/profile/groups/:id/new" element={<GroupItemPage />} />
           <Route path="/profile/groups/:id/items/:itemId" element={<GroupItemPage />} />
-          <Route path="/groups" element={<Groups />} />
+          <Route path="/groups" element={<Canonical to="/profile/groups" />} />
           <Route path="/groups/join/:code" element={<GroupJoin />} />
           <Route path="/challenge/:code" element={<ChallengePage />} />
-          {/* Старі адреси — аліаси тих самих сторінок, не редірект. */}
-          <Route path="/prizes" element={<Prizes />} />
-          <Route path="/achievements" element={<Achievements />} />
-          <Route path="/friends" element={<Friends />} />
+          {/* Старі адреси (77): перенаправлення на сторінки профілю; ними досі користуються ігрові екрани й давні посилання. */}
+          <Route path="/prizes" element={<Canonical to="/profile/prizes" />} />
+          <Route path="/achievements" element={<Canonical to="/profile/achievements" />} />
+          <Route path="/friends" element={<Canonical to="/profile/friends" />} />
           <Route path="/profile/:id" element={<PublicProfile />} />
           <Route path="/profile/:id/achievements" element={<Achievements />} />
           <Route path="/admin/*" element={<Admin />} />

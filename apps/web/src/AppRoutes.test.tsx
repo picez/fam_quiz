@@ -2,7 +2,7 @@
 // @ts-expect-error node:fs без @types/node
 import { existsSync, readFileSync } from 'node:fs';
 import { cleanup, render, screen } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, useLocation } from 'react-router-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { levelProgress } from '@quiz/shared';
 import { getAnnouncement, getMyProfile, me } from './api';
@@ -54,9 +54,16 @@ vi.mock('./pages/ChallengePage', () => ({ ChallengePage: () => <p>ChallengePage<
 
 afterEach(cleanup);
 
+/** Поточна адреса разом із ?query і #hash. */
+function Where() {
+  const location = useLocation();
+  return <output data-testid="where">{location.pathname + location.search + location.hash}</output>;
+}
+
 const open = (path: string) =>
   render(
     <MemoryRouter initialEntries={[path]}>
+      <Where />
       <AppRoutes />
     </MemoryRouter>,
   );
@@ -108,7 +115,7 @@ describe('AppRoutes', () => {
     expect(screen.getByRole('navigation', { name: 'Меню' })).toBeTruthy();
   });
 
-  it.each(['/achievements', '/profile/u2/achievements'])('%s draws the achievements page with the menu', async (path) => {
+  it.each(['/profile/achievements', '/profile/u2/achievements'])('%s draws the achievements page with the menu', async (path) => {
     vi.mocked(me).mockResolvedValue({ ok: false, error: 'unauthorized' });
     open(path);
     expect(await screen.findByText('Achievements')).toBeTruthy();
@@ -124,11 +131,8 @@ describe('AppRoutes', () => {
     ['/profile/likes', 'ProfileLikes'],
     ['/profile/looks', 'ProfileLooks'],
     ['/profile/settings', 'ProfileSettings'],
-    ['/prizes', 'Prizes'],
-    ['/friends', 'Friends'],
     ['/profile/u2', 'PublicProfile'],
     ['/profile/groups', 'Groups'],
-    ['/groups', 'Groups'],
     ['/profile/groups/g1', 'GroupPage'],
     ['/profile/groups/g1/new', 'GroupItemPage'],
     ['/profile/groups/g1/items/i1', 'GroupItemPage'],
@@ -141,6 +145,25 @@ describe('AppRoutes', () => {
     open(path);
     expect(await screen.findByText(page)).toBeTruthy();
     expect(screen.getByRole('navigation', { name: 'Меню' })).toBeTruthy();
+  });
+
+  it.each([
+    ['/friends?tab=requests#top', '/profile/friends?tab=requests#top', 'Friends'],
+    ['/prizes', '/profile/prizes', 'Prizes'],
+    ['/achievements?pin=1', '/profile/achievements?pin=1', 'Achievements'],
+    ['/groups', '/profile/groups', 'Groups'],
+  ])('the old address %s redirects to %s keeping the query (77)', async (path, target, page) => {
+    vi.mocked(me).mockResolvedValue({ ok: false, error: 'unauthorized' });
+    open(path);
+    expect(await screen.findByText(page)).toBeTruthy();
+    expect(screen.getByTestId('where').textContent).toBe(target);
+  });
+
+  it('/profile/quizzes stays its own page — the most played list, not «Мої вікторини» (77)', async () => {
+    vi.mocked(me).mockResolvedValue({ ok: false, error: 'unauthorized' });
+    open('/profile/quizzes');
+    expect(await screen.findByText('ProfileQuizzes')).toBeTruthy();
+    expect(screen.getByTestId('where').textContent).toBe('/profile/quizzes');
   });
 
   it('/profile/prizes/new opens the prize studio', async () => {
