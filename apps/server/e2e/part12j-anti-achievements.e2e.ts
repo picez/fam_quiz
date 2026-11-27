@@ -147,11 +147,12 @@ async function anti12j() {
   await olyaBlock.scrollIntoViewIfNeeded();
   await expectNoSideScroll(olya, 'p12j-phone-olya-new');
 
-  // ── 4. Телефон гостя Іри: запрошення увійти, без карток. ──
-  const guest = ira.locator('.new-achievements-guest');
+  // ── 4. Телефон гостя Іри: одне запрошення увійти (з 49 — у картці досвіду, без другого в «Нових досягненнях»), без карток. ──
+  const guest = ira.locator('.xp-moment-guest');
   await guest.waitFor();
-  expect(await guest.textContent()).toContain('Увійди, щоб збирати досягнення');
-  expect(await guest.getByRole('link', { name: 'Увійти', ...exact }).getAttribute('href')).toBe(`/login?next=${encodeURIComponent('/profile/achievements')}`);
+  expect(await guest.textContent()).toContain('Увійдіть, щоб отримувати досвід і досягнення');
+  expect(await guest.getByRole('link', { name: 'Увійти', ...exact }).getAttribute('href')).toBe(`/login?next=${encodeURIComponent('/profile')}`);
+  expect(await ira.locator('.new-achievements-guest').count(), 'a second sign-in invitation').toBe(0);
   expect(await ira.locator('li.new-achievement').count()).toBe(0);
   await guest.scrollIntoViewIfNeeded();
   await expectNoSideScroll(ira, 'p12j-phone-guest');

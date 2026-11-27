@@ -160,10 +160,11 @@ async function typeAchievements33() {
   await expectNoSideScroll(petro, 'p33-phone-petro-new');
   await shot(petro, 'p33-phone-petro-new');
 
-  // ── 5. Телефон гостя Іри: запрошення увійти. ──
-  const guest = ira.locator('.new-achievements-guest');
+  // ── 5. Телефон гостя Іри: одне запрошення увійти (з 49 — у картці досвіду). ──
+  const guest = ira.locator('.xp-moment-guest');
   await guest.waitFor();
-  expect(await guest.textContent()).toContain('Увійди, щоб збирати досягнення');
+  expect(await guest.textContent()).toContain('Увійдіть, щоб отримувати досвід і досягнення');
+  expect(await ira.locator('.new-achievements-guest').count(), 'a second sign-in invitation').toBe(0);
   expect(await ira.locator('li.new-achievement').count()).toBe(0);
   await guest.scrollIntoViewIfNeeded();
   await expectNoSideScroll(ira, 'p33-phone-guest');
