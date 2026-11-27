@@ -48,6 +48,12 @@ export function MyGames() {
           </dl>
           {/* П’єдестал рахується з того самого списку, що й зведення вище: playerHistory віддає лише останні 100 ігор (LIMIT), тож за довшої історії це «за останні 100», а повний — у профілі. */}
           <PodiumStats stats={podiumStats(state.data)} />
+          <Link className="quiet-link" to="/profile/stats">
+            {t('playedStatsLink')}{' '}
+            <span className="flip-rtl" aria-hidden="true">
+              ›
+            </span>
+          </Link>
         </>
       )}
 
@@ -55,7 +61,12 @@ export function MyGames() {
         <ul className="quiz-list">
           {state.data.map((game) => (
             <li className="panel" key={`${game.gameId}:${game.nickname}`}>
-              <h2 dir="auto">{game.title}</h2>
+              <h2>
+                {/* 79: зіграна гра відкривається — таблиця й власні відповіді. */}
+                <Link to={`/me/${encodeURIComponent(game.gameId)}`} dir="auto">
+                  {game.title}
+                </Link>
+              </h2>
               <p className="meta">{`${formatDate(game.startedAt)}, ${t(`status_${game.status}`)}, ${t('playedAs', { nickname: game.nickname })}`}</p>
               <p className="place">
                 {game.rank === null ? t('noPlace') : t('placeOf', { rank: game.rank, total: game.playerCount })}

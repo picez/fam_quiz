@@ -1,5 +1,5 @@
 import { AUDIO_LIMITS, isObjectLike } from '@quiz/shared';
-import type { LeaguePickInfo, LeagueTable, NickLooks, PrizeContent, PrizeItem, PrizePlacesInfo, AchievementsPage, Announcement, AutopilotCheck, CalendarEvent, CalendarInput, CalendarPage, CalendarRequestStatus, ContinueResponse, FeedBadge, FeedPage, FriendCard, GameDetail, GameInvite, GameSummary, OwnProfile, Phase, PlayedGame, ProfileCard, ProfileUpdate, PublicProfile, PushSubscriptionInput, Quiz, QuizLikes, ResumeOption, SlotsResponse, Versus } from '@quiz/shared';
+import type { LeaguePickInfo, LeagueTable, NickLooks, PrizeContent, PrizeItem, PrizePlacesInfo, AchievementsPage, Announcement, AutopilotCheck, CalendarEvent, CalendarInput, CalendarPage, CalendarRequestStatus, ContinueResponse, FeedBadge, FeedPage, FriendCard, GameDetail, GameInvite, GameSummary, OwnProfile, Phase, PlayedGame, PlayedGameDetail, ProfileCard, ProfileUpdate, PublicProfile, PushSubscriptionInput, Quiz, QuizLikes, ResumeOption, SlotsResponse, Versus } from '@quiz/shared';
 import type { AchievementShares, ShowcasePin, ShowcasePins } from '@quiz/shared';
 import type { CodeInfo, LobbyRow, LobbySettings } from '@quiz/shared';
 import type { GivenLike, LikesPage, ReceivedLike } from '@quiz/shared';
@@ -259,6 +259,8 @@ export const pickLeague = (code: string, groupId: string | null) =>
 export const listGames = () => fetchData<GameSummary[]>('/api/games');
 export const getGame = (id: string) => fetchData<GameDetail>(`/api/games/${encodeURIComponent(id)}`);
 export const myHistory = () => fetchData<PlayedGame[]>('/api/me/history');
+/** 79: зіграна гра — таблиця й лише мої відповіді. */
+export const getPlayedGame = (id: string) => fetchData<PlayedGameDetail>(`/api/me/history/${encodeURIComponent(id)}`);
 /** «Продовжити» збережену гру (13b): нова кімната; ведучий отримує пульт і сцену, автор автопілота — сцену й свій токен гравця. */
 export const continueGame = (id: string) => request<ContinueResponse>(`/api/games/${encodeURIComponent(id)}/continue`, { body: {} });
 export const deleteSavedGame = (id: string) => request<object>(`/api/games/${encodeURIComponent(id)}`, { method: 'DELETE' });

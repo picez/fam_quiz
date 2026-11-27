@@ -20,6 +20,7 @@ const TITLES: [pattern: string, key: TextKey][] = [
   ['/history', 'historyTitle'],
   ['/history/:id', 'historyTitle'],
   ['/me', 'myGamesTitle'],
+  ['/me/:id', 'myGamesTitle'],
   ['/profile', 'menuProfile'],
   ['/profile/quizzes', 'profileTileQuizzes'],
   ['/profile/prizes/*', 'profileTilePrizes'],

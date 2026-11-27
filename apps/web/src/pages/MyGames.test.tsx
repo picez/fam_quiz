@@ -69,6 +69,14 @@ describe('MyGames', () => {
     expect(screen.getByText(/ви грали як Олена/)).toBeTruthy();
   });
 
+  it('79: a played game opens its own page, and «Уся статистика» leads to the profile stats', async () => {
+    vi.mocked(myHistory).mockResolvedValue({ ok: true, data: [played({ gameId: 'g7' })] });
+    open();
+    const title = await screen.findByRole('heading', { name: 'Географія' });
+    expect(within(title).getByRole('link').getAttribute('href')).toBe('/me/g7');
+    expect(screen.getByRole('link', { name: /Уся статистика/ }).getAttribute('href')).toBe('/profile/stats');
+  });
+
   it('sums up the games, wins and share of correct answers', async () => {
     vi.mocked(myHistory).mockResolvedValue({
       ok: true,

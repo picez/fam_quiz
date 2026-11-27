@@ -37,6 +37,7 @@ const GroupPage = lazy(() => import('./pages/GroupPage').then((m) => ({ default:
 const Groups = lazy(() => import('./pages/Groups').then((m) => ({ default: m.Groups })));
 const HostHelp = lazy(() => import('./pages/HostHelp').then((m) => ({ default: m.HostHelp })));
 const PrizeStudioPage = lazy(() => import('./pages/PrizeStudioPage').then((m) => ({ default: m.PrizeStudioPage })));
+const PlayedGame = lazy(() => import('./pages/PlayedGame').then((m) => ({ default: m.PlayedGame })));
 const ProfileLevels = lazy(() => import('./pages/profile/ProfileLevels').then((m) => ({ default: m.ProfileLevels })));
 const ProfileLooks = lazy(() => import('./pages/profile/ProfileLooks').then((m) => ({ default: m.ProfileLooks })));
 const ProfileStats = lazy(() => import('./pages/profile/ProfileStats').then((m) => ({ default: m.ProfileStats })));
@@ -71,6 +72,8 @@ export function AppRoutes() {
           <Route path="/history" element={<History />} />
           <Route path="/history/:id" element={<GameHistory />} />
           <Route path="/me" element={<MyGames />} />
+          {/* 79: зіграна гра — таблиця й власні відповіді. */}
+          <Route path="/me/:id" element={<PlayedGame />} />
           <Route path="/profile" element={<Profile />} />
           {/* Підсторінки плиток профілю: статичні сегменти react-router ставить вище за /profile/:id. */}
           <Route path="/profile/quizzes" element={<ProfileQuizzes />} />

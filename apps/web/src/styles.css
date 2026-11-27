@@ -30999,3 +30999,52 @@ main > .back-link {
   margin-block-start: 0;
   margin-block-end: 0.25rem;
 }
+
+/* 79: зіграна гра (/me/:id) — мої відповіді смужкою: зелена — правильно, червона — ні, сіра — без відповіді. */
+.played-game .quiet-link {
+  display: inline-block;
+  margin-block-end: 0.75rem;
+}
+
+.played-answer-list {
+  display: grid;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.played-answer-list > li {
+  display: grid;
+  gap: 0.25rem;
+  min-width: 0;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--line);
+  border-inline-start-width: 4px;
+  border-radius: var(--radius);
+  overflow-wrap: anywhere;
+}
+
+.played-answer-list > li.is-correct {
+  border-inline-start-color: var(--correct);
+}
+
+.played-answer-list > li.is-wrong {
+  border-inline-start-color: var(--wrong);
+}
+
+.played-answer-list p {
+  margin: 0;
+}
+
+.played-answer-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.25rem 0.5rem;
+}
+
+.played-answer-text {
+  font-weight: 600;
+}

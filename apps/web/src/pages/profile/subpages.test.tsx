@@ -179,6 +179,8 @@ describe('profile sub-pages', () => {
     expect(await screen.findByRole('heading', { level: 2, name: 'Перемоги' })).toBeTruthy();
     expect(container.querySelector('.podium-stats')?.textContent).toContain('2-е місце');
     expect(screen.getByText(`${formatDate(mine.wins[0]!.startedAt)} — «Кіно 90-х», 1 місце`)).toBeTruthy();
+    // 79: звідси — до списку зіграних ігор.
+    expect(screen.getByRole('link', { name: /Зіграні ігри/ }).getAttribute('href')).toBe('/me');
   });
 
   it('the old «Вподобання» address opens «Вікторини» → «Вподобані» (77)', async () => {
