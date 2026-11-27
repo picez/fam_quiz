@@ -71,7 +71,7 @@ export function Menu() {
     if (bar === null) return;
     const fit = () => {
       bar.classList.remove('is-tight');
-      if (bar.scrollWidth > bar.clientWidth + 1) bar.classList.add('is-tight');
+      if (bar.scrollWidth > bar.clientWidth) bar.classList.add('is-tight');
     };
     fit();
     if (typeof ResizeObserver === 'undefined') return;
