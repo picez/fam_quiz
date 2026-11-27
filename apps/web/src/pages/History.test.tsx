@@ -4,7 +4,7 @@ import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { forgetAccount } from '../useAccount';
 import type { GameDetail, GameSummary, Question } from '@quiz/shared';
-import { continueGame, deleteSavedGame, getGame, listGames, me } from '../api';
+import { continueGame, deleteSavedGame, getGame, listGames, me, myHistory } from '../api';
 import { loadAuthor, loadHost, loadLastGame, loadPlayer, saveAuthor, saveHost, saveLastGame } from '../storage';
 import { activateLocaleForTests, t } from '../i18n';
 import { GameHistory } from './GameHistory';
@@ -13,7 +13,7 @@ import { renderResultImage } from '../result-image/render';
 
 vi.mock('../result-image/render', () => ({ renderResultImage: vi.fn(async () => new Blob(['x'], { type: 'image/png' })) }));
 
-vi.mock('../api', () => ({ me: vi.fn(), listGames: vi.fn(), getGame: vi.fn(), continueGame: vi.fn(), deleteSavedGame: vi.fn() }));
+vi.mock('../api', () => ({ me: vi.fn(), listGames: vi.fn(), getGame: vi.fn(), continueGame: vi.fn(), deleteSavedGame: vi.fn(), myHistory: vi.fn() }));
 
 const summary: GameSummary = {
   id: 'g1',
@@ -87,6 +87,8 @@ beforeEach(() => {
   forgetAccount();
   vi.clearAllMocks();
   vi.mocked(me).mockResolvedValue({ ok: true, id: 'u1', name: 'Олена', email: 'o@example.com', admin: false });
+  vi.mocked(myHistory).mockResolvedValue({ ok: true, data: [] });
+  localStorage.removeItem('quiz:history-tab');
 });
 afterEach(() => {
   cleanup();
@@ -99,6 +101,8 @@ const open = (path: string) =>
       <Routes>
         <Route path="/history" element={<History />} />
         <Route path="/history/:id" element={<GameHistory />} />
+        <Route path="/me" element={<p>зіграні</p>} />
+        <Route path="/history/challenges" element={<p>виклики</p>} />
         <Route path="/login" element={<LoginStub />} />
         <Route path="/host/:code" element={<p>пульт</p>} />
         <Route path="/play/:code" element={<p>телефон</p>} />
@@ -107,6 +111,40 @@ const open = (path: string) =>
   );
 
 describe('History', () => {
+  it('79: a player who never hosted lands on «Зіграні»', async () => {
+    vi.mocked(listGames).mockResolvedValue({ ok: true, data: [] });
+    vi.mocked(myHistory).mockResolvedValue({ ok: true, data: [{ gameId: 'p1', title: 'Кіно', status: 'finished' as const, autopilot: false, startedAt: '2026-10-12T15:30:00.000Z', nickname: 'Олена', score: 10, rank: 1, playerCount: 3, correct: 1, answered: 1, questionsPlayed: 1, team: null }] });
+    open('/history');
+    expect(await screen.findByText('зіграні')).toBeTruthy();
+  });
+
+  it('79: a tie or a failed played list stays on «Проведені»', async () => {
+    vi.mocked(listGames).mockResolvedValue({ ok: true, data: [summary] });
+    vi.mocked(myHistory).mockResolvedValue({ ok: true, data: [{ gameId: 'p1', title: 'Кіно', status: 'finished' as const, autopilot: false, startedAt: '2026-10-12T15:30:00.000Z', nickname: 'Олена', score: 10, rank: 1, playerCount: 3, correct: 1, answered: 1, questionsPlayed: 1, team: null }] });
+    open('/history');
+    expect(await screen.findByRole('link', { name: 'Географія' })).toBeTruthy();
+    cleanup();
+    vi.mocked(listGames).mockResolvedValue({ ok: true, data: [] });
+    vi.mocked(myHistory).mockResolvedValue({ ok: false, error: 'offline' });
+    open('/history');
+    expect(await screen.findByText('Тут з’являться ігри, які ти проведеш.')).toBeTruthy();
+  });
+
+  it('79: the tab chosen on this device wins, and choosing «Проведені» is remembered', async () => {
+    vi.mocked(listGames).mockResolvedValue({ ok: true, data: [] });
+    localStorage.setItem('quiz:history-tab', 'challenges');
+    open('/history');
+    expect(await screen.findByText('виклики')).toBeTruthy();
+    expect(myHistory).not.toHaveBeenCalled();
+    cleanup();
+    localStorage.setItem('quiz:history-tab', 'hosted');
+    vi.mocked(myHistory).mockResolvedValue({ ok: true, data: [{ gameId: 'p1', title: 'Кіно', status: 'finished' as const, autopilot: false, startedAt: '2026-10-12T15:30:00.000Z', nickname: 'Олена', score: 10, rank: 1, playerCount: 3, correct: 1, answered: 1, questionsPlayed: 1, team: null }] });
+    open('/history');
+    fireEvent.click(await screen.findByRole('link', { name: 'Зіграні' }));
+    expect(await screen.findByText('зіграні')).toBeTruthy();
+    expect(localStorage.getItem('quiz:history-tab')).toBe('played');
+  });
+
   it('lists the games with their date, status and size', async () => {
     vi.mocked(listGames).mockResolvedValue({ ok: true, data: [summary] });
     open('/history');
