@@ -3,6 +3,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { buildApp } from './app';
 import type { LeagueTable } from '@quiz/shared';
 import { groupItem, groupMember, leagueGame, leaguePoint, user, userBan } from './db/schema';
+import { kyivMonth } from './league-store';
 import { TEST_AUTH, signUp } from './testing/accounts';
 import { createTestDb } from './testing/test-db';
 
@@ -349,6 +350,19 @@ describe('the family league table (45)', () => {
       expect(res.json()).toEqual({ error: 'group_not_found' });
     }
     expect((await call('GET', `/api/groups/${id}/league`)).statusCode).toBe(401);
+  });
+
+  it('79: the group list carries my league place and month points, only for a group with points this month', async () => {
+    const { olia, petro, id } = await family();
+    const quiet = (await call('POST', '/api/groups', olia.cookie, group)).json() as GroupDetail;
+    const month = kyivMonth(new Date());
+    await past(id, month, [[petro.id, 1], [olia.id, 2]]);
+    await past(quiet.id, '2020-05', [[olia.id, 1]]);
+    const cards = ((await call('GET', '/api/groups', olia.cookie)).json() as { groups: { id: string; league?: { place: number | null; points: number } }[] }).groups;
+    expect(cards.find((card) => card.id === id)?.league).toEqual({ place: 2, points: 7 });
+    expect(cards.find((card) => card.id === quiet.id)).not.toHaveProperty('league');
+    const theirs = ((await call('GET', '/api/groups', petro.cookie)).json() as { groups: { id: string; league?: unknown }[] }).groups;
+    expect(theirs.find((card) => card.id === id)?.league).toEqual({ place: 1, points: 10 });
   });
 
   it('hides banned members from the table and the hall', async () => {

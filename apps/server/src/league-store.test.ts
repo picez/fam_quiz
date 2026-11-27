@@ -5,7 +5,7 @@ import { makeQuiz, single } from '@quiz/engine/testing';
 import type { Db } from './db/client';
 import { familyGroup, game, groupMember, leagueChampion, leagueGame, leagueMonth, leaguePoint, user } from './db/schema';
 import { createGroup, deleteGroup, updateGroup } from './group-store';
-import { kyivMonth, leagueResultOf, leagueTable, leagueTitlesOf, recordLeague, settleLeague } from './league-store';
+import { kyivMonth, leagueResultOf, leagueTable, leagueTitlesOf, myLeagueSpots, recordLeague, settleLeague } from './league-store';
 import { ensureProfile } from './profiles';
 import { setErrorReporter } from './log';
 import { createTestDb } from './testing/test-db';
@@ -310,5 +310,51 @@ describe('leagueTable of a deleted group', () => {
     const { groupId } = await league(3);
     await deleteGroup(db, groupId);
     expect(await leagueTable(db, groupId, null, NOW)).toBeNull();
+  });
+});
+
+describe('myLeagueSpots (79)', () => {
+  it('gives my place and month points in groups that have a league this month', async () => {
+    const { groupId, ids } = await league(4);
+    const [a, b, c, d] = ids as [string, string, string, string];
+    await past(groupId, '2026-11', [
+      [b, 1],
+      [a, 2],
+      [c, 3],
+    ]);
+    await past(groupId, '2026-11', [
+      [b, 1],
+      [c, 2],
+      [a, 3],
+    ]);
+    // Минулий місяць не рахується.
+    await past(groupId, '2026-10', [
+      [a, 1],
+      [b, 2],
+      [c, 3],
+    ]);
+    const quiet = await league(2);
+    await past(quiet.groupId, '2026-10', [[quiet.ids[0]!, 1]]);
+
+    const spotsA = await myLeagueSpots(db, a, [groupId, quiet.groupId], NOW);
+    // b: 20, c: 12, a: 12 — рівні бали й перші місця, c і a ділять місце за іграми (обидва 2) → друге.
+    expect(spotsA.get(groupId)).toEqual({ place: 2, points: 12 });
+    expect(spotsA.has(quiet.groupId)).toBe(false);
+    expect((await myLeagueSpots(db, b, [groupId], NOW)).get(groupId)).toEqual({ place: 1, points: 20 });
+    // Без балів цього місяця — місця немає, бали 0; ліга групи все одно видна.
+    expect((await myLeagueSpots(db, d, [groupId], NOW)).get(groupId)).toEqual({ place: null, points: 0 });
+    expect((await myLeagueSpots(db, a, [], NOW)).size).toBe(0);
+  });
+
+  it('former members do not take places', async () => {
+    const { groupId, ids } = await league(3);
+    const [a, b, c] = ids as [string, string, string];
+    await past(groupId, '2026-11', [
+      [c, 1],
+      [b, 2],
+      [a, 3],
+    ]);
+    await db.delete(groupMember).where(eq(groupMember.userId, c));
+    expect((await myLeagueSpots(db, b, [groupId], NOW)).get(groupId)).toEqual({ place: 1, points: 7 });
   });
 });

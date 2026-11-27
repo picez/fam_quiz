@@ -15,7 +15,7 @@ import type { CurrentUser } from './account-routes';
 import { syncAchievements } from './achievement-store';
 import type { Db } from './db/client';
 import { groupItem, userAchievement } from './db/schema';
-import { leagueTable } from './league-store';
+import { leagueTable, myLeagueSpots } from './league-store';
 import { createItem, deleteItem, listItems, updateItem } from './group-items';
 import { markUses } from './group-uses';
 import { reportError } from './log';
@@ -156,7 +156,14 @@ export async function registerGroupRoutes(app: FastifyInstance, deps: GroupDeps)
   app.get('/api/groups', read, async (request, reply) => {
     const user = await signedIn(request, reply);
     if (user === null) return reply;
-    return listGroups(db, user.id);
+    const page = await listGroups(db, user.id);
+    // 79: місце в лізі видно просто в списку груп; прихована група ліги не показує.
+    const spots = await myLeagueSpots(db, user.id, page.groups.filter((group) => group.hidden === undefined).map((group) => group.id), now());
+    for (const group of page.groups) {
+      const spot = spots.get(group.id);
+      if (spot !== undefined) group.league = spot;
+    }
+    return page;
   });
 
   app.post('/api/groups', write, async (request, reply) => {

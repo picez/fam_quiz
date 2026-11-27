@@ -253,3 +253,39 @@ export async function leagueTitlesOf(db: Db, userId: string, now: Date): Promise
     .limit(LEAGUE_TITLES_SHOWN);
   return rows;
 }
+
+/**
+ * 79: моє місце й бали поточного місяця (за Києвом) у кожній з груп groupIds, де цього місяця вже є бали ліги;
+ * групи без балів місяця в мапі немає. Місце — як у таблиці (rankLeague серед нинішніх, не заблокованих учасників);
+ * place null — у мене цього місяця балів ще немає. Лише читання: минулих місяців не підсумовує.
+ */
+export async function myLeagueSpots(db: Db, userId: string, groupIds: readonly string[], now: Date): Promise<Map<string, { place: number | null; points: number }>> {
+  const spots = new Map<string, { place: number | null; points: number }>();
+  if (groupIds.length === 0) return spots;
+  const month = kyivMonth(now);
+  const totals = await db
+    .select({
+      groupId: leaguePoint.groupId,
+      userId: leaguePoint.userId,
+      nickname: sql<string>`min(${leaguePoint.nickname})`,
+      points: sql<number>`sum(${leaguePoint.points})::int`,
+      games: sql<number>`count(*)::int`,
+      firsts: sql<number>`count(*) filter (where ${leaguePoint.place} = 1)::int`,
+    })
+    .from(leaguePoint)
+    .where(and(inArray(leaguePoint.groupId, [...groupIds]), eq(leaguePoint.month, month)))
+    .groupBy(leaguePoint.groupId, leaguePoint.userId);
+  if (totals.length === 0) return spots;
+  const members = await db
+    .select({ groupId: groupMember.groupId, userId: groupMember.userId })
+    .from(groupMember)
+    .where(inArray(groupMember.groupId, [...new Set(totals.map((row) => row.groupId))]));
+  const present = new Set(members.map((row) => `${row.groupId}:${row.userId}`));
+  const banned = await bannedAmong(db, totals.map((row) => row.userId));
+  for (const groupId of new Set(totals.map((row) => row.groupId))) {
+    const rows = totals.filter((row) => row.groupId === groupId && present.has(`${groupId}:${row.userId}`) && !banned.has(row.userId));
+    const mine = rankLeague(rows).find((row) => row.userId === userId);
+    spots.set(groupId, mine === undefined ? { place: null, points: 0 } : { place: mine.place, points: mine.points });
+  }
+  return spots;
+}
