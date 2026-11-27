@@ -5745,5 +5745,22 @@
   "quizExportTable": "Eksport: tabela (Excel)",
   "libraryHost": "Poprowadź grę",
   "libraryHostSignIn": "Zaloguj się, aby poprowadzić",
-  "menuShortQuizzesTight": "Quizy"
+  "menuShortQuizzesTight": "Quizy",
+  "homeGuestAbout": "Rodzinne quizy: jedna osoba prowadzi grę na dużym ekranie, a wszyscy odpowiadają ze swoich telefonów.",
+  "homeGuestHow": "Masz kod gry? Wpisz go tutaj. Chcesz poprowadzić własną? Zaloguj się.",
+  "homeGuestLibrary": "Przeglądaj bibliotekę",
+  "homeGuestSignIn": "Zaloguj się, aby prowadzić własne gry",
+  "homeInviteTitle": "Zaproszono cię do gry",
+  "homeInviteFrom": "{host} zaprasza cię · kod {code}",
+  "homeChallengeTitle": "Wyzwanie od znajomego",
+  "homeChallengePlay": "Podejmij wyzwanie",
+  "homeQuickTitle": "Szybki start",
+  "homeQuickHost": "Poprowadź: {title}",
+  "homeQuickAll": "Wszystkie quizy ›",
+  "homeFooterLabel": "Pomoc i wygląd",
+  "welcomeTitle": "Od czego zacząć",
+  "welcomeJoin": "Dołącz do gry za pomocą kodu — prowadzący pokazuje go na ekranie.",
+  "welcomeLibrary": "Poprowadź grę z biblioteki:",
+  "welcomeCreate": "Stwórz własny quiz:",
+  "welcomeDone": "Rozumiem"
 }

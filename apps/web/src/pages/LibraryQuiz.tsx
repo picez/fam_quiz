@@ -167,11 +167,6 @@ export function LibraryQuiz(): JSX.Element {
           </Link>
         </p>
       )}
-      {guest && (
-        <p>
-          <Link to={`/login?next=${encodeURIComponent(location.pathname + location.search)}`}>{t('librarySignIn')}</Link>
-        </p>
-      )}
       {actionError !== null && (
         <p className="error" role="alert">
           {actionError}

@@ -1,24 +1,22 @@
 import { useEffect, useState, type FormEvent, type JSX } from 'react';
-import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
-import { feedBadgeLabel, feedBadgeTotal } from '@quiz/shared';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { checkCode } from '../api';
-import { errorText, t, type TextKey } from '../i18n';
+import { errorText, t } from '../i18n';
 import { MotifHero } from '../motifs/Motifs';
-import { ProblemLink } from '../problems/ProblemLink';
-import { ThemeSwitch } from '../ThemeSwitch';
 import { loadPlayer } from '../storage';
-import { HomeActions, JOIN_FORM, NextUpCard } from './HomeTop';
+import { HomeFooter } from './HomeFooter';
+import { NextUpCard } from './HomeTop';
 import { LobbyList } from './LobbyList';
+import { QuickStart } from './QuickStart';
+import { WelcomeCard } from './WelcomeCard';
 import { useAccount } from '../useAccount';
-import { useFeedBadge } from '../useFeedBadge';
-import { useInvites } from '../useInvites';
 import { NumberInput } from '../ui/NumberInput';
 
-/** Скільки чекати на перевірку входу, перш ніж показати гостю форму коду. */
+/** Скільки чекати на перевірку входу, перш ніж показати гостю решту головної. */
 export const ACCOUNT_WAIT_MS = 4000;
 
-/** Форма коду гри: та сама для гостя й акаунта, під кнопкою «Приєднатися». */
-function JoinForm({ initialCode, autoFocus = false }: { initialCode: string; autoFocus?: boolean }): JSX.Element {
+/** Форма коду гри: та сама для гостя й акаунта, відкрита з першого показу (78). */
+function JoinForm({ initialCode }: { initialCode: string }): JSX.Element {
   const navigate = useNavigate();
   const [code, setCode] = useState(initialCode);
   const [busy, setBusy] = useState(false);
@@ -37,168 +35,93 @@ function JoinForm({ initialCode, autoFocus = false }: { initialCode: string; aut
   };
 
   return (
-    <div id={JOIN_FORM} className="join-area">
-      <form className="panel" onSubmit={submit}>
-        <h2>{t('joinTitle')}</h2>
-        <label className="field">
-          <span>{t('codeLabel')}</span>
-          <NumberInput
-            className="code-input"
-            dir="ltr"
-            value={code}
-            onChange={(event) => setCode(event.target.value)}
-            autoComplete="off"
-            maxLength={7}
-            placeholder="000 000"
-            aria-describedby="code-hint"
-            autoFocus={autoFocus}
-          />
-        </label>
-        <p className="meta" id="code-hint">
-          {t('codeHint')}
+    <form className="panel join-form" onSubmit={submit}>
+      <h2>{t('joinTitle')}</h2>
+      <label className="field">
+        <span>{t('codeLabel')}</span>
+        <NumberInput
+          className="code-input"
+          dir="ltr"
+          value={code}
+          onChange={(event) => setCode(event.target.value)}
+          autoComplete="off"
+          maxLength={7}
+          placeholder="000 000"
+          aria-describedby="code-hint"
+        />
+      </label>
+      <p className="meta" id="code-hint">
+        {t('codeHint')}
+      </p>
+      <button type="submit" className="btn btn-primary" disabled={digits.length !== 6 || busy}>
+        {t(busy ? 'checking' : 'joinButton')}
+      </button>
+      {error !== null && (
+        <p className="error" role="alert">
+          {error}
         </p>
-        <button type="submit" className="btn btn-primary" disabled={digits.length !== 6 || busy}>
-          {t(busy ? 'checking' : 'joinButton')}
-        </button>
-        {error !== null && (
-          <p className="error" role="alert">
-            {error}
-          </p>
-        )}
-      </form>
-      <LobbyList />
-    </div>
-  );
-}
-
-/** Вміст плитки: значок (як у меню) у куті, емодзі й підпис. */
-function TileFace({ icon, label, badge = null }: { icon: string; label: TextKey; badge?: string | null }): JSX.Element {
-  return (
-    <>
-      {badge !== null && (
-        <span className="menu-badge start-badge" aria-hidden="true">
-          {badge}
-        </span>
       )}
-      <span className="start-icon" aria-hidden="true">
-        {icon}
-      </span>
-      <span className="start-label">{t(label)}</span>
-    </>
+    </form>
   );
-}
-
-function TileLink({ to, icon, label, badge = null, name }: { to: string; icon: string; label: TextKey; badge?: string | null; name?: string }): JSX.Element {
-  return (
-    <Link className="start-tile" to={to} aria-label={name}>
-      <TileFace icon={icon} label={label} badge={badge} />
-    </Link>
-  );
-}
-
-/** Кнопка «Приєднатися» розкриває й ховає форму; розкрита кліком — фокус одразу в поле коду. */
-function useJoinToggle(initiallyOpen: boolean): { open: boolean; clicked: boolean; toggle: () => void } {
-  const [open, setOpen] = useState(initiallyOpen);
-  const [clicked, setClicked] = useState(false);
-  return {
-    open,
-    clicked,
-    toggle: () => {
-      setClicked(true);
-      setOpen((was) => !was);
-    },
-  };
 }
 
 /**
- * Головна того, хто увійшов (53): «Створити гру» і «Приєднатися» (форма коду — одразу під ними), картка «Продовжити гру» /
- * «Найближча подія», далі 6 плиток (nav.start-menu).
- * Значки ті самі, що в меню: стрічка (useFeedBadge) і запрошення на профілі (useInvites). «Запитів у друзі» в застосунку
- * немає (дружба — односторонній follow), тож плитка «Друзі» без значка.
+ * Головна (78), зверху вниз. Акаунт: поле коду (одразу відкрите) і «Провести гру» → «З чого почати» (лише новачку) →
+ * «Що далі» → «Відкриті ігри» → «Швидкий запуск» → низ. Гість: два рядки «що це», поле коду → «Що далі» (лише жива гра
+ * цього пристрою) → «Відкриті ігри» → бібліотека й вхід → низ. Плиток-дублікатів меню більше немає.
+ *
+ * Поле коду стоїть на тому самому місці дерева в усіх станах: поки з'ясовується, чи людина увійшла, його вже можна
+ * заповнювати, і набраний код не губиться, коли головна дорисовує решту.
  */
-function StartMenu({ initialCode }: { initialCode: string }): JSX.Element {
-  const location = useLocation();
-  // Відкрито з ?code= — форма вже розкрита.
-  const join = useJoinToggle(initialCode !== '');
-  const invites = useInvites(true, location.key);
-  const feedTotal = feedBadgeTotal(useFeedBadge(true));
-  const feedLabel = feedBadgeLabel(feedTotal);
-
-  return (
-    <main className="app wide start">
-      <MotifHero>
-        <h1 className="brand">{t('appName')}</h1>
-        <HomeActions joinOpen={join.open} onJoin={join.toggle} />
-        {join.open && <JoinForm initialCode={initialCode} autoFocus={join.clicked} />}
-      </MotifHero>
-      <NextUpCard signedIn />
-      <nav className="start-menu" aria-label={t('startMenuLabel')}>
-        <TileLink to="/profile/friends" icon="👥" label="profileTileFriends" />
-        <TileLink
-          to="/feed"
-          icon="📰"
-          label="menuFeed"
-          badge={feedLabel}
-          name={feedLabel ? `${t('menuFeed')}, ${t('feedBadge', { count: feedTotal })}` : undefined}
-        />
-        <TileLink to="/quizzes" icon="📝" label="menuQuizzes" />
-        <TileLink to="/library" icon="📚" label="libraryTitle" />
-        <TileLink to="/history" icon="🕘" label="menuHistory" />
-        <TileLink
-          to="/profile"
-          icon="👤"
-          label="menuProfile"
-          badge={invites.length > 0 ? String(invites.length) : null}
-          name={invites.length > 0 ? `${t('menuProfile')}, ${t('invitesBadge', { count: invites.length })}` : undefined}
-        />
-      </nav>
-      <ProblemLink className="quiet-link problem-link" />
-    </main>
-  );
-}
-
 export function Home() {
   const account = useAccount();
   const [params] = useSearchParams();
-  // /?code=123456: форма розкрита й уже з кодом (такого посилання застосунок поки не дає, але адреса працює).
+  // /?code=123456: поле вже з кодом.
   const initialCode = (params.get('code') ?? '').replace(/\D/g, '').slice(0, 6);
 
-  // Якщо перевірка зависла, гість усе одно отримує форму за кілька секунд.
+  // Якщо перевірка зависла, гість усе одно отримує решту головної за кілька секунд.
   const [waited, setWaited] = useState(false);
   useEffect(() => {
     const timer = setTimeout(() => setWaited(true), ACCOUNT_WAIT_MS);
     return () => clearTimeout(timer);
   }, []);
-  // Гостю (53) форма коду розкрита з першого показу; «Приєднатися» її ховає й розкриває.
-  const join = useJoinToggle(true);
 
-  if (account.status === 'signed-in') return <StartMenu initialCode={initialCode} />;
+  const signedIn = account.status === 'signed-in';
+  const guest = !signedIn && (account.status !== 'loading' || waited);
 
-  // Поки не відомо, чи людина увійшла, лише шапка: тому, хто увійшов, замість форми з'явиться меню.
-  const known = account.status !== 'loading' || waited;
   return (
-    <main className="app narrow">
+    <main className={signedIn ? 'app wide start home' : 'app narrow home'}>
       <MotifHero>
         <h1 className="brand">{t('appName')}</h1>
-        {known && <HomeActions joinOpen={join.open} onJoin={join.toggle} />}
-        {known && join.open && <JoinForm initialCode={initialCode} autoFocus={join.clicked} />}
+        {guest && (
+          <div className="home-about">
+            <p>{t('homeGuestAbout')}</p>
+            <p className="meta">{t('homeGuestHow')}</p>
+          </div>
+        )}
+        <JoinForm initialCode={initialCode} />
+        {signedIn && (
+          <Link className="btn btn-primary home-host" to="/create">
+            {t('startCreate')}
+          </Link>
+        )}
       </MotifHero>
+      {signedIn && <WelcomeCard accountId={account.account.id} />}
       {/* Гостю картка — лише для живої гри цього пристрою. */}
-      {known && <NextUpCard signedIn={false} />}
-      {known && (
-        <Link className="quiet-link" to="/quizzes">
-          {t('hostEntry')}
-        </Link>
+      {(signedIn || guest) && <NextUpCard signedIn={signedIn} />}
+      {(signedIn || guest) && <LobbyList />}
+      {signedIn && <QuickStart />}
+      {guest && (
+        <div className="home-guest-links">
+          <Link className="btn" to="/library">
+            {t('homeGuestLibrary')}
+          </Link>
+          <Link className="btn btn-primary" to="/login">
+            {t('homeGuestSignIn')}
+          </Link>
+        </div>
       )}
-      {known && (
-        <Link className="quiet-link" to="/library">
-          {t('libraryGuestLink')}
-        </Link>
-      )}
-      {/* Гість обирає тему просто тут (повний вибір, з «Як у системі»); швидкий ☀/☾ — ще й у меню. */}
-      {known && <ThemeSwitch className="home-theme" />}
-      {/* Скаргу (64) може надіслати й гість. */}
-      {known && <ProblemLink className="quiet-link problem-link" />}
+      {(signedIn || guest) && <HomeFooter />}
     </main>
   );
 }

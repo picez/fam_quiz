@@ -202,7 +202,7 @@ async function library47() {
   await guest.locator(MENU).getByRole('link', { name: 'Увійти' }).waitFor();
   expect(await menuLinks(guest)).toEqual(['Головна', 'Бібліотека', 'Увійти']);
   await phoneFit(guest, 'p47-guest-home');
-  await guest.getByRole('link', { name: '📚 Бібліотека вікторин', ...exact }).click();
+  await guest.getByRole('link', { name: 'Переглянути бібліотеку', ...exact }).click();
   await guest.waitForURL(/\/library$/);
   const cards = guest.locator('ul.library-list > li');
   await expect.poll(() => cards.count()).toBe(2);
@@ -218,7 +218,9 @@ async function library47() {
   await guest.waitForURL(new RegExp(`/library/${entryId}$`));
   await guest.getByRole('heading', { name: NEW_TITLE, ...exact }).waitFor();
   await guest.getByText('Річки — Класичний', exact).first().waitFor();
-  await guest.getByText('Увійди, щоб копіювати, вподобати чи поскаржитись', exact).waitFor();
+  // 78: одне посилання входу — «Увійти, щоб провести».
+  await guest.getByRole('link', { name: 'Увійти, щоб провести', ...exact }).waitFor();
+  expect(await guest.locator('main a[href^="/login"]').count()).toBe(1);
   const guestText = await bodyText(guest);
   for (const text of [...ALL_QUESTIONS, 'Дністер впадає', 'Тиса', 'Латориця']) expect(guestText, `no «${text}» on the guest page`).not.toContain(text);
   await view(guest, 'p47-guest');
@@ -417,9 +419,9 @@ async function library47() {
   const copyAfter = (await (await taras.request.get(`${base}/api/quizzes/${copyId}`)).json()) as { quiz?: { description: string }; description?: string };
   expect((copyAfter.quiz ?? copyAfter).description).toBe(`Автор: Олена\n${DESCRIPTION}`);
 
-  // ── 9. Головна з плиткою «Бібліотека» й меню з п'яти пунктів (з акаунтом); світла тема на кожному екрані. ──
+  // ── 9. Головна (78: без плиток) й меню з п'яти пунктів (з акаунтом); світла тема на кожному екрані. ──
   await olena.goto(base);
-  await olena.locator('nav.start-menu').getByRole('link', { name: /Бібліотека/ }).waitFor();
+  await olena.locator('main a.home-host').waitFor();
   expect(await menuLinks(olena)).toEqual(MENU_ITEMS_23A);
   await phoneFit(olena, 'p47-home');
   for (const [name, page] of [['admin', admin], ['olena', olena], ['taras', taras], ['iryna', iryna], ['petro', petro], ['guest', guest]] as const) {

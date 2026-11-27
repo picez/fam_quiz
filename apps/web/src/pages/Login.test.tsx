@@ -27,7 +27,7 @@ const open = (entry = '/login') =>
     <MemoryRouter initialEntries={[entry]}>
       <Routes>
         <Route path="/login" element={<Login />} />
-        <Route path="/quizzes" element={<p>мої вікторини</p>} />
+        <Route path="/" element={<p>головна</p>} />
         <Route path="/host/:code" element={<p>пульт</p>} />
       </Routes>
     </MemoryRouter>,
@@ -53,13 +53,13 @@ describe('Login', () => {
     expect(screen.getByRole('button', { name: 'Увійти' })).toBeTruthy();
   });
 
-  it('signs in and opens the quiz list', async () => {
+  it('signs in and opens the home page (78)', async () => {
     vi.mocked(signIn).mockResolvedValue({ ok: true });
     open();
     fill('Email', 'o@example.com');
     fill('Пароль', 'password1');
     fireEvent.click(screen.getByRole('button', { name: 'Увійти' }));
-    expect(await screen.findByText('мої вікторини')).toBeTruthy();
+    expect(await screen.findByText('головна')).toBeTruthy();
     expect(signIn).toHaveBeenCalledWith('o@example.com', 'password1');
   });
 
@@ -79,7 +79,7 @@ describe('Login', () => {
       fill('Email', 'o@example.com');
       fill('Пароль', 'password1');
       fireEvent.click(screen.getByRole('button', { name: 'Увійти' }));
-      expect(await screen.findByText('мої вікторини'), next).toBeTruthy();
+      expect(await screen.findByText('головна'), next).toBeTruthy();
       cleanup();
     }
   });
@@ -91,7 +91,7 @@ describe('Login', () => {
     fill('Пароль', 'password1');
     fireEvent.click(screen.getByRole('button', { name: 'Увійти' }));
     expect((await screen.findByRole('alert')).textContent).toBe('Неправильний email або пароль.');
-    expect(screen.queryByText('мої вікторини')).toBeNull();
+    expect(screen.queryByText('головна')).toBeNull();
   });
 
   it('registers a new host with a name', async () => {
@@ -102,7 +102,7 @@ describe('Login', () => {
     fill('Email', 'o@example.com');
     fill('Пароль', 'password1');
     fireEvent.click(screen.getByRole('button', { name: 'Зареєструватися' }));
-    expect(await screen.findByText('мої вікторини')).toBeTruthy();
+    expect(await screen.findByText('головна')).toBeTruthy();
     expect(signUp).toHaveBeenCalledWith('Олена', 'o@example.com', 'password1');
   });
 
@@ -155,7 +155,7 @@ describe('Login with Google', () => {
     vi.mocked(googleSignIn).mockResolvedValue({ ok: true, url: 'https://accounts.google.com/x' });
     open('/login?next=https%3A%2F%2Fevil.example');
     fireEvent.click(await screen.findByRole('button', { name: 'Увійти через Google' }));
-    await vi.waitFor(() => expect(googleSignIn).toHaveBeenCalledWith('/quizzes'));
+    await vi.waitFor(() => expect(googleSignIn).toHaveBeenCalledWith('/'));
   });
 
   it('explains a failed start and stays on the page', async () => {

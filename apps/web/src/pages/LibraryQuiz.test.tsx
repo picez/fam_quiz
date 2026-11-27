@@ -148,11 +148,13 @@ describe('LibraryQuiz', () => {
     expect(screen.getByRole('link', { name: 'Відкрити копію' }).getAttribute('href')).toBe('/quizzes/q9');
   });
 
-  it('asks a guest to sign in and offers no buttons', async () => {
+  it('asks a guest to sign in with one link and offers no buttons (78)', async () => {
     vi.mocked(me).mockResolvedValue({ ok: false, error: 'unauthorized' });
     show();
-    const hint = await screen.findByText('Увійди, щоб копіювати, вподобати чи поскаржитись');
-    expect(hint.closest('p')!.querySelector('a')!.getAttribute('href')).toBe('/login?next=%2Flibrary%2Fe1');
+    await screen.findByRole('link', { name: 'Увійти, щоб провести' });
+    const signIns = screen.getAllByRole('link').filter((link) => link.getAttribute('href')?.startsWith('/login'));
+    expect(signIns.map((link) => link.getAttribute('href'))).toEqual(['/login?next=%2Flibrary%2Fe1']);
+    expect(screen.queryByText('Увійди, щоб копіювати, вподобати чи поскаржитись')).toBeNull();
     expect(screen.queryByRole('button', { name: 'Копіювати собі' })).toBeNull();
     expect(screen.queryByRole('button', { name: /Подобається/ })).toBeNull();
   });
@@ -178,7 +180,7 @@ describe('LibraryQuiz', () => {
   it('offers no report button to a guest or to the author', async () => {
     vi.mocked(me).mockResolvedValue({ ok: false, error: 'unauthorized' });
     show();
-    await screen.findByText('Увійди, щоб копіювати, вподобати чи поскаржитись');
+    await screen.findByRole('link', { name: 'Увійти, щоб провести' });
     expect(screen.queryByRole('button', { name: 'Поскаржитись' })).toBeNull();
     cleanup();
     forgetAccount();

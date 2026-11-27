@@ -125,3 +125,8 @@ const ANNOUNCEMENT_SEEN = 'quiz:announcement';
 /** Id оголошення адміна (53), закритого хрестиком на цьому пристрої; null — нічого не закрито. Один ключ на пристрій. */
 export const loadAnnouncementSeen = (): string | null => read(ANNOUNCEMENT_SEEN);
 export const saveAnnouncementSeen = (id: string): void => write(ANNOUNCEMENT_SEEN, id);
+
+/** 78: картку «З чого почати» закрито цим акаунтом на цьому пристрої. */
+const welcomeKey = (accountId: string) => `quiz:welcome-done:${accountId}`;
+export const loadWelcomeDone = (accountId: string): boolean => read(welcomeKey(accountId)) === 'yes';
+export const saveWelcomeDone = (accountId: string): void => write(welcomeKey(accountId), 'yes');

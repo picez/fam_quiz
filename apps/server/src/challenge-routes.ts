@@ -8,6 +8,7 @@ import {
   challengeResults,
   claimAttempt,
   createChallenge,
+  friendChallenges,
   isActive,
   myActiveChallenges,
   playedCount,
@@ -148,6 +149,13 @@ export async function registerChallengeRoutes(app: FastifyInstance, deps: Challe
     const user = await currentUser(request);
     if (user === null) return reply.code(401).send(UNAUTHORIZED);
     return myActiveChallenges(db, user.id, now());
+  });
+
+  // 78: «Виклик від друга» для картки «Що далі» на головній; лише читання.
+  app.get('/api/me/friend-challenges', async (request, reply) => {
+    const user = await currentUser(request);
+    if (user === null) return reply.code(401).send(UNAUTHORIZED);
+    return friendChallenges(db, user.id, now());
   });
 
   app.get<{ Params: { code: string } }>('/api/challenges/:code', CODE_LIMIT, async (request, reply) => {

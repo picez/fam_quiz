@@ -32,7 +32,7 @@ async function scenario() {
 
   // Ведучий реєструється.
   await host.goto(base);
-  await host.getByRole('link', { name: 'Я ведучий' }).click();
+  await host.getByRole('link', { name: 'Увійти, щоб проводити свої ігри', ...exact }).click();
   await click(host, 'Створити акаунт');
   await field(host, 'Ваше ім’я').fill('Олена Ведуча');
   await field(host, 'Email').fill('host@example.com');
@@ -272,7 +272,7 @@ async function twoRounds() {
   const host = await open('host2', 1280, 900);
 
   await host.goto(base);
-  await host.getByRole('link', { name: 'Я ведучий' }).click();
+  await host.getByRole('link', { name: 'Увійти, щоб проводити свої ігри', ...exact }).click();
   await click(host, 'Створити акаунт');
   await field(host, 'Ваше ім’я').fill('Ірина Ведуча');
   await field(host, 'Email').fill('host2@example.com');
@@ -436,7 +436,7 @@ async function blitzGame() {
   const host = await open('host3', 1280, 900);
 
   await host.goto(base);
-  await host.getByRole('link', { name: 'Я ведучий' }).click();
+  await host.getByRole('link', { name: 'Увійти, щоб проводити свої ігри', ...exact }).click();
   await click(host, 'Створити акаунт');
   await field(host, 'Ваше ім’я').fill('Марія Ведуча');
   await field(host, 'Email').fill('host3@example.com');
@@ -574,7 +574,7 @@ async function boardGame() {
   const host = await open('host4', 1280, 900);
 
   await host.goto(base);
-  await host.getByRole('link', { name: 'Я ведучий' }).click();
+  await host.getByRole('link', { name: 'Увійти, щоб проводити свої ігри', ...exact }).click();
   await click(host, 'Створити акаунт');
   await field(host, 'Ваше ім’я').fill('Катерина Ведуча');
   await field(host, 'Email').fill('host4@example.com');
@@ -783,7 +783,7 @@ async function mixedBoard() {
   const host = await open('host5', 1280, 900);
 
   await host.goto(base);
-  await host.getByRole('link', { name: 'Я ведучий' }).click();
+  await host.getByRole('link', { name: 'Увійти, щоб проводити свої ігри', ...exact }).click();
   await click(host, 'Створити акаунт');
   await field(host, 'Ваше ім’я').fill('Дарина Ведуча');
   await field(host, 'Email').fill('host5@example.com');
@@ -1005,7 +1005,7 @@ async function videoGame() {
   const host = await open('host7', 1280, 900);
 
   await host.goto(base);
-  await host.getByRole('link', { name: 'Я ведучий' }).click();
+  await host.getByRole('link', { name: 'Увійти, щоб проводити свої ігри', ...exact }).click();
   await click(host, 'Створити акаунт');
   await field(host, 'Ваше ім’я').fill('Марта Ведуча');
   await field(host, 'Email').fill('host7@example.com');
@@ -1120,7 +1120,7 @@ async function finalGame() {
   const host = await open('host9', 1280, 900);
 
   await host.goto(base);
-  await host.getByRole('link', { name: 'Я ведучий' }).click();
+  await host.getByRole('link', { name: 'Увійти, щоб проводити свої ігри', ...exact }).click();
   await click(host, 'Створити акаунт');
   await field(host, 'Ваше ім’я').fill('Надія Ведуча');
   await field(host, 'Email').fill('host9@example.com');
@@ -1294,7 +1294,7 @@ async function menuProfileFriends() {
   // 2. Ведуча на комп'ютері: чотири пункти, рядок угорі.
   const host = await open('host8', 1280, 900);
   await host.goto(base);
-  await host.getByRole('link', { name: 'Я ведучий' }).click();
+  await host.getByRole('link', { name: 'Увійти, щоб проводити свої ігри', ...exact }).click();
   await click(host, 'Створити акаунт');
   await field(host, 'Ваше ім’я').fill('Галина Ведуча');
   await field(host, 'Email').fill('host8@example.com');
@@ -1463,7 +1463,7 @@ async function chainGame() {
   const host = await open('host10', 1280, 900);
 
   await host.goto(base);
-  await host.getByRole('link', { name: 'Я ведучий' }).click();
+  await host.getByRole('link', { name: 'Увійти, щоб проводити свої ігри', ...exact }).click();
   await click(host, 'Створити акаунт');
   await field(host, 'Ваше ім’я').fill('Ірина Ведуча');
   await field(host, 'Email').fill('host10@example.com');

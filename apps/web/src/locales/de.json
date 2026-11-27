@@ -5644,5 +5644,22 @@
   "quizExportTable": "Export: Tabelle (Excel)",
   "libraryHost": "Spiel leiten",
   "libraryHostSignIn": "Anmelden, um zu leiten",
-  "menuShortQuizzesTight": "Quiz"
+  "menuShortQuizzesTight": "Quiz",
+  "homeGuestAbout": "Familien-Quizspiele: Eine Person leitet das Spiel auf einem großen Bildschirm, alle anderen antworten mit dem eigenen Handy.",
+  "homeGuestHow": "Du hast einen Spielcode? Gib ihn hier ein. Du willst selbst ein Spiel leiten? Melde dich an.",
+  "homeGuestLibrary": "Bibliothek ansehen",
+  "homeGuestSignIn": "Anmelden, um eigene Spiele zu leiten",
+  "homeInviteTitle": "Du bist zu einem Spiel eingeladen",
+  "homeInviteFrom": "{host} lädt dich ein · Code {code}",
+  "homeChallengeTitle": "Herausforderung von einem Freund",
+  "homeChallengePlay": "Herausforderung annehmen",
+  "homeQuickTitle": "Schnellstart",
+  "homeQuickHost": "Leiten: {title}",
+  "homeQuickAll": "Alle Quizze ›",
+  "homeFooterLabel": "Hilfe und Darstellung",
+  "welcomeTitle": "So fängst du an",
+  "welcomeJoin": "Tritt einem Spiel mit einem Code bei — die Spielleitung zeigt ihn auf dem Bildschirm.",
+  "welcomeLibrary": "Leite ein Spiel aus der Bibliothek:",
+  "welcomeCreate": "Erstelle dein eigenes Quiz:",
+  "welcomeDone": "Verstanden"
 }

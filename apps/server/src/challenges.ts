@@ -4,13 +4,16 @@ import {
   CHALLENGE_CODE_LENGTH,
   challengeQuiz,
   upgradeQuiz,
+  FRIEND_CHALLENGES_MAX,
   type ChallengeMine,
+  type FriendChallenge,
   type ChallengeResultRow,
   type Quiz,
 } from '@quiz/shared';
-import { and, asc, count, desc, eq, gt, isNull } from 'drizzle-orm';
+import { and, asc, count, desc, eq, gt, isNull, ne, sql } from 'drizzle-orm';
 import type { Db } from './db/client';
-import { challenge, challengeAttempt, game, participant } from './db/schema';
+import { challenge, challengeAttempt, follow, game, participant, profile } from './db/schema';
+import { notHidden } from './feed-store';
 import { CODE_ATTEMPTS, isUniqueViolation } from './db/unique';
 import { newCode } from './group-store';
 import { getQuiz } from './quizzes';
@@ -127,6 +130,35 @@ export async function myActiveChallenges(db: Db, ownerId: string, now: Date): Pr
     .where(and(eq(challenge.ownerId, ownerId), isNull(challenge.endedAt), gt(challenge.expiresAt, now)))
     .orderBy(desc(challenge.createdAt));
   return Promise.all(rows.map(async (row) => mineOf(row, await playedCount(db, row.id))));
+}
+
+/**
+ * 78: активні виклики тих, хто додав viewer у друзі (те саме коло, що бачить їхній календар), notHidden(автор),
+ * без моїх і без тих, які viewer уже пробував; найновіші першими, щонайбільше FRIEND_CHALLENGES_MAX.
+ */
+export async function friendChallenges(db: Db, viewerId: string, now: Date): Promise<FriendChallenge[]> {
+  const rows = await db
+    .select({ code: challenge.code, title: challenge.title, ownerId: challenge.ownerId, nickname: profile.nickname, expiresAt: challenge.expiresAt })
+    .from(challenge)
+    .leftJoin(profile, eq(profile.userId, challenge.ownerId))
+    .where(
+      and(
+        ne(challenge.ownerId, viewerId),
+        isNull(challenge.endedAt),
+        gt(challenge.expiresAt, now),
+        sql`exists (select 1 from ${follow} where ${follow.followerId} = ${challenge.ownerId} and ${follow.followeeId} = ${viewerId})`,
+        sql`not exists (select 1 from ${challengeAttempt} where ${challengeAttempt.challengeId} = ${challenge.id} and ${challengeAttempt.userId} = ${viewerId})`,
+        notHidden(challenge.ownerId),
+      ),
+    )
+    .orderBy(desc(challenge.createdAt))
+    .limit(FRIEND_CHALLENGES_MAX);
+  return rows.map((row) => ({
+    code: row.code,
+    title: row.title,
+    author: row.nickname === null ? null : { id: row.ownerId, nickname: row.nickname },
+    expiresAt: row.expiresAt.toISOString(),
+  }));
 }
 
 export async function attemptOf(

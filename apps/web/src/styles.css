@@ -3908,35 +3908,124 @@ button.match-item {
   font-variant-numeric: tabular-nums;
 }
 
-/* Головна (53): дві великі кнопки під заголовком — завжди поруч (і на 360 px), підпис переноситься, а не обрізається. */
-.home-actions {
+/* Головна (78): велика «Провести гру» під полем коду — на всю ширину колонки, підпис переноситься, а не обрізається. */
+.home-host {
+  display: flex;
+  justify-content: center;
+  min-height: 3.5rem;
+  padding: 0.75rem 1rem;
+  font-size: 1.125rem;
+  line-height: 1.2;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+
+/* Поле коду на головній: у легкому режимі (19 px) на 320 px «000 000» не влазило — шрифт не більший за 7.5vw. */
+.join-form .code-input {
+  font-size: min(1.75rem, 7.5vw) !important;
+}
+
+/* Гостю: два рядки «що це за сайт» над полем коду. */
+.home-about {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.375rem;
+  min-width: 0;
+}
+
+.home-about p {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+/* Гостю: «Переглянути бібліотеку» і «Увійти, щоб проводити свої ігри» — дві великі кнопки одна під одною. */
+.home-guest-links {
+  display: grid;
   gap: 0.625rem;
 }
 
-.home-action {
-  display: flex;
-  align-items: center;
+.home-guest-links .btn {
   justify-content: center;
-  min-width: 0;
-  min-height: 3.5rem;
-  padding: 0.75rem 0.625rem;
-  font-size: 1.0625rem;
-  line-height: 1.2;
+  min-height: 3rem;
   text-align: center;
-  text-decoration: none;
   overflow-wrap: anywhere;
-  hyphens: auto;
 }
 
-.home-action[aria-expanded='true'] {
-  border-color: var(--accent);
+/* «З чого почати» (78): три кроки списком, «Зрозуміло» — під ними. */
+.welcome-card {
+  gap: 0.75rem;
 }
 
-/* «Приєднатися» — непрозоре обличчя, як у «Створити гру»: місяць героя (z-index −1) не просвічує крізь рамку й підпис. */
-.home-action:not(.btn-primary) {
-  background: var(--surface);
+.welcome-card h2 {
+  margin: 0;
+}
+
+.welcome-steps {
+  display: grid;
+  gap: 0.5rem;
+  margin: 0;
+  padding-inline-start: 1.25rem;
+  overflow-wrap: anywhere;
+}
+
+.welcome-card .btn {
+  align-self: flex-start;
+}
+
+/* «Швидкий запуск» (78): назва і «Провести» в рядку; вузький екран — кнопка переходить під назву. */
+.quick-start {
+  gap: 0.75rem;
+}
+
+.quick-start h2 {
+  margin: 0;
+}
+
+/* Заголовок переноситься між словами, а не посеред слова; «Усі вікторини ›» за потреби — під ним. */
+.quick-start .profile-section-head {
+  flex-wrap: wrap;
+  row-gap: 0.25rem;
+}
+
+.quick-start .profile-section-head h2 {
+  min-width: auto;
+  overflow-wrap: normal;
+}
+
+.quick-list {
+  display: grid;
+  gap: 0.625rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.quick-list li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+  min-width: 0;
+}
+
+.quick-name {
+  flex: 1 1 10rem;
+  min-width: 0;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+/* Низ головної (78): довідка, «Легкий режим», тема, «Повідомити про проблему» — під рискою. */
+.home-footer {
+  display: grid;
+  gap: 1rem;
+  justify-items: start;
+  min-width: 0;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--line);
+}
+
+.home-footer > * {
+  max-width: 100%;
 }
 
 /* Картка «Продовжити гру» / «Найближча подія» між кнопками й плитками. */
@@ -3970,68 +4059,6 @@ button.match-item {
   margin-top: 0.5rem;
   text-align: center;
   text-decoration: none;
-}
-
-/* Стартове меню (24a; 53 — шість плиток): плитки як у профілі, але більші. Телефон — 2 колонки (три рівні рядки); від 701 px — 3.
-   Підписи переносяться лише між словами: найдовше слово всіх 7 мов уміщається в плитку й на 320 px. */
-.start-menu {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.625rem;
-}
-
-@media (min-width: 701px) {
-  .start-menu {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 0.75rem;
-  }
-}
-
-.start-tile {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 0.375rem;
-  min-width: 0;
-  min-height: 6.5rem;
-  margin: 0;
-  padding: 0.875rem 0.5rem 0.75rem;
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  background: var(--surface);
-  color: var(--paper);
-  font: inherit;
-  text-align: center;
-  text-decoration: none;
-  cursor: pointer;
-}
-
-.start-tile:hover,
-.start-tile[aria-expanded='true'] {
-  border-color: var(--accent);
-}
-
-.start-icon {
-  font-size: 2rem;
-  line-height: 1.15;
-}
-
-.start-label {
-  max-width: 100%;
-  font-size: 0.95rem;
-  font-weight: 600;
-  line-height: 1.25;
-  overflow-wrap: normal;
-  word-break: normal;
-  hyphens: manual;
-}
-
-.start-badge {
-  position: absolute;
-  inset-block-start: 0.375rem;
-  inset-inline-end: 0.375rem;
 }
 
 /* Заголовок розділу з «усі ›» у кінці рядка. */
@@ -18967,13 +18994,7 @@ details.admin-round > summary > .admin-round-title {
   min-height: 44px;
 }
 
-/* 24c: список відкритих лобі під полем коду. На 320 px і в RTL: логічні властивості, переноси, без бокового скролу. */
-.join-area {
-  display: grid;
-  gap: 1.5rem;
-  min-width: 0;
-}
-
+/* 24c: список відкритих лобі на головній. На 320 px і в RTL: логічні властивості, переноси, без бокового скролу. */
 .lobby-list {
   display: grid;
   gap: 0.75rem;
@@ -25611,11 +25632,6 @@ input.sudoku-editor-cell:focus-visible {
   opacity: 1;
 }
 
-/* Гостьова головна: повний вибір теми під посиланням для ведучого. */
-.home-theme {
-  margin-top: 1.5rem;
-}
-
 /* ---------- «Думай інакше» (35): редактор та історія ---------- */
 
 .think-settings,
@@ -29749,8 +29765,25 @@ details.admin-fold[open] > summary::before {
     --app-w: 64rem;
   }
 
-  .start-menu {
-    grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+  /* 78: на комп'ютері герой (поле коду й «Провести гру» тієї ж ширини, що й колонка), «З чого почати» і низ — на весь рядок,
+     решта (що далі, відкриті ігри, швидкий запуск) — у дві колонки. */
+  .app.start.home {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-content: start;
+    align-items: start;
+  }
+
+  .app.start.home > .motif-hero,
+  .app.start.home > .welcome-card,
+  .app.start.home > .home-footer {
+    grid-column: 1 / -1;
+  }
+
+  .app.start.home .join-form,
+  .app.start.home .home-host {
+    width: 100%;
+    max-width: 30rem;
   }
 
   /* Довідка: темою — сітка карток (кожна ≈ читана ширина), заголовок теми — на весь рядок; вступ і пошук тримають --w-read. */

@@ -189,6 +189,16 @@ describe('Menu', () => {
     vi.mocked(me).mockReturnValue(new Promise(() => {}));
     show('/');
     expect(items()).toEqual(['🏠Головна']);
+    // 78: поки не відомо, хто тут, не світиться нічого — навіть «Головна» (на /quizzes вона була б неправдою).
+    expect(menuLinks().map((link) => link.getAttribute('aria-current'))).toEqual([null]);
+  });
+
+  it('highlights nothing while the account check failed (78)', async () => {
+    vi.mocked(me).mockResolvedValue({ ok: false, error: 'offline' });
+    show('/quizzes');
+    await act(async () => {});
+    expect(items()).toEqual(['🏠Головна']);
+    expect(menuLinks().map((link) => link.getAttribute('aria-current'))).toEqual([null]);
   });
 
   it('the menu follows sign-in and sign-out without a reload', async () => {

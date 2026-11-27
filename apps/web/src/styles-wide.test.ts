@@ -204,7 +204,9 @@ describe('67 lists, start, history', () => {
     const list = found('1024', '.quiz-list')[0];
     expect(list?.body).toContain('grid-template-columns: repeat(auto-fill, minmax(var(--card-min), 1fr));');
     expect(list?.selector).toMatch(/\.library-list[\s\S]*\.feed-list/);
-    expect(found('1024', '.start-menu')[0]?.body).toContain('repeat(auto-fit, minmax(12rem, 1fr))');
+    // 78: плиток немає; головна з акаунтом — дві колонки під героєм.
+    expect(found('1024', '.start-menu')).toEqual([]);
+    expect(found('1024', '.app.start.home')[0]?.body).toContain('grid-template-columns: repeat(2, minmax(0, 1fr));');
     expect(found('1024', '.app.start')[0]?.body).toContain('--app-w: 64rem;');
   });
 

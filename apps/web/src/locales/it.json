@@ -5721,5 +5721,22 @@
   "quizExportTable": "Esporta: tabella (Excel)",
   "libraryHost": "Conduci una partita",
   "libraryHostSignIn": "Accedi per condurre",
-  "menuShortQuizzesTight": "Quiz"
+  "menuShortQuizzesTight": "Quiz",
+  "homeGuestAbout": "Quiz in famiglia: una persona conduce la partita su un grande schermo e tutti rispondono dal proprio telefono.",
+  "homeGuestHow": "Hai un codice di gioco? Inseriscilo qui. Vuoi condurre la tua partita? Accedi.",
+  "homeGuestLibrary": "Sfoglia la biblioteca",
+  "homeGuestSignIn": "Accedi per condurre le tue partite",
+  "homeInviteTitle": "Sei invitato a una partita",
+  "homeInviteFrom": "{host} ti invita · codice {code}",
+  "homeChallengeTitle": "Una sfida da un amico",
+  "homeChallengePlay": "Accetta la sfida",
+  "homeQuickTitle": "Avvio rapido",
+  "homeQuickHost": "Conduci: {title}",
+  "homeQuickAll": "Tutti i quiz ›",
+  "homeFooterLabel": "Aiuto e aspetto",
+  "welcomeTitle": "Da dove iniziare",
+  "welcomeJoin": "Entra in una partita con un codice: chi conduce lo mostra sullo schermo.",
+  "welcomeLibrary": "Conduci una partita dalla biblioteca:",
+  "welcomeCreate": "Crea il tuo quiz:",
+  "welcomeDone": "Capito"
 }

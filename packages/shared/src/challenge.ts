@@ -96,6 +96,17 @@ export interface ChallengeMine {
   expiresAt: string;
   played: number;
 }
+/** 78: скільки викликів від друзів віддає /api/me/friend-challenges (головна показує один). */
+export const FRIEND_CHALLENGES_MAX = 5;
+
+/** 78: активний виклик людини, що додала мене в друзі, якого я ще не пробував. */
+export interface FriendChallenge {
+  code: string;
+  title: string;
+  author: { id: string; nickname: string } | null;
+  expiresAt: string;
+}
+
 export interface ChallengeCheck {
   skipped: ChallengeSkip;
   empty: boolean;

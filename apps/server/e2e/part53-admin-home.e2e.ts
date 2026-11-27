@@ -395,7 +395,7 @@ async function announcement53() {
   expect(log.match(/прибрав\(-ла\) оголошення/g)?.length).toBe(1);
 }
 
-it('part 53: home — two big buttons on top, «Продовжити гру» for a running game and then for a saved one, «Найближча подія» from the calendar, and nothing when there is nothing, phone 360 px, light theme', async () => {
+it('part 53 (78): home — the code field and «Провести гру» on top, «Продовжити гру» for a running game and then for a saved one, «Найближча подія» from the calendar, and nothing when there is nothing, phone 360 px, light theme', async () => {
   try {
     await home53();
   } catch (error) {
@@ -413,25 +413,27 @@ async function home53() {
   const card = olya.locator('section.next-up');
   const homeOf = async (page: Page) => {
     await page.goto(base);
-    await page.locator('.home-actions').waitFor();
+    await page.locator('main a.home-host').waitFor();
     await page.waitForLoadState('networkidle');
     await page.waitForTimeout(300);
   };
   const forgetGame = (page: Page) => page.evaluate(() => localStorage.removeItem('quiz:last-game'));
 
-  // ── 1. Оля без ігор і подій: дві кнопки поруч над меню, шість плиток, жодної картки. ──
+  // ── 1. Оля без ігор і подій: поле коду, під ним велика «Провести гру» на всю колонку, без плиток, жодної картки. ──
   await homeOf(olya);
   expect(await isLight(olya)).toBe(true);
-  const actions = await olya.locator('.home-actions').evaluate((el) => [...el.children].map((child) => ({ text: child.textContent, top: child.getBoundingClientRect().top, width: child.getBoundingClientRect().width })));
-  expect(actions.map((a) => a.text)).toEqual(['Провести гру', 'Приєднатися']);
-  expect(actions[0]!.top).toBe(actions[1]!.top);
-  expect(Math.min(...actions.map((a) => a.width))).toBeGreaterThan(140);
-  expect(await olya.locator('nav.start-menu > *').count()).toBe(6);
+  const codeBox = (await field(olya, 'Код гри').boundingBox())!;
+  const hostBox = (await olya.locator('main a.home-host').boundingBox())!;
+  expect(await olya.locator('main a.home-host').textContent()).toBe('Провести гру');
+  expect(codeBox.y).toBeLessThan(hostBox.y);
+  expect(hostBox.width).toBeGreaterThan(280);
+  expect(hostBox.height).toBeGreaterThanOrEqual(48);
+  expect(await olya.locator('nav.start-menu').count()).toBe(0);
   expect(await card.count(), 'no card without games and events').toBe(0);
   await expectNoSideScroll(olya, 'home53-buttons-light-360');
   await viewportShot(olya, 'home53-buttons-light-360');
 
-  // ── 2. «Приєднатися» з кодом — у лобі. ──
+  // ── 2. Код у полі головної — у лобі. ──
   const petroCode = await hostLobby(petro, TITLE);
   await join(olya, petroCode, 'Оля', true);
   await olya.goto(base);
@@ -494,14 +496,17 @@ async function home53() {
   await card.getByRole('link', { name: 'До календаря', ...exact }).click();
   await olya.waitForURL(`${base}/feed/calendar`);
 
-  // ── 6. Гість: лише кнопки й форма коду. ──
+  // ── 6. Гість: форма коду, бібліотека й вхід; без «Провести гру» і без картки. ──
   await guest.goto(base);
-  await guest.locator('.home-actions').waitFor();
+  await guest.locator('.home-guest-links').waitFor();
   await field(guest, 'Код гри').waitFor();
   await guest.waitForLoadState('networkidle');
   expect(await guest.locator('section.next-up').count()).toBe(0);
   expect(await guest.locator('nav.start-menu').count()).toBe(0);
-  expect(await guest.locator('.home-actions > *').count()).toBe(2);
+  expect(await guest.locator('main a.home-host').count()).toBe(0);
+  expect(await guest.locator('.home-guest-links > *').count()).toBe(2);
+  await expectNoSideScroll(guest, 'home53-guest-light-360');
+  await viewportShot(guest, 'home53-guest-light-360');
 
   // ── 7. Темна тема: той самий екран. ──
   await olya.evaluate(() => {
