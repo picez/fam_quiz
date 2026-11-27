@@ -31069,3 +31069,150 @@ main > .back-link {
   max-width: 100%;
   white-space: normal;
 }
+
+/* 80: «Як грати» для гравця — розділи з текстом і маленьким макетом телефона поряд (на вузькому екрані — під текстом). */
+.player-help-part {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 1rem 1.5rem;
+  margin-block-end: 1rem;
+}
+
+.player-help-text {
+  flex: 1 1 16rem;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.player-help-text > h2 {
+  margin: 0 0 0.5rem;
+}
+
+.player-help-text p {
+  margin: 0 0 0.5rem;
+}
+
+.player-help-icon {
+  display: inline-block;
+  min-width: 1.5em;
+}
+
+.player-help-types {
+  margin-block: 0.75rem;
+}
+
+.player-help-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin: 0 0 0.35rem;
+  padding: 0;
+  list-style: none;
+}
+
+.player-help-chips li {
+  padding: 0.2rem 0.65rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.player-help-buffs {
+  display: grid;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.player-help-buffs li {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+}
+
+.player-help-buff {
+  flex: 0 0 auto;
+  display: inline-flex;
+  justify-content: center;
+  min-width: 2.25rem;
+  padding: 0.15rem 0.35rem;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-small);
+  color: var(--accent-text);
+  font-weight: 700;
+}
+
+/* Макет телефона: рамка з «екраном», кнопки — прямокутники з підписами; лише для ока (aria-hidden). */
+.help-phone {
+  flex: 0 0 9.5rem;
+  display: grid;
+  gap: 0.4rem;
+  align-content: start;
+  justify-items: stretch;
+  min-height: 11rem;
+  padding: 1.1rem 0.6rem 0.9rem;
+  border: 3px solid var(--line);
+  border-radius: 1.25rem;
+  background: var(--stage);
+  font-size: 0.8125rem;
+  text-align: center;
+}
+
+.help-phone-label {
+  color: var(--dim);
+}
+
+.help-phone-code {
+  padding: 0.35rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-small);
+  font-size: 1.05rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+
+.help-phone-button {
+  padding: 0.35rem 0.4rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-small);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.help-phone-button.is-primary,
+.help-phone-button.is-picked {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+.help-phone-timer {
+  height: 0.35rem;
+  border-radius: 999px;
+  background: linear-gradient(to right, var(--accent) 60%, var(--track) 60%);
+}
+
+.help-phone-verdict {
+  color: var(--wrong);
+  font-size: 1.75rem;
+  font-weight: 700;
+}
+
+.help-phone-alarm {
+  font-size: 1.75rem;
+}
+
+.player-help-host {
+  margin-block-start: 1.5rem;
+}
+
+@media (max-width: 480px) {
+  .help-phone {
+    flex-basis: 100%;
+    min-height: 0;
+    max-width: 14rem;
+  }
+}

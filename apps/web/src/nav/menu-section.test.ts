@@ -14,6 +14,8 @@ describe('menuSection (77)', () => {
     ['/library/1', 'quizzes'],
     ['/create', 'quizzes'],
     ['/help', 'quizzes'],
+    // 80: «Як грати» для гравця — під «Головною», довідка ведучого — у «Вікторинах».
+    ['/help/play', 'home'],
     ['/challenge/AB12', 'quizzes'],
     ['/feed', 'feed'],
     ['/feed/calendar', 'feed'],

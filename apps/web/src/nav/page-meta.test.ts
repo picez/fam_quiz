@@ -49,4 +49,10 @@ describe('page meta (76)', () => {
     expect(pageTitle('/history/g1')).toBe('Історія ігор');
     expect(pageTitle('/me/g1')).toBe('Мої ігри');
   });
+
+  it('80: names the player help', () => {
+    expect(pageTitle('/help/play')).toBe('Як грати');
+    expect(pageTitle('/help')).toBe('Довідка ведучого');
+    expect(pageTitle('/report')).toBe('Повідомити про проблему');
+  });
 });

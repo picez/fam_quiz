@@ -36,6 +36,7 @@ const GroupJoin = lazy(() => import('./pages/GroupJoin').then((m) => ({ default:
 const GroupPage = lazy(() => import('./pages/GroupPage').then((m) => ({ default: m.GroupPage })));
 const Groups = lazy(() => import('./pages/Groups').then((m) => ({ default: m.Groups })));
 const HostHelp = lazy(() => import('./pages/HostHelp').then((m) => ({ default: m.HostHelp })));
+const PlayerHelp = lazy(() => import('./pages/PlayerHelp').then((m) => ({ default: m.PlayerHelp })));
 const PrizeStudioPage = lazy(() => import('./pages/PrizeStudioPage').then((m) => ({ default: m.PrizeStudioPage })));
 const MyChallenges = lazy(() => import('./pages/MyChallenges').then((m) => ({ default: m.MyChallenges })));
 const PlayedGame = lazy(() => import('./pages/PlayedGame').then((m) => ({ default: m.PlayedGame })));
@@ -108,6 +109,7 @@ export function AppRoutes() {
           <Route path="/profile/:id/achievements" element={<Achievements />} />
           <Route path="/admin/*" element={<Admin />} />
           <Route path="/help" element={<HostHelp />} />
+          <Route path="/help/play" element={<PlayerHelp />} />
           {/* «Повідомити про проблему» (64): і гостям; ?from= — сторінка, з якої прийшли. */}
           <Route path="/report" element={<ProblemReport />} />
           <Route path="/inbox" element={<InboxPage />} />
