@@ -187,7 +187,9 @@ export async function sentChallenges(db: Db, ownerId: string, now: Date): Promis
       .from(challengeAttempt)
       .innerJoin(game, and(eq(game.id, challengeAttempt.gameId), eq(game.status, 'finished')))
       .innerJoin(participant, and(eq(participant.gameId, challengeAttempt.gameId), eq(participant.userId, challengeAttempt.userId), eq(participant.isTeam, false)))
-      .where(inArray(challengeAttempt.challengeId, ids)),
+      .where(inArray(challengeAttempt.challengeId, ids))
+      // Рівні бали й час: перемагає ранніша спроба, як у таблиці виклику (challengeResults).
+      .orderBy(asc(challengeAttempt.startedAt)),
   ]);
   const played = new Map(counts.map((row) => [row.challengeId, row.n]));
   return rows.map((row) => {
