@@ -2,6 +2,7 @@ import type { LibraryDetail } from '@quiz/shared';
 import { useEffect, useState, type JSX } from 'react';
 import { Link, useLocation, useParams } from 'react-router-dom';
 import { ROUND_NAMES } from '../guide-text';
+import { useStartGame } from '../host-game';
 import { errorText, t } from '../i18n';
 import { LibraryFacts } from '../library/LibraryCardView';
 import { ReportDialog } from '../library/ReportDialog';
@@ -16,6 +17,7 @@ export function LibraryQuiz(): JSX.Element {
   const { id = '' } = useParams();
   const location = useLocation();
   const account = useAccount();
+  const startGame = useStartGame();
   const [quiz, setQuiz] = useState<LibraryDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [likes, setLikes] = useState(0);
@@ -82,7 +84,32 @@ export function LibraryQuiz(): JSX.Element {
     setCopyId(result.data.id);
   };
 
+  /**
+   * 77: «Провести гру» — своя вікторина автора чи вже зроблена копія (сервер віддає hostQuizId, щойно зроблена — copyId),
+   * інакше спершу копія собі; тоді одразу запуск, як «Провести» в «Мої вікторини».
+   */
+  const host = async () => {
+    setBusy(true);
+    setActionError(null);
+    let target = copyId ?? quiz.hostQuizId ?? null;
+    if (target === null) {
+      const copied = await copyLibrary(quiz.id);
+      if (!copied.ok) {
+        setBusy(false);
+        return setActionError(errorText(copied.error));
+      }
+      target = copied.data.id;
+      setCopyId(target);
+    }
+    const failed = await startGame(target);
+    if (failed !== null) {
+      setBusy(false);
+      setActionError(errorText(failed));
+    }
+  };
+
   const signedIn = account.status === 'signed-in';
+  const canHost = signedIn && (quiz.mine !== true || quiz.hostQuizId !== undefined);
   const guest = account.status === 'anonymous';
   return (
     <main className="app wide library-quiz">
@@ -105,17 +132,24 @@ export function LibraryQuiz(): JSX.Element {
       </ul>
       <p className="meta">{t('libraryNoAnswers')}</p>
 
-      {signedIn && quiz.mine !== true && (
+      {canHost && (
         <div className="toolbar">
-          <button type="button" className="btn" aria-pressed={liked} disabled={busy} onClick={toggleLike}>
-            {t('libraryLike')} {likes}
+          <button type="button" className="btn btn-primary" disabled={busy} onClick={() => void host()}>
+            {t('libraryHost')}
           </button>
-          <button type="button" className="btn btn-primary" disabled={busy || copyId !== null} onClick={copy}>
-            {t('libraryCopy')}
-          </button>
-          <button type="button" className="btn" onClick={() => setReporting(true)}>
-            {t('reportButton')}
-          </button>
+          {quiz.mine !== true && (
+            <>
+              <button type="button" className="btn" aria-pressed={liked} disabled={busy} onClick={toggleLike}>
+                {t('libraryLike')} {likes}
+              </button>
+              <button type="button" className="btn" disabled={busy || copyId !== null} onClick={copy}>
+                {t('libraryCopy')}
+              </button>
+              <button type="button" className="btn" onClick={() => setReporting(true)}>
+                {t('reportButton')}
+              </button>
+            </>
+          )}
         </div>
       )}
       {copyId !== null && (
@@ -123,6 +157,13 @@ export function LibraryQuiz(): JSX.Element {
           {t('libraryCopied')}{' '}
           <Link className="btn" to={`/quizzes/${encodeURIComponent(copyId)}`}>
             {t('libraryOpenCopy')}
+          </Link>
+        </p>
+      )}
+      {guest && (
+        <p className="toolbar">
+          <Link className="btn btn-primary" to={`/login?next=${encodeURIComponent(location.pathname + location.search)}`}>
+            {t('libraryHostSignIn')}
           </Link>
         </p>
       )}

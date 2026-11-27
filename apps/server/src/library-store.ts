@@ -250,18 +250,32 @@ export async function entryDetail(db: Db, entryId: string, viewerId: string | nu
   if (!UUID.test(entryId)) return null;
   const rounds = sql<{ title: string; type: RoundType }[] | null>`(select jsonb_agg(jsonb_build_object('title', coalesce(r->>'title', ''), 'type', r->>'type') order by n) from jsonb_array_elements(${libraryEntry.snapshot}->'rounds') with ordinality as t(r, n))`;
   const [row] = await db
-    .select({ ...cardColumns(viewerId), rounds, openedAt: libraryEntry.openedAt, updatedAt: libraryEntry.updatedAt })
+    .select({ ...cardColumns(viewerId), rounds, openedAt: libraryEntry.openedAt, updatedAt: libraryEntry.updatedAt, entryQuizId: libraryEntry.quizId })
     .from(libraryEntry)
     .leftJoin(profile, eq(profile.userId, libraryEntry.ownerId))
     .where(and(eq(libraryEntry.id, entryId), visible()));
   if (row === undefined) return null;
   const plays = await playsOf(db, [row.id]);
+  const hostQuizId = viewerId === null ? null : row.ownerId === viewerId ? row.entryQuizId : await latestCopy(db, row.id, viewerId);
   return {
     ...toCard(row, viewerId, plays.get(row.id) ?? 0),
     rounds: (row.rounds ?? []).map((round) => ({ title: round.title, type: round.type })),
     openedAt: row.openedAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
+    ...(hostQuizId === null ? {} : { hostQuizId }),
   };
+}
+
+/** Найсвіжіша копія запису, що ще лежить у «Мої вікторини» глядача (видалена — quiz_id стає null), або null. */
+async function latestCopy(db: Db, entryId: string, userId: string): Promise<string | null> {
+  const [row] = await db
+    .select({ quizId: quiz.id })
+    .from(libraryCopy)
+    .innerJoin(quiz, eq(quiz.id, libraryCopy.quizId))
+    .where(and(eq(libraryCopy.entryId, entryId), eq(libraryCopy.userId, userId), eq(quiz.ownerId, userId)))
+    .orderBy(desc(libraryCopy.at))
+    .limit(1);
+  return row?.quizId ?? null;
 }
 
 /** Видимий у каталозі запис (listed, ok, автор не заблокований) або null. */
