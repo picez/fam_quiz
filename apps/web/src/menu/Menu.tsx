@@ -57,7 +57,9 @@ export function Menu() {
   };
   const items =
     account.status === 'signed-in' ? (account.account.admin ? [HOME, QUIZZES, FEED, HISTORY, PROFILE, ADMIN] : [HOME, QUIZZES, FEED, HISTORY, PROFILE]) : account.status === 'anonymous' ? [HOME, LIBRARY, signIn] : [HOME];
-  const active = activeItem(items, location.pathname);
+  // 78: поки не відомо, хто тут (завантаження чи збій), не світиться нічого: «Головна» на /quizzes була б неправдою.
+  const known = account.status === 'signed-in' || account.status === 'anonymous';
+  const active = known ? activeItem(items, location.pathname) : null;
   // 77: у шести пунктах (адмін) «Вікторини» не влазять у шосту частину 320 px — там коротший підпис.
   const short = (item: Item) => t(items.length > 5 && item.tight !== undefined ? item.tight : item.short);
 

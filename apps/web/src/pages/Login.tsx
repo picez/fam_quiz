@@ -15,7 +15,8 @@ function safeNext(next: string | null): string {
   // Один слеш на початку й жодних зворотних слешів чи керівних символів: браузери
   // трактують "/\\host" і "/<tab>/host" як адресу іншого сайта.
   const local = next !== null && /^\/(?![/\\])/.test(next) && !/[\\\u0000-\u001f]/.test(next);
-  return local ? next : '/quizzes';
+  // 78: без адреси повернення — на головну (там «З чого почати» для новачка), а не в порожні «Мої вікторини».
+  return local ? next : '/';
 }
 
 export function Login() {
