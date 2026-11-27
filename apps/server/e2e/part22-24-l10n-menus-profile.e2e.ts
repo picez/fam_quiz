@@ -330,7 +330,7 @@ async function bloodMoon23a() {
     await olya.setViewportSize({ width: 375, height: 812 });
     await olya.goto(`${base}/profile`);
     await expect.poll(() => htmlLang(olya), POLL).toBe(lang);
-    await olya.locator('nav.profile-tiles a').nth(8).waitFor();
+    await olya.locator('nav.profile-tiles a').nth(7).waitFor();
     for (const width of [320, 360, 375, 414, 701, 768, 1024, 1280]) await expectFiveItems(olya, width);
     await olya.setViewportSize({ width: 320, height: 812 });
     const clipped = await olya.locator('.profile-tiles a').evaluateAll((tiles) =>
@@ -371,14 +371,55 @@ async function bloodMoon23a() {
   await olya.getByRole('heading', { level: 1, name: 'Оля 23a', ...exact }).waitFor();
   await olya.locator('.profile-head .profile-pills').getByText(/^Рів\. \d+$/).waitFor();
   expect(await olya.locator('.headline-stats dd').count()).toBe(4);
-  // Вісім плиток і дев'ята — «Групи» на всю ширину (12k).
-  expect(await olya.locator('nav.profile-tiles a').count()).toBe(9);
-  expect(await olya.locator('nav.profile-tiles a').nth(8).getAttribute('href')).toBe('/profile/groups');
-  expect(await olya.locator('nav.profile-tiles a.is-wide').count()).toBe(1);
+  // 79: три підписані блоки — «Мої здобутки» (4), «Люди» (2), «Налаштування» (2); без «Вікторин» і «Вподобань».
+  expect(await olya.locator('nav.profile-tiles section h2').allTextContents()).toEqual(['Мої здобутки', 'Люди', 'Налаштування']);
+  expect(await olya.locator('nav.profile-tiles a').evaluateAll((links) => links.map((a) => a.getAttribute('href')))).toEqual([
+    '/profile/achievements',
+    '/profile/prizes',
+    '/profile/stats',
+    '/profile/levels',
+    '/profile/friends',
+    '/profile/groups',
+    '/profile/looks',
+    '/profile/settings',
+  ]);
+  // «Люди» й «Налаштування» — поряд, плитки однакової ширини в усіх блоках.
+  const tileWidths = await olya.locator('nav.profile-tiles a').evaluateAll((links) => links.map((a) => Math.round(a.getBoundingClientRect().width)));
+  expect(Math.max(...tileWidths) - Math.min(...tileWidths), 'p79: tiles of one width').toBeLessThanOrEqual(1);
   await olya.locator('nav.profile-tiles').getByRole('link', { name: 'Призи, 5', ...exact }).waitFor();
   await olya.locator('nav.profile-tiles').getByRole('link', { name: 'Досягнення, 6', ...exact }).waitFor();
   expect(await noSideScroll(olya)).toBe(true);
   await shot(olya, 'p23a-profile');
+
+  // 79: блоки профілю на 320 px у простому режимі, світлій темі й обох разом — без бокового скролу й обрізаних плиток.
+  await olya.setViewportSize({ width: 320, height: 812 });
+  for (const [name, setUp] of [
+    ['easy', "localStorage.setItem('quiz:easy', 'on')"],
+    ['light', "localStorage.setItem('quiz:easy', 'off'); localStorage.setItem('quiz:theme', 'light')"],
+    ['light-easy', "localStorage.setItem('quiz:easy', 'on'); localStorage.setItem('quiz:theme', 'light')"],
+  ] as const) {
+    await olya.evaluate(setUp);
+    await olya.reload();
+    await olya.locator('nav.profile-tiles a').nth(7).waitFor();
+    if (name !== 'light') await expect.poll(() => olya.evaluate("document.documentElement.classList.contains('is-easy')"), POLL).toBe(true);
+    const wide = await olya.evaluate(() =>
+      [...document.querySelectorAll('main *')]
+        .filter((el) => el.getBoundingClientRect().right > innerWidth + 0.5)
+        .map((el) => `${el.tagName}.${el.className}:${Math.round(el.getBoundingClientRect().right)}`)
+        .slice(0, 8),
+    );
+    expect(await noSideScroll(olya), `p79-profile-${name}-320: horizontal scroll ${wide.join(' | ')}`).toBe(true);
+    const cut = await olya.locator('.profile-tiles a').evaluateAll((tiles) => tiles.filter((tile) => tile.scrollWidth > tile.clientWidth).map((tile) => tile.textContent));
+    expect(cut, `p79-profile-${name}-320: clipped tiles`).toEqual([]);
+    await shot(olya, `p79-profile-${name}-320`);
+  }
+  await olya.evaluate("localStorage.setItem('quiz:easy', 'off'); localStorage.removeItem('quiz:theme')");
+  await olya.setViewportSize({ width: 1280, height: 900 });
+  await olya.reload();
+  await olya.locator('nav.profile-tiles a').nth(7).waitFor();
+  expect(await noSideScroll(olya)).toBe(true);
+  await shot(olya, 'p79-profile-1280');
+  await olya.setViewportSize({ width: 375, height: 812 });
 
   // ── 4. Автополиця: три трофеї, найновіший кубок у центрі; без диплома й вареників. ──
   const auto = await shelf23a(olya);
