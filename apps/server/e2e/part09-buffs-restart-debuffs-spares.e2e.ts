@@ -216,8 +216,14 @@ async function afterThirdGame() {
   await textAnswer(ira, 'Париж');
   await petro.getByText('Відповідь прийнято', exact).waitFor();
   await ira.getByText('Відповідь прийнято', exact).waitFor();
+  // Ліміт на Олиному табло («/ 30 с») до бафа; зал додає їй 15 с. Сцена з 34ccde2a показує справжній кінець запитання
+  // (його тримає Олин додатковий час), тож її секунди йдуть разом з Олиними, а не до спільного кінця.
+  const olyaTotal = async () => Number((await olya.locator('.timer-total').first().textContent())!.replace(/\D/g, ''));
+  const limit = await olyaTotal();
   await takeBuff(olya, 'Запитання в залі');
-  await expect.poll(async () => (await seconds(olya)) - (await seconds(stage))).toBeGreaterThanOrEqual(14);
+  await expect.poll(olyaTotal, POLL).toBe(limit + 15);
+  await expect.poll(async () => Math.abs((await seconds(olya)) - (await seconds(stage))), POLL).toBeLessThanOrEqual(1);
+  expect(await seconds(olya), 'Olya’s own clock after the audience').toBeGreaterThan(limit - 10);
   const sheet = petro.locator('.vote-sheet');
   await sheet.getByText('Оля питає зал: як думаєте?', exact).waitFor();
   await petro.waitForTimeout(300);
