@@ -30831,3 +30831,63 @@ main > .back-link {
 .profile-sub-head {
   flex-wrap: wrap;
 }
+
+/* 76: скелет списку, поки дані йдуть: сірі смужки на місці карток; без руху за «зменшити рух» і в легкому режимі. */
+.skeleton-list {
+  display: grid;
+  gap: 0.75rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.skeleton-row {
+  display: grid;
+  gap: 0.5rem;
+  padding: 1rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.skeleton-line {
+  display: block;
+  block-size: 0.8rem;
+  inline-size: 70%;
+  border-radius: 0.4rem;
+  background: var(--track);
+}
+
+.skeleton-line.is-title {
+  block-size: 1.1rem;
+  inline-size: 45%;
+}
+
+.skeleton-line.is-short {
+  inline-size: 30%;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  :where(:root:not(.is-easy)) .skeleton-line {
+    animation: skeleton-pulse 1.4s ease-in-out infinite;
+  }
+}
+
+@keyframes skeleton-pulse {
+  50% {
+    opacity: 0.45;
+  }
+}
+
+/* Помилка з «Спробувати ще раз» і порожній стан з дією. */
+.load-error,
+.empty-state {
+  display: grid;
+  gap: 0.75rem;
+  justify-items: start;
+}
+
+.load-error > .error,
+.empty-state > .lead {
+  margin: 0;
+}

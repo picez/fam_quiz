@@ -1,13 +1,18 @@
 import { Suspense } from 'react';
 import { Outlet } from 'react-router-dom';
 import { t } from '../i18n';
+import { Loading } from '../ui/PageState';
 import { useOnline } from '../useOnline';
 import { AnnouncementBanner } from '../announcement/AnnouncementBanner';
 import { Menu } from './Menu';
 
-/** Поки лінивий чанк сторінки вантажиться (32), меню лишається на місці. */
+/** Поки лінивий чанк сторінки вантажиться (32), меню лишається на місці; «Підключаємося…» — лише для гри (76). */
 function LazyFallback() {
-  return <p className="lead">{t('connecting')}</p>;
+  return (
+    <main className="app">
+      <Loading />
+    </main>
+  );
 }
 
 export function WithMenu() {

@@ -19,7 +19,13 @@ afterEach(cleanup);
 function Probe({ load }: { load: () => Promise<ApiData<string[]>> }) {
   const state = usePrivateData(load);
   if (state.status === 'ready') return <p>{`${state.account.name}: ${state.data.join(', ')}`}</p>;
-  if (state.status === 'error') return <p role="alert">{state.message}</p>;
+  if (state.status === 'error')
+    return (
+      <>
+        <p role="alert">{state.message}</p>
+        <button type="button" onClick={state.retry}>retry</button>
+      </>
+    );
   return <p>{state.status}</p>;
 }
 
@@ -59,5 +65,23 @@ describe('usePrivateData', () => {
     vi.mocked(me).mockResolvedValue(account);
     render(<Probe load={async () => ({ ok: false, error: 'not_found' })} />);
     expect((await screen.findByRole('alert')).textContent).toBe('Не знайдено.');
+  });
+
+  it('retries after a failure (76)', async () => {
+    vi.mocked(me).mockResolvedValue(account);
+    const load = vi.fn<() => Promise<ApiData<string[]>>>().mockResolvedValueOnce({ ok: false, error: 'offline' }).mockResolvedValueOnce({ ok: true, data: ['в'] });
+    render(<Probe load={load} />);
+    expect((await screen.findByRole('alert')).textContent).toBe('Немає зв’язку із сервером.');
+    screen.getByRole('button', { name: 'retry' }).click();
+    expect(await screen.findByText('Олена: в')).toBeTruthy();
+    expect(load).toHaveBeenCalledTimes(2);
+  });
+
+  it('a retry after a failed session check asks the server again (76)', async () => {
+    vi.mocked(me).mockResolvedValueOnce({ ok: false, error: 'offline' }).mockResolvedValue(account);
+    render(<Probe load={async () => ({ ok: true as const, data: ['г'] })} />);
+    await screen.findByRole('alert');
+    screen.getByRole('button', { name: 'retry' }).click();
+    expect(await screen.findByText('Олена: г')).toBeTruthy();
   });
 });

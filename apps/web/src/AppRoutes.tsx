@@ -26,7 +26,7 @@ import { Quizzes } from './pages/Quizzes';
 import { Stage } from './pages/Stage';
 
 // Сторінки, без яких обходиться гравець, вантажаться окремими чанками (32): телефон, що входить у гру,
-// не тягне редактор, довідку ведучого чи адмінку. Поки чанк іде, WithMenu показує «Підключаємося…».
+// не тягне редактор, довідку ведучого чи адмінку. Поки чанк іде, WithMenu показує «Завантажуємо…».
 const Admin = lazy(() => import('./admin/Admin').then((m) => ({ default: m.Admin })));
 const EditQuiz = lazy(() => import('./pages/EditQuiz').then((m) => ({ default: m.EditQuiz })));
 const Calendar = lazy(() => import('./pages/Calendar').then((m) => ({ default: m.Calendar })));
