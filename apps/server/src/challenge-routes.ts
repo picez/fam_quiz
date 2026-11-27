@@ -9,6 +9,7 @@ import {
   claimAttempt,
   createChallenge,
   friendChallenges,
+  sentChallenges,
   isActive,
   myActiveChallenges,
   playedCount,
@@ -156,6 +157,13 @@ export async function registerChallengeRoutes(app: FastifyInstance, deps: Challe
     const user = await currentUser(request);
     if (user === null) return reply.code(401).send(UNAUTHORIZED);
     return friendChallenges(db, user.id, now());
+  });
+
+  // 79: «Мої виклики» в історії — надіслані мною, зі спробами й найкращим результатом; лише читання.
+  app.get('/api/me/sent-challenges', async (request, reply) => {
+    const user = await currentUser(request);
+    if (user === null) return reply.code(401).send(UNAUTHORIZED);
+    return sentChallenges(db, user.id, now());
   });
 
   app.get<{ Params: { code: string } }>('/api/challenges/:code', CODE_LIMIT, async (request, reply) => {

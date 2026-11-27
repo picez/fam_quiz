@@ -5,12 +5,14 @@ import {
   challengeQuiz,
   upgradeQuiz,
   FRIEND_CHALLENGES_MAX,
+  SENT_CHALLENGES_MAX,
+  type SentChallenge,
   type ChallengeMine,
   type FriendChallenge,
   type ChallengeResultRow,
   type Quiz,
 } from '@quiz/shared';
-import { and, asc, count, desc, eq, gt, isNull, ne, sql } from 'drizzle-orm';
+import { and, asc, count, desc, eq, gt, inArray, isNull, ne, sql } from 'drizzle-orm';
 import type { Db } from './db/client';
 import { challenge, challengeAttempt, follow, game, participant, profile } from './db/schema';
 import { notHidden } from './feed-store';
@@ -159,6 +161,49 @@ export async function friendChallenges(db: Db, viewerId: string, now: Date): Pro
     author: row.nickname === null ? null : { id: row.ownerId, nickname: row.nickname },
     expiresAt: row.expiresAt.toISOString(),
   }));
+}
+
+/**
+ * 79: мої виклики (активні й завершені), найновіші першими, щонайбільше SENT_CHALLENGES_MAX: скільки спроб і найкращий
+ * результат серед завершених спроб (бали спадно, за рівних — менший час), як перше «done» таблиці виклику.
+ */
+export async function sentChallenges(db: Db, ownerId: string, now: Date): Promise<SentChallenge[]> {
+  const rows = await db
+    .select({ id: challenge.id, code: challenge.code, title: challenge.title, expiresAt: challenge.expiresAt, endedAt: challenge.endedAt })
+    .from(challenge)
+    .where(eq(challenge.ownerId, ownerId))
+    .orderBy(desc(challenge.createdAt))
+    .limit(SENT_CHALLENGES_MAX);
+  if (rows.length === 0) return [];
+  const ids = rows.map((row) => row.id);
+  const [counts, finished] = await Promise.all([
+    db
+      .select({ challengeId: challengeAttempt.challengeId, n: count() })
+      .from(challengeAttempt)
+      .where(inArray(challengeAttempt.challengeId, ids))
+      .groupBy(challengeAttempt.challengeId),
+    db
+      .select({ challengeId: challengeAttempt.challengeId, nickname: participant.nickname, score: participant.score, timeMs: participant.totalTimeMs })
+      .from(challengeAttempt)
+      .innerJoin(game, and(eq(game.id, challengeAttempt.gameId), eq(game.status, 'finished')))
+      .innerJoin(participant, and(eq(participant.gameId, challengeAttempt.gameId), eq(participant.userId, challengeAttempt.userId), eq(participant.isTeam, false)))
+      .where(inArray(challengeAttempt.challengeId, ids)),
+  ]);
+  const played = new Map(counts.map((row) => [row.challengeId, row.n]));
+  return rows.map((row) => {
+    const best = finished
+      .filter((attempt) => attempt.challengeId === row.id)
+      .sort((a, b) => b.score - a.score || (a.timeMs ?? 0) - (b.timeMs ?? 0))[0];
+    return {
+      code: row.code,
+      title: row.title,
+      expiresAt: row.expiresAt.toISOString(),
+      endedAt: row.endedAt?.toISOString() ?? null,
+      active: isActive(row, now),
+      played: played.get(row.id) ?? 0,
+      best: best === undefined ? null : { nickname: best.nickname, score: best.score },
+    };
+  });
 }
 
 export async function attemptOf(

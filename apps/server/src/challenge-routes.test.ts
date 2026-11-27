@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { and, eq } from 'drizzle-orm';
 import { classicRound, makeQuiz, makeRoundsQuiz, poll, single, truthRound, withId } from '@quiz/engine/testing';
-import { FRIEND_CHALLENGES_MAX, type ChallengeAttemptStart, type ChallengeCheck, type ChallengeMine, type ChallengePreview, type ChallengeResultRow, type ContinueResponse, type FriendChallenge } from '@quiz/shared';
+import { FRIEND_CHALLENGES_MAX, type ChallengeAttemptStart, type ChallengeCheck, type ChallengeMine, type ChallengePreview, type ChallengeResultRow, type ContinueResponse, type FriendChallenge, type SentChallenge } from '@quiz/shared';
 import { buildApp } from './app';
 import type { Db } from './db/client';
 import { challenge, challengeAttempt, game, savedGame, user, userBan } from './db/schema';
@@ -525,5 +525,40 @@ describe('challenges from friends (78)', () => {
     expect(await friendChallenges(petro)).toHaveLength(FRIEND_CHALLENGES_MAX);
     await db.insert(userBan).values({ userId: olena.id, reason: null, bannedBy: null, bannedAt: new Date() });
     expect(await friendChallenges(petro)).toEqual([]);
+  });
+});
+
+describe('challenges I sent (79)', () => {
+  const sent = async (who: Account) => {
+    const response = await call('GET', '/api/me/sent-challenges', who.cookie);
+    expect(response.statusCode).toBe(200);
+    return response.json() as SentChallenge[];
+  };
+
+  it('lists my challenges, active and ended, newest first, with attempts and the best finished score', async () => {
+    nextAddress();
+    const olena = await account('Олена');
+    const taras = await account('Тарас');
+    const iryna = await account('Ірина');
+    const first = await ready(olena);
+    const tarasStart = (await attempt(first.mine.code, taras)).json() as ChallengeAttemptStart;
+    expect((await attempt(first.mine.code, iryna)).statusCode).toBe(201);
+    const room = ctx.manager.get(tarasStart.code)!;
+    playToCheckpoint(room, tarasStart.playerId);
+    expect(ctx.manager.author(room, tarasStart.playerId, { type: 'end' })).toEqual({ ok: true });
+    await ctx.recorder.idle();
+    const second = await ready(olena);
+    await db.update(challenge).set({ expiresAt: new Date(Date.now() - 1000) }).where(eq(challenge.code, first.mine.code));
+
+    const mine = await sent(olena);
+    expect(mine.map((row) => row.code)).toEqual([second.mine.code, first.mine.code]);
+    expect(mine[0]).toEqual({ code: second.mine.code, title: soloQuiz().title, expiresAt: second.mine.expiresAt, endedAt: null, active: true, played: 0, best: null });
+    expect(mine[1]).toMatchObject({ code: first.mine.code, active: false, played: 2 });
+    // Найкраще — серед завершених спроб: Ірина ще грає, тож лише Тарас.
+    expect(mine[1]!.best).toEqual({ nickname: expect.stringMatching(/^Тарас/), score: expect.any(Number) });
+    expect(JSON.stringify(mine)).not.toContain('@');
+
+    expect(await sent(taras)).toEqual([]);
+    expect((await call('GET', '/api/me/sent-challenges')).statusCode).toBe(401);
   });
 });

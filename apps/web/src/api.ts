@@ -8,7 +8,7 @@ import type { HostTokens } from './storage';
 import { loadDeviceId } from './storage';
 import type { Locale } from '@quiz/shared';
 import type { QuestionBankPage, QuestionType } from '@quiz/shared';
-import type { ChallengeAttemptStart, ChallengeCheck, ChallengeMine, ChallengePreview, ChallengeResultRow, FriendChallenge } from '@quiz/shared';
+import type { ChallengeAttemptStart, ChallengeCheck, ChallengeMine, ChallengePreview, ChallengeResultRow, FriendChallenge, SentChallenge } from '@quiz/shared';
 import type { GroupDetail, GroupInput, GroupInviteCard, GroupItem, GroupItemInput, GroupJoinPreview, GroupsPage, GroupUsesInput } from '@quiz/shared';
 import type { MyProblemReport, ProblemReportInput } from '@quiz/shared';
 import type { InboxBadge, InboxPage } from '@quiz/shared';
@@ -199,6 +199,8 @@ export const createChallenge = (quizId: string) => fetchData<ChallengeMine>(`${q
 export const listMyChallenges = () => fetchData<ChallengeMine[]>('/api/challenges');
 /** 78: активні виклики тих, хто додав мене в друзі (картка «Що далі»). */
 export const listFriendChallenges = () => fetchData<FriendChallenge[]>('/api/me/friend-challenges');
+/** 79: виклики, які я надіслав, — для «Мої виклики». */
+export const listSentChallenges = () => fetchData<SentChallenge[]>('/api/me/sent-challenges');
 export const getChallenge = (code: string) => fetchData<ChallengePreview>(challengePath(code));
 export const startChallenge = (code: string) => fetchData<ChallengeAttemptStart>(`${challengePath(code)}/attempt`, { method: 'POST' });
 export const getChallengeResults = (code: string) => fetchData<ChallengeResultRow[]>(`${challengePath(code)}/results`);

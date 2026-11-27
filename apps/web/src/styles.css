@@ -31048,3 +31048,24 @@ main > .back-link {
 .played-answer-text {
   font-weight: 600;
 }
+
+/* 79: «Мої виклики» — два розділи; кнопка рядка не тягнеться на всю ширину картки. */
+.challenges-part {
+  margin-block-end: 1.5rem;
+}
+
+.challenges-part > h2 {
+  margin: 0 0 0.5rem;
+}
+
+.challenge-row h3 {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.challenge-row .btn {
+  align-self: flex-start;
+  justify-self: start;
+  max-width: 100%;
+  white-space: normal;
+}

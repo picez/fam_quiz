@@ -20,6 +20,8 @@ describe('menuSection (77)', () => {
     ['/history', 'history'],
     ['/history/7', 'history'],
     ['/me', 'history'],
+    ['/me/g1', 'history'],
+    ['/history/challenges', 'history'],
     ['/profile', 'profile'],
     ['/profile/friends', 'profile'],
     ['/profile/5/achievements', 'profile'],

@@ -18,6 +18,7 @@ const TITLES: [pattern: string, key: TextKey][] = [
   ['/feed', 'menuFeed'],
   ['/feed/calendar', 'feedTabCalendar'],
   ['/history', 'historyTitle'],
+  ['/history/challenges', 'challengesTitle'],
   ['/history/:id', 'historyTitle'],
   ['/me', 'myGamesTitle'],
   ['/me/:id', 'myGamesTitle'],
@@ -73,7 +74,7 @@ export function documentTitleFor(pathname: string): string {
 export function tabGroup(pathname: string): string | null {
   const path = pathname.length > 1 ? pathname.replace(/\/+$/, '') : pathname;
   if (path === '/feed' || path === '/feed/calendar') return 'feed';
-  if (path === '/history' || path === '/me') return 'history';
+  if (path === '/history' || path === '/me' || path === '/history/challenges') return 'history';
   // 77: вкладки «Вікторин» — Мої · Бібліотека · Вподобані.
   if (path === '/quizzes' || path === '/library' || path === '/quizzes/liked') return 'quizzes';
   if (path === '/admin' || /^\/admin\/[^/]+$/.test(path) || path.startsWith('/admin/appeals')) return 'admin';

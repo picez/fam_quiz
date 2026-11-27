@@ -107,6 +107,20 @@ export interface FriendChallenge {
   expiresAt: string;
 }
 
+/** 79: скільки моїх викликів віддає /api/me/sent-challenges (вкладка «Мої виклики»). */
+export const SENT_CHALLENGES_MAX = 20;
+
+/** 79: виклик, який я надіслав: спроби й найкращий результат серед завершених спроб (таблицю автор і так бачить). */
+export interface SentChallenge {
+  code: string;
+  title: string;
+  expiresAt: string;
+  endedAt: string | null;
+  active: boolean;
+  played: number;
+  best: { nickname: string; score: number } | null;
+}
+
 export interface ChallengeCheck {
   skipped: ChallengeSkip;
   empty: boolean;
