@@ -61,7 +61,7 @@ describe('CreateGame', () => {
 
   it('lists the quizzes with their question count and links back home and to the full list', async () => {
     open();
-    expect(await screen.findByRole('heading', { level: 1, name: 'Створити гру' })).toBeTruthy();
+    expect(await screen.findByRole('heading', { level: 1, name: 'Провести гру' })).toBeTruthy();
     expect(await screen.findByRole('heading', { level: 2, name: 'Географія' })).toBeTruthy();
     expect(screen.getByText('Запитань: 6')).toBeTruthy();
     expect(screen.getByRole('link', { name: 'Назад: Головна' }).getAttribute('href')).toBe('/');

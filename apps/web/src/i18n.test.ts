@@ -246,7 +246,7 @@ describe('uk golden (22a)', () => {
   /** 77: навігація, етап 2 — вкладки «Вікторин», картка з «⋯», «Провести гру» з бібліотеки. */
   const ADDED_77 = ['quizzesTabMine', 'quizzesTabLiked', 'quizzesLikedTitle'];
   /** 77: змінені uk-тексти, чиї переклади теж оновлено. */
-  const CHANGED_77 = ['menuJoin', 'menuShortJoin', 'menuQuizzes', 'menuShortQuizzes'];
+  const CHANGED_77 = ['menuJoin', 'menuShortJoin', 'menuQuizzes', 'menuShortQuizzes', 'startCreate', 'play', 'adminRestoreQuizConfirm'];
   /** Пояснення після відповіді: телефон, редактор, імпорт таблиці й перегляд адміна. */
   const ADDED_EXPLANATION = ['explanationTitle', 'explanationLabel', 'explanationPlaceholder', 'ioProblem_explanation_long', 'adminPreviewExplanation', 'puzzleDoneIn', 'puzzleYoursIn'];
   const ADDED_74 = [
@@ -987,6 +987,9 @@ describe('uk golden (22a)', () => {
     for (const key of ADDED_77) expect(uk[key]?.trim(), key).toBeTruthy();
     expect(uk.menuJoin).toBe('Головна');
     expect(uk.menuQuizzes).toBe('Вікторини');
+    expect(uk.startCreate).toBe('Провести гру');
+    expect(uk.play).toBe('Провести');
+    expect(uk.edit).toBe('Змінити');
     for (const [lang, dict] of Object.entries(locales)) {
       expect(ADDED_77.filter((key) => !dict[key]?.trim()), lang).toEqual([]);
       for (const key of [...ADDED_77, ...CHANGED_77]) {

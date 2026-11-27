@@ -624,8 +624,8 @@ const uk = {
   newQuiz: 'Нова вікторина',
   addDemo: 'Додати приклад',
   questionCount: 'Запитань: {count}',
-  play: 'Грати',
-  edit: 'Редагувати',
+  play: 'Провести',
+  edit: 'Змінити',
   remove: 'Видалити',
   removeConfirm: 'Видалити вікторину «{title}»? Це не можна скасувати.',
   loading: 'Завантажуємо…',
@@ -2449,9 +2449,9 @@ const uk = {
   menuShortProfile: 'Профіль',
   menuShortAdmin: 'Адмінка',
   menuShortSignIn: 'Вхід',
-  // Стартове меню на головній (24a) і сторінка «Створити гру»
+  // Стартове меню на головній (24a) і сторінка «Провести гру» (77: була «Створити гру»)
   startMenuLabel: 'Стартове меню',
-  startCreate: 'Створити гру',
+  startCreate: 'Провести гру',
   startJoin: 'Доєднатись до гри',
   // Картинка запитання на весь екран
   imageZoomOpen: 'Відкрити картинку на весь екран',
@@ -4401,7 +4401,7 @@ const uk = {
   adminDismissReport: 'Відхилити скаргу',
   adminRejectAppeal: 'Відхилити оскарження',
   adminHideQuizConfirm: 'Сховати вікторину «{title}» з бібліотеки? Автор зможе оскаржити це один раз.',
-  adminRestoreQuizConfirm: 'Зняти приховування з вікторини «{title}»? Вона повернеться в каталог, якщо автор її не закрив.',
+  adminRestoreQuizConfirm: 'Зняти приховування з вікторини «{title}»? Вона повернеться в бібліотеку, якщо автор її не закрив.',
   adminResetNickConfirm: 'Скинути нік «{name}»? Профіль показуватиметься без ніка.',
   adminResetAvatarConfirm: 'Скинути аватар профілю {name}?',
   adminDismissConfirm: 'Відхилити скаргу? Вона більше не рахуватиметься.',

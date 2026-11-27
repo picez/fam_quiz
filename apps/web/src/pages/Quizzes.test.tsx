@@ -149,7 +149,7 @@ describe('Quizzes', () => {
     open();
     expect(await screen.findByText('Географія')).toBeTruthy();
     expect(screen.getByText('Запитань: 6')).toBeTruthy();
-    expect(screen.getByRole('link', { name: 'Редагувати' }).getAttribute('href')).toBe('/quizzes/q1');
+    expect(screen.getByRole('link', { name: 'Змінити' }).getAttribute('href')).toBe('/quizzes/q1');
     expect(screen.getByRole('link', { name: 'Нова вікторина' }).getAttribute('href')).toBe('/quizzes/new');
   });
 
@@ -162,7 +162,7 @@ describe('Quizzes', () => {
   it('starts a game, remembers the host tokens and opens the control panel', async () => {
     vi.mocked(createGame).mockResolvedValue({ ok: true, gameId: 'g1', code: '123456', hostToken: 'h', stageToken: 's' });
     open();
-    fireEvent.click(await screen.findByRole('button', { name: 'Грати' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Провести' }));
     expect(await screen.findByText('пульт')).toBeTruthy();
     expect(createGame).toHaveBeenCalledWith('q1');
     expect(loadHost('123456')).toEqual({ hostToken: 'h', stageToken: 's' });
@@ -171,7 +171,7 @@ describe('Quizzes', () => {
   it('explains why a game could not be started', async () => {
     vi.mocked(createGame).mockResolvedValue({ ok: false, error: 'server_busy' });
     open();
-    fireEvent.click(await screen.findByRole('button', { name: 'Грати' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Провести' }));
     expect((await screen.findByRole('alert')).textContent).toBe('Сервер перевантажений. Спробуйте за хвилину.');
   });
 
@@ -250,7 +250,7 @@ describe('Quizzes: a game in progress', () => {
   it('remembers the game it starts', async () => {
     vi.mocked(createGame).mockResolvedValue({ ok: true, gameId: 'g1', code: '123456', hostToken: 'h', stageToken: 's' });
     open();
-    fireEvent.click(await screen.findByRole('button', { name: 'Грати' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Провести' }));
     await screen.findByText('пульт');
     expect(loadLastGame()).toBe('123456');
   });
