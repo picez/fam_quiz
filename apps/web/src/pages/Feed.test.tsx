@@ -96,6 +96,18 @@ describe('Feed', () => {
     expect(getFeed).toHaveBeenCalledTimes(2);
   });
 
+  it('81: loading and a failed load keep the tabs and the width of the stream — switching tabs does not jump', async () => {
+    let finish: (value: Awaited<ReturnType<typeof getFeed>>) => void = () => undefined;
+    vi.mocked(getFeed).mockReturnValueOnce(new Promise((resolve) => (finish = resolve)));
+    const { container } = show();
+    await waitFor(() => expect(container.querySelector('main')!.className).toBe('app wide feed-page is-stream'));
+    expect(screen.getByRole('navigation', { name: 'Стрічка' })).toBeTruthy();
+    finish({ ok: false, error: 'network' });
+    await screen.findByText('Не вдалося завантажити стрічку');
+    expect(container.querySelector('main')!.className).toBe('app wide feed-page is-stream');
+    expect(screen.getByRole('navigation', { name: 'Стрічка' })).toBeTruthy();
+  });
+
   it('a failed first load shows the text and a retry button', async () => {
     vi.mocked(getFeed).mockResolvedValueOnce({ ok: false, error: 'network' });
     show();

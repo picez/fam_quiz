@@ -5,7 +5,7 @@ import { getFeed, likeFeedEvent, markFeedSeen } from '../api';
 import { FeedCard } from '../feed/FeedCard';
 import { FeedTabs } from '../feed/FeedTabs';
 import { errorText, t } from '../i18n';
-import { announceFeedSeen, useFeedBadge } from '../useFeedBadge';
+import { announceFeedSeen, feedBadgeNow, useFeedBadge } from '../useFeedBadge';
 import { usePrivateData } from '../usePrivateData';
 import { Loading, LoadError } from '../ui/PageState';
 
@@ -22,15 +22,18 @@ export function Feed(): JSX.Element {
     return { ok: true as const, data: data as FeedPage };
   }, `${key}:${attempt}`);
   if (state.status === 'signed-out') return <Navigate to={LOGIN} replace />;
+  // 81: поки стрічка вантажиться чи впала — та сама ширина й ті самі вкладки, що й у готової: перемикання вкладок не смикає сторінку.
   if (state.status === 'loading')
     return (
-      <main className="app wide">
+      <main className="app wide feed-page is-stream">
+        <FeedTabs badge={feedBadgeNow()} />
         <Loading list />
       </main>
     );
   if (state.status === 'error')
     return (
-      <main className="app wide">
+      <main className="app wide feed-page is-stream">
+        <FeedTabs badge={feedBadgeNow()} />
         <LoadError message={t('feedError')} onRetry={() => setAttempt((n) => n + 1)} />
       </main>
     );
