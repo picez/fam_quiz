@@ -128,7 +128,9 @@ export function ChartTable({ title, labels, series, unit, visible, labelHeader }
       </tbody>
     </table>
   );
-  return visible ? <div className="chart-table-wrap">{table}</div> : table;
+  // 81: таблиця не стискається до 1 px (ширина таблиці — не менша за вміст), тож у легкому режимі на 320 px вилазила за екран
+  // і давала прокрутку вбік; обгортка sr-only (блок з overflow: hidden) обрізає її повністю.
+  return visible ? <div className="chart-table-wrap">{table}</div> : <div className="sr-only">{table}</div>;
 }
 
 export function BarChart(props: BarChartProps): JSX.Element {
