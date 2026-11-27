@@ -1851,7 +1851,7 @@
   "historyDebuffNoTarget": "{buyer} compra {debuff}: {points}",
   "historyDuel": "Duello: {winner} {plus}, {loser} {minus}",
   "historyDuelOne": "Duello: {name} {points}",
-  "historyEmpty": "Qui appariranno le partite che hai condotto. Avvia una partita dalla lista dei quiz.",
+  "historyEmpty": "Qui appariranno le partite che condurrai.",
   "historyFactAccuracy": "Precisione",
   "historyFactAccuracyValue": "{percent} % ({correct} su {answered})",
   "historyFactAvg": "Tempo medio",
@@ -2453,7 +2453,7 @@
   "moveRoundUp": "Sposta su il round {index}",
   "moveUp": "Sposta su: {item}",
   "moveUpShort": "Su",
-  "myGamesEmpty": "Qui appariranno le partite che hai giocato dopo aver effettuato l'accesso. Accedi prima di inserire il codice della partita.",
+  "myGamesEmpty": "Qui appariranno le partite che giocherai con il tuo account.",
   "myGamesTeam": "Squadra «{name}»",
   "myGamesTitle": "Le mie partite",
   "myPrizeGuest": "Giochi come ospite: il premio non andrà nella vetrina.",
@@ -5702,5 +5702,14 @@
   "typeDesc_crossword": "Inserire le parole secondo gli indizi.",
   "typeDesc_sudoku": "Riempire la griglia 6×6 senza ripetizioni.",
   "typeDesc_poll": "Un sondaggio senza risposta corretta.",
-  "typeDesc_wordcloud": "Una nuvola di parole dai giocatori."
+  "typeDesc_wordcloud": "Una nuvola di parole dai giocatori.",
+  "pageHome": "Home",
+  "backTo": "Indietro: {page}",
+  "retryLoad": "Riprova",
+  "emptyHostGame": "Conduci una partita",
+  "emptyJoinByCode": "Entra con un codice",
+  "libraryClearSearch": "Cancella ricerca",
+  "leaveUnsaved": "Le modifiche non sono ancora salvate. Lasciare la pagina? La bozza resta in questa scheda.",
+  "editorHostGame": "Conduci una partita",
+  "editorSaveAndHost": "Salva e conduci una partita"
 }

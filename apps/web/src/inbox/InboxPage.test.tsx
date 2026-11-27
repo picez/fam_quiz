@@ -155,7 +155,7 @@ describe('InboxPage (70)', () => {
     open();
     expect(await screen.findByRole('alert')).toBeTruthy();
     vi.mocked(getInbox).mockResolvedValue({ ok: true, items: [broadcast()], unread: 0 });
-    const retry = screen.getByRole('button', { name: 'Спробувати ще' });
+    const retry = screen.getByRole('button', { name: 'Спробувати ще раз' });
     // Кнопка — як інші кнопки застосунку (.btn), а не гола кнопка браузера.
     expect(retry.classList.contains('btn')).toBe(true);
     retry.click();

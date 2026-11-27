@@ -8,6 +8,15 @@ import { LOCALE_NAMES } from '../locales/locales';
 import { useAccount } from '../useAccount';
 import { clearMoment, readMoment } from './problem-moment';
 import { pageSnapshot } from './problem-page';
+import { BackLink } from '../nav/BackLink';
+import { pageTitle } from '../nav/page-meta';
+
+/** Куди «назад» з повідомлення про проблему (76): сторінка з ?from=, якщо це сторінка сайту поза грою; інакше головна. */
+function reportParent(from: string): string {
+  if (!from.startsWith('/') || from.startsWith('//')) return '/';
+  const path = from.split(/[?#]/)[0];
+  return path === '/report' || pageTitle(path) === null ? '/' : from;
+}
 
 type Mine = { status: 'loading' } | { status: 'ready'; items: MyProblemReport[] } | { status: 'error'; error: string };
 
@@ -64,6 +73,7 @@ export function ProblemReport(): JSX.Element {
 
   return (
     <main className="app problem-page">
+      <BackLink parent={reportParent(from)} />
       <h1>{t('problemLink')}</h1>
       <form className="panel problem-form" onSubmit={(e) => void submit(e)}>
         <h2>{t('problemReportTitle')}</h2>

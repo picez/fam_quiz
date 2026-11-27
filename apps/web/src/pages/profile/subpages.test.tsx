@@ -130,7 +130,7 @@ describe('profile sub-pages', () => {
   it.each(SUBPAGES)('%s has the tile title and a back link to the profile', async (path, title) => {
     open(path);
     expect(await screen.findByRole('heading', { level: 1, name: title })).toBeTruthy();
-    const back = screen.getByRole('link', { name: 'Назад' });
+    const back = screen.getByRole('link', { name: 'Назад: Профіль' });
     expect(back.getAttribute('href')).toBe('/profile');
     expect(back.querySelector('.flip-rtl')).toBeTruthy();
     expect(document.querySelector('main.profile-sub')).toBeTruthy();
@@ -143,7 +143,7 @@ describe('profile sub-pages', () => {
   ])('the old address %s is an alias with the same page', async (path, title) => {
     open(path);
     expect(await screen.findByRole('heading', { level: 1, name: title })).toBeTruthy();
-    expect(screen.getByRole('link', { name: 'Назад' }).getAttribute('href')).toBe('/profile');
+    expect(screen.getByRole('link', { name: 'Назад: Профіль' }).getAttribute('href')).toBe('/profile');
     expect(where()).toBe(path);
   });
 
@@ -164,7 +164,7 @@ describe('profile sub-pages', () => {
   it('the public achievements lead back to that profile', async () => {
     open('/profile/u2/achievements');
     expect(await screen.findByRole('link', { name: 'Оля' })).toBeTruthy();
-    expect(screen.getByRole('link', { name: 'Назад' }).getAttribute('href')).toBe('/profile/u2');
+    expect(screen.getByRole('link', { name: 'Назад: Профіль' }).getAttribute('href')).toBe('/profile/u2');
   });
 
   it('«Вікторини» lists every quiz with its play count', async () => {

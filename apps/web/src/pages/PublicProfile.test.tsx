@@ -57,6 +57,18 @@ const open = () =>
   );
 
 describe('PublicProfile', () => {
+  it('a failed load offers «Спробувати ще раз»; an unknown profile does not (76)', async () => {
+    vi.mocked(getProfile).mockResolvedValueOnce({ ok: false, error: 'offline' });
+    const { unmount } = open();
+    fireEvent.click(await screen.findByRole('button', { name: 'Спробувати ще раз' }));
+    expect(await screen.findByRole('button', { name: 'Поскаржитись' })).toBeTruthy();
+    unmount();
+    vi.mocked(getProfile).mockResolvedValueOnce({ ok: false, error: 'not_found' });
+    open();
+    await screen.findByRole('alert');
+    expect(screen.queryByRole('button', { name: 'Спробувати ще раз' })).toBeNull();
+  });
+
   it('67: the page is two profile columns like the own profile, header and showcases first, then achievements and numbers', async () => {
     const { container } = open();
     await screen.findByRole('button', { name: 'Поскаржитись' });

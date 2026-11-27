@@ -23,6 +23,7 @@ import { errorText, t } from '../i18n';
 import { saveHost, saveLastGame } from '../storage';
 import { announceFeedSeen, feedBadgeNow, useFeedBadge } from '../useFeedBadge';
 import { usePrivateData } from '../usePrivateData';
+import { Loading, LoadError } from '../ui/PageState';
 
 const LOGIN = '/login?next=%2Ffeed%2Fcalendar';
 
@@ -41,16 +42,16 @@ export function Calendar(): JSX.Element {
     return { ok: true as const, data: data as CalendarPage };
   }, `${key}:${attempt}`);
   if (state.status === 'signed-out') return <Navigate to={LOGIN} replace />;
-  if (state.status === 'loading') return <main className="app wide"><p className="meta">{t('loading')}</p></main>;
+  if (state.status === 'loading')
+    return (
+      <main className="app wide">
+        <Loading list />
+      </main>
+    );
   if (state.status === 'error')
     return (
       <main className="app wide">
-        <p className="error" role="alert">
-          {t('calendarError')}
-        </p>
-        <button type="button" className="btn" onClick={() => setAttempt((n) => n + 1)}>
-          {t('prizesRetry')}
-        </button>
+        <LoadError message={t('calendarError')} onRetry={() => setAttempt((n) => n + 1)} />
       </main>
     );
   return <CalendarList key={state.data.asOf} first={state.data} />;

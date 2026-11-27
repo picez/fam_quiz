@@ -1829,7 +1829,7 @@
   "historyDebuffNoTarget": "{buyer} kauft {debuff}: {points}",
   "historyDuel": "Duell: {winner} {plus}, {loser} {minus}",
   "historyDuelOne": "Duell: {name} {points}",
-  "historyEmpty": "Hier erscheinen die Spiele, die du geleitet hast. Starte ein Spiel aus der Quizliste.",
+  "historyEmpty": "Hier erscheinen die Spiele, die du leitest.",
   "historyFactAccuracy": "Treffsicherheit",
   "historyFactAccuracyValue": "{percent} % ({correct} von {answered})",
   "historyFactAvg": "Durchschnittszeit",
@@ -2426,7 +2426,7 @@
   "moveRoundUp": "Runde {index} nach oben",
   "moveUp": "Nach oben: {item}",
   "moveUpShort": "Hoch",
-  "myGamesEmpty": "Hier erscheinen die Spiele, die du angemeldet gespielt hast. Melde dich an, bevor du den Spielcode eingibst.",
+  "myGamesEmpty": "Hier erscheinen die Spiele, die du mit deinem Konto spielst.",
   "myGamesTeam": "Team „{name}“",
   "myGamesTitle": "Meine Spiele",
   "myPrizeGuest": "Du spielst als Gast: Der Preis kommt in keine Vitrine.",
@@ -5625,5 +5625,14 @@
   "typeDesc_crossword": "Wörter nach Hinweisen eintragen.",
   "typeDesc_sudoku": "Das 6×6-Gitter ohne Wiederholungen füllen.",
   "typeDesc_poll": "Eine Umfrage ohne richtige Antwort.",
-  "typeDesc_wordcloud": "Eine Wortwolke von den Spielern."
+  "typeDesc_wordcloud": "Eine Wortwolke von den Spielern.",
+  "pageHome": "Startseite",
+  "backTo": "Zurück: {page}",
+  "retryLoad": "Erneut versuchen",
+  "emptyHostGame": "Spiel leiten",
+  "emptyJoinByCode": "Mit Code beitreten",
+  "libraryClearSearch": "Suche leeren",
+  "leaveUnsaved": "Die Änderungen sind noch nicht gespeichert. Seite verlassen? Der Entwurf bleibt in diesem Tab.",
+  "editorHostGame": "Spiel leiten",
+  "editorSaveAndHost": "Speichern und Spiel leiten"
 }

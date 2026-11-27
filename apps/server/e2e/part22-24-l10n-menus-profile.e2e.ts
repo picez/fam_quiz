@@ -408,7 +408,7 @@ async function bloodMoon23a() {
   expect(await pinPrize(S).count(), 'S stays unpinned').toBe(1);
   expect(await pinPrize(S).getAttribute('aria-pressed')).toBeNull();
   await shot(olya, 'p23a-pin-limit');
-  await olya.getByRole('link', { name: 'Назад', ...exact }).click();
+  await olya.getByRole('link', { name: 'Назад: Профіль', ...exact }).click();
   await olya.waitForURL(`${base}/profile`);
   const pinned = await shelf23a(olya);
   expect(pinned.order).toEqual([M, D, K]);
@@ -419,7 +419,7 @@ async function bloodMoon23a() {
   // ── 6. Ачівки через стару адресу /achievements: п'ять закріплених, шоста — ліміт. ──
   await olya.goto(`${base}/achievements`);
   await olya.getByRole('heading', { level: 1, name: 'Досягнення', ...exact }).waitFor();
-  await olya.getByRole('link', { name: 'Назад', ...exact }).waitFor();
+  await olya.getByRole('link', { name: 'Назад: Профіль', ...exact }).waitFor();
   expect(await olya.locator(MENU).getByRole('link', { name: 'Профіль' }).getAttribute('aria-current')).toBe('page');
   const NAMES = { sniper: 'Снайперська точність', host: 'За пультом', first_game: 'Перша гра', games_10: '10 ігор', fast_answer: 'Швидкі пальці', night_owl: 'Нічна сова' };
   const PINNED = ['sniper', 'host', 'first_game', 'games_10', 'fast_answer'] as const;

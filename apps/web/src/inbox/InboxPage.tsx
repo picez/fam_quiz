@@ -6,6 +6,8 @@ import { formatDate } from '../format';
 import { t } from '../i18n';
 import { usePrivateData } from '../usePrivateData';
 import { setInboxUnread, useInboxBadge } from './useInboxBadge';
+import { BackLink } from '../nav/BackLink';
+import { Loading, LoadError } from '../ui/PageState';
 
 const LOGIN = '/login?next=%2Finbox';
 
@@ -88,6 +90,7 @@ function InboxList({ page, onStale }: { page: InboxData; onStale: () => void }):
   }, [page]);
   return (
     <main className="app wide inbox-page">
+      <BackLink parent="/" />
       <h1>{t('inboxTitle')}</h1>
       {page.items.length === 0 ? (
         <p className="meta">{t('inboxEmpty')}</p>
@@ -128,18 +131,15 @@ export function InboxPage(): JSX.Element {
   if (state.status === 'loading')
     return (
       <main className="app wide">
-        <p className="meta">{t('loading')}</p>
+        <BackLink parent="/" />
+        <Loading />
       </main>
     );
   if (state.status === 'error')
     return (
       <main className="app wide">
-        <p className="error" role="alert">
-          {state.message}
-        </p>
-        <button type="button" className="btn" onClick={reload}>
-          {t('prizesRetry')}
-        </button>
+        <BackLink parent="/" />
+        <LoadError message={state.message} onRetry={reload} />
       </main>
     );
   return <InboxList key={`${key}:${attempt}`} page={state.data} onStale={reload} />;

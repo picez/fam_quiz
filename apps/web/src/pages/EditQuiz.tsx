@@ -1,6 +1,6 @@
 import { withUniqueQuestionIds, type Quiz, type QuizLikes } from '@quiz/shared';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Link, Navigate, useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { Navigate, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { createQuiz, fetchQuizLikes, getQuiz, markGroupUses, updateQuiz } from '../api';
 import { newQuiz } from '../editor/draft';
 import { useEditorTime } from '../editor/editor-time';
@@ -9,12 +9,18 @@ import { GroupDraftsProvider, usesToMark, type GroupDrafts } from '../editor/gro
 import { newId } from '../editor/new-id';
 import { QuizEditor, type EditorTab } from '../editor/QuizEditor';
 import { errorText, t } from '../i18n';
+import { useStartGame } from '../host-game';
 import { useAccount } from '../useAccount';
+import { BackLink } from '../nav/BackLink';
+import { Loading, LoadError } from '../ui/PageState';
 
 export function EditQuiz() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const account = useAccount();
+  const startGame = useStartGame();
+  // 76: «Спробувати ще раз» — і для перевірки входу, і для самої вікторини.
+  const [attempt, setAttempt] = useState(0);
+  const account = useAccount(attempt === 0 ? undefined : attempt);
   const [params, setParams] = useSearchParams();
   // Вкладка редактора живе в адресі: ?tab=general; «Раунди й запитання» — типова, без параметра.
   const rawTab = params.get('tab');
@@ -39,7 +45,7 @@ export function EditQuiz() {
   const initialDrafts = useMemo(() => loadGroupDrafts(id), [id]);
   const groupDrafts = useRef<GroupDrafts | null>(initialDrafts);
   const [loaded, setLoaded] = useState<Quiz | null>(null);
-  const [loadError, setLoadError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<{ message: string; missing: boolean } | null>(null);
   const [likes, setLikes] = useState<QuizLikes | undefined>(undefined);
   const [expired, setExpired] = useState(false);
   const signedIn = account.status === 'signed-in';
@@ -53,12 +59,12 @@ export function EditQuiz() {
       if (!current) return;
       if (result.ok) setLoaded(withUniqueQuestionIds(result.data, newId));
       else if (result.error === 'unauthorized') setExpired(true);
-      else setLoadError(errorText(result.error));
+      else setLoadError({ message: errorText(result.error), missing: result.error === 'not_found' });
     });
     return () => {
       current = false;
     };
-  }, [signedIn, id]);
+  }, [signedIn, id, attempt]);
 
   // Лайки не блокують редактор: з'являться, коли прийдуть; збій — просто без сердець.
   useEffect(() => {
@@ -86,9 +92,8 @@ export function EditQuiz() {
   if (account.status === 'unknown') {
     return (
       <main className="app narrow">
-        <p className="error" role="alert">
-          {errorText(account.error)}
-        </p>
+        <BackLink parent="/quizzes" />
+        <LoadError message={errorText(account.error)} onRetry={() => setAttempt((n) => n + 1)} />
       </main>
     );
   }
@@ -96,12 +101,18 @@ export function EditQuiz() {
   if (loadError !== null) {
     return (
       <main className="app narrow">
-        <p className="error" role="alert">
-          {loadError}
-        </p>
-        <Link className="quiet-link" to="/quizzes">
-          {t('quizzesTitle')}
-        </Link>
+        <BackLink parent="/quizzes" />
+        <LoadError
+          message={loadError.message}
+          onRetry={
+            loadError.missing
+              ? undefined
+              : () => {
+                  setLoadError(null);
+                  setAttempt((n) => n + 1);
+                }
+          }
+        />
       </main>
     );
   }
@@ -110,12 +121,14 @@ export function EditQuiz() {
   if (account.status === 'loading' || initial === null) {
     return (
       <main className="app narrow">
-        <p className="lead">{t('loading')}</p>
+        <BackLink parent="/quizzes" />
+        <Loading />
       </main>
     );
   }
 
-  const save = async (quiz: Quiz): Promise<string | null> => {
+  /** Зберігає вікторину й прибирає чернетку, не переходячи нікуди: null — успіх, інакше текст помилки. */
+  const store = async (quiz: Quiz): Promise<string | null> => {
     const result = id === undefined ? await createQuiz(quiz) : await updateQuiz(id, quiz);
     if (!result.ok) {
       // Чернетка лишається у сховищі й повернеться після повторного входу.
@@ -135,9 +148,28 @@ export function EditQuiz() {
     }
     clearGroupDrafts(id);
     clearDraft(id);
-    navigate('/quizzes');
     return null;
   };
+
+  const save = async (quiz: Quiz): Promise<string | null> => {
+    const error = await store(quiz);
+    if (error === null) navigate('/quizzes');
+    return error;
+  };
+
+  /** «Провести гру» з редактора (76): незбережене — спершу зберегти, далі той самий запуск, що в «Створити гру». */
+  const host =
+    id === undefined
+      ? undefined
+      : async (changed: Quiz | null): Promise<string | null> => {
+          if (changed !== null) {
+            const error = await store(changed);
+            if (error !== null) return error;
+          }
+          const failure = await startGame(id);
+          if (failure === 'unauthorized') setExpired(true);
+          return failure === null ? null : errorText(failure);
+        };
 
   return (
     <GroupDraftsProvider
@@ -150,6 +182,7 @@ export function EditQuiz() {
       <QuizEditor
         initial={initial}
         heading={t(id === undefined ? 'editorNew' : 'editorEdit')}
+        back={<BackLink parent="/quizzes" />}
         likes={likes}
         quizId={id}
         tab={tab}
@@ -157,6 +190,8 @@ export function EditQuiz() {
         notice={initialDrafts?.fresh === true && draft !== null ? t('groupQuizNotice') : draft === null ? null : t('draftRestored')}
         onDraft={(quiz) => saveDraft(id, quiz)}
         onSave={save}
+        onHost={host}
+        unsaved={draft !== null}
         onCancel={() => {
           clearGroupDrafts(id);
           clearDraft(id);

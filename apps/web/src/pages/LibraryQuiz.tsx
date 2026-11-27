@@ -7,6 +7,9 @@ import { LibraryFacts } from '../library/LibraryCardView';
 import { ReportDialog } from '../library/ReportDialog';
 import { copyLibrary, libraryQuiz, likeLibrary } from '../library/library-api';
 import { useAccount } from '../useAccount';
+import { BackLink } from '../nav/BackLink';
+import { Loading, LoadError } from '../ui/PageState';
+import { useDocumentTitle } from '../nav/useDocumentTitle';
 
 /** /library/:id: назва, опис і раунди відкритої вікторини — без запитань і відповідей. */
 export function LibraryQuiz(): JSX.Element {
@@ -21,15 +24,22 @@ export function LibraryQuiz(): JSX.Element {
   const [actionError, setActionError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [reporting, setReporting] = useState(false);
+  const [attempt, setAttempt] = useState(0);
+  const [missing, setMissing] = useState(false);
+  useDocumentTitle(quiz?.title ?? null);
 
   useEffect(() => {
     let current = true;
     setQuiz(null);
     setError(null);
     setCopyId(null);
+    setMissing(false);
     void libraryQuiz(id).then((result) => {
       if (!current) return;
-      if (!result.ok) return setError(errorText(result.error));
+      if (!result.ok) {
+        setMissing(result.error === 'not_found');
+        return setError(errorText(result.error));
+      }
       setQuiz(result.data);
       setLikes(result.data.likes);
       setLiked(result.data.liked === true);
@@ -37,20 +47,22 @@ export function LibraryQuiz(): JSX.Element {
     return () => {
       current = false;
     };
-  }, [id]);
+  }, [id, attempt]);
 
   if (error !== null)
     return (
       <main className="app wide">
-        <p className="error" role="alert">
-          {error}
-        </p>
-        <Link className="btn" to="/library">
-          {t('libraryTitle')}
-        </Link>
+        <BackLink parent="/library" />
+        <LoadError message={error} onRetry={missing ? undefined : () => setAttempt((n) => n + 1)} />
       </main>
     );
-  if (quiz === null) return <main className="app wide"><p className="meta">{t('loading')}</p></main>;
+  if (quiz === null)
+    return (
+      <main className="app wide">
+        <BackLink parent="/library" />
+        <Loading />
+      </main>
+    );
 
   const toggleLike = async () => {
     setBusy(true);
@@ -74,11 +86,7 @@ export function LibraryQuiz(): JSX.Element {
   const guest = account.status === 'anonymous';
   return (
     <main className="app wide library-quiz">
-      <p>
-        <Link className="quiet-link" to="/library">
-          ← {t('libraryTitle')}
-        </Link>
-      </p>
+      <BackLink parent="/library" />
       <h1 dir="auto">{quiz.title}</h1>
       <LibraryFacts card={{ ...quiz, likes }} />
       {quiz.description !== '' && (

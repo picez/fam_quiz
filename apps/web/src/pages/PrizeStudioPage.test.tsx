@@ -139,7 +139,7 @@ describe('PrizeStudioPage', () => {
   it('unknown id', async () => {
     open('/profile/prizes/zzz');
     expect(await screen.findByText('Такого призу немає на складі.')).toBeTruthy();
-    expect(screen.getByRole('link', { name: 'Назад' }).getAttribute('href')).toBe('/profile/prizes');
+    expect(screen.getByRole('link', { name: 'Назад: Призи' }).getAttribute('href')).toBe('/profile/prizes');
   });
 
   it('server error stays on the page', async () => {

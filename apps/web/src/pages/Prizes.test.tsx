@@ -86,7 +86,7 @@ describe('Prizes', () => {
   it('is the profile sub-page «Призи» with the won awards above the store', async () => {
     open();
     expect(await screen.findByRole('heading', { level: 1, name: 'Призи' })).toBeTruthy();
-    expect(screen.getByRole('link', { name: 'Назад' }).getAttribute('href')).toBe('/profile');
+    expect(screen.getByRole('link', { name: 'Назад: Профіль' }).getAttribute('href')).toBe('/profile');
     expect(await screen.findByText('Нагород поки немає — їх вручають у іграх із призами.')).toBeTruthy();
     expect(screen.getAllByRole('heading', { level: 2 }).map((h) => h.textContent)).toEqual(['Нагороди', 'Мої призи']);
   });

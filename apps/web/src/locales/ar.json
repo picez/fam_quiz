@@ -1917,7 +1917,7 @@
   "historyDebuffNoTarget": "{buyer} يشتري {debuff}: {points}",
   "historyDuel": "مبارزة: {winner} {plus}، {loser} {minus}",
   "historyDuelOne": "مبارزة: {name} {points}",
-  "historyEmpty": "ستظهر هنا الألعاب التي أدرتها. شغّل لعبة من قائمة الاختبارات.",
+  "historyEmpty": "ستظهر هنا الألعاب التي ستديرها.",
   "historyFactAccuracy": "الدقة",
   "historyFactAccuracyValue": "{percent} % ({correct} من {answered})",
   "historyFactAvg": "متوسط الوقت",
@@ -2534,7 +2534,7 @@
   "moveRoundUp": "الجولة {index} أعلى",
   "moveUp": "نقل إلى الأعلى: {item}",
   "moveUpShort": "أعلى",
-  "myGamesEmpty": "ستظهر هنا الألعاب التي لعبتها بعد تسجيل الدخول. سجّل الدخول قبل إدخال رمز اللعبة.",
+  "myGamesEmpty": "ستظهر هنا الألعاب التي ستلعبها من حسابك.",
   "myGamesTeam": "الفريق «{name}»",
   "myGamesTitle": "ألعابي",
   "myPrizeGuest": "أنت تلعب كضيف: لن تدخل الجائزة إلى واجهة العرض.",
@@ -5933,5 +5933,14 @@
   "typeDesc_crossword": "اكتب الكلمات حسب التلميحات.",
   "typeDesc_sudoku": "املأ الشبكة 6×6 دون تكرار.",
   "typeDesc_poll": "استطلاع بلا إجابة صحيحة.",
-  "typeDesc_wordcloud": "سحابة كلمات من اللاعبين."
+  "typeDesc_wordcloud": "سحابة كلمات من اللاعبين.",
+  "pageHome": "الرئيسية",
+  "backTo": "رجوع: {page}",
+  "retryLoad": "حاول مرة أخرى",
+  "emptyHostGame": "أدر لعبة",
+  "emptyJoinByCode": "ادخل لعبة بالرمز",
+  "libraryClearSearch": "امسح البحث",
+  "leaveUnsaved": "لم تُحفظ التغييرات بعد. هل تغادر الصفحة؟ تبقى المسودة في هذا التبويب.",
+  "editorHostGame": "أدر لعبة",
+  "editorSaveAndHost": "احفظ وأدر لعبة"
 }

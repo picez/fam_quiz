@@ -218,7 +218,7 @@ describe('Achievements, another player', () => {
     open('/profile/u2/achievements');
     expect(await screen.findByText('Завантажуємо…')).toBeTruthy();
     expect(screen.queryByRole('heading', { level: 1 })).toBeNull();
-    expect(screen.getByRole('link', { name: 'Назад' }).getAttribute('href')).toBe('/profile/u2');
+    expect(screen.getByRole('link', { name: 'Назад: Профіль' }).getAttribute('href')).toBe('/profile/u2');
     finish({ ok: true, data: theirs });
     await screen.findByRole('heading', { level: 1, name: 'Досягнення: Оля' });
   });

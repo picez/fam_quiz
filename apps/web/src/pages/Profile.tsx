@@ -14,6 +14,7 @@ import { useAccount } from '../useAccount';
 import { useGroupInvites } from '../useGroupInvites';
 import { announceInvitesChanged, useInvites } from '../useInvites';
 import { usePrivateData } from '../usePrivateData';
+import { Loading, LoadError } from '../ui/PageState';
 
 /** Число моїх груп для плитки «Групи» (12k). */
 async function groupCount() {
@@ -40,16 +41,14 @@ export function Profile() {
   if (state.status === 'error') {
     return (
       <main className="app wide">
-        <p className="error" role="alert">
-          {state.message}
-        </p>
+        <LoadError message={state.message} onRetry={state.retry} />
       </main>
     );
   }
   if (state.status === 'loading') {
     return (
       <main className="app wide">
-        <p className="meta">{t('loading')}</p>
+        <Loading />
       </main>
     );
   }

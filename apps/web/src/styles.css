@@ -30792,3 +30792,102 @@ details.editor-card > summary {
   font-size: 1.75rem;
 }
 /* кінець: живий показ того, хто відповідає сам */
+
+/* 76: після переходу фокус стоїть на заголовку сторінки (для читачів екрана) — без рамки, це не поле. */
+[data-route-focus]:focus {
+  outline: none;
+}
+
+/* 76: «‹ Сторінка» на вкладених сторінках — пігулка зі словом; зона дотику не менша за 44 px. */
+.back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  align-self: flex-start;
+  min-block-size: 2.75rem;
+  padding: 0 0.9rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--paper);
+  line-height: 1.2;
+  text-decoration: none;
+}
+
+.back-link:hover {
+  border-color: var(--accent);
+}
+
+.back-link > .flip-rtl {
+  font-size: 1.4rem;
+  line-height: 1;
+}
+
+/* Окремим рядком над заголовком сторінки (поза шапкою підсторінки профілю). */
+main > .back-link {
+  margin-block-end: 0.75rem;
+}
+
+.profile-sub-head {
+  flex-wrap: wrap;
+}
+
+/* 76: скелет списку, поки дані йдуть: сірі смужки на місці карток; без руху за «зменшити рух» і в легкому режимі. */
+.skeleton-list {
+  display: grid;
+  gap: 0.75rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.skeleton-row {
+  display: grid;
+  gap: 0.5rem;
+  padding: 1rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.skeleton-line {
+  display: block;
+  block-size: 0.8rem;
+  inline-size: 70%;
+  border-radius: 0.4rem;
+  background: var(--track);
+}
+
+.skeleton-line.is-title {
+  block-size: 1.1rem;
+  inline-size: 45%;
+}
+
+.skeleton-line.is-short {
+  inline-size: 30%;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  :where(:root:not(.is-easy)) .skeleton-line {
+    animation: skeleton-pulse 1.4s ease-in-out infinite;
+  }
+}
+
+@keyframes skeleton-pulse {
+  50% {
+    opacity: 0.45;
+  }
+}
+
+/* Помилка з «Спробувати ще раз» і порожній стан з дією. */
+.load-error,
+.empty-state {
+  display: grid;
+  gap: 0.75rem;
+  justify-items: start;
+}
+
+.load-error > .error,
+.empty-state > .lead {
+  margin: 0;
+}

@@ -6,17 +6,22 @@ import { quizSizeText } from '../format';
 import { errorText, t } from '../i18n';
 import { ProfileSubpage } from '../profile/ProfileSubpage';
 import { useAccount } from '../useAccount';
+import { Loading, LoadError } from '../ui/PageState';
 
 const LOGIN = '/login?next=%2Fcreate';
 
 /** «Створити гру» зі стартового меню: вікторини гравця, у кожної «Почати гру» — одразу кімната ведучого. */
 export function CreateGame() {
-  const account = useAccount();
+  // 76: «Спробувати ще раз», коли не вдалося з'ясувати, хто на сторінці.
+  const [accountTry, setAccountTry] = useState(0);
+  const account = useAccount(accountTry === 0 ? undefined : accountTry);
   const startGame = useStartGame();
   const [quizzes, setQuizzes] = useState<QuizSummary[] | null>(null);
   const [expired, setExpired] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  /** Збій самого списку (76): окремо від помилок дій, щоб замість вічного «Завантажуємо…» була помилка з повтором. */
+  const [loadError, setLoadError] = useState<string | null>(null);
   const signedIn = account.status === 'signed-in';
 
   const fail = useCallback((code: string) => {
@@ -26,9 +31,12 @@ export function CreateGame() {
 
   const reload = useCallback(async () => {
     const result = await listQuizzes();
-    if (result.ok) setQuizzes(result.data);
-    else fail(result.error);
-  }, [fail]);
+    if (result.ok) {
+      setQuizzes(result.data);
+      setLoadError(null);
+    } else if (result.error === 'unauthorized') setExpired(true);
+    else setLoadError(errorText(result.error));
+  }, []);
 
   useEffect(() => {
     if (signedIn) void reload();
@@ -39,16 +47,14 @@ export function CreateGame() {
   if (account.status === 'unknown') {
     return (
       <main className="app narrow">
-        <p className="error" role="alert">
-          {errorText(account.error)}
-        </p>
+        <LoadError message={errorText(account.error)} onRetry={() => setAccountTry((n) => n + 1)} />
       </main>
     );
   }
   if (account.status === 'loading') {
     return (
       <main className="app narrow">
-        <p className="lead">{t('loading')}</p>
+        <Loading />
       </main>
     );
   }
@@ -77,7 +83,21 @@ export function CreateGame() {
         </p>
       )}
 
-      {quizzes === null && <p className="meta">{t('loading')}</p>}
+      {quizzes === null && loadError === null && <Loading list />}
+      {quizzes === null && loadError !== null && (
+        <LoadError
+          message={loadError}
+          onRetry={() => {
+            setLoadError(null);
+            void reload();
+          }}
+        />
+      )}
+      {quizzes !== null && loadError !== null && (
+        <p className="error" role="alert">
+          {loadError}
+        </p>
+      )}
       {quizzes !== null && quizzes.length === 0 && (
         <>
           <p className="lead">{t('noQuizzes')}</p>

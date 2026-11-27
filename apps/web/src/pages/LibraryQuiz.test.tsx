@@ -49,6 +49,15 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe('LibraryQuiz', () => {
+  it('a failed load offers «Спробувати ще раз» and a way back to the library (76)', async () => {
+    vi.mocked(libraryQuiz).mockResolvedValueOnce({ ok: false, error: 'offline' });
+    show();
+    fireEvent.click(await screen.findByRole('button', { name: 'Спробувати ще раз' }));
+    expect(await screen.findByRole('heading', { level: 1, name: 'Річки України' })).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'Назад: Бібліотека' }).getAttribute('href')).toBe('/library');
+    expect(document.title).toBe('Річки України · Вікторина');
+  });
+
   it('shows the description, the rounds and a note that questions stay hidden', async () => {
     show();
     expect(await screen.findByRole('heading', { level: 1, name: 'Річки України' })).toBeTruthy();

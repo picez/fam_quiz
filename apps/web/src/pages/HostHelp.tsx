@@ -6,6 +6,7 @@ import { ROUND_ICONS, TYPE_ICONS } from '../guide-text';
 import { HelpBody } from '../help/HelpButton';
 import { HELP_TOPICS, helpAnchor, helpEntry, helpTopic, searchHelp, type HelpId } from '../help/host-help';
 import { t } from '../i18n';
+import { BackLink } from '../nav/BackLink';
 
 /** Значок запису: раундам, типам запитань, бафам і дебафам; клітинкам і налаштуванням — без значка. */
 function icon(id: HelpId): string | undefined {
@@ -45,6 +46,7 @@ export function HostHelp() {
 
   return (
     <main className="app wide host-help">
+      <BackLink parent="/quizzes" />
       <h1 className="brand">{t('helpTitle')}</h1>
       <p className="lead">{t('helpLead')}</p>
       <label className="field help-search">

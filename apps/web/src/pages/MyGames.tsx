@@ -1,11 +1,12 @@
 import { gameStats, podiumStats } from '@quiz/shared';
-import { Navigate } from 'react-router-dom';
+import { Link, Navigate } from 'react-router-dom';
 import { myHistory } from '../api';
 import { formatDate } from '../format';
 import { countText, t } from '../i18n';
 import { PodiumStats } from '../profile/StatsView';
 import { usePrivateData } from '../usePrivateData';
 import { HistoryTabs } from './HistoryTabs';
+import { EmptyState, Loading, LoadError } from '../ui/PageState';
 
 export function MyGames() {
   const state = usePrivateData(myHistory);
@@ -19,13 +20,15 @@ export function MyGames() {
       <HistoryTabs />
       <h1 className="brand">{t('myGamesTitle')}</h1>
 
-      {state.status === 'loading' && <p className="meta">{t('loading')}</p>}
-      {state.status === 'error' && (
-        <p className="error" role="alert">
-          {state.message}
-        </p>
+      {state.status === 'loading' && <Loading list />}
+      {state.status === 'error' && <LoadError message={state.message} onRetry={state.retry} />}
+      {state.status === 'ready' && state.data.length === 0 && (
+        <EmptyState text={t('myGamesEmpty')}>
+          <Link className="btn btn-primary" to="/">
+            {t('emptyJoinByCode')}
+          </Link>
+        </EmptyState>
       )}
-      {state.status === 'ready' && state.data.length === 0 && <p className="lead">{t('myGamesEmpty')}</p>}
 
       {summary !== null && state.status === 'ready' && (
         <>

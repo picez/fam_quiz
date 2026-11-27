@@ -1,5 +1,5 @@
 import { LIMITS, allowedBuffs, questionsOf, roundQuestions, roundTrials, type Question, type QuestionBankItem, type Quiz, type QuizLikes, type Round } from '@quiz/shared';
-import { useDeferredValue, useEffect, useMemo, useReducer, useRef, useState, type FocusEvent } from 'react';
+import { useDeferredValue, useEffect, useMemo, useReducer, useRef, useState, type FocusEvent, type ReactNode } from 'react';
 import { EditorCard } from './EditorCard';
 import { IssuesPanel } from './IssuesPanel';
 import { remindersOf } from './reminders';
@@ -57,10 +57,13 @@ import { RoundSettings } from './RoundSettings';
 import { RoundStrip } from './RoundStrip';
 import { SparesEditor } from './SparesEditor';
 import { TeamsEditor } from './TeamsEditor';
+import { useLeaveGuard } from '../nav/leave-guard';
 
 interface Props {
   initial: Quiz;
   heading: string;
+  /** «‹ Мої вікторини» над заголовком (76). */
+  back?: ReactNode;
   /** Повідомлення над формою, наприклад про відновлену чернетку. */
   notice?: string | null;
   /** Викликається після кожної зміни, щоб чернетку можна було зберегти про запас. */
@@ -68,6 +71,13 @@ interface Props {
   /** Зберігає вікторину; повертає текст помилки або null. */
   onSave: (quiz: Quiz) => Promise<string | null>;
   onCancel: () => void;
+  /**
+   * «Провести гру» (76) — лише для збереженої вікторини. changed не null, коли є незбережені зміни: їх треба спершу
+   * зберегти (без переходу на список), тоді запустити гру. Повертає текст помилки або null (тоді вже пішли на пульт).
+   */
+  onHost?: (changed: Quiz | null) => Promise<string | null>;
+  /** Початковий вміст — відновлена чернетка, якої ще немає на сервері: «Провести гру» спершу її зберігає (76). */
+  unsaved?: boolean;
   /** Лічильники лайків збереженої вікторини; без них сердець не видно. */
   likes?: QuizLikes;
   /** Збережена вікторина, що редагується: у банку запитань її рядки позначені «ця вікторина». */
@@ -83,9 +93,11 @@ export type EditorTab = 'general' | 'rounds';
  * Редактор «список і сцена»: зверху назва й правила, далі раунди; ліворуч список запитань, праворуч одне запитання
  * таким, яким його побачать гравці. На вузькому екрані список ховається за кнопку.
  */
-export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, onCancel, likes, quizId, tab, onTabChange }: Props) {
+export function QuizEditor({ initial, heading, back, notice = null, onDraft, onSave, onCancel, onHost, unsaved = false, likes, quizId, tab, onTabChange }: Props) {
   const [quiz, setQuiz] = useState(initial);
   const [dirty, setDirty] = useState(false);
+  /** Відновлена чернетка ще не збережена (76): без цього «Провести гру» запустило б серверну версію, а не ту, що на екрані. */
+  const [restored, setRestored] = useState(unsaved);
   const [roundIndex, setRoundIndex] = useState(0);
   const [selected, setSelected] = useState(0);
   const [listOpen, setListOpen] = useState(false);
@@ -227,6 +239,8 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
     window.addEventListener('beforeunload', warn);
     return () => window.removeEventListener('beforeunload', warn);
   }, [dirty]);
+  // 76: і перехід усередині сайту (меню, «‹ Мої вікторини», будь-яке посилання) з незбереженим перепитує.
+  useLeaveGuard(dirty, t('leaveUnsaved'));
 
   const update = (next: Quiz) => {
     setQuiz(next);
@@ -445,9 +459,9 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
     onCancel();
   };
 
-  const save = async () => {
+  /** Перевірка перед збереженням: з помилками — показує їх (вкладка, раунд, запитання) і повертає false. */
+  const ready = (): boolean => {
     const found = placedProblemsOf(quiz);
-    setServerError(null);
     if (found.length > 0) {
       setSaveFailed(true);
       touch({ type: 'all' });
@@ -467,9 +481,15 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
       else if (tabs.includes('general')) showTab('general');
       // Лише назва: показати й поставити фокус у її поле.
       else focusTitle();
-      return;
+      return false;
     }
     setSaveFailed(false);
+    return true;
+  };
+
+  const save = async () => {
+    setServerError(null);
+    if (!ready()) return;
     setSaving(true);
     const error = await onSave(cleaned(quiz));
     setSaving(false);
@@ -477,8 +497,25 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
     else setServerError(error);
   };
 
+  /** «Провести гру» (76): незбережене — спершу та сама перевірка й збереження, далі пульт ведучого. */
+  const host = async () => {
+    if (onHost === undefined) return;
+    setServerError(null);
+    const changed = dirty || restored;
+    if (changed && !ready()) return;
+    setSaving(true);
+    const error = await onHost(changed ? cleaned(quiz) : null);
+    setSaving(false);
+    if (error === null) {
+      setDirty(false);
+      setRestored(false);
+    }
+    else setServerError(error);
+  };
+
   return (
     <main className="app editor">
+      {back}
       <h1 className="brand">{heading}</h1>
       {likes !== undefined && likes.quiz > 0 && <p className="meta">{t('quizLikesLine', { count: likes.quiz })}</p>}
       <a className="quiet-link help-link" href="/help" target="_blank" rel="noreferrer">
@@ -947,6 +984,11 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
         <button type="button" className="btn btn-primary" disabled={saving} onClick={save}>
           {t(saving ? 'saving' : 'save')}
         </button>
+        {onHost !== undefined && (
+          <button type="button" className="btn editor-host" disabled={saving} onClick={() => void host()}>
+            {t(dirty || restored ? 'editorSaveAndHost' : 'editorHostGame')}
+          </button>
+        )}
       </footer>
     </main>
   );

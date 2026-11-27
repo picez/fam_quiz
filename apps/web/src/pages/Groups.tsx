@@ -9,6 +9,7 @@ import { Avatar } from '../profile/Avatar';
 import { loginFor, ProfileSubpage } from '../profile/ProfileSubpage';
 import { announceGroupInvitesChanged } from '../useGroupInvites';
 import { usePrivateData } from '../usePrivateData';
+import { Loading, LoadError } from '../ui/PageState';
 
 async function loadGroups() {
   const result = await getGroups();
@@ -55,12 +56,8 @@ export function Groups() {
   return (
     <ProfileSubpage title={t('profileTileGroups')} className="groups-page">
       <p className="meta groups-intro">{t('groupsIntro')}</p>
-      {state.status === 'loading' && <p className="meta">{t('loading')}</p>}
-      {state.status === 'error' && (
-        <p className="error" role="alert">
-          {state.message}
-        </p>
-      )}
+      {state.status === 'loading' && <Loading />}
+      {state.status === 'error' && <LoadError message={state.message} onRetry={state.retry} />}
       {state.status === 'ready' && (
         <>
           {state.data.invites.some((invite) => !declined.includes(invite.group.id)) && (

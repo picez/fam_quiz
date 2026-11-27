@@ -17,16 +17,21 @@ import { FolderManager } from '../quiz-folders/FolderManager';
 import { QuizSortField } from '../quiz-folders/QuizSortField';
 import { listFolders, moveQuizToFolder } from '../quiz-folders/folder-api';
 import { AutopilotLaunch } from './AutopilotLaunch';
+import { Loading, LoadError } from '../ui/PageState';
 
 const LOGIN = '/login?next=%2Fquizzes';
 
 export function Quizzes() {
   const startGame = useStartGame();
-  const account = useAccount();
+  // 76: «Спробувати ще раз», коли не вдалося з'ясувати, хто на сторінці.
+  const [accountTry, setAccountTry] = useState(0);
+  const account = useAccount(accountTry === 0 ? undefined : accountTry);
   const [quizzes, setQuizzes] = useState<QuizSummary[] | null>(null);
   const [expired, setExpired] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  /** Збій самого списку (76): окремо від помилок дій. */
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [launch, setLaunch] = useState<QuizSummary | null>(null);
   const [challengeFor, setChallengeFor] = useState<QuizSummary | null>(null);
   const [challenges, setChallenges] = useState<ChallengeMine[]>([]);
@@ -85,8 +90,11 @@ export function Quizzes() {
 
   const reload = useCallback(async () => {
     const [result, shelf] = await Promise.all([listQuizzes(), listFolders()]);
-    if (result.ok) setQuizzes(result.data);
-    else fail(result.error);
+    if (result.ok) {
+      setQuizzes(result.data);
+      setLoadError(null);
+    } else if (result.error === 'unauthorized') setExpired(true);
+    else setLoadError(errorText(result.error));
     // Категорії — додаткові: збій їхнього запиту не ховає вікторин.
     if (shelf.ok) setFolders(shelf.data);
     // Рядок про виклик — додатковий: якщо список викликів не прийшов, вікторини все одно видно.
@@ -105,16 +113,14 @@ export function Quizzes() {
   if (account.status === 'unknown') {
     return (
       <main className="app narrow">
-        <p className="error" role="alert">
-          {errorText(account.error)}
-        </p>
+        <LoadError message={errorText(account.error)} onRetry={() => setAccountTry((n) => n + 1)} />
       </main>
     );
   }
   if (account.status === 'loading') {
     return (
       <main className="app narrow">
-        <p className="lead">{t('loading')}</p>
+        <Loading />
       </main>
     );
   }
@@ -206,7 +212,21 @@ export function Quizzes() {
         </p>
       )}
 
-      {quizzes === null && <p className="meta">{t('loading')}</p>}
+      {quizzes === null && loadError === null && <Loading list />}
+      {quizzes === null && loadError !== null && (
+        <LoadError
+          message={loadError}
+          onRetry={() => {
+            setLoadError(null);
+            void reload();
+          }}
+        />
+      )}
+      {quizzes !== null && loadError !== null && (
+        <p className="error" role="alert">
+          {loadError}
+        </p>
+      )}
       {quizzes !== null && quizzes.length === 0 && <p className="lead">{t('noQuizzes')}</p>}
       {quizzes !== null && quizzes.length > 0 && (
         <div className="quiz-folders">

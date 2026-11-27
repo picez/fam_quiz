@@ -6,6 +6,7 @@ import { AddFriend } from '../profile/AddFriend';
 import { FriendList } from '../profile/FriendList';
 import { loginFor, ProfileSubpage } from '../profile/ProfileSubpage';
 import { usePrivateData } from '../usePrivateData';
+import { Loading, LoadError } from '../ui/PageState';
 
 /** Підсторінка «Друзі» (/profile/friends і аліас /friends): список друзів і додавання за нікнеймом. */
 export function Friends() {
@@ -20,12 +21,8 @@ export function Friends() {
   if (state.status === 'signed-out') return <Navigate to={loginFor(location.pathname + location.search)} replace />;
   return (
     <ProfileSubpage title={t('profileTileFriends')}>
-      {state.status === 'error' && (
-        <p className="error" role="alert">
-          {state.message}
-        </p>
-      )}
-      {state.status === 'loading' && <p className="meta">{t('loading')}</p>}
+      {state.status === 'error' && <LoadError message={state.message} onRetry={state.retry} />}
+      {state.status === 'loading' && <Loading />}
       {state.status === 'ready' && (
         <section className="profile-section">
           <FriendList friends={state.data} />
