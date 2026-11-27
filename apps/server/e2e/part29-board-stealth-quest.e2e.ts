@@ -41,7 +41,7 @@ async function morelessWatch29i() {
   expect(saved.ok(), await saved.text()).toBe(true);
 
   await host.goto(`${base}/quizzes`);
-  await host.locator('.quiz-list li', { hasText: 'Поле 29i' }).getByRole('button', { name: 'Грати', ...exact }).click();
+  await host.locator('.quiz-list li', { hasText: 'Поле 29i' }).getByRole('button', { name: 'Провести', ...exact }).click();
   await host.waitForURL(/\/host\/\d{6}$/);
   const code = host.url().slice(-6);
   const stageUrl = (await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href'))!;
@@ -218,7 +218,7 @@ async function stealthGame29h() {
   const stageFrames = socketFrames(stage);
   const hostFrames = socketFrames(host);
   await host.goto(`${base}/quizzes`);
-  await host.locator('.quiz-list li', { hasText: TITLE }).getByRole('button', { name: 'Грати', ...exact }).click();
+  await host.locator('.quiz-list li', { hasText: TITLE }).getByRole('button', { name: 'Провести', ...exact }).click();
   await host.waitForURL(/\/host\/\d{6}$/);
   const code = host.url().slice(-6);
   const stageUrl = (await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href'))!;
@@ -374,7 +374,7 @@ async function stealthTeams29h() {
   const stageFrames = socketFrames(stage);
   const hostFrames = socketFrames(host);
   await host.goto(`${base}/quizzes`);
-  await host.locator('.quiz-list li', { hasText: TITLE }).getByRole('button', { name: 'Грати', ...exact }).click();
+  await host.locator('.quiz-list li', { hasText: TITLE }).getByRole('button', { name: 'Провести', ...exact }).click();
   await host.waitForURL(/\/host\/\d{6}$/);
   const code = host.url().slice(-6);
   const stageUrl = (await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href'))!;
@@ -745,7 +745,7 @@ async function questGame29g() {
 
   // ── Гра: сцена 1600 × 900; Оля 320 × 568, Петро 375, Тарас 360. ──
   await host.goto(`${base}/quizzes`);
-  await host.locator('.quiz-list li', { hasText: 'Квест 29g' }).getByRole('button', { name: 'Грати', ...exact }).click();
+  await host.locator('.quiz-list li', { hasText: 'Квест 29g' }).getByRole('button', { name: 'Провести', ...exact }).click();
   await host.waitForURL(/\/host\/\d{6}$/);
   const code = host.url().slice(-6);
   const stageUrl = (await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href'))!;
@@ -997,7 +997,7 @@ async function questTeams29g() {
   expect(saved.ok(), await saved.text()).toBe(true);
   const hostFrames = socketFrames(host);
   await host.goto(`${base}/quizzes`);
-  await host.locator('.quiz-list li', { hasText: 'Квест команд 29g' }).getByRole('button', { name: 'Грати', ...exact }).click();
+  await host.locator('.quiz-list li', { hasText: 'Квест команд 29g' }).getByRole('button', { name: 'Провести', ...exact }).click();
   await host.waitForURL(/\/host\/\d{6}$/);
   const code = host.url().slice(-6);
   const stageUrl = (await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href'))!;
@@ -1155,7 +1155,7 @@ async function questCrowd29g(sockets: Socket[]) {
   const saved = await host.request.post(`${base}/api/quizzes`, { data });
   expect(saved.ok(), await saved.text()).toBe(true);
   await host.goto(`${base}/quizzes`);
-  await host.locator('.quiz-list li', { hasText: 'Квест натовпу 29g' }).getByRole('button', { name: 'Грати', ...exact }).click();
+  await host.locator('.quiz-list li', { hasText: 'Квест натовпу 29g' }).getByRole('button', { name: 'Провести', ...exact }).click();
   await host.waitForURL(/\/host\/\d{6}$/);
   const code = host.url().slice(-6);
   const stageUrl = (await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href'))!;

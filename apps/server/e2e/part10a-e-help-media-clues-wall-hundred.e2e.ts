@@ -75,7 +75,7 @@ async function hostHelpGame() {
   expect(await host.getByRole('link', { name: 'Довідка ведучого', ...exact }).getAttribute('href')).toBe('/help');
 
   // 2. Редактор.
-  await host.locator('.quiz-list li', { hasText: 'Довідка 10a' }).getByRole('link', { name: 'Редагувати' }).click();
+  await host.locator('.quiz-list li', { hasText: 'Довідка 10a' }).getByRole('link', { name: 'Змінити' }).click();
   await host.locator('main.editor').waitFor();
   expect(await host.locator('main.editor').getByRole('link', { name: 'Довідка ведучого', ...exact }).getAttribute('target')).toBe('_blank');
   const dialog = (name: string) => host.getByRole('dialog', { name, ...exact });
@@ -164,7 +164,7 @@ async function hostHelpGame() {
 
   // 4. Пульт.
   await host.goto(`${base}/quizzes`);
-  await host.locator('.quiz-list li', { hasText: 'Довідка 10a' }).getByRole('button', { name: 'Грати', ...exact }).click();
+  await host.locator('.quiz-list li', { hasText: 'Довідка 10a' }).getByRole('button', { name: 'Провести', ...exact }).click();
   await host.waitForURL(/\/host\/\d{6}$/);
   const code = host.url().slice(-6);
   const helpLink = host.getByRole('link', { name: 'Довідка ведучого', ...exact });
@@ -263,7 +263,7 @@ async function sliderAudioRevealGame() {
 
   // 1. Редактор.
   await host.goto(`${base}/quizzes`);
-  await host.locator('.quiz-list li', { hasText: 'Звуки й картинки 10b' }).getByRole('link', { name: 'Редагувати' }).click();
+  await host.locator('.quiz-list li', { hasText: 'Звуки й картинки 10b' }).getByRole('link', { name: 'Змінити' }).click();
   await host.locator('main.editor').waitFor();
 
   await host.getByRole('button', { name: /^Запитання 1 / }).click();
@@ -312,7 +312,7 @@ async function sliderAudioRevealGame() {
   expect(audio.duration).toBe(2);
 
   // 2. Гра без сцени.
-  await host.locator('.quiz-list li', { hasText: 'Звуки й картинки 10b' }).getByRole('button', { name: 'Грати', ...exact }).click();
+  await host.locator('.quiz-list li', { hasText: 'Звуки й картинки 10b' }).getByRole('button', { name: 'Провести', ...exact }).click();
   await host.waitForURL(/\/host\/\d{6}$/);
   const code = host.url().slice(-6);
   const stageUrl = (await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href'))!;
@@ -528,7 +528,7 @@ async function cluesPinGame() {
 
   // 1. Редактор.
   await host.goto(`${base}/quizzes`);
-  await host.locator('.quiz-list li', { hasText: 'Хто я й де це 10c' }).getByRole('link', { name: 'Редагувати' }).click();
+  await host.locator('.quiz-list li', { hasText: 'Хто я й де це 10c' }).getByRole('link', { name: 'Змінити' }).click();
   await host.locator('main.editor').waitFor();
 
   await host.getByRole('button', { name: /^Запитання 1 / }).click();
@@ -579,7 +579,7 @@ async function cluesPinGame() {
   expect(Math.abs(storedPin.target!.y - PIN_PLACES.ukraine.lviv.y)).toBeLessThanOrEqual(0.01);
 
   // 2. Гра.
-  await host.locator('.quiz-list li', { hasText: 'Хто я й де це 10c' }).getByRole('button', { name: 'Грати', ...exact }).click();
+  await host.locator('.quiz-list li', { hasText: 'Хто я й де це 10c' }).getByRole('button', { name: 'Провести', ...exact }).click();
   await host.waitForURL(/\/host\/\d{6}$/);
   const code = host.url().slice(-6);
   const stageUrl = (await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href'))!;
@@ -761,7 +761,7 @@ async function wallPollCloudGame() {
 
   // 1. Редактор.
   await host.goto(`${base}/quizzes`);
-  await host.locator('.quiz-list li', { hasText: 'Стіна й голоси 10d' }).getByRole('link', { name: 'Редагувати' }).click();
+  await host.locator('.quiz-list li', { hasText: 'Стіна й голоси 10d' }).getByRole('link', { name: 'Змінити' }).click();
   await host.locator('main.editor').waitFor();
 
   await host.getByRole('button', { name: /^Запитання 1 / }).click();
@@ -800,7 +800,7 @@ async function wallPollCloudGame() {
   expect(storedPoll.points).toBe(0);
 
   // 2. Гра.
-  await host.locator('.quiz-list li', { hasText: 'Стіна й голоси 10d' }).getByRole('button', { name: 'Грати', ...exact }).click();
+  await host.locator('.quiz-list li', { hasText: 'Стіна й голоси 10d' }).getByRole('button', { name: 'Провести', ...exact }).click();
   await host.waitForURL(/\/host\/\d{6}$/);
   const code = host.url().slice(-6);
   const stageUrl = (await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href'))!;
@@ -1052,7 +1052,7 @@ async function surveyGame() {
 
   // 1. Редактор.
   await host.goto(`${base}/quizzes`);
-  await host.locator('.quiz-list li', { hasText: 'Сто до одного 10e' }).getByRole('link', { name: 'Редагувати' }).click();
+  await host.locator('.quiz-list li', { hasText: 'Сто до одного 10e' }).getByRole('link', { name: 'Змінити' }).click();
   await host.locator('main.editor').waitFor();
 
   await host.getByRole('button', { name: /^Запитання 2 / }).click();
@@ -1090,7 +1090,7 @@ async function surveyGame() {
   expect(storedS2.rows).toEqual([]);
 
   // 2. Гра.
-  await host.locator('.quiz-list li', { hasText: 'Сто до одного 10e' }).getByRole('button', { name: 'Грати', ...exact }).click();
+  await host.locator('.quiz-list li', { hasText: 'Сто до одного 10e' }).getByRole('button', { name: 'Провести', ...exact }).click();
   await host.waitForURL(/\/host\/\d{6}$/);
   const code = host.url().slice(-6);
   const stageUrl = (await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href'))!;

@@ -279,7 +279,7 @@ async function memoryGame29f() {
   const words2 = [...new Set(q2.pairs.flatMap((pair) => [pair.a.text, pair.b.text]).filter((text) => text !== ''))];
 
   // ── Гра: сцена 1600 × 900; Оля 360 × 740, Тарас 375 × 812, Петро 320 × 640 (дотик). ──
-  await click(host, 'Грати');
+  await click(host, 'Провести');
   await host.waitForURL(/\/host\/\d{6}$/);
   const code = host.url().slice(-6);
   const stageUrl = (await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href'))!;
@@ -522,7 +522,7 @@ async function memoryTeams29f() {
   const saved = await host.request.post(`${base}/api/quizzes`, { data });
   expect(saved.ok(), await saved.text()).toBe(true);
   await host.goto(`${base}/quizzes`);
-  await host.locator('.quiz-list li', { hasText: 'Пам’ять команд 29f' }).getByRole('button', { name: 'Грати', ...exact }).click();
+  await host.locator('.quiz-list li', { hasText: 'Пам’ять команд 29f' }).getByRole('button', { name: 'Провести', ...exact }).click();
   await host.waitForURL(/\/host\/\d{6}$/);
   const code = host.url().slice(-6);
   const stageUrl = (await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href'))!;
@@ -676,7 +676,7 @@ async function memoryCrowd29f(sockets: Socket[]) {
   const saved = await host.request.post(`${base}/api/quizzes`, { data });
   expect(saved.ok(), await saved.text()).toBe(true);
   await host.goto(`${base}/quizzes`);
-  await host.locator('.quiz-list li', { hasText: 'Пам’ять натовпу 29f' }).getByRole('button', { name: 'Грати', ...exact }).click();
+  await host.locator('.quiz-list li', { hasText: 'Пам’ять натовпу 29f' }).getByRole('button', { name: 'Провести', ...exact }).click();
   await host.waitForURL(/\/host\/\d{6}$/);
   const code = host.url().slice(-6);
   const stageUrl = (await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href'))!;
@@ -956,7 +956,7 @@ async function melodyGame29e() {
   const trackUrl = saved.track!.url;
 
   // ── Гра: сцена 1600 × 900; Оля 320 × 568 (дотик), Тарас 375 × 812, Петро 360 × 740. ──
-  await click(host, 'Грати');
+  await click(host, 'Провести');
   await host.waitForURL(/\/host\/\d{6}$/);
   const code = host.url().slice(-6);
   const stageUrl = (await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href'))!;
@@ -1104,7 +1104,7 @@ async function melodyTeams29e() {
   const saved = await host.request.post(`${base}/api/quizzes`, { data });
   expect(saved.ok(), await saved.text()).toBe(true);
   await host.goto(`${base}/quizzes`);
-  await host.locator('.quiz-list li', { hasText: 'Мелодія команд 29e' }).getByRole('button', { name: 'Грати', ...exact }).click();
+  await host.locator('.quiz-list li', { hasText: 'Мелодія команд 29e' }).getByRole('button', { name: 'Провести', ...exact }).click();
   await host.waitForURL(/\/host\/\d{6}$/);
   const code = host.url().slice(-6);
   const stageUrl = (await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href'))!;
@@ -1203,7 +1203,7 @@ async function melodyCrowd29e(sockets: Socket[]) {
   const saved = await host.request.post(`${base}/api/quizzes`, { data });
   expect(saved.ok(), await saved.text()).toBe(true);
   await host.goto(`${base}/quizzes`);
-  await host.locator('.quiz-list li', { hasText: 'Мелодія натовпу 29e' }).getByRole('button', { name: 'Грати', ...exact }).click();
+  await host.locator('.quiz-list li', { hasText: 'Мелодія натовпу 29e' }).getByRole('button', { name: 'Провести', ...exact }).click();
   await host.waitForURL(/\/host\/\d{6}$/);
   const code = host.url().slice(-6);
   const stageUrl = (await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href'))!;

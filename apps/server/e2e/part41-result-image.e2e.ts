@@ -99,7 +99,7 @@ async function resultImage41() {
   const created = await host.request.post(`${base}/api/quizzes`, { data: quiz });
   expect(created.ok(), await created.text()).toBe(true);
   await host.goto(`${base}/quizzes`);
-  await host.locator('.quiz-list li', { hasText: TITLE }).getByRole('button', { name: 'Грати', ...exact }).click();
+  await host.locator('.quiz-list li', { hasText: TITLE }).getByRole('button', { name: 'Провести', ...exact }).click();
   await host.waitForURL(/\/host\/\d{6}$/);
   const code = host.url().slice(-6);
 

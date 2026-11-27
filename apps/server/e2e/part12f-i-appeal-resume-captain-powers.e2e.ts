@@ -78,7 +78,7 @@ async function appeal12f() {
   expect(saved.ok(), await saved.text()).toBe(true);
 
   await host.goto(`${base}/quizzes`);
-  await host.locator('.quiz-list li', { hasText: 'Апеляція 12f' }).getByRole('button', { name: 'Грати', ...exact }).click();
+  await host.locator('.quiz-list li', { hasText: 'Апеляція 12f' }).getByRole('button', { name: 'Провести', ...exact }).click();
   await host.waitForURL(/\/host\/\d{6}$/);
   const code = host.url().slice(-6);
   const stageUrl = (await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href'))!;
@@ -578,7 +578,7 @@ async function resume12r() {
   };
   const playQuiz = async () => {
     await host.goto(`${base}/quizzes`);
-    await host.locator('.quiz-list li', { hasText: 'Продовження 12r' }).getByRole('button', { name: 'Грати', ...exact }).click();
+    await host.locator('.quiz-list li', { hasText: 'Продовження 12r' }).getByRole('button', { name: 'Провести', ...exact }).click();
     await host.waitForURL(/\/host\/\d{6}$/);
     return host.url().slice(-6);
   };
@@ -1016,7 +1016,7 @@ async function answerer12g() {
   /** Нова гра з вікторини title: сцена й п'ять телефонів у командах (капітан — перший у команді). */
   const launch = async (title: string) => {
     await host.goto(`${base}/quizzes`);
-    await host.locator('.quiz-list li', { hasText: title }).getByRole('button', { name: 'Грати', ...exact }).click();
+    await host.locator('.quiz-list li', { hasText: title }).getByRole('button', { name: 'Провести', ...exact }).click();
     await host.waitForURL(/\/host\/\d{6}$/);
     const code = host.url().slice(-6);
     await stage.goto((await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href'))!);
@@ -1234,7 +1234,7 @@ async function answerer12g() {
 
   // 5. Редактор: у «По черзі 12g» — «по черзі».
   await host.goto(`${base}/quizzes`);
-  await host.locator('.quiz-list li', { hasText: 'По черзі 12g' }).getByRole('link', { name: 'Редагувати' }).click();
+  await host.locator('.quiz-list li', { hasText: 'По черзі 12g' }).getByRole('link', { name: 'Змінити' }).click();
   await host.locator('main.editor').waitFor();
   await editorTab(host, 'Загальне');
   const teamsBlock = host.locator('section.editor-card.teams');
@@ -1415,7 +1415,7 @@ async function powers12h() {
   /** Нова гра з вікторини title: сцена й телефони players. */
   const launch = async (title: string, players: [Page, string][]) => {
     await host.goto(`${base}/quizzes`);
-    await host.locator('.quiz-list li', { hasText: title }).getByRole('button', { name: 'Грати', ...exact }).click();
+    await host.locator('.quiz-list li', { hasText: title }).getByRole('button', { name: 'Провести', ...exact }).click();
     await host.waitForURL(/\/host\/\d{6}$/);
     const code = host.url().slice(-6);
     await stage.goto((await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href'))!);
@@ -1677,7 +1677,7 @@ async function powers12h() {
   // ── 6. Редактор: 13 бафів і 11 дебафів; стара вікторина — шість старих. ──
   const powersOf = async (title: string) => {
     await host.goto(`${base}/quizzes`);
-    await host.locator('.quiz-list li', { hasText: title }).getByRole('link', { name: 'Редагувати' }).click();
+    await host.locator('.quiz-list li', { hasText: title }).getByRole('link', { name: 'Змінити' }).click();
     await openGeneralFold(host, 'powers');
     const checked = async (group: number) => {
       const items = host.locator('fieldset.powers-group').nth(group).locator('label.powers-item');
@@ -1798,7 +1798,7 @@ async function achievements12i() {
   const olyaId = olyaProfile.id;
 
   await host.goto(`${base}/quizzes`);
-  await host.locator('.quiz-list li', { hasText: 'Досягнення 12i' }).getByRole('button', { name: 'Грати', ...exact }).click();
+  await host.locator('.quiz-list li', { hasText: 'Досягнення 12i' }).getByRole('button', { name: 'Провести', ...exact }).click();
   await host.waitForURL(/\/host\/\d{6}$/);
   const code = host.url().slice(-6);
   await join(olya, code, 'Оля', false);
@@ -1976,7 +1976,7 @@ it('backlog 3: blitz answer fields never move — a buzzer blitz keeps the queue
     const saved = await host.request.post(`${base}/api/quizzes`, { data });
     expect(saved.ok(), await saved.text()).toBe(true);
     await host.goto(`${base}/quizzes`);
-    await host.locator('.quiz-list li', { hasText: 'Бліц без стрибків' }).getByRole('button', { name: 'Грати', ...exact }).click();
+    await host.locator('.quiz-list li', { hasText: 'Бліц без стрибків' }).getByRole('button', { name: 'Провести', ...exact }).click();
     await host.waitForURL(/\/host\/\d{6}$/);
     const code = host.url().slice(-6);
     const olya = await open('olya-b3', 375, 812);
@@ -2158,7 +2158,7 @@ it('part 26b: blitz streaks — a plus series grows by the step, a minus series 
     const saved = await host.request.post(`${base}/api/quizzes`, { data });
     expect(saved.ok(), await saved.text()).toBe(true);
     await host.goto(`${base}/quizzes`);
-    await host.locator('.quiz-list li', { hasText: 'Бліц із серіями' }).getByRole('button', { name: 'Грати', ...exact }).click();
+    await host.locator('.quiz-list li', { hasText: 'Бліц із серіями' }).getByRole('button', { name: 'Провести', ...exact }).click();
     await host.waitForURL(/\/host\/\d{6}$/);
     const code = host.url().slice(-6);
     const stageUrl = (await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href'))!;
@@ -2331,7 +2331,7 @@ async function wordLadderGame26c() {
   expect(stored.rounds[0]!.questions[0]).toMatchObject({ type: 'wordladder', path: ['ПОЛЕ', 'ПОЛА', 'ПОРА', 'ПАРА', 'ТАРА'], maxSteps: 8, points: 500, timeLimit: 90, video: null });
 
   // ── Гра: сцена 1600 × 900, телефони Олі, Тараса, Іри, Хосе (es) і Віри (ar, 320 × 568). ──
-  await click(host, 'Грати');
+  await click(host, 'Провести');
   await host.waitForURL(/\/host\/\d{6}$/);
   const code = host.url().slice(-6);
   const stageUrl = (await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href'))!;

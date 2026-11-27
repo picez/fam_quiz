@@ -250,7 +250,7 @@ async function questionBank43() {
   // ── 9. Гра «Мікс 43»: перше запитання своє, друге — копія з картинкою. ──
   await author.setViewportSize({ width: 1280, height: 800 });
   await author.goto(`${base}/quizzes`);
-  await author.locator('.quiz-list li', { hasText: 'Мікс 43' }).getByRole('button', { name: 'Грати', ...exact }).click();
+  await author.locator('.quiz-list li', { hasText: 'Мікс 43' }).getByRole('button', { name: 'Провести', ...exact }).click();
   await author.waitForURL(/\/host\/\d{6}$/);
   const code = author.url().slice(-6);
   const stage = await light(await open('stage43', 1280, 720));

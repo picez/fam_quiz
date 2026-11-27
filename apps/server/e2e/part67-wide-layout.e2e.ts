@@ -135,7 +135,7 @@ async function player67() {
   const saved = await host.request.post(`${base}/api/quizzes`, { data });
   expect(saved.ok(), await saved.text()).toBe(true);
   await host.goto(`${base}/quizzes`);
-  await host.locator('.quiz-list li', { hasText: 'Вікторина для ПК 67' }).getByRole('button', { name: 'Грати', ...exact }).click();
+  await host.locator('.quiz-list li', { hasText: 'Вікторина для ПК 67' }).getByRole('button', { name: 'Провести', ...exact }).click();
   await host.waitForURL(/\/host\/\d{6}$/);
   const code = host.url().slice(-6);
   const stageUrl = (await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href'))!;
@@ -224,7 +224,7 @@ async function hostGame67(email = 'host67h@example.com') {
   const saved = await host.request.post(`${base}/api/quizzes`, { data });
   expect(saved.ok(), await saved.text()).toBe(true);
   await host.goto(`${base}/quizzes`);
-  await host.locator('.quiz-list li', { hasText: 'Пульт на ПК 67' }).getByRole('button', { name: 'Грати', ...exact }).click();
+  await host.locator('.quiz-list li', { hasText: 'Пульт на ПК 67' }).getByRole('button', { name: 'Провести', ...exact }).click();
   await host.waitForURL(/\/host\/\d{6}$/);
   const code = host.url().slice(-6);
   const stageUrl = (await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href'))!;
@@ -328,7 +328,7 @@ async function stage67() {
     const saved = await host.request.post(`${base}/api/quizzes`, { data });
     expect(saved.ok(), await saved.text()).toBe(true);
     await host.goto(`${base}/quizzes`);
-    await host.locator('.quiz-list li', { hasText: 'Сцена на ПК 67' }).getByRole('button', { name: 'Грати', ...exact }).click();
+    await host.locator('.quiz-list li', { hasText: 'Сцена на ПК 67' }).getByRole('button', { name: 'Провести', ...exact }).click();
     await host.waitForURL(/\/host\/\d{6}$/);
     const code = host.url().slice(-6);
     const stageUrl = (await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href'))!;
@@ -527,7 +527,7 @@ async function lists67() {
 
   // Зіграна гра: ведучий і гравець з акаунтом — тоді з'являються «Мої ігри» і сторінка гри.
   await host.goto(`${base}/quizzes`);
-  await host.locator('.quiz-list li', { hasText: LIST_TITLES_67[1]! }).getByRole('button', { name: 'Грати', ...exact }).click();
+  await host.locator('.quiz-list li', { hasText: LIST_TITLES_67[1]! }).getByRole('button', { name: 'Провести', ...exact }).click();
   await host.waitForURL(/\/host\/\d{6}$/);
   const code = host.url().slice(-6);
   const olena = await open('lists67p', 375, 812);
@@ -700,7 +700,7 @@ async function profile67() {
     { name: 'profile67-stats', path: '/profile/stats', page: olena },
     { name: 'profile67-levels', path: '/profile/levels', page: olena },
     { name: 'profile67-looks', path: '/profile/looks', page: olena },
-    { name: 'profile67-likes', path: '/profile/likes', page: olena },
+    { name: 'profile67-likes', path: '/quizzes/liked', page: olena },
     { name: 'profile67-quizzes', path: '/profile/quizzes', page: olena },
     { name: 'profile67-prizes', path: '/profile/prizes', page: olena },
     { name: 'profile67-join', path: `/groups/join/${inviteCode}`, page: friends[2]!, check: async (tag, page) => {

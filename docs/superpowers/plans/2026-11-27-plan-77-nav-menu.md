@@ -33,9 +33,7 @@
 
 | Ключ | uk |
 |---|---|
-| `quizzesTabsLabel` | `Вікторини` (aria-label вкладок) |
 | `quizzesTabMine` | `Мої` |
-| `quizzesTabLibrary` | `Бібліотека` |
 | `quizzesTabLiked` | `Вподобані` |
 | `quizzesLikedTitle` | `Вподобані вікторини` |
 | `quizMoreActions` | `Ще дії: {title}` |
@@ -45,7 +43,11 @@
 | `libraryHost` | `Провести гру` |
 | `libraryHostSignIn` | `Увійти, щоб провести` |
 
-Змінені uk (у `CHANGED_LATER`, переклади оновити): `menuJoin`, `menuShortJoin` → `Головна`; `menuQuizzes`, `menuShortQuizzes` → `Вікторини`; `menuShortLibrary` → `Бібліотека`; `startCreate` → `Провести гру`; `play` → `Провести`; `edit` → `Змінити`; `adminRestoreQuizConfirm` («в каталог» → «в бібліотеку»).
+Вкладка «Бібліотека» й aria-label вкладок беруть наявні `libraryTitle` і `menuQuizzes`.
+
+Змінені uk (у `CHANGED_LATER`, переклади оновити): `menuJoin`, `menuShortJoin` → `Головна`; `menuQuizzes`, `menuShortQuizzes` → `Вікторини`; `menuShortLibrary` → `Бібліотека`; `startCreate` → `Провести гру`; `play` → `Провести`; `edit` → `Змінити`; `adminRestoreQuizConfirm` («в каталог» → «в бібліотеку»). Переклади `edit` лишаються («Edit» уже точне); `menuShortLibrary` у de/pl/es/it лишається «Katalog»/«Catálogo»/«Catalogo» — «Bibliothek» тощо довші за 8 графем короткого підпису. Довідка бібліотеки й виклику (`setting.library.*`, `setting.challenge.how.0`) — «⋯» → «Поділитися в бібліотеку» / «🏁 Виклик», «бібліотека» замість «каталог», «Провести гру» з бібліотеки; golden довідки оновлено.
+
+**Знайдене під час e2e:** короткий підпис «Вікторини» на 320 px ширший за п'яту частину меню — мінімальний шрифт підписів меню знижено з 11 до 10 px (`clamp(0.625rem, 3.1vw, 0.8125rem)`); `/quizzes/liked` не редактор — мова профілю на ній вмикається одразу (`LIVE_GAME_PATH` у `locales/choose.ts`).
 
 ## Review Focus
 

@@ -175,7 +175,7 @@ async function appealsInbox70() {
   const quizId = ((await saved.json()) as { id: string }).id;
   const startGame = async (): Promise<string> => {
     await admin.goto(`${base}/quizzes`);
-    await admin.locator('.quiz-list li', { hasText: QUIZ_TITLE }).getByRole('button', { name: 'Грати', ...exact }).click();
+    await admin.locator('.quiz-list li', { hasText: QUIZ_TITLE }).getByRole('button', { name: 'Провести', ...exact }).click();
     await admin.waitForURL(/\/host\/\d{6}$/);
     return admin.url().slice(-6);
   };

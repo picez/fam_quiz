@@ -111,7 +111,7 @@ async function card58() {
   expect((await taras.request.post(`${base}/api/quizzes`, { data: makeQuiz(SECOND) })).ok()).toBe(true);
   const play = async (host: Page, title: string, players: [Page, string, string][]) => {
     await host.goto(`${base}/quizzes`);
-    await host.locator('.quiz-list li', { hasText: title }).getByRole('button', { name: 'Грати', ...exact }).click();
+    await host.locator('.quiz-list li', { hasText: title }).getByRole('button', { name: 'Провести', ...exact }).click();
     await host.waitForURL(/\/host\/\d{6}$/);
     const code = host.url().slice(-6);
     for (const [page, nickname] of players) await join(page, code, nickname, false);

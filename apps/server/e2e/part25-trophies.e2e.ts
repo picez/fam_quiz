@@ -112,7 +112,7 @@ async function playPrizeGame25a(
   const created = await olya.request.post(`${base}/api/quizzes`, { data });
   expect(created.ok(), await created.text()).toBe(true);
   await olya.goto(`${base}/quizzes`);
-  await olya.locator('.quiz-list li', { hasText: title }).getByRole('button', { name: 'Грати', ...exact }).click();
+  await olya.locator('.quiz-list li', { hasText: title }).getByRole('button', { name: 'Провести', ...exact }).click();
   await olya.waitForURL(/\/host\/\d{6}$/);
   const code = olya.url().slice(-6);
   const stage = await open(`stage${tag}`, 1280, 720);

@@ -98,7 +98,7 @@ async function scenario() {
   await host.getByRole('heading', { name: 'Наскрізна вікторина' }).waitFor();
 
   // Гра: пульт, сцена, двоє гравців.
-  await click(host, 'Грати');
+  await click(host, 'Провести');
   await host.waitForURL(/\/host\/\d{6}$/);
   const code = host.url().slice(-6);
   const stageUrl = await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href');
@@ -338,7 +338,7 @@ async function twoRounds() {
   await click(host, 'Зберегти');
   await host.getByRole('heading', { name: 'Вікторина з раундами' }).waitFor();
 
-  await click(host, 'Грати');
+  await click(host, 'Провести');
   await host.waitForURL(/\/host\/\d{6}$/);
   const code = host.url().slice(-6);
   const stageUrl = await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href');
@@ -472,7 +472,7 @@ async function blitzGame() {
   await click(host, 'Зберегти');
   await host.getByRole('heading', { name: 'Бліц-вікторина' }).waitFor();
 
-  await click(host, 'Грати');
+  await click(host, 'Провести');
   await host.waitForURL(/\/host\/\d{6}$/);
   const code = host.url().slice(-6);
   const stageUrl = await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href');
@@ -648,7 +648,7 @@ async function boardGame() {
   await click(host, 'Зберегти');
   await host.getByRole('heading', { name: 'Вікторина-поле' }).waitFor();
 
-  await click(host, 'Грати');
+  await click(host, 'Провести');
   await host.waitForURL(/\/host\/\d{6}$/);
   const code = host.url().slice(-6);
   const stageUrl = await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href');
@@ -841,7 +841,7 @@ async function mixedBoard() {
 
   await click(host, 'Зберегти');
   await host.getByRole('heading', { name: 'Мішане поле' }).waitFor();
-  await click(host, 'Грати');
+  await click(host, 'Провести');
   await host.waitForURL(/\/host\/\d{6}$/);
   const code = host.url().slice(-6);
   const stageUrl = await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href');
@@ -1048,7 +1048,7 @@ async function videoGame() {
 
   await click(host, 'Зберегти');
   await host.getByRole('heading', { name: 'Вікторина з відео' }).waitFor();
-  await click(host, 'Грати');
+  await click(host, 'Провести');
   await host.waitForURL(/\/host\/\d{6}$/);
   const code = host.url().slice(-6);
   const stageUrl = await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href');
@@ -1153,7 +1153,7 @@ async function finalGame() {
 
   await click(host, 'Зберегти');
   await host.getByRole('heading', { name: 'Вікторина з фіналом' }).waitFor();
-  await click(host, 'Грати');
+  await click(host, 'Провести');
   await host.waitForURL(/\/host\/\d{6}$/);
   const code = host.url().slice(-6);
   const stageUrl = await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href');
@@ -1286,7 +1286,7 @@ async function menuProfileFriends() {
   const visitor = await open('visitor', 390, 844);
   await visitor.goto(base);
   await visitor.locator(MENU).getByRole('link', { name: 'Увійти' }).waitFor();
-  expect(await menuLinks(visitor)).toEqual(['Меню', 'Бібліотека', 'Увійти']);
+  expect(await menuLinks(visitor)).toEqual(['Головна', 'Бібліотека', 'Увійти']);
   const barBox = (await visitor.locator(MENU).boundingBox())!;
   expect(Math.abs(barBox.y + barBox.height - 844)).toBeLessThanOrEqual(2);
   await shot(visitor, 'menu-visitor-phone');
@@ -1308,7 +1308,7 @@ async function menuProfileFriends() {
   const saved = await host.request.post(`${base}/api/quizzes`, { data: makeQuiz([single], { speedBonus: false }) });
   expect(saved.ok()).toBe(true);
   await host.goto(`${base}/quizzes`);
-  await click(host, 'Грати');
+  await click(host, 'Провести');
   await host.waitForURL(/\/host\/\d{6}$/);
   const code = host.url().slice(-6);
   expect(await host.locator(MENU).count()).toBe(0);
@@ -1328,7 +1328,7 @@ async function menuProfileFriends() {
   await field(olya, 'Пароль').fill('correct horse battery');
   await click(olya, 'Зареєструватися');
   await olya.locator(MENU).getByRole('link', { name: 'Профіль' }).waitFor();
-  await olya.locator(MENU).getByRole('link', { name: 'Меню' }).click();
+  await olya.locator(MENU).getByRole('link', { name: 'Головна' }).click();
   await (await homeCodeField(olya)).fill(code);
   await click(olya, 'Увійти');
   await field(olya, 'Ваше ім’я').fill('Оля');
@@ -1488,7 +1488,7 @@ async function chainGame() {
   await shot(host, 'chain-editor');
   await click(host, 'Зберегти');
   await host.getByRole('heading', { name: 'Ланцюжок' }).waitFor();
-  await click(host, 'Грати');
+  await click(host, 'Провести');
   await host.waitForURL(/\/host\/\d{6}$/);
   const code = host.url().slice(-6);
   const stageUrl = await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href');
@@ -1630,7 +1630,7 @@ async function invitesAndVersus() {
   const quiz = { ...makeQuiz([single], { speedBonus: false }), title: 'Вечір друзів' };
   expect((await host.request.post(`${base}/api/quizzes`, { data: quiz })).ok()).toBe(true);
   await host.goto(`${base}/quizzes`);
-  await click(host, 'Грати');
+  await click(host, 'Провести');
   await host.waitForURL(/\/host\/\d{6}$/);
   const code = host.url().slice(-6);
 
@@ -1691,7 +1691,7 @@ async function invitesAndVersus() {
 
   // Друга гра: Оксана й Віра з акаунтів.
   await host.goto(`${base}/quizzes`);
-  await click(host, 'Грати');
+  await click(host, 'Провести');
   await host.waitForURL(/\/host\/\d{6}$/);
   const code2 = host.url().slice(-6);
   await join(olya, code2, 'Оксана', false);

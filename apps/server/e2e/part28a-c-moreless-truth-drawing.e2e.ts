@@ -141,7 +141,7 @@ async function moreLessGame28a() {
   expect(q2!.pairs.map((pair) => pair.correct)).toEqual(['a', 'b', 'a', 'b']);
 
   // ── Гра: сцена 1600 × 900; Оля 375 × 812, Тарас 360 × 740, Хосе 320 × 640 (es). ──
-  await click(host, 'Грати');
+  await click(host, 'Провести');
   await host.waitForURL(/\/host\/\d{6}$/);
   const code = host.url().slice(-6);
   const stageUrl = (await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href'))!;
@@ -292,7 +292,7 @@ async function moreLessTeams28a(sockets: Socket[]) {
   expect(saved.ok(), await saved.text()).toBe(true);
 
   await host.goto(`${base}/quizzes`);
-  await host.locator('.quiz-list li', { hasText: 'Команди 28a' }).getByRole('button', { name: 'Грати', ...exact }).click();
+  await host.locator('.quiz-list li', { hasText: 'Команди 28a' }).getByRole('button', { name: 'Провести', ...exact }).click();
   await host.waitForURL(/\/host\/\d{6}$/);
   const code = host.url().slice(-6);
   const stageUrl = (await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href'))!;
@@ -397,7 +397,7 @@ async function moreLessBoard28a() {
   expect(saved.ok(), await saved.text()).toBe(true);
 
   await host.goto(`${base}/quizzes`);
-  await host.locator('.quiz-list li', { hasText: 'Поле 28a' }).getByRole('button', { name: 'Грати', ...exact }).click();
+  await host.locator('.quiz-list li', { hasText: 'Поле 28a' }).getByRole('button', { name: 'Провести', ...exact }).click();
   await host.waitForURL(/\/host\/\d{6}$/);
   const code = host.url().slice(-6);
   const stageUrl = (await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href'))!;
@@ -493,7 +493,7 @@ async function truthCrowd28b(sockets: Socket[]) {
   const saved = await host.request.post(`${base}/api/quizzes`, { data });
   expect(saved.ok(), await saved.text()).toBe(true);
   await host.goto(`${base}/quizzes`);
-  await host.locator('.quiz-list li', { hasText: 'Правда натовпу 28b' }).getByRole('button', { name: 'Грати', ...exact }).click();
+  await host.locator('.quiz-list li', { hasText: 'Правда натовпу 28b' }).getByRole('button', { name: 'Провести', ...exact }).click();
   await host.waitForURL(/\/host\/\d{6}$/);
   const code = host.url().slice(-6);
   const stageUrl = (await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href'))!;
@@ -619,7 +619,7 @@ async function truthGame28b() {
   expect(stored.rounds[1], 'a truth round has no questions').not.toHaveProperty('questions');
 
   // ── Гра: сцена 1600 × 900; Оля 375 × 812, Тарас 360 × 740, Іра 360 × 740, Хосе 320 × 640 (es). ──
-  await click(host, 'Грати');
+  await click(host, 'Провести');
   await host.waitForURL(/\/host\/\d{6}$/);
   const code = host.url().slice(-6);
   const stageUrl = (await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href'))!;
@@ -867,7 +867,7 @@ async function truthGame28b() {
 
   // ── Друга кімната: ніхто не пише факт — раунд пропущено. ──
   await host.goto(`${base}/quizzes`);
-  await host.locator('.quiz-list li', { hasText: 'Правда 28b' }).getByRole('button', { name: 'Грати', ...exact }).click();
+  await host.locator('.quiz-list li', { hasText: 'Правда 28b' }).getByRole('button', { name: 'Провести', ...exact }).click();
   await host.waitForURL(/\/host\/\d{6}$/);
   const code2 = host.url().slice(-6);
   const stageUrl2 = (await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href'))!;
@@ -910,7 +910,7 @@ async function truthTeams28b() {
   expect(saved.ok(), await saved.text()).toBe(true);
 
   await host.goto(`${base}/quizzes`);
-  await host.locator('.quiz-list li', { hasText: 'Правда команд 28b' }).getByRole('button', { name: 'Грати', ...exact }).click();
+  await host.locator('.quiz-list li', { hasText: 'Правда команд 28b' }).getByRole('button', { name: 'Провести', ...exact }).click();
   await host.waitForURL(/\/host\/\d{6}$/);
   const code = host.url().slice(-6);
   const stageUrl = (await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href'))!;
@@ -1274,7 +1274,7 @@ async function drawingGame28c() {
 
   // ── Гра: сцена 1600 × 900; Оля 375 × 812 (dpr 2), Тарас 360 × 740, Петро — дотиковий телефон, Ганна 320 × 640. ──
   await host.goto(`${base}/quizzes`);
-  await host.locator('.quiz-list li', { hasText: 'Малюнок 28c' }).getByRole('button', { name: 'Грати', ...exact }).click();
+  await host.locator('.quiz-list li', { hasText: 'Малюнок 28c' }).getByRole('button', { name: 'Провести', ...exact }).click();
   await host.waitForURL(/\/host\/\d{6}$/);
   const code = host.url().slice(-6);
   const stageUrl = (await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href'))!;
@@ -1490,7 +1490,7 @@ async function drawingTeams28c() {
   expect(saved.ok(), await saved.text()).toBe(true);
 
   await host.goto(`${base}/quizzes`);
-  await host.locator('.quiz-list li', { hasText: 'Малюнок команд 28c' }).getByRole('button', { name: 'Грати', ...exact }).click();
+  await host.locator('.quiz-list li', { hasText: 'Малюнок команд 28c' }).getByRole('button', { name: 'Провести', ...exact }).click();
   await host.waitForURL(/\/host\/\d{6}$/);
   const code = host.url().slice(-6);
   const stageUrl = (await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href'))!;

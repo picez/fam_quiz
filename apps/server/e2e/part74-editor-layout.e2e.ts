@@ -154,7 +154,7 @@ async function layout74() {
   await marta.waitForURL(`${base}/quizzes`);
   const row = marta.locator('ul.quiz-list > li', { has: marta.getByRole('heading', { name: 'Ріки 74', ...exact }) });
   await row.waitFor();
-  const editHref = await row.getByRole('link', { name: 'Редагувати' }).getAttribute('href');
+  const editHref = await row.getByRole('link', { name: 'Змінити' }).getAttribute('href');
   expect(editHref).toMatch(/^\/quizzes\/[^/]+$/);
 
   // ── 8. ПК 1920 × 1080: список ліворуч, картки праворуч, «Загальне» у два стовпці, список типів під кнопкою. ──

@@ -409,7 +409,7 @@ async function launch48(host: Page, quiz: unknown, title: string, stageName: str
   expect(saved.ok(), await saved.text()).toBe(true);
   const hostFrames = socketFrames(host);
   await host.goto(`${base}/quizzes`);
-  await host.locator('.quiz-list li', { hasText: title }).getByRole('button', { name: 'Грати', ...exact }).click();
+  await host.locator('.quiz-list li', { hasText: title }).getByRole('button', { name: 'Провести', ...exact }).click();
   await host.waitForURL(/\/host\/\d{6}$/);
   const code = host.url().slice(-6);
   const stageUrl = (await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href'))!;
@@ -479,7 +479,7 @@ async function editor48() {
 
   // ── Повторне відкриття: слово на місці. ──
   await host.goto(`${base}/quizzes`);
-  await host.locator('.quiz-list li', { hasText: 'Вгадай слово 48' }).getByRole('link', { name: 'Редагувати' }).click();
+  await host.locator('.quiz-list li', { hasText: 'Вгадай слово 48' }).getByRole('link', { name: 'Змінити' }).click();
   await host.locator('main.editor').waitFor();
   await expect.poll(() => field(host, 'Слово').inputValue().catch(() => ''), POLL).toBe('колос');
   await host.getByText('Літер: 5', exact).waitFor();

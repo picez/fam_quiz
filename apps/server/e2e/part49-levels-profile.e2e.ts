@@ -137,7 +137,7 @@ async function launch49(host: Page, title: string, withStage: boolean) {
   const saved = await host.request.post(`${base}/api/quizzes`, { data: quizData49(title) });
   expect(saved.ok(), await saved.text()).toBe(true);
   await host.goto(`${base}/quizzes`);
-  await host.locator('.quiz-list li', { hasText: title }).getByRole('button', { name: 'Грати', ...exact }).click();
+  await host.locator('.quiz-list li', { hasText: title }).getByRole('button', { name: 'Провести', ...exact }).click();
   await host.waitForURL(/\/host\/\d{6}$/);
   const code = host.url().slice(-6);
   let stage: Page | null = null;

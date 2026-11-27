@@ -89,7 +89,7 @@ async function clarityGame() {
   expect(saved.ok(), await saved.text()).toBe(true);
 
   await host.goto(`${base}/quizzes`);
-  await click(host, 'Грати');
+  await click(host, 'Провести');
   await host.waitForURL(/\/host\/\d{6}$/);
   const code = host.url().slice(-6);
   const stageUrl = await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href');
@@ -372,7 +372,7 @@ async function instantBlitzGame() {
   expect(saved.ok(), await saved.text()).toBe(true);
 
   await host.goto(`${base}/quizzes`);
-  await click(host, 'Грати');
+  await click(host, 'Провести');
   await host.waitForURL(/\/host\/\d{6}$/);
   const code = host.url().slice(-6);
   const stageUrl = await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href');
@@ -607,7 +607,7 @@ async function blitzSplashGame() {
   expect(saved.ok(), await saved.text()).toBe(true);
 
   await host.goto(`${base}/quizzes`);
-  await click(host, 'Грати');
+  await click(host, 'Провести');
   await host.waitForURL(/\/host\/\d{6}$/);
   const code = host.url().slice(-6);
   const stageUrl = await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href');
@@ -814,7 +814,7 @@ async function hostDiceQuiz(host: Page): Promise<{ code: string; stageUrl: strin
   expect(saved.ok(), await saved.text()).toBe(true);
 
   await host.goto(`${base}/quizzes`);
-  await click(host, 'Грати');
+  await click(host, 'Провести');
   await host.waitForURL(/\/host\/\d{6}$/);
   const code = host.url().slice(-6);
   const stageUrl = await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href');
@@ -1119,7 +1119,7 @@ async function pranksGame() {
   expect(saved.ok(), await saved.text()).toBe(true);
 
   await host.goto(`${base}/quizzes`);
-  await click(host, 'Грати');
+  await click(host, 'Провести');
   await host.waitForURL(/\/host\/\d{6}$/);
   const code = host.url().slice(-6);
   const stageUrl = await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href');
@@ -1430,7 +1430,7 @@ async function bankGame() {
 
   // Редактор: у фіналі «Космос» тип ставок стає «Спільний банк», з'являється підказка.
   await host.goto(`${base}/quizzes`);
-  await host.locator('.quiz-list li', { hasText: 'Банк' }).getByRole('link', { name: 'Редагувати' }).click();
+  await host.locator('.quiz-list li', { hasText: 'Банк' }).getByRole('link', { name: 'Змінити' }).click();
   await pickRound(host, 'Космос');
   await openRoundSettings(host);
   const mode = host.locator('label.field', { hasText: 'Тип ставок' }).locator('select');
@@ -1446,7 +1446,7 @@ async function bankGame() {
   await host.setViewportSize({ width: 1280, height: 900 });
   await click(host, 'Зберегти');
   await host.waitForURL(/\/quizzes$/);
-  await host.locator('.quiz-list li', { hasText: 'Банк' }).getByRole('button', { name: 'Грати', ...exact }).click();
+  await host.locator('.quiz-list li', { hasText: 'Банк' }).getByRole('button', { name: 'Провести', ...exact }).click();
   await host.waitForURL(/\/host\/\d{6}$/);
   const code = host.url().slice(-6);
   const stageUrl = await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href');
@@ -1816,7 +1816,7 @@ async function sortGame() {
 
   // 1. Редактор: категорії, слова з категорією, бали за слово з сумою; підвисання 3 → 2.
   await host.goto(`${base}/quizzes`);
-  await host.locator('.quiz-list li', { hasText: 'Сортування' }).getByRole('link', { name: 'Редагувати' }).click();
+  await host.locator('.quiz-list li', { hasText: 'Сортування' }).getByRole('link', { name: 'Змінити' }).click();
   await host.getByRole('button', { name: /^Запитання 1 Овочі чи фрукти\?/ }).click();
   expect(await field(host, 'Категорія 1').inputValue()).toBe('Овочі');
   expect(await field(host, 'Категорія 2').inputValue()).toBe('Фрукти');
@@ -1844,7 +1844,7 @@ async function sortGame() {
   await host.waitForURL(/\/quizzes$/);
 
   // 2. Гра: сцена, Оля 375 px, Петро 360 px.
-  await host.locator('.quiz-list li', { hasText: 'Сортування' }).getByRole('button', { name: 'Грати', ...exact }).click();
+  await host.locator('.quiz-list li', { hasText: 'Сортування' }).getByRole('button', { name: 'Провести', ...exact }).click();
   await host.waitForURL(/\/host\/\d{6}$/);
   const code = host.url().slice(-6);
   const stageUrl = await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href');
@@ -2235,7 +2235,7 @@ async function duelGame() {
 
   // Редактор: розділ «Дуелі» з пулом; 4 запитання за дуель не зберігаються.
   await host.goto(`${base}/quizzes`);
-  await host.locator('.quiz-list li', { hasText: 'Дуелі' }).getByRole('link', { name: 'Редагувати' }).click();
+  await host.locator('.quiz-list li', { hasText: 'Дуелі' }).getByRole('link', { name: 'Змінити' }).click();
   await openGeneralFold(host, 'duels');
   expect(await field(host, 'Запитань за дуель').inputValue()).toBe('2');
   expect(await field(host, 'Ставка: програвший віддає переможцю').inputValue()).toBe('300');
@@ -2254,7 +2254,7 @@ async function duelGame() {
   await host.waitForURL(/\/quizzes$/);
 
   // Гра: сцена 1600 × 900, Оля 375, Петро 360, Іра 390.
-  await host.locator('.quiz-list li', { hasText: 'Дуелі' }).getByRole('button', { name: 'Грати', ...exact }).click();
+  await host.locator('.quiz-list li', { hasText: 'Дуелі' }).getByRole('button', { name: 'Провести', ...exact }).click();
   await host.waitForURL(/\/host\/\d{6}$/);
   const code = host.url().slice(-6);
   const stageUrl = await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href');
@@ -2576,7 +2576,7 @@ async function duelLayout() {
   expect(saved.ok(), await saved.text()).toBe(true);
 
   await host.goto(`${base}/quizzes`);
-  await click(host, 'Грати');
+  await click(host, 'Провести');
   await host.waitForURL(/\/host\/\d{6}$/);
   const code = host.url().slice(-6);
   const stageUrl = await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href');

@@ -114,7 +114,7 @@ async function merge66() {
   expect((await petro.request.post(`${base}/api/quizzes`, { data: makeQuiz(T_LOBBY) })).ok()).toBe(true);
   const lobby = async (host: Page, title: string) => {
     await host.goto(`${base}/quizzes`);
-    await host.locator('.quiz-list li', { hasText: title }).getByRole('button', { name: 'Грати', ...exact }).click();
+    await host.locator('.quiz-list li', { hasText: title }).getByRole('button', { name: 'Провести', ...exact }).click();
     await host.waitForURL(/\/host\/\d{6}$/);
     return host.url().slice(-6);
   };

@@ -4,7 +4,7 @@ import { blitzRound, classicRound, makeRoundsQuiz, truthRound } from '@quiz/engi
 import { eq } from 'drizzle-orm';
 import { type Page } from 'playwright-core';
 import { expect, it } from 'vitest';
-import { expectNoSideScroll, field, click, MENU, open, pickOption, register, socketFrames } from './helpers/common';
+import { expectNoSideScroll, field, click, MENU, open, pickOption, register, socketFrames, cardAction } from './helpers/common';
 import { ARTIFACTS, base, db, exact, flags, problems, shot, snapshot, useE2eServer } from './helpers/setup';
 import { challenge } from '../src/db/schema';
 
@@ -76,7 +76,7 @@ async function challenge44() {
   // ── 2. «🏁 Виклик»: що буде пропущено, створення, посилання, «Копіювати», рядок у списку. ──
   await olena.goto(`${base}/quizzes`);
   const item = olena.locator('.quiz-list li', { hasText: 'Річки 44' });
-  await item.getByRole('button', { name: '🏁 Виклик', ...exact }).click();
+  await cardAction(olena, 'Річки 44', '🏁 Виклик');
   const dialog = olena.getByRole('dialog', { name: 'Виклик другові', ...exact });
   await dialog.getByText('Буде пропущено те, що потребує кількох гравців:', exact).waitFor();
   const skipped = (await dialog.locator('.autopilot-changes li').allTextContents()).join(' | ');
@@ -115,7 +115,7 @@ async function challenge44() {
   await viewportShot(olena, 'p44-quizzes-line-viewport');
   // Знову «🏁 Виклик»: те саме посилання, «Копіювати» без заміни; «Новий виклик» — другорядна кнопка.
   await olena.evaluate(() => navigator.clipboard.writeText(''));
-  await item.getByRole('button', { name: '🏁 Виклик', ...exact }).click();
+  await cardAction(olena, 'Річки 44', '🏁 Виклик');
   const again = olena.getByRole('dialog', { name: 'Виклик другові', ...exact });
   await expect.poll(async () => again.getByLabel('Посилання на виклик', exact).inputValue().catch(() => '')).toBe(url);
   await again.getByRole('button', { name: 'Копіювати', ...exact }).click();
@@ -362,7 +362,7 @@ async function challenge44() {
 
   // ── 9. Автор замінює виклик: старе посилання завершено, таблиця старого відкривається Тарасу. ──
   await olena.goto(`${base}/quizzes`);
-  await olena.locator('.quiz-list li', { hasText: 'Річки 44' }).getByRole('button', { name: '🏁 Виклик', ...exact }).click();
+  await cardAction(olena, 'Річки 44', '🏁 Виклик');
   const dialog2 = olena.getByRole('dialog', { name: 'Виклик другові', ...exact });
   const linkNow = async () => CODE.exec(await dialog2.getByLabel('Посилання на виклик', exact).inputValue())![1]!;
   // Виклик уже прострочено: активного немає, тож кнопка — «Створити виклик».
@@ -373,7 +373,7 @@ async function challenge44() {
   expect(await dialog2.getByRole('button', { name: 'Новий виклик', ...exact }).count()).toBe(0);
   await dialog2.getByRole('button', { name: 'Закрити', ...exact }).click();
   await dialog2.waitFor({ state: 'detached' });
-  await olena.locator('.quiz-list li', { hasText: 'Річки 44' }).getByRole('button', { name: '🏁 Виклик', ...exact }).click();
+  await cardAction(olena, 'Річки 44', '🏁 Виклик');
   await expect.poll(linkNow).toBe(second);
   await dialog2.getByRole('button', { name: 'Новий виклик', ...exact }).click();
   await expect.poll(linkNow).not.toBe(second);

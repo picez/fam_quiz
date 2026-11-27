@@ -119,7 +119,7 @@ async function lobby50(tag: string, title: string, question: Record<string, unkn
   expect(saved.ok(), await saved.text()).toBe(true);
   await host.goto(`${base}/quizzes`);
   const hostFrames = socketFrames(host);
-  await host.locator('.quiz-list li', { hasText: title }).getByRole('button', { name: 'Грати', ...exact }).click();
+  await host.locator('.quiz-list li', { hasText: title }).getByRole('button', { name: 'Провести', ...exact }).click();
   await host.waitForURL(/\/host\/\d{6}$/);
   const code = host.url().slice(-6);
   const stageUrl = (await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href'))!;
@@ -199,7 +199,7 @@ async function editor50() {
   }
   const edit = async (title: string) => {
     await host.goto(`${base}/quizzes`);
-    await host.locator('.quiz-list li', { hasText: title }).getByRole('link', { name: 'Редагувати' }).click();
+    await host.locator('.quiz-list li', { hasText: title }).getByRole('link', { name: 'Змінити' }).click();
     await host.locator('main.editor').waitFor();
     await expect.poll(() => host.getByRole('textbox', { name: 'Загальне слово', ...exact }).inputValue().catch(() => ''), POLL).toBe('кава');
   };

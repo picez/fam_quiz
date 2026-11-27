@@ -55,7 +55,7 @@ async function reactions13a() {
   expect(saved.ok(), await saved.text()).toBe(true);
 
   await host.goto(`${base}/quizzes`);
-  await host.locator('.quiz-list li', { hasText: 'Реакції 13a' }).getByRole('button', { name: 'Грати', ...exact }).click();
+  await host.locator('.quiz-list li', { hasText: 'Реакції 13a' }).getByRole('button', { name: 'Провести', ...exact }).click();
   await host.waitForURL(/\/host\/\d{6}$/);
   const code = host.url().slice(-6);
   const stageUrl = (await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href'))!;
@@ -225,7 +225,7 @@ async function reactionLayout13a(sockets: Socket[]) {
   const saved = await host.request.post(`${base}/api/quizzes`, { data });
   expect(saved.ok(), await saved.text()).toBe(true);
   await host.goto(`${base}/quizzes`);
-  await host.locator('.quiz-list li', { hasText: 'Реакції 13a: макет' }).getByRole('button', { name: 'Грати', ...exact }).click();
+  await host.locator('.quiz-list li', { hasText: 'Реакції 13a: макет' }).getByRole('button', { name: 'Провести', ...exact }).click();
   await host.waitForURL(/\/host\/\d{6}$/);
   const code = host.url().slice(-6);
   const stageUrl = (await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href'))!;
@@ -354,7 +354,7 @@ async function savedGames13b() {
   expect(created.ok(), await created.text()).toBe(true);
 
   await host.goto(`${base}/quizzes`);
-  await host.locator('.quiz-list li', { hasText: TITLE }).getByRole('button', { name: 'Грати', ...exact }).click();
+  await host.locator('.quiz-list li', { hasText: TITLE }).getByRole('button', { name: 'Провести', ...exact }).click();
   await host.waitForURL(/\/host\/\d{6}$/);
   const code = host.url().slice(-6);
   const stage = await open('stage13b', 1280, 720);
@@ -650,7 +650,7 @@ async function prizes14a() {
   const created = await host.request.post(`${base}/api/quizzes`, { data });
   expect(created.ok(), await created.text()).toBe(true);
   await host.goto(`${base}/quizzes`);
-  await host.locator('.quiz-list li', { hasText: TITLE }).getByRole('button', { name: 'Грати', ...exact }).click();
+  await host.locator('.quiz-list li', { hasText: TITLE }).getByRole('button', { name: 'Провести', ...exact }).click();
   await host.waitForURL(/\/host\/\d{6}$/);
   const code = host.url().slice(-6);
   const stage = await open('stage14a', 1280, 720);
@@ -1004,7 +1004,7 @@ async function levels15a() {
   };
   const openGame = async () => {
     await host.goto(`${base}/quizzes`);
-    await host.locator('.quiz-list li', { hasText: TITLE }).getByRole('button', { name: 'Грати', ...exact }).click();
+    await host.locator('.quiz-list li', { hasText: TITLE }).getByRole('button', { name: 'Провести', ...exact }).click();
     await host.waitForURL(/\/host\/\d{6}$/);
     const code = host.url().slice(-6);
     await stage.goto((await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href'))!);
@@ -1203,7 +1203,7 @@ async function levels15a() {
 
   // ── 7. Вимикач у редакторі: без бонусів і без оберегу. ──
   await host.goto(`${base}/quizzes`);
-  await host.locator('.quiz-list li', { hasText: TITLE }).getByRole('link', { name: 'Редагувати' }).click();
+  await host.locator('.quiz-list li', { hasText: TITLE }).getByRole('link', { name: 'Змінити' }).click();
   await openGeneralFold(host, 'powers');
   const bonuses = host.locator('label.powers-item', { hasText: 'Бонуси рівнів' }).locator('input');
   expect(await bonuses.isChecked()).toBe(true);
@@ -1293,7 +1293,7 @@ async function survivalWatch16a() {
   expect(saved.ok(), await saved.text()).toBe(true);
 
   await host.goto(`${base}/quizzes`);
-  await host.locator('.quiz-list li', { hasText: 'Вибування 16a' }).getByRole('button', { name: 'Грати', ...exact }).click();
+  await host.locator('.quiz-list li', { hasText: 'Вибування 16a' }).getByRole('button', { name: 'Провести', ...exact }).click();
   await host.waitForURL(/\/host\/\d{6}$/);
   const code = host.url().slice(-6);
   const stageUrl = (await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href'))!;
@@ -1446,7 +1446,7 @@ async function listenOnPhone16b() {
   expect(saved.ok(), await saved.text()).toBe(true);
 
   await host.goto(`${base}/quizzes`);
-  await host.locator('.quiz-list li', { hasText: 'Прослухати 16b' }).getByRole('button', { name: 'Грати', ...exact }).click();
+  await host.locator('.quiz-list li', { hasText: 'Прослухати 16b' }).getByRole('button', { name: 'Провести', ...exact }).click();
   await host.waitForURL(/\/host\/\d{6}$/);
   const code = host.url().slice(-6);
   const stageUrl = (await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href'))!;

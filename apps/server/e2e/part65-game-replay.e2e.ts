@@ -108,7 +108,7 @@ async function replay65() {
   expect(saved.ok(), await saved.text()).toBe(true);
 
   await admin.goto(`${base}/quizzes`);
-  await admin.locator('.quiz-list li', { hasText: TITLE }).getByRole('button', { name: 'Грати', ...exact }).click();
+  await admin.locator('.quiz-list li', { hasText: TITLE }).getByRole('button', { name: 'Провести', ...exact }).click();
   await admin.waitForURL(/\/host\/\d{6}$/);
   const code = admin.url().slice(-6);
   // Оля, Петро й Марко — із акаунтами: після збереження гри й продовження кожен повертається на своє місце сам.

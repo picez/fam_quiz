@@ -139,7 +139,7 @@ async function groupQuestions12l() {
   await petro.locator('article.group-item', { hasText: GRANDMA }).waitFor();
 
   // ── 8. Гра: Петро з телефона відповідає на обидва запитання. ──
-  await olya.locator('.quiz-list li', { hasText: QUIZ }).getByRole('button', { name: 'Грати', ...exact }).click();
+  await olya.locator('.quiz-list li', { hasText: QUIZ }).getByRole('button', { name: 'Провести', ...exact }).click();
   await olya.waitForURL(/\/host\/\d{6}$/);
   const code = olya.url().slice(-6);
   await join(petro, code, 'Петро', false);
