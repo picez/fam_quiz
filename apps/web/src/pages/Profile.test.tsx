@@ -156,33 +156,32 @@ describe('Profile', () => {
     expect(before(invites, tiles())).toBe(true);
   });
 
-  it('has nine tiles leading to the sub-pages, with counts; the last one is the wide «Групи» (12k)', async () => {
+  it('79: groups the tiles into three labelled blocks — achievements, people, settings — with counts and the invites badge', async () => {
     const card = (id: string) => ({ id, name: 'Родина', emoji: '🌻' as const, description: '', role: 'member' as const, people: 2, items: 0, joinedAt: '2026-11-14T10:00:00.000Z' });
     vi.mocked(getGroups).mockResolvedValue({ ok: true, groups: [card('g1'), card('g2')], invites: [] });
     vi.mocked(getGroupInvites).mockResolvedValue({ ok: true, data: [{ group: { id: 'g3', name: 'Клас', emoji: '🎓', people: 3 }, from: null, at: '2026-11-14T10:00:00.000Z' }] });
     open();
     await screen.findByRole('navigation', { name: 'Розділи профілю' });
-    const wide = await screen.findByRole('link', { name: 'Групи, 2, Запрошень: 1' });
-    expect(wide.getAttribute('href')).toBe('/profile/groups');
-    expect(wide.classList.contains('is-wide')).toBe(true);
-    expect(wide.querySelector('.menu-badge')!.textContent).toBe('1');
-    expect([...tiles().querySelectorAll('a')].map((a) => a.getAttribute('href'))).toEqual([
-      '/profile/quizzes',
-      '/profile/prizes',
-      '/profile/achievements',
-      '/profile/friends',
-      '/profile/stats',
-      '/quizzes/liked',
-      '/profile/looks',
-      '/profile/settings',
-      '/profile/groups',
-    ]);
-    expect(screen.getByRole('link', { name: 'Вікторини, 5' }).getAttribute('href')).toBe('/profile/quizzes');
+    const groups = await screen.findByRole('link', { name: 'Групи, 2, Запрошень: 1' });
+    expect(groups.getAttribute('href')).toBe('/profile/groups');
+    expect(groups.querySelector('.menu-badge')!.textContent).toBe('1');
+    const blocks = [...tiles().querySelectorAll('section')];
+    expect(blocks.map((block) => block.querySelector('h2')!.textContent)).toEqual(['Мої здобутки', 'Люди', 'Налаштування']);
+    const hrefs = (block: Element) => [...block.querySelectorAll('a')].map((a) => a.getAttribute('href'));
+    expect(hrefs(blocks[0]!)).toEqual(['/profile/achievements', '/profile/prizes', '/profile/stats', '/profile/levels']);
+    expect(hrefs(blocks[1]!)).toEqual(['/profile/friends', '/profile/groups']);
+    expect(hrefs(blocks[2]!)).toEqual(['/profile/looks', '/profile/settings']);
+    // Кожен блок підписаний своїм заголовком.
+    expect(within(tiles()).getByRole('region', { name: 'Люди' })).toBe(blocks[1]);
     expect(screen.getByRole('link', { name: 'Призи, 2' }).getAttribute('href')).toBe('/profile/prizes');
     expect(screen.getByRole('link', { name: 'Досягнення, 1' }).getAttribute('href')).toBe('/profile/achievements');
+    expect(screen.getByRole('link', { name: 'Рівень' }).getAttribute('href')).toBe('/profile/levels');
     expect(screen.getByRole('link', { name: 'Друзі' }).getAttribute('href')).toBe('/profile/friends');
-    expect(screen.getByRole('link', { name: 'Налаштування' }).getAttribute('href')).toBe('/profile/settings');
-    expect(tiles().querySelectorAll('.tile-count')).toHaveLength(4);
+    expect(within(blocks[2]!).getByRole('link', { name: 'Налаштування' }).getAttribute('href')).toBe('/profile/settings');
+    // «Вікторини» є в меню, «Вподобані» — у вкладках «Вікторин»: у профілі їх немає (сторінка /profile/quizzes лишається за «Усі ›»).
+    expect(hrefs(tiles())).not.toContain('/profile/quizzes');
+    expect(hrefs(tiles())).not.toContain('/quizzes/liked');
+    expect(tiles().querySelectorAll('.tile-count')).toHaveLength(3);
   });
 
   it('after the tiles shows the trophy shelf and the achievements, with links to all', async () => {

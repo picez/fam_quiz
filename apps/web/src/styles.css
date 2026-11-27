@@ -3853,17 +3853,64 @@ button.match-item {
   hyphens: auto;
 }
 
-/* Плитки — по 4 в ряд на будь-якій ширині; довгі підписи (de, pl, ar) переносяться всередині плитки. */
+/*
+ * 79: плитки трьома блоками на сітці з 4 колонок — плитка однакової ширини в кожному блоці (як колишні «4 в ряд»):
+ * «Мої здобутки» на всю ширину, «Люди» й «Налаштування» — поряд по дві плитки; «Люди» з рядками ліги — на всю ширину.
+ * Довгі підписи (de, pl, ar) переносяться всередині плитки.
+ */
 .profile-tiles {
+  --tile-gap: 0.375rem;
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 0.375rem;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.75rem var(--tile-gap);
 }
 
 @media (max-width: 359px) {
   .profile-tiles {
-    gap: 0.25rem;
+    --tile-gap: 0.25rem;
   }
+}
+
+.profile-block {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  grid-column: span 2;
+  min-width: 0;
+}
+
+.profile-block-achievements,
+.profile-block-people.has-after {
+  grid-column: 1 / -1;
+}
+
+.profile-block-title {
+  margin: 0;
+  color: var(--dim);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.profile-block-tiles {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--tile-gap);
+}
+
+.profile-block-achievements .profile-block-tiles,
+.profile-block-people.has-after .profile-block-tiles {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+/* Бейдж запрошень у плитці «Групи» — у куті навпроти числа (і в RTL). */
+.profile-tile .menu-badge {
+  position: absolute;
+  inset-block-start: 0.25rem;
+  inset-inline-start: 0.375rem;
+  min-width: 1.125rem;
+  height: 1.125rem;
+  font-size: 0.6875rem;
 }
 
 .profile-tile {
@@ -24676,20 +24723,6 @@ input.sudoku-editor-cell:focus-visible {
 
 .hide-anti-status.error {
   color: var(--wrong);
-}
-
-/* Групи (12k): дев'ята плитка профілю — на всю ширину під вісьмома, значок і підпис в один рядок по центру (і в RTL). */
-.profile-tile.is-wide {
-  grid-column: 1 / -1;
-  flex-direction: row;
-  justify-content: center;
-  gap: 0.5rem;
-}
-
-.profile-tile.is-wide .menu-badge {
-  min-width: 1.125rem;
-  height: 1.125rem;
-  font-size: 0.6875rem;
 }
 
 /* «Групи» (12k): запрошення, картки груп, форма групи. */

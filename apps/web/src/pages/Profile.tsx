@@ -77,7 +77,6 @@ export function Profile() {
         />
         <ProfileTiles
           counts={{
-            quizzes: profile.quizzes.length,
             prizes: profile.showcase.awards.length,
             achievements: profile.achievements.filter((achievement) => achievement.earned).length,
           }}
