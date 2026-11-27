@@ -3,7 +3,7 @@ import { t } from './i18n';
 import { lightThemeOn, setThemeChoice, subscribeTheme } from './theme-mode';
 
 /** Сонце: світлу тему ввімкнено (кнопка натиснута). */
-function SunIcon() {
+export function SunIcon() {
   return (
     <svg viewBox="0 0 24 24" width="1em" height="1em" aria-hidden="true" focusable="false">
       <circle cx="12" cy="12" r="4.5" fill="currentColor" />
@@ -15,7 +15,7 @@ function SunIcon() {
 }
 
 /** Місяць: темна тема. */
-function MoonIcon() {
+export function MoonIcon() {
   return (
     <svg viewBox="0 0 24 24" width="1em" height="1em" aria-hidden="true" focusable="false">
       <path d="M20.5 14.5A8.5 8.5 0 0 1 9.5 3.5a8.5 8.5 0 1 0 11 11Z" fill="currentColor" />

@@ -6015,5 +6015,8 @@
   "playHelpHostLead": "تريد أن تقدّم لعبتك الخاصة؟",
   "playHelpNewTab": "كيف تلعب: تُفتح في علامة تبويب جديدة",
   "helpPlayersLead": "للاعبين صفحة قصيرة خاصة بهم:",
-  "settingsHelp": "المساعدة"
+  "settingsHelp": "المساعدة",
+  "siteLooksButton": "العرض",
+  "siteLooksTitle": "عرض الموقع",
+  "siteLooksLabel": "عرض الموقع: المظهر والوضع السهل"
 }

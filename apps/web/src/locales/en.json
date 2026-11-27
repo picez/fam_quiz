@@ -5707,5 +5707,8 @@
   "playHelpHostLead": "Want to host your own game?",
   "playHelpNewTab": "How to play — opens in a new tab",
   "helpPlayersLead": "Players have a short page of their own:",
-  "settingsHelp": "Help"
+  "settingsHelp": "Help",
+  "siteLooksButton": "Display",
+  "siteLooksTitle": "Site display",
+  "siteLooksLabel": "Site display: theme and easy mode"
 }

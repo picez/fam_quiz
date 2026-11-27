@@ -156,7 +156,8 @@ describe('Home for a signed-in person', () => {
     const play = screen.getByRole('link', { name: 'Як грати' });
     const help = screen.getByRole('link', { name: 'Довідка ведучого' });
     const easy = screen.getByLabelText('Легкий режим');
-    const theme = screen.getByLabelText('Тема');
+    // 80: «Вигляд сайту» — легкий режим одним дотиком і тема радіокнопками.
+    const theme = screen.getByRole('group', { name: 'Тема' });
     const report = screen.getByRole('link', { name: 'Повідомити про проблему' });
     const order = [field, host, next, lobbies, quick, play, help, easy, theme, report];
     for (let i = 1; i < order.length; i++) expect(position(order[i - 1]!, order[i]!), `step ${i}`).toBe(true);

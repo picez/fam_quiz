@@ -5784,5 +5784,8 @@
   "playHelpHostLead": "Vuoi condurre una tua partita?",
   "playHelpNewTab": "Come si gioca: si apre in una nuova scheda",
   "helpPlayersLead": "Per i giocatori c’è una pagina breve:",
-  "settingsHelp": "Aiuto"
+  "settingsHelp": "Aiuto",
+  "siteLooksButton": "Aspetto",
+  "siteLooksTitle": "Aspetto del sito",
+  "siteLooksLabel": "Aspetto del sito: tema e modalità facile"
 }

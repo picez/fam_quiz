@@ -5707,5 +5707,8 @@
   "playHelpHostLead": "Willst du selbst ein Spiel leiten?",
   "playHelpNewTab": "So wird gespielt – öffnet sich in einem neuen Tab",
   "helpPlayersLead": "Für Spieler gibt es eine kurze Seite:",
-  "settingsHelp": "Hilfe"
+  "settingsHelp": "Hilfe",
+  "siteLooksButton": "Anzeige",
+  "siteLooksTitle": "Anzeige der Seite",
+  "siteLooksLabel": "Anzeige der Seite: Design und einfacher Modus"
 }

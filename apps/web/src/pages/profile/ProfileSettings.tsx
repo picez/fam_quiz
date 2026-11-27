@@ -1,8 +1,7 @@
 import { useState, type JSX } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { signOut } from '../../api';
-import { EasyModeSwitch } from '../../EasyModeSwitch';
-import { ThemeSwitch } from '../../ThemeSwitch';
+import { AppearanceControls } from '../../appearance/AppearanceControls';
 import { forgetAccount } from '../../useAccount';
 import { t } from '../../i18n';
 import { LanguageSwitcher } from '../../locales/LanguageSwitcher';
@@ -60,11 +59,11 @@ export function ProfileSettings(): JSX.Element {
             )}
           </section>
           <LanguageSwitcher signedIn className="profile-section" />
-          <section className="profile-section settings-row">
-            <h2>{t('easyModeLabel')}</h2>
-            <EasyModeSwitch />
+          {/* 80: «Вигляд сайту» — той самий блок, що в меню компʼютера й унизу головної. */}
+          <section className="profile-section settings-row" aria-labelledby="settings-looks-title">
+            <h2 id="settings-looks-title">{t('siteLooksTitle')}</h2>
+            <AppearanceControls />
           </section>
-          <ThemeSwitch className="profile-section" />
           <PushSettings />
           <AdminPushSwitch className="profile-section" />
           <section className="profile-section settings-row">

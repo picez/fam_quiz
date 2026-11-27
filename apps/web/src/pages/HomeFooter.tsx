@@ -1,12 +1,11 @@
 import type { JSX } from 'react';
 import { Link } from 'react-router-dom';
-import { EasyModeSwitch } from '../EasyModeSwitch';
+import { AppearanceControls } from '../appearance/AppearanceControls';
 import { t } from '../i18n';
 import { ProblemLink } from '../problems/ProblemLink';
-import { ThemeSwitch } from '../ThemeSwitch';
 
 /**
- * Низ головної (78), і гостю, і акаунту: довідка, «Легкий режим», тема, «Повідомити про проблему».
+ * Низ головної (78), і гостю, і акаунту: довідки, «Вигляд сайту» (легкий режим і тема), «Повідомити про проблему».
  * Дві довідки поряд (80): «Як грати» для гравця (/help/play) і «Довідка ведучого» (/help).
  */
 export function HomeFooter(): JSX.Element {
@@ -20,8 +19,11 @@ export function HomeFooter(): JSX.Element {
           {t('helpLink')}
         </Link>
       </p>
-      <EasyModeSwitch />
-      <ThemeSwitch />
+      {/* 80: «Вигляд сайту» — легкий режим одним дотиком і тема; той самий блок, що й у поповері меню компʼютера. */}
+      <section className="home-looks" aria-labelledby="home-looks-title">
+        <h2 id="home-looks-title">{t('siteLooksTitle')}</h2>
+        <AppearanceControls />
+      </section>
       {/* Скаргу (64) може надіслати й гість. */}
       <ProblemLink className="quiet-link problem-link" />
     </section>

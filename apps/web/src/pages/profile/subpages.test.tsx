@@ -234,9 +234,11 @@ describe('«Налаштування»', () => {
     expect(within(help).getByRole('link', { name: 'Повідомити про проблему' }).getAttribute('href')).toBe('/report?from=%2Fprofile%2Fsettings');
   });
 
-  it('31: has the «Легкий режим» section with the account hint', async () => {
+  it('31: has «Легкий режим» with the account hint in the «Вигляд сайту» section (80), with the theme', async () => {
     open('/profile/settings');
-    expect(await screen.findByRole('heading', { level: 2, name: 'Легкий режим' })).toBeTruthy();
+    const looks = await screen.findByRole('region', { name: 'Вигляд сайту' });
+    expect(within(looks).getByRole('group', { name: 'Тема' })).toBeTruthy();
+    expect(within(looks).getByRole('checkbox', { name: 'Легкий режим' })).toBeTruthy();
     const box = await screen.findByRole('checkbox', { name: 'Легкий режим' });
     await waitFor(() =>
       expect(document.getElementById(box.getAttribute('aria-describedby') ?? '')?.textContent).toContain('Зберігається в профілі'),

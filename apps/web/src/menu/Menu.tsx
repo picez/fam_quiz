@@ -1,10 +1,10 @@
 import { useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { feedBadgeLabel, feedBadgeTotal } from '@quiz/shared';
+import { AppearanceMenu } from '../appearance/AppearanceMenu';
 import { refreshInbox, useInboxBadge } from '../inbox/useInboxBadge';
 import { t, type TextKey } from '../i18n';
 import { menuSection, type MenuSection } from '../nav/menu-section';
-import { ThemeToggle } from '../ThemeToggle';
 import { useAccount } from '../useAccount';
 import { useFeedBadge } from '../useFeedBadge';
 import { useGroupInvites } from '../useGroupInvites';
@@ -103,8 +103,9 @@ export function Menu() {
           )}
         </Link>
       )}
-      {/* Швидкий перемикач теми: на кожній сторінці з меню; повний вибір (з «Як у системі») — у налаштуваннях профілю. */}
-      <ThemeToggle className="menu-theme" />
+      {/* 80: «Вигляд» — тема й легкий режим в одному поповері; лише на компʼютері: на телефоні нижня панель без нього,
+          той самий блок — унизу головної й у налаштуваннях профілю. */}
+      <AppearanceMenu className="menu-looks" />
     </nav>
   );
 }

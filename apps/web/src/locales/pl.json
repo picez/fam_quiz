@@ -5808,5 +5808,8 @@
   "playHelpHostLead": "Chcesz poprowadzić własną grę?",
   "playHelpNewTab": "Jak grać — otworzy się w nowej karcie",
   "helpPlayersLead": "Dla graczy jest krótka strona:",
-  "settingsHelp": "Pomoc"
+  "settingsHelp": "Pomoc",
+  "siteLooksButton": "Wygląd",
+  "siteLooksTitle": "Wygląd strony",
+  "siteLooksLabel": "Wygląd strony: motyw i tryb łatwy"
 }

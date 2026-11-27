@@ -5784,5 +5784,8 @@
   "playHelpHostLead": "¿Quieres presentar tu propia partida?",
   "playHelpNewTab": "Cómo jugar: se abre en una pestaña nueva",
   "helpPlayersLead": "Para los jugadores hay una página breve:",
-  "settingsHelp": "Ayuda"
+  "settingsHelp": "Ayuda",
+  "siteLooksButton": "Aspecto",
+  "siteLooksTitle": "Aspecto del sitio",
+  "siteLooksLabel": "Aspecto del sitio: tema y modo fácil"
 }
