@@ -76,6 +76,8 @@ interface Props {
    * зберегти (без переходу на список), тоді запустити гру. Повертає текст помилки або null (тоді вже пішли на пульт).
    */
   onHost?: (changed: Quiz | null) => Promise<string | null>;
+  /** Початковий вміст — відновлена чернетка, якої ще немає на сервері: «Провести гру» спершу її зберігає (76). */
+  unsaved?: boolean;
   /** Лічильники лайків збереженої вікторини; без них сердець не видно. */
   likes?: QuizLikes;
   /** Збережена вікторина, що редагується: у банку запитань її рядки позначені «ця вікторина». */
@@ -91,9 +93,11 @@ export type EditorTab = 'general' | 'rounds';
  * Редактор «список і сцена»: зверху назва й правила, далі раунди; ліворуч список запитань, праворуч одне запитання
  * таким, яким його побачать гравці. На вузькому екрані список ховається за кнопку.
  */
-export function QuizEditor({ initial, heading, back, notice = null, onDraft, onSave, onCancel, onHost, likes, quizId, tab, onTabChange }: Props) {
+export function QuizEditor({ initial, heading, back, notice = null, onDraft, onSave, onCancel, onHost, unsaved = false, likes, quizId, tab, onTabChange }: Props) {
   const [quiz, setQuiz] = useState(initial);
   const [dirty, setDirty] = useState(false);
+  /** Відновлена чернетка ще не збережена (76): без цього «Провести гру» запустило б серверну версію, а не ту, що на екрані. */
+  const [restored, setRestored] = useState(unsaved);
   const [roundIndex, setRoundIndex] = useState(0);
   const [selected, setSelected] = useState(0);
   const [listOpen, setListOpen] = useState(false);
@@ -497,11 +501,15 @@ export function QuizEditor({ initial, heading, back, notice = null, onDraft, onS
   const host = async () => {
     if (onHost === undefined) return;
     setServerError(null);
-    if (dirty && !ready()) return;
+    const changed = dirty || restored;
+    if (changed && !ready()) return;
     setSaving(true);
-    const error = await onHost(dirty ? cleaned(quiz) : null);
+    const error = await onHost(changed ? cleaned(quiz) : null);
     setSaving(false);
-    if (error === null) setDirty(false);
+    if (error === null) {
+      setDirty(false);
+      setRestored(false);
+    }
     else setServerError(error);
   };
 
@@ -978,7 +986,7 @@ export function QuizEditor({ initial, heading, back, notice = null, onDraft, onS
         </button>
         {onHost !== undefined && (
           <button type="button" className="btn editor-host" disabled={saving} onClick={() => void host()}>
-            {t(dirty ? 'editorSaveAndHost' : 'editorHostGame')}
+            {t(dirty || restored ? 'editorSaveAndHost' : 'editorHostGame')}
           </button>
         )}
       </footer>

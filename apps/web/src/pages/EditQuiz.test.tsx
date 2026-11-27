@@ -214,6 +214,19 @@ describe('EditQuiz', () => {
     expect(createGame).not.toHaveBeenCalled();
   });
 
+  it('a restored draft is saved before hosting, not the server version (76)', async () => {
+    vi.mocked(getQuiz).mockResolvedValue({ ok: true, data: demoQuiz });
+    vi.mocked(updateQuiz).mockResolvedValue({ ok: true, id: 'q1' });
+    vi.mocked(createGame).mockResolvedValue({ ok: true, gameId: 'g1', code: '123456', hostToken: 'h', stageToken: 's' });
+    saveDraft('q1', { ...demoQuiz, title: 'Чернетка' });
+    open('/quizzes/q1');
+    await screen.findByDisplayValue('Чернетка');
+    fireEvent.click(screen.getByRole('button', { name: 'Зберегти й провести гру' }));
+    expect(await screen.findByText('пульт')).toBeTruthy();
+    expect(updateQuiz).toHaveBeenCalledWith('q1', expect.objectContaining({ title: 'Чернетка' }));
+    expect(vi.mocked(updateQuiz).mock.invocationCallOrder[0]).toBeLessThan(vi.mocked(createGame).mock.invocationCallOrder[0]!);
+  });
+
   it('a new quiz has no «Провести гру» (76)', async () => {
     open('/quizzes/new');
     await screen.findByLabelText('Назва вікторини');

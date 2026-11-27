@@ -191,6 +191,7 @@ export function EditQuiz() {
         onDraft={(quiz) => saveDraft(id, quiz)}
         onSave={save}
         onHost={host}
+        unsaved={draft !== null}
         onCancel={() => {
           clearGroupDrafts(id);
           clearDraft(id);
