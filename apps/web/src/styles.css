@@ -30797,3 +30797,37 @@ details.editor-card > summary {
 [data-route-focus]:focus {
   outline: none;
 }
+
+/* 76: «‹ Сторінка» на вкладених сторінках — пігулка зі словом; зона дотику не менша за 44 px. */
+.back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  align-self: flex-start;
+  min-block-size: 2.75rem;
+  padding: 0 0.9rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--paper);
+  line-height: 1.2;
+  text-decoration: none;
+}
+
+.back-link:hover {
+  border-color: var(--accent);
+}
+
+.back-link > .flip-rtl {
+  font-size: 1.4rem;
+  line-height: 1;
+}
+
+/* Окремим рядком над заголовком сторінки (поза шапкою підсторінки профілю). */
+main > .back-link {
+  margin-block-end: 0.75rem;
+}
+
+.profile-sub-head {
+  flex-wrap: wrap;
+}

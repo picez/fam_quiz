@@ -120,7 +120,7 @@ describe('MyGames', () => {
   it('explains how games get here when there are none', async () => {
     vi.mocked(myHistory).mockResolvedValue({ ok: true, data: [] });
     open();
-    expect(await screen.findByText(/Тут з’являться ігри, у які ви зіграли/)).toBeTruthy();
+    expect(await screen.findByText(/Тут з’являться ігри, у які ти зіграєш/)).toBeTruthy();
     expect(screen.queryByText(/перемог/)).toBeNull();
   });
 

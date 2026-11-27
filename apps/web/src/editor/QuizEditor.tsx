@@ -1,5 +1,5 @@
 import { LIMITS, allowedBuffs, questionsOf, roundQuestions, roundTrials, type Question, type QuestionBankItem, type Quiz, type QuizLikes, type Round } from '@quiz/shared';
-import { useDeferredValue, useEffect, useMemo, useReducer, useRef, useState, type FocusEvent } from 'react';
+import { useDeferredValue, useEffect, useMemo, useReducer, useRef, useState, type FocusEvent, type ReactNode } from 'react';
 import { EditorCard } from './EditorCard';
 import { IssuesPanel } from './IssuesPanel';
 import { remindersOf } from './reminders';
@@ -61,6 +61,8 @@ import { TeamsEditor } from './TeamsEditor';
 interface Props {
   initial: Quiz;
   heading: string;
+  /** «‹ Мої вікторини» над заголовком (76). */
+  back?: ReactNode;
   /** Повідомлення над формою, наприклад про відновлену чернетку. */
   notice?: string | null;
   /** Викликається після кожної зміни, щоб чернетку можна було зберегти про запас. */
@@ -83,7 +85,7 @@ export type EditorTab = 'general' | 'rounds';
  * Редактор «список і сцена»: зверху назва й правила, далі раунди; ліворуч список запитань, праворуч одне запитання
  * таким, яким його побачать гравці. На вузькому екрані список ховається за кнопку.
  */
-export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, onCancel, likes, quizId, tab, onTabChange }: Props) {
+export function QuizEditor({ initial, heading, back, notice = null, onDraft, onSave, onCancel, likes, quizId, tab, onTabChange }: Props) {
   const [quiz, setQuiz] = useState(initial);
   const [dirty, setDirty] = useState(false);
   const [roundIndex, setRoundIndex] = useState(0);
@@ -479,6 +481,7 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
 
   return (
     <main className="app editor">
+      {back}
       <h1 className="brand">{heading}</h1>
       {likes !== undefined && likes.quiz > 0 && <p className="meta">{t('quizLikesLine', { count: likes.quiz })}</p>}
       <a className="quiet-link help-link" href="/help" target="_blank" rel="noreferrer">

@@ -10,6 +10,7 @@ import { newId } from '../editor/new-id';
 import { QuizEditor, type EditorTab } from '../editor/QuizEditor';
 import { errorText, t } from '../i18n';
 import { useAccount } from '../useAccount';
+import { BackLink } from '../nav/BackLink';
 
 export function EditQuiz() {
   const { id } = useParams();
@@ -150,6 +151,7 @@ export function EditQuiz() {
       <QuizEditor
         initial={initial}
         heading={t(id === undefined ? 'editorNew' : 'editorEdit')}
+        back={<BackLink parent="/quizzes" />}
         likes={likes}
         quizId={id}
         tab={tab}

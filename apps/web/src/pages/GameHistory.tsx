@@ -1,5 +1,5 @@
 import { Fragment, type JSX } from 'react';
-import { Link, Navigate, useParams } from 'react-router-dom';
+import { Navigate, useParams } from 'react-router-dom';
 import { awaySeconds, cloudKey, factPercent, isUnscored, pinDistance, surveyHitsOf, surveyOrder, undoAnswerKey, undoLedger, type GameAdjustment, type GameDetail, type BluffInfo, type GameQuestionResult, type SurveyInfo, unpackStrokes } from '@quiz/shared';
 import { getGame } from '../api';
 import { answerText, choicesOf, correctText, formatDate, markText, num, pairTexts, questionName, roundLabel, secondsText, signed } from '../format';
@@ -24,6 +24,7 @@ import { historyUndoLines } from '../undo-panel';
 import { usePrivateData } from '../usePrivateData';
 import { ResultImageButton } from '../result-image/ResultImage';
 import { resultFromHistory } from '../result-image/data';
+import { BackLink } from '../nav/BackLink';
 
 /** Точки гравців на мініатюрі запитання-точки (відповіді на основне) і найближча з них; для інших типів — порожньо. */
 export function historyPinMarks(question: GameQuestionResult): { marks: PinBoardMark[]; nearest: string | undefined } {
@@ -333,9 +334,7 @@ export function GameHistory() {
 
   const back = (
     <header className="bar">
-      <Link className="quiet-link" to="/history">
-        {t('historyTitle')}
-      </Link>
+      <BackLink parent="/history" />
     </header>
   );
 

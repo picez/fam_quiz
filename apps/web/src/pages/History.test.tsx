@@ -157,7 +157,7 @@ describe('History', () => {
   it('explains what will appear here when there are no games yet', async () => {
     vi.mocked(listGames).mockResolvedValue({ ok: true, data: [] });
     open('/history');
-    expect(await screen.findByText(/Тут з’являться ігри, які ви провели/)).toBeTruthy();
+    expect(await screen.findByText(/Тут з’являться ігри, які ти проведеш/)).toBeTruthy();
   });
 
   it('switches between hosted and played games', () => {
@@ -228,7 +228,7 @@ describe('GameHistory', () => {
     expect(rows[0]).toContain('2000');
     expect(rows[0]).toContain('правильних: 2');
     expect(rows.some((row) => row?.includes('Столиця України?') && row.includes('відповіли 2, правильно 1'))).toBe(true);
-    expect(screen.getByRole('link', { name: 'Історія ігор' }).getAttribute('href')).toBe('/history');
+    expect(screen.getByRole('link', { name: 'Назад: Історія ігор' }).getAttribute('href')).toBe('/history');
     // Текст запитання й статистика стоять в окремих рядках: інакше на телефоні текст стискається.
     for (const list of screen.getAllByRole('list')) expect(list.className).toContain('stacked');
   });

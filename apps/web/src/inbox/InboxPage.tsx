@@ -6,6 +6,7 @@ import { formatDate } from '../format';
 import { t } from '../i18n';
 import { usePrivateData } from '../usePrivateData';
 import { setInboxUnread, useInboxBadge } from './useInboxBadge';
+import { BackLink } from '../nav/BackLink';
 
 const LOGIN = '/login?next=%2Finbox';
 
@@ -88,6 +89,7 @@ function InboxList({ page, onStale }: { page: InboxData; onStale: () => void }):
   }, [page]);
   return (
     <main className="app wide inbox-page">
+      <BackLink parent="/" />
       <h1>{t('inboxTitle')}</h1>
       {page.items.length === 0 ? (
         <p className="meta">{t('inboxEmpty')}</p>

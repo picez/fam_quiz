@@ -46,7 +46,7 @@ describe('CreateGame', () => {
     expect(await screen.findByRole('heading', { level: 1, name: 'Створити гру' })).toBeTruthy();
     expect(await screen.findByRole('heading', { level: 2, name: 'Географія' })).toBeTruthy();
     expect(screen.getByText('Запитань: 6')).toBeTruthy();
-    expect(screen.getByRole('link', { name: 'Назад' }).getAttribute('href')).toBe('/');
+    expect(screen.getByRole('link', { name: 'Назад: Головна' }).getAttribute('href')).toBe('/');
     expect(screen.getByRole('link', { name: 'Нова вікторина' }).getAttribute('href')).toBe('/quizzes/new');
     expect(screen.getByRole('link', { name: 'Автопілот, редагування — у «Мої вікторини»' }).getAttribute('href')).toBe('/quizzes');
   });

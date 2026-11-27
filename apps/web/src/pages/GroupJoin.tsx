@@ -6,6 +6,7 @@ import { countText, errorText, t } from '../i18n';
 import { nickText } from '../nick';
 import { loginFor } from '../profile/ProfileSubpage';
 import { useAccount } from '../useAccount';
+import { BackLink } from '../nav/BackLink';
 
 type Preview = { status: 'loading' } | { status: 'gone' } | { status: 'error'; message: string } | { status: 'ready'; group: GroupJoinPreview };
 
@@ -94,6 +95,7 @@ export function GroupJoin() {
 
   return (
     <main className="app group-join">
+      <BackLink parent="/profile/groups" />
       <h1 className="brand">{t('groupJoinTitle')}</h1>
       {body()}
     </main>

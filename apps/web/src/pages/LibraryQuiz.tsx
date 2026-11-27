@@ -7,6 +7,7 @@ import { LibraryFacts } from '../library/LibraryCardView';
 import { ReportDialog } from '../library/ReportDialog';
 import { copyLibrary, libraryQuiz, likeLibrary } from '../library/library-api';
 import { useAccount } from '../useAccount';
+import { BackLink } from '../nav/BackLink';
 
 /** /library/:id: назва, опис і раунди відкритої вікторини — без запитань і відповідей. */
 export function LibraryQuiz(): JSX.Element {
@@ -74,11 +75,7 @@ export function LibraryQuiz(): JSX.Element {
   const guest = account.status === 'anonymous';
   return (
     <main className="app wide library-quiz">
-      <p>
-        <Link className="quiet-link" to="/library">
-          ← {t('libraryTitle')}
-        </Link>
-      </p>
+      <BackLink parent="/library" />
       <h1 dir="auto">{quiz.title}</h1>
       <LibraryFacts card={{ ...quiz, likes }} />
       {quiz.description !== '' && (

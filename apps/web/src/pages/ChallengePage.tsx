@@ -10,6 +10,7 @@ import { nickText } from '../nick';
 import { loginFor } from '../profile/ProfileSubpage';
 import { saveAuthor, saveLastGame, savePlayer } from '../storage';
 import { useAccount } from '../useAccount';
+import { BackLink } from '../nav/BackLink';
 
 type Preview = { status: 'loading' } | { status: 'gone' } | { status: 'error'; message: string } | { status: 'ready'; challenge: ChallengePreview };
 type Results = { status: 'loading' } | { status: 'error'; message: string } | { status: 'ready'; rows: ChallengeResultRow[] };
@@ -132,6 +133,7 @@ export function ChallengePage() {
 
   return (
     <main className="app challenge-page">
+      <BackLink parent="/" />
       <h1 className="brand">{t('challengeTitle')}</h1>
       {body()}
     </main>
