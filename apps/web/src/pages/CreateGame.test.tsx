@@ -3,7 +3,7 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { forgetAccount } from '../useAccount';
-import { createGame, createQuiz, listQuizzes, me } from '../api';
+import { createGame, createQuiz, getGroups, listQuizzes, me, pickLeague } from '../api';
 import { demoQuiz } from '../demo-quiz';
 import { loadHost, loadLastGame } from '../storage';
 import { CreateGame } from './CreateGame';
@@ -14,6 +14,8 @@ vi.mock('../api', () => ({
   listQuizzes: vi.fn(),
   createQuiz: vi.fn(),
   createGame: vi.fn(),
+  getGroups: vi.fn(),
+  pickLeague: vi.fn(),
 }));
 
 const account = { ok: true as const, id: 'u1', name: 'Олена', email: 'o@example.com', admin: false };
@@ -29,9 +31,9 @@ beforeEach(() => {
 });
 afterEach(cleanup);
 
-const open = () =>
+const open = (path = '/create') =>
   render(
-    <MemoryRouter initialEntries={['/create']}>
+    <MemoryRouter initialEntries={[path]}>
       <Routes>
         <Route path="/create" element={<CreateGame />} />
         <Route path="/login" element={<p>сторінка входу</p>} />
@@ -41,6 +43,46 @@ const open = () =>
   );
 
 describe('CreateGame', () => {
+  const group = { id: 'g1', name: 'Родина', emoji: '🌻' as const, description: '', role: 'member' as const, people: 4, items: 0, joinedAt: '2026-11-14T10:00:00.000Z' };
+  const started = { ok: true as const, code: '123456', hostToken: 'h', stageToken: 's', gameId: 'x' };
+
+  it('79: ?group= of my group says the game goes to its league and picks it right after the start', async () => {
+    vi.mocked(getGroups).mockResolvedValue({ ok: true, groups: [group], invites: [] });
+    vi.mocked(createGame).mockResolvedValue(started as never);
+    vi.mocked(pickLeague).mockResolvedValue({ ok: true, data: { groupId: 'g1', groups: [] } });
+    open('/create?group=g1');
+    expect(await screen.findByText('Бали гри підуть у лігу групи «Родина». Змінити можна в лобі.')).toBeTruthy();
+    fireEvent.click(await screen.findByRole('button', { name: 'Почати гру' }));
+    expect(await screen.findByText('пульт')).toBeTruthy();
+    expect(pickLeague).toHaveBeenCalledWith('123456', 'g1');
+  });
+
+  it('79: a failed league pick still opens the host screen', async () => {
+    vi.mocked(getGroups).mockResolvedValue({ ok: true, groups: [group], invites: [] });
+    vi.mocked(createGame).mockResolvedValue(started as never);
+    vi.mocked(pickLeague).mockResolvedValue({ ok: false, error: 'offline' });
+    open('/create?group=g1');
+    await screen.findByText(/лігу групи/);
+    fireEvent.click(await screen.findByRole('button', { name: 'Почати гру' }));
+    expect(await screen.findByText('пульт')).toBeTruthy();
+  });
+
+  it('79: ?group= of a group I am not in is ignored', async () => {
+    vi.mocked(getGroups).mockResolvedValue({ ok: true, groups: [group], invites: [] });
+    vi.mocked(createGame).mockResolvedValue(started as never);
+    open('/create?group=g9');
+    fireEvent.click(await screen.findByRole('button', { name: 'Почати гру' }));
+    expect(await screen.findByText('пульт')).toBeTruthy();
+    expect(screen.queryByText(/лігу групи/)).toBeNull();
+    expect(pickLeague).not.toHaveBeenCalled();
+  });
+
+  it('79: no ?group= — the groups are not even asked', async () => {
+    open();
+    await screen.findByRole('button', { name: 'Почати гру' });
+    expect(getGroups).not.toHaveBeenCalled();
+  });
+
   it('a failed list shows the error with a retry, not an endless «Завантажуємо…» (76)', async () => {
     vi.mocked(listQuizzes).mockResolvedValueOnce({ ok: false, error: 'offline' });
     open();

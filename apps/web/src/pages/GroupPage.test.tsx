@@ -88,6 +88,12 @@ describe('GroupPage (12k)', () => {
     expect(screen.getByRole('tab', { name: 'Записи' }).getAttribute('aria-selected')).toBe('true');
   });
 
+  it('79: «Провести гру для групи» opens the game start with this group for the league', async () => {
+    open();
+    const host = await screen.findByRole('link', { name: 'Провести гру для групи' });
+    expect(host.getAttribute('href')).toBe('/create?group=g1');
+  });
+
   it('?tab=league opens the league table, and the tab switches to it', async () => {
     vi.mocked(groupLeague).mockResolvedValue({
       ok: true,

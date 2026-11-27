@@ -67,6 +67,20 @@ describe('Groups (12k)', () => {
     expect(links[1]!.textContent).not.toContain('керує групою');
   });
 
+  it('79: a group with a league this month shows my place and month points on its card', async () => {
+    vi.mocked(getGroups).mockResolvedValue({
+      ok: true,
+      groups: [card('g1', { league: { place: 2, points: 17 } }), card('g2', { league: { place: null, points: 0 } }), card('g3')],
+      invites: [],
+    });
+    const { container } = open();
+    await screen.findByRole('heading', { name: 'Група g1' });
+    const links = [...container.querySelectorAll('ul.group-cards a')];
+    expect(links[0]!.textContent).toContain('Ліга: місце 2 · бали місяця: 17');
+    expect(links[1]!.textContent).toContain('Ліга: цього місяця ще без балів');
+    expect(links[2]!.textContent).not.toContain('Ліга');
+  });
+
   it('«Приєднатися» accepts the invite and opens the group', async () => {
     open();
     fireEvent.click(await screen.findByRole('button', { name: 'Приєднатися' }));

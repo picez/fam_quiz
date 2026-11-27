@@ -184,6 +184,18 @@ describe('Profile', () => {
     expect(tiles().querySelectorAll('.tile-count')).toHaveLength(3);
   });
 
+  it('79: «Люди» lists the league of every group that has one this month, linking to its league tab', async () => {
+    const card = (id: string, name: string, league?: { place: number | null; points: number }) => ({ id, name, emoji: '🌻' as const, description: '', role: 'member' as const, people: 2, items: 0, joinedAt: '2026-11-14T10:00:00.000Z', ...(league ? { league } : {}) });
+    vi.mocked(getGroups).mockResolvedValue({ ok: true, groups: [card('g1', 'Родина', { place: 1, points: 20 }), card('g2', 'Клас')], invites: [] });
+    open();
+    const people = await screen.findByRole('region', { name: 'Люди' });
+    const line = await within(people).findByRole('link', { name: /Родина/ });
+    expect(line.getAttribute('href')).toBe('/profile/groups/g1?tab=league');
+    expect(line.textContent).toBe('🏆 🌻 Родина — Ліга: місце 1 · бали місяця: 20');
+    expect(within(people).queryByRole('link', { name: /Клас/ })).toBeNull();
+    expect(people.classList.contains('has-after')).toBe(true);
+  });
+
   it('after the tiles shows the trophy shelf and the achievements, with links to all', async () => {
     open();
     const nav = await screen.findByRole('navigation', { name: 'Розділи профілю' });

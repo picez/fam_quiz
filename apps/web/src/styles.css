@@ -24885,6 +24885,50 @@ input.sudoku-editor-cell:focus-visible {
   overflow-wrap: anywhere;
 }
 
+/* 79: місце в лізі на картці групи; «Провести гру для групи» — під описом, підпис переноситься, а не обрізається. */
+.group-card-league {
+  color: var(--link);
+  overflow-wrap: anywhere;
+}
+
+.group-host {
+  max-width: 100%;
+  margin-block-start: 0.5rem;
+  white-space: normal;
+  text-align: center;
+}
+
+/* 79: рядки ліги в блоці «Люди» профілю. */
+.profile-league {
+  display: grid;
+  gap: 0.25rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.profile-league a {
+  display: block;
+  padding: 0.375rem 0.5rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--paper);
+  font-size: 0.875rem;
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+
+.profile-league a:hover {
+  border-color: var(--accent);
+}
+
+/* 79: «Провести гру» для ліги групи. */
+.create-for-group {
+  margin: 0 0 0.75rem;
+  overflow-wrap: anywhere;
+}
+
 .group-tabs,
 .group-kind-chips,
 .item-kind-tabs,

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState, type JSX } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { checkCode, continueGame, createGame, createQuiz } from './api';
+import { checkCode, continueGame, createGame, createQuiz, pickLeague } from './api';
 import { demoQuiz } from './demo-quiz';
 import type { RunningGame } from './home-next';
 import { t } from './i18n';
@@ -8,16 +8,18 @@ import { clearLastGame, loadAuthor, loadHost, loadLastGame, saveAuthor, saveHost
 
 /**
  * «Почати гру» з вікторини (спільне для «Мої вікторини» і /create): createGame → saveHost → saveLastGame → пульт ведучого.
- * Повертає null після переходу або код помилки сервера.
+ * leagueGroupId (79, «Провести гру для групи») — одразу вибрати лігу цієї групи тим самим запитом, що й панель лобі;
+ * збій вибору гру не зупиняє: ведучий бачить вибір у лобі. Повертає null після переходу або код помилки сервера.
  */
-export function useStartGame(): (quizId: string) => Promise<string | null> {
+export function useStartGame(): (quizId: string, leagueGroupId?: string | null) => Promise<string | null> {
   const navigate = useNavigate();
   return useCallback(
-    async (quizId: string) => {
+    async (quizId: string, leagueGroupId?: string | null) => {
       const result = await createGame(quizId);
       if (!result.ok) return result.error;
       saveHost(result.code, { hostToken: result.hostToken, stageToken: result.stageToken });
       saveLastGame(result.code);
+      if (leagueGroupId !== undefined && leagueGroupId !== null) await pickLeague(result.code, leagueGroupId).catch(() => null);
       navigate(`/host/${result.code}`);
       return null;
     },
