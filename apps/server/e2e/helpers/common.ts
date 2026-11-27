@@ -290,7 +290,8 @@ export const stat = (page: Page, label: string) =>
 
 export async function register(page: Page, via: 'host' | 'menu', name: string, email: string) {
   await page.goto(base);
-  if (via === 'host') await page.getByRole('link', { name: 'Я ведучий' }).click();
+  // 78: гість іде «Увійти, щоб проводити свої ігри»; після входу — головна.
+  if (via === 'host') await page.getByRole('link', { name: 'Увійти, щоб проводити свої ігри', ...exact }).click();
   else await page.locator(MENU).getByRole('link', { name: 'Увійти' }).click();
   await click(page, 'Створити акаунт');
   await field(page, 'Ваше ім’я').fill(name);
@@ -298,6 +299,11 @@ export async function register(page: Page, via: 'host' | 'menu', name: string, e
   await field(page, 'Пароль').fill('correct horse battery');
   await click(page, 'Зареєструватися');
   await page.locator(MENU).getByRole('link', { name: 'Профіль' }).waitFor();
+  // Ведучий далі працює з «Моїми вікторинами», як і до 78 (тоді вхід вів туди сам).
+  if (via === 'host') {
+    await page.locator(MENU).getByRole('link', { name: 'Вікторини' }).click();
+    await page.waitForURL(/\/quizzes$/);
+  }
 }
 
 export async function myId(page: Page): Promise<string> {

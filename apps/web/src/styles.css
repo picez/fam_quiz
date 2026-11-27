@@ -3920,6 +3920,11 @@ button.match-item {
   overflow-wrap: anywhere;
 }
 
+/* Поле коду на головній: у легкому режимі (19 px) на 320 px «000 000» не влазило — шрифт не більший за 7.5vw. */
+.join-form .code-input {
+  font-size: min(1.75rem, 7.5vw) !important;
+}
+
 /* Гостю: два рядки «що це за сайт» над полем коду. */
 .home-about {
   display: grid;
@@ -3973,6 +3978,17 @@ button.match-item {
 
 .quick-start h2 {
   margin: 0;
+}
+
+/* Заголовок переноситься між словами, а не посеред слова; «Усі вікторини ›» за потреби — під ним. */
+.quick-start .profile-section-head {
+  flex-wrap: wrap;
+  row-gap: 0.25rem;
+}
+
+.quick-start .profile-section-head h2 {
+  min-width: auto;
+  overflow-wrap: normal;
 }
 
 .quick-list {

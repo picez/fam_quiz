@@ -587,7 +587,7 @@ it('part 23a: blood moon — five menu items fit 320–1280 px in all seven lang
   }
 });
 
-it('part 24a: start menu — a signed-in player sees the two big buttons and six tiles on «/» that fit 320 and 1280 px in Ukrainian and Arabic without side scroll, «Створити гру» → «Почати гру» opens the host room, «Приєднатися» with the code brings Оля to the lobby, and a guest on «/» still gets the code form', async () => {
+it('part 24a (78): home — the code field is open at once with «Провести гру» under it, no menu tiles, quick start hosts a quiz; 320, 375 and 1280 px in uk and ar, easy mode and the light theme without side scroll; «Провести гру» → «Почати гру» opens the host room, the code brings Оля to the lobby, a guest gets the site explained, the library and sign-in', async () => {
   try {
     await startMenu24a();
   } catch (error) {
@@ -597,47 +597,66 @@ it('part 24a: start menu — a signed-in player sees the two big buttons and six
 });
 
 async function startMenu24a() {
-  const START = 'nav.start-menu';
-  const TILES = ['Друзі', 'Стрічка', 'Вікторини', 'Бібліотека', 'Історія', 'Профіль'];
   const host = await open('host24a', 1280, 800);
   const olya = await open('olya24a', 375, 812);
   await register(host, 'menu', 'Ведуча 24a', 'host24a@example.com');
   await register(olya, 'menu', 'Оля 24a', 'olya24a@example.com');
+  const own = await olya.request.post(`${base}/api/quizzes`, { data: { ...makeQuiz([single], { speedBonus: false }), title: 'Вікторина Олі 24a' } });
+  expect(own.ok(), await own.text()).toBe(true);
 
-  // ── 1. Дві кнопки над меню й шість плиток у порядку; 320 і 1280 px у uk та ar без бокового скролу; ar — дзеркально. ──
+  /** Що не влазить: елементи головної, ширші за свій вміст (обрізаний підпис кнопки). */
+  const clippedButtons = (page: Page) =>
+    page.locator('main .btn').evaluateAll((buttons) => buttons.filter((el) => el.scrollWidth > el.clientWidth + 1).map((el) => el.textContent));
+
+  // ── 1. Поле коду одразу, «Провести гру» під ним, «Швидкий запуск»; без плиток; uk і ar; 320/375/1280. ──
   for (const lang of ['uk', 'ar'] as const) {
     expect((await olya.request.put(`${base}/api/me/locale`, { data: { locale: lang } })).status()).toBe(200);
     for (const width of [320, 375, 1280]) {
       await olya.setViewportSize({ width, height: 812 });
       await olya.goto(base);
       await expect.poll(() => htmlLang(olya), POLL).toBe(lang);
-      await olya.locator(`${START} > *`).nth(5).waitFor();
-      expect(await olya.locator(`${START} > *`).count()).toBe(6);
-      const actions = await olya.locator('.home-actions').evaluate((el) => [...el.children].map((child) => ({ text: child.textContent, top: child.getBoundingClientRect().top })));
-      expect(actions.length, `p24a-${lang}-${width}: two buttons`).toBe(2);
-      expect(actions[0]!.top, `p24a-${lang}-${width}: the buttons are side by side`).toBe(actions[1]!.top);
-      expect(actions[0]!.top, `p24a-${lang}-${width}: the buttons are above the tiles`).toBeLessThan((await olya.locator(START).boundingBox())!.y);
-      if (lang === 'uk') expect(actions.map((a) => a.text)).toEqual(['Провести гру', 'Приєднатися']);
-      if (lang === 'uk') expect(await olya.locator(`${START} .start-label`).allTextContents()).toEqual(TILES);
+      const code = olya.locator('main form.join-form input.code-input');
+      await code.waitFor();
+      const hostButton = olya.locator('main a.home-host');
+      await hostButton.waitFor();
+      await olya.locator('main section.quick-start').waitFor();
+      expect((await code.boundingBox())!.y, `p24a-${lang}-${width}: «Провести гру» under the code field`).toBeLessThan((await hostButton.boundingBox())!.y);
+      if (lang === 'uk') expect(await hostButton.textContent()).toBe('Провести гру');
+      expect(await olya.locator('nav.start-menu').count()).toBe(0);
+      expect(await olya.locator('.home-actions').count()).toBe(0);
       expect(await noSideScroll(olya), `p24a-${lang}-${width}: horizontal scroll`).toBe(true);
-      const clipped = await olya.locator(`${START} > *`).evaluateAll((tiles) => tiles.filter((tile) => tile.scrollWidth > tile.clientWidth).map((tile) => tile.textContent));
-      expect(clipped, `p24a-${lang}-${width}: clipped tiles`).toEqual([]);
-      const boxes = await olya.locator(`${START} > *`).evaluateAll((tiles) => tiles.map((tile) => tile.getBoundingClientRect()).map((r) => ({ left: Math.round(r.left), top: Math.round(r.top), width: Math.round(r.width) })));
-      const columns = new Set(boxes.slice(0, 3).map((box) => box.top)).size === 1 ? 3 : 2;
-      expect(columns, `p24a-${lang}-${width}: columns`).toBe(width > 700 ? 3 : 2);
-      // На телефоні шість плиток — три рівні рядки по дві.
-      if (width <= 700) expect(new Set(boxes.map((box) => box.top)).size).toBe(3);
-      if (lang === 'ar') expect(boxes[0]!.left, `p24a-ar-${width}: the first tile is right of the second`).toBeGreaterThan(boxes[1]!.left);
-      await shot(olya, `p24a-start-${lang}-${width}`);
+      expect(await clippedButtons(olya), `p24a-${lang}-${width}: clipped buttons`).toEqual([]);
+      await shot(olya, `p24a-home-${lang}-${width}`);
     }
   }
   expect((await olya.request.put(`${base}/api/me/locale`, { data: { locale: 'uk' } })).status()).toBe(200);
 
-  // ── 2. «Створити гру» → «Почати гру» відкриває кімнату ведучого. ──
+  // ── 2. Простий режим і світла тема на 320 px. ──
+  await olya.setViewportSize({ width: 320, height: 812 });
+  for (const [name, setUp] of [
+    ['easy', "localStorage.setItem('quiz:easy', 'on')"],
+    ['light', "localStorage.setItem('quiz:easy', 'off'); localStorage.setItem('quiz:theme', 'light')"],
+    ['light-easy', "localStorage.setItem('quiz:easy', 'on'); localStorage.setItem('quiz:theme', 'light')"],
+  ] as const) {
+    await olya.goto(base);
+    await olya.evaluate(setUp);
+    await olya.reload();
+    await olya.locator('main section.quick-start').waitFor();
+    await olya.locator('main .home-footer').waitFor();
+    if (name !== 'light') await expect.poll(() => olya.evaluate("document.documentElement.classList.contains('is-easy')"), POLL).toBe(true);
+    if (name !== 'easy') await expect.poll(() => olya.evaluate("document.documentElement.classList.contains('is-light')"), POLL).toBe(true);
+    expect(await noSideScroll(olya), `p24a-${name}-320: horizontal scroll`).toBe(true);
+    expect(await clippedButtons(olya), `p24a-${name}-320: clipped buttons`).toEqual([]);
+    await shot(olya, `p24a-home-${name}-320`);
+  }
+  await olya.evaluate("localStorage.setItem('quiz:easy', 'off'); localStorage.removeItem('quiz:theme')");
+  await olya.setViewportSize({ width: 375, height: 812 });
+
+  // ── 3. «Провести гру» → «Почати гру» відкриває кімнату ведучого. ──
   const saved = await host.request.post(`${base}/api/quizzes`, { data: { ...makeQuiz([single], { speedBonus: false }), title: 'Старт 24a' } });
   expect(saved.ok(), await saved.text()).toBe(true);
   await host.goto(base);
-  await host.locator('.home-actions').getByRole('link', { name: 'Провести гру', ...exact }).click();
+  await host.locator('main a.home-host').click();
   await host.waitForURL(`${base}/create`);
   await host.getByRole('heading', { level: 1, name: 'Провести гру', ...exact }).waitFor();
   await host.getByRole('heading', { level: 2, name: 'Старт 24a', ...exact }).waitFor();
@@ -646,17 +665,11 @@ async function startMenu24a() {
   await host.waitForURL(/\/host\/\d{6}$/);
   const code = host.url().slice(-6);
 
-  // ── 3. «Приєднатися» з кодом — у лобі. ──
-  await olya.setViewportSize({ width: 375, height: 812 });
+  // ── 4. Код у полі головної — без жодного дотику до «Приєднатися» — і Оля в лобі. ──
   await olya.goto(base);
   await expect.poll(() => htmlLang(olya), POLL).toBe('uk');
-  const joinTile = olya.getByRole('button', { name: 'Приєднатися', ...exact });
-  await joinTile.waitFor();
-  expect(await field(olya, 'Код гри').count()).toBe(0);
-  await joinTile.click();
-  expect(await joinTile.getAttribute('aria-expanded')).toBe('true');
+  expect(await olya.getByRole('button', { name: 'Приєднатися', ...exact }).count()).toBe(0);
   await field(olya, 'Код гри').fill(code);
-  await shot(olya, 'p24a-join-open');
   await click(olya, 'Увійти');
   await olya.waitForURL(`${base}/play/${code}`);
   const nick = field(olya, 'Ваше ім’я');
@@ -666,13 +679,25 @@ async function startMenu24a() {
   await olya.getByText('Ви в грі. Чекаємо на старт.').waitFor();
   await host.getByText('Оля 24a').first().waitFor();
 
-  // ── 4. Гість на «/» бачить форму коду й «Я ведучий», без стартового меню. ──
+  // ── 5. «Швидкий запуск»: «Провести» одразу відкриває пульт. ──
+  const quick = await open('quick24a', 375, 812);
+  await quick.context().addCookies(await olya.context().cookies());
+  await quick.goto(base);
+  await quick.getByRole('button', { name: 'Провести: Вікторина Олі 24a', ...exact }).click();
+  await quick.waitForURL(/\/host\/\d{6}$/);
+
+  // ── 6. Гість на «/»: що це за сайт, поле коду, бібліотека й вхід; без плиток. ──
   const guest = await open('guest24a', 320, 700);
   await guest.goto(base);
   await field(guest, 'Код гри').waitFor();
-  await guest.getByRole('link', { name: 'Я ведучий' }).waitFor();
-  expect(await guest.locator(START).count()).toBe(0);
+  await guest.getByText('Сімейні вікторини: один проводить гру на великому екрані, а всі відповідають зі своїх телефонів.', exact).waitFor();
+  expect(await guest.getByRole('link', { name: 'Переглянути бібліотеку', ...exact }).getAttribute('href')).toBe('/library');
+  expect(await guest.getByRole('link', { name: 'Увійти, щоб проводити свої ігри', ...exact }).getAttribute('href')).toBe('/login');
+  expect(await guest.locator('nav.start-menu').count()).toBe(0);
+  expect(await guest.getByRole('link', { name: 'Я ведучий' }).count()).toBe(0);
   expect(await noSideScroll(guest)).toBe(true);
+  expect(await clippedButtons(guest), 'p24a-guest-320: clipped buttons').toEqual([]);
+  await shot(guest, 'p24a-guest-320');
 }
 
 it('part 24b: liked quizzes — Оля sees the quizzes she liked newest first with the author link and her liked question texts, a deleted quiz stays as «Вікторину видалено», the author sees «Сподобались іншим» with totals, people and top questions that open the editor, Петро gets the empty hints, the tabs work from the keyboard, 320 px in uk and ar has no side scroll, and the public profile shows no lists', async () => {
@@ -870,8 +895,7 @@ async function lobbyList24c() {
   const listOf = async (page: Page, lang = 'uk') => {
     await page.goto(base);
     await expect.poll(() => htmlLang(page), POLL).toBe(lang);
-    if (lang === 'uk') await (await homeCodeField(page)).waitFor();
-    else await page.locator('.home-actions button').click();
+    await (await homeCodeField(page)).waitFor();
     await page.locator('section.lobby-list').waitFor();
     return page.locator('section.lobby-list');
   };
