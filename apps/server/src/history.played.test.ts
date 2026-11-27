@@ -128,4 +128,30 @@ describe('played game for its player (79)', () => {
     expect(JSON.stringify(detail)).not.toContain('Дніпро');
     expect(JSON.stringify(detail)).not.toContain('Лавра');
   });
+  it('a team named like a player of another team does not mix their answers (team names and nicknames may match)', async () => {
+    // Сині названо «Оля»: рядки відповідей підписані нікнеймом, тож збіг назви команди з ніком людини не має давати чужих рядків.
+    const t = await recordedTeamGame(makeRoundsQuiz([classicRound('r1', [single, cloud], { speedBonus: false })], { teams: { count: 2, names: ['Червоні', 'Оля'] } }));
+    const { manager, room, members } = t;
+    toQuestion(manager, room);
+    expect(manager.answer(room, members['Оля']!, { type: 'single', optionId: 'b' })).toEqual({ ok: true });
+    expect(manager.answer(room, members['Віра']!, { type: 'single', optionId: 'a' })).toEqual({ ok: true });
+    toQuestion(manager, room);
+    for (const [name, word] of [
+      ['Оля', 'каштани'],
+      ['Віра', 'Лавра'],
+    ] as const) {
+      expect(manager.answer(room, members[name]!, { type: 'wordcloud', words: [word] })).toEqual({ ok: true });
+    }
+    toEnd(manager, room);
+    await t.recorder.idle();
+    expect(t.errors).toEqual([]);
+
+    const olya = await playedGameDetail(t.db, TEAM_USERS.Оля, room.id);
+    expect(olya!.questions[0]!.mine.map((a) => a.answer)).toEqual([{ type: 'single', optionId: 'b' }]);
+    expect(olya!.questions[1]!.mine.map((a) => a.answer)).toEqual([{ type: 'wordcloud', words: ['каштани'] }]);
+    const vira = await playedGameDetail(t.db, TEAM_USERS.Віра, room.id);
+    expect(vira!.team).toBe('Оля');
+    expect(vira!.questions[0]!.mine.map((a) => a.answer)).toEqual([{ type: 'single', optionId: 'a' }]);
+    expect(vira!.questions[1]!.mine.map((a) => a.answer)).toEqual([{ type: 'wordcloud', words: ['Лавра'] }]);
+  });
 });

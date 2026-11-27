@@ -1179,15 +1179,17 @@ export async function playedGameDetail(db: Db, userId: string, id: string): Prom
   if (found === null) return null;
   const { detail } = found;
   const playing = detail.standings.find((row) => row.participantId === (own.teamId ?? own.id));
-  // Нікнейми в кімнаті різні: рядки відповідей у деталях підписані ніком свого учасника (команди чи людини).
-  const names = new Set([own.nickname, ...(own.teamId !== null && playing !== undefined ? [playing.nickname] : [])]);
+  // Рядки відповідей у деталях підписані ніком: у командній грі рядки запитань з балами — команд, голоси — людей.
+  // Назва команди може збігатися з ніком людини іншої команди, тож для кожного запитання — лише один нік, як у деталях.
+  const team = own.teamId === null ? null : (playing?.nickname ?? null);
+  const mineAs = (question: Question) => (own.teamId === null || isUnscored(question) ? own.nickname : team);
   return {
     gameId: detail.id,
     title: detail.title,
     startedAt: detail.startedAt,
     autopilot: detail.autopilot,
     nickname: own.nickname,
-    team: own.teamId === null ? null : (playing?.nickname ?? null),
+    team,
     teams: detail.teams,
     rank: playing?.rank ?? null,
     score: playing?.score ?? 0,
@@ -1205,7 +1207,7 @@ export async function playedGameDetail(db: Db, userId: string, id: string): Prom
       text: q.text,
       type: q.type,
       question: q.question,
-      mine: q.responses.filter((r) => names.has(r.nickname)).map((r) => ({ answer: r.answer, accepted: r.accepted, spare: r.spare })),
+      mine: q.responses.filter((r) => r.nickname === mineAs(q.question)).map((r) => ({ answer: r.answer, accepted: r.accepted, spare: r.spare })),
     })),
   };
 }
