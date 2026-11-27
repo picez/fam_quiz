@@ -1,8 +1,7 @@
-import { useEffect, useState, type FormEvent, type JSX } from 'react';
-import { useSearchParams } from 'react-router-dom';
-import { PROBLEM_TEXT_MAX, type MyProblemReport } from '@quiz/shared';
-import { myProblemReports, sendProblemReport } from '../api';
-import { formatDate } from '../format';
+import { useState, type FormEvent, type JSX } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
+import { PROBLEM_TEXT_MAX } from '@quiz/shared';
+import { sendProblemReport } from '../api';
 import { errorText, t } from '../i18n';
 import { LOCALE_NAMES } from '../locales/locales';
 import { useAccount } from '../useAccount';
@@ -18,36 +17,19 @@ function reportParent(from: string): string {
   return path === '/report' || pageTitle(path) === null ? '/' : from;
 }
 
-type Mine = { status: 'loading' } | { status: 'ready'; items: MyProblemReport[] } | { status: 'error'; error: string };
-
 /**
  * /report (64): «Щось не працює?» — текст до 1000 символів і (за бажанням) відомості про сторінку, з якої людина прийшла
- * (?from=, лише шлях). Надіслати може й гість; акаунт бачить «Мої повідомлення» з відповідями адміністратора.
+ * (?from=, лише шлях). Надіслати може й гість; акаунт має посилання на «Мої звернення» з відповідями адміністратора (80).
  */
 export function ProblemReport(): JSX.Element {
   const [params] = useSearchParams();
   const from = params.get('from') ?? '/report';
   const account = useAccount();
-  const accountId = account.status === 'signed-in' ? account.account.id : null;
   const [text, setText] = useState('');
   const [attach, setAttach] = useState(true);
   const [busy, setBusy] = useState(false);
   const [sent, setSent] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [mine, setMine] = useState<Mine>({ status: 'loading' });
-  const [reload, setReload] = useState(0);
-
-  useEffect(() => {
-    if (accountId === null) return;
-    let current = true;
-    void myProblemReports().then((result) => {
-      if (!current) return;
-      setMine(result.ok ? { status: 'ready', items: result.data } : { status: 'error', error: result.error });
-    });
-    return () => {
-      current = false;
-    };
-  }, [accountId, reload]);
 
   const page = pageSnapshot(from);
   // 70: момент гри, з якої людина прийшла (той самий код кімнати, не старший за 30 хв).
@@ -68,7 +50,6 @@ export function ProblemReport(): JSX.Element {
     setText('');
     if (game !== null) clearMoment();
     setSent(true);
-    setReload((n) => n + 1);
   };
 
   return (
@@ -129,33 +110,11 @@ export function ProblemReport(): JSX.Element {
           </button>
         </div>
       </form>
-      {accountId !== null && (
-        <section className="panel problem-mine" aria-labelledby="problem-mine-title">
-          <h2 id="problem-mine-title">{t('problemMine')}</h2>
-          {mine.status === 'loading' && <p className="meta">{t('loading')}</p>}
-          {mine.status === 'error' && <p className="meta">{errorText(mine.error)}</p>}
-          {mine.status === 'ready' && mine.items.length === 0 && <p className="meta">{t('problemMineEmpty')}</p>}
-          {mine.status === 'ready' && mine.items.length > 0 && (
-            <ul className="problem-mine-list">
-              {mine.items.map((item) => (
-                <li key={item.id} className="problem-mine-item">
-                  <p className="meta problem-mine-head">
-                    <span>{formatDate(item.at)}</span>
-                    <span className={item.status === 'resolved' ? 'problem-status is-resolved' : 'problem-status'}>{t(item.status === 'resolved' ? 'problemResolved' : 'problemOpen')}</span>
-                  </p>
-                  <p className="problem-mine-text" dir="auto">
-                    {item.text}
-                  </p>
-                  {item.reply !== null && (
-                    <p className="problem-reply" dir="auto">
-                      {t('problemReplyFrom', { text: item.reply })}
-                    </p>
-                  )}
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
+      {/* 80: свої повідомлення й відповіді — на окремій сторінці «Мої звернення» (і у «Вхідних»). */}
+      {account.status === 'signed-in' && (
+        <p className="problem-where">
+          {t('problemRepliesWhere')} <Link to="/report/mine">{t('problemMineTitle')}</Link>
+        </p>
       )}
     </main>
   );

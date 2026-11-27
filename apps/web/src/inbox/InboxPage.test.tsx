@@ -74,6 +74,8 @@ describe('InboxPage (70)', () => {
     open();
     expect(await screen.findByText('Тут з\'являться повідомлення від адміністрації й відповіді на твої звернення.')).toBeTruthy();
     expect(markInboxRead).not.toHaveBeenCalled();
+    // 80: порожній список пропонує дію — сторінку «Як грати».
+    expect(screen.getByRole('link', { name: 'Як грати' }).getAttribute('href')).toBe('/help/play');
   });
 
   it('shows a broadcast and a reply, the unread one is marked «Нове»', async () => {
@@ -91,7 +93,7 @@ describe('InboxPage (70)', () => {
     expect(within(answer).queryByText('Нове')).toBeNull();
     expect(within(answer).getByText('Ти писав(-ла): Кнопка не натискається')).toBeTruthy();
     expect(within(answer).getByText('Виправили, дякуємо!')).toBeTruthy();
-    expect(within(answer).getByRole('link', { name: 'Усі мої повідомлення' }).getAttribute('href')).toBe('/report');
+    expect(within(answer).getByRole('link', { name: 'Мої звернення' }).getAttribute('href')).toBe('/report/mine');
   });
 
   it('marks everything up to the newest shown as read once, and the badge drops', async () => {

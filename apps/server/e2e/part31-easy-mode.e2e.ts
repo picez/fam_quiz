@@ -93,6 +93,10 @@ async function joinEasy31(page: Page, code: string, nickname: string, shotName: 
   await field(page, 'Ваше ім’я').fill(nickname);
   await click(page, 'Увійти в гру');
   await page.getByText('Ви в грі. Чекаємо на старт.').waitFor();
+  // 80: «Як грати» з лобі — у новій вкладці, щоб не вийти з гри.
+  const help = page.getByRole('link', { name: 'Як грати — відкриється в новій вкладці', ...exact });
+  expect(await help.getAttribute('href')).toBe('/help/play');
+  expect(await help.getAttribute('target')).toBe('_blank');
   await expectNoSideScroll(page, `p31-lobby-easy-${shotName}`);
 }
 
@@ -423,6 +427,16 @@ async function accountEasy31() {
   await signIn(shared);
   await sleep(1000);
   expect(await easyClass(shared)).toBe(false);
+
+  // ── 80: на головній внизу — «Вигляд сайту»: легкий режим одним дотиком, і з акаунтом він зберігається в профілі. ──
+  const footer = shared.locator('main .home-footer');
+  const homeBox = footer.getByRole('checkbox', { name: 'Легкий режим', ...exact });
+  await homeBox.waitFor();
+  expect(await footer.getByRole('heading', { name: 'Вигляд сайту', ...exact }).count()).toBe(1);
+  const [homeSaved] = await Promise.all([shared.waitForResponse((r) => r.url().endsWith('/api/me/easy') && r.request().method() === 'PUT'), homeBox.click()]);
+  expect(homeSaved.status()).toBe(200);
+  await expect.poll(() => easyClass(shared), POLL).toBe(true);
+  await expectNoSideScroll(shared, 'p80-home-easy-375');
 
   expect(problems).toEqual([]);
 }

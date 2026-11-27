@@ -371,6 +371,33 @@ describe('the inbox bell (70)', () => {
   });
 });
 
+describe('«Вигляд» in the menu (80)', () => {
+  it('replaces the bare theme toggle with one «Вигляд» popup button', async () => {
+    vi.mocked(me).mockResolvedValue(OK);
+    show('/quizzes');
+    const nav = screen.getByRole('navigation', { name: 'Меню' });
+    const looks = await within(nav).findByRole('button', { name: 'Вигляд сайту: тема й легкий режим' });
+    expect(looks.getAttribute('aria-haspopup')).toBe('dialog');
+    expect(nav.querySelector('.theme-toggle')).toBeNull();
+    fireEvent.click(looks);
+    const dialog = screen.getByRole('dialog', { name: 'Вигляд сайту' });
+    expect(within(dialog).getByRole('checkbox', { name: 'Легкий режим' })).toBeTruthy();
+    expect(within(dialog).getByRole('group', { name: 'Тема' })).toBeTruthy();
+  });
+
+  it('a visitor has it too', async () => {
+    vi.mocked(me).mockResolvedValue(OUT);
+    show('/library');
+    expect(await screen.findByRole('button', { name: 'Вигляд сайту: тема й легкий режим' })).toBeTruthy();
+  });
+
+  it('the phone bar (≤ 700 px) hides it: the same block is on home and in settings', () => {
+    const open = css.indexOf('/* 80: «Вигляд» у меню');
+    expect(open).toBeGreaterThanOrEqual(0);
+    expect(css.slice(open)).toMatch(/@media \(max-width: 700px\) \{\s*\.menu \.menu-looks \{\s*display: none;/);
+  });
+});
+
 describe('menu styles', () => {
   it('on 701–900 px the top bar keeps five full labels on one line each (tighter padding, no wrap)', () => {
     const open = css.indexOf('@media (min-width: 701px) and (max-width: 900px) {');

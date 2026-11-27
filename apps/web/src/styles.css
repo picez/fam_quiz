@@ -25659,20 +25659,6 @@ input.sudoku-editor-cell:focus-visible {
   display: block;
 }
 
-/* Меню: зверху — ще один пункт праворуч від посилань; унизу на телефоні — вузька клітинка без підпису. */
-.menu-theme {
-  padding: 0.75rem 0.9rem;
-}
-
-@media (max-width: 700px) {
-  .menu .menu-theme {
-    flex: 0 0 2.75rem;
-    min-height: calc(var(--menu-h) - 1px);
-    padding: 0;
-    font-size: 1.35rem;
-  }
-}
-
 /* Шапка гри: значок по центру рядка (не по базовій лінії), шапка не вища. Дотикова зона — невидимий ::after: вгору й униз
    ширша (44 px), убік лише в межах проміжку, щоб не перехоплювати дотики сусідньої пігулки. */
 .bar > .bar-theme {
@@ -30059,10 +30045,9 @@ details.admin-fold[open] > summary::before {
   }
 }
 
-/* Адмін на 320 px: п'ять пунктів + «Адмінка» + дзвіночок + тема — вужчі клітинки дзвіночка й теми, щоб нічого не гортало вбік. */
+/* Адмін на 320 px: п'ять пунктів + «Адмінка» + дзвіночок — вужча клітинка дзвіночка, щоб нічого не гортало вбік (80: «Вигляду» в нижній панелі немає). */
 @media (max-width: 400px) {
-  .menu .menu-inbox,
-  .menu .menu-theme {
+  .menu .menu-inbox {
     flex-basis: 2.25rem;
   }
 }
@@ -31068,4 +31053,289 @@ main > .back-link {
   justify-self: start;
   max-width: 100%;
   white-space: normal;
+}
+
+/* 80: «Як грати» для гравця — розділи з текстом і маленьким макетом телефона поряд (на вузькому екрані — під текстом). */
+.player-help-part {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 1rem 1.5rem;
+  margin-block-end: 1rem;
+}
+
+.player-help-text {
+  flex: 1 1 16rem;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.player-help-text > h2 {
+  margin: 0 0 0.5rem;
+}
+
+.player-help-text p {
+  margin: 0 0 0.5rem;
+}
+
+.player-help-icon {
+  display: inline-block;
+  min-width: 1.5em;
+}
+
+.player-help-types {
+  margin-block: 0.75rem;
+}
+
+.player-help-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin: 0 0 0.35rem;
+  padding: 0;
+  list-style: none;
+}
+
+.player-help-chips li {
+  padding: 0.2rem 0.65rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.player-help-buffs {
+  display: grid;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.player-help-buffs li {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+}
+
+.player-help-buff {
+  flex: 0 0 auto;
+  display: inline-flex;
+  justify-content: center;
+  min-width: 2.25rem;
+  padding: 0.15rem 0.35rem;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-small);
+  color: var(--accent-text);
+  font-weight: 700;
+}
+
+/* Макет телефона: рамка з «екраном», кнопки — прямокутники з підписами; лише для ока (aria-hidden). */
+.help-phone {
+  flex: 0 0 9.5rem;
+  display: grid;
+  gap: 0.4rem;
+  align-content: start;
+  justify-items: stretch;
+  min-height: 11rem;
+  padding: 1.1rem 0.6rem 0.9rem;
+  border: 3px solid var(--line);
+  border-radius: 1.25rem;
+  background: var(--stage);
+  font-size: 0.8125rem;
+  text-align: center;
+}
+
+.help-phone-label {
+  color: var(--dim);
+}
+
+.help-phone-code {
+  padding: 0.35rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-small);
+  font-size: 1.05rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+
+.help-phone-button {
+  padding: 0.35rem 0.4rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-small);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.help-phone-button.is-primary,
+.help-phone-button.is-picked {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+.help-phone-timer {
+  height: 0.35rem;
+  border-radius: 999px;
+  background: linear-gradient(to right, var(--accent) 60%, var(--track) 60%);
+}
+
+.help-phone-verdict {
+  color: var(--wrong);
+  font-size: 1.75rem;
+  font-weight: 700;
+}
+
+.help-phone-alarm {
+  font-size: 1.75rem;
+}
+
+.player-help-host {
+  margin-block-start: 1.5rem;
+}
+
+@media (max-width: 480px) {
+  .help-phone {
+    flex-basis: 100%;
+    min-height: 0;
+    max-width: 14rem;
+  }
+}
+
+/* 80: дві довідки поряд унизу головної; посилання розділу «Допомога» в налаштуваннях; «Як грати» в лобі гравця. */
+.home-footer-help {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1.25rem;
+  margin: 0;
+}
+
+.settings-links {
+  display: grid;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.lobby-help {
+  margin: 0.25rem 0;
+}
+
+/* 80: «Вигляд» у меню компʼютера — кнопка зі значком теми й словом, поповер «Вигляд сайту» під нею (біля кінця рядка, у RTL дзеркально).
+   На телефоні нижня панель лишається без неї: той самий блок — унизу головної й у налаштуваннях профілю. */
+.appearance-menu {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+}
+
+.appearance-button {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.75rem 0.9rem;
+  border: 0;
+  background: none;
+  color: var(--dim);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.appearance-button:hover,
+.appearance-button[aria-expanded='true'] {
+  color: var(--paper);
+}
+
+.appearance-icon {
+  display: inline-flex;
+  font-size: 1.15rem;
+}
+
+.appearance-pop {
+  position: absolute;
+  inset-block-start: 100%;
+  inset-inline-end: 0;
+  z-index: 20;
+  display: grid;
+  gap: 0.75rem;
+  width: min(20rem, calc(100vw - 2rem));
+  padding: 1rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel);
+  box-shadow: 0 0.5rem 1.5rem rgb(0 0 0 / 0.35);
+  text-align: start;
+}
+
+.appearance-title {
+  margin: 0;
+  font-weight: 700;
+}
+
+.appearance-controls {
+  display: grid;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.appearance-theme {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.appearance-theme legend {
+  padding: 0;
+  margin-block-end: 0.4rem;
+  font-weight: 600;
+}
+
+.appearance-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.appearance-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-height: 2.75rem;
+  padding: 0.25rem 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.appearance-option:has(input:checked) {
+  border-color: var(--accent);
+}
+
+.appearance-theme .meta {
+  margin: 0.4rem 0 0;
+}
+
+.home-looks h2 {
+  margin: 0 0 0.5rem;
+  font-size: 1.05rem;
+}
+
+/* 701–900 px: пʼять повних підписів і дзвіночок — «Вигляд» лише значком (назва лишається в aria-label). */
+@media (min-width: 701px) and (max-width: 900px) {
+  .menu .appearance-button {
+    padding-inline: 0.5rem;
+  }
+
+  .menu .appearance-button > span:not(.appearance-icon) {
+    display: none;
+  }
+}
+
+@media (max-width: 700px) {
+  .menu .menu-looks {
+    display: none;
+  }
 }

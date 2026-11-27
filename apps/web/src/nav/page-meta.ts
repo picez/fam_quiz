@@ -42,7 +42,9 @@ const TITLES: [pattern: string, key: TextKey][] = [
   ['/profile/:id', 'menuProfile'],
   ['/admin/*', 'adminTitle'],
   ['/help', 'helpTitle'],
+  ['/help/play', 'playHelpTitle'],
   ['/report', 'problemLink'],
+  ['/report/mine', 'problemMineTitle'],
   ['/inbox', 'inboxTitle'],
 ];
 

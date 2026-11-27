@@ -693,6 +693,56 @@ async function startMenu24a() {
   await olya.evaluate("localStorage.setItem('quiz:easy', 'off'); localStorage.removeItem('quiz:theme')");
   await olya.setViewportSize({ width: 375, height: 812 });
 
+  // ── 2b (80). «Як грати» з головної на 320 px (і в легкому режимі зі світлою темою); «Вигляд» у меню компʼютера. ──
+  const html = (name: string) => olya.evaluate((cls) => document.documentElement.classList.contains(cls), name);
+  await olya.setViewportSize({ width: 320, height: 812 });
+  await olya.goto(base);
+  await olya.locator('main .home-footer').getByRole('link', { name: 'Як грати', ...exact }).click();
+  await olya.waitForURL(`${base}/help/play`);
+  await olya.getByRole('heading', { level: 1, name: 'Як грати', ...exact }).waitFor();
+  await expect.poll(() => olya.title(), POLL).toBe('Як грати · Вікторина');
+  expect(await olya.locator('main .help-phone').count(), 'phone mock-ups on the help page').toBeGreaterThan(0);
+  expect(await noSideScroll(olya), 'p80-help-320: horizontal scroll').toBe(true);
+  await shot(olya, 'p80-help-320');
+  await olya.evaluate("localStorage.setItem('quiz:easy', 'on'); localStorage.setItem('quiz:theme', 'light')");
+  await olya.reload();
+  await olya.getByRole('heading', { level: 1, name: 'Як грати', ...exact }).waitFor();
+  await expect.poll(() => html('is-easy'), POLL).toBe(true);
+  expect(await noSideScroll(olya), 'p80-help-light-easy-320: horizontal scroll').toBe(true);
+  await shot(olya, 'p80-help-light-easy-320');
+  await olya.evaluate("localStorage.setItem('quiz:easy', 'off'); localStorage.removeItem('quiz:theme')");
+  await olya.reload();
+  await olya.getByRole('link', { name: 'Довідка ведучого', ...exact }).click();
+  await olya.waitForURL(`${base}/help`);
+  await olya.getByRole('heading', { level: 1, name: 'Довідка ведучого', ...exact }).waitFor();
+  await expect.poll(() => olya.locator(MENU).locator('a[aria-current="page"]').getAttribute('href'), POLL).toBe('/quizzes');
+  await olya.locator('main').getByRole('link', { name: 'Як грати', ...exact }).click();
+  await olya.waitForURL(`${base}/help/play`);
+  await expect.poll(() => olya.locator(MENU).locator('a[aria-current="page"]').getAttribute('href'), POLL).toBe('/');
+  // На телефоні «Вигляду» в нижній панелі немає.
+  expect(await olya.locator(MENU).locator('.appearance-button').isVisible()).toBe(false);
+  await olya.setViewportSize({ width: 1280, height: 800 });
+  const looks = olya.locator(MENU).getByRole('button', { name: 'Вигляд сайту: тема й легкий режим', ...exact });
+  await looks.click();
+  const pop = olya.getByRole('dialog', { name: 'Вигляд сайту', ...exact });
+  await pop.getByRole('radio', { name: 'Світла', ...exact }).check();
+  await expect.poll(() => html('is-light'), POLL).toBe(true);
+  await pop.getByRole('checkbox', { name: 'Легкий режим', ...exact }).check();
+  await expect.poll(() => html('is-easy'), POLL).toBe(true);
+  expect(await noSideScroll(olya), 'p80-looks-1280: horizontal scroll').toBe(true);
+  await shot(olya, 'p80-looks-1280');
+  await olya.keyboard.press('Escape');
+  await pop.waitFor({ state: 'detached' });
+  expect(await looks.evaluate((el) => el === document.activeElement), 'Escape returns the focus to «Вигляд»').toBe(true);
+  await looks.click();
+  await pop.getByRole('checkbox', { name: 'Легкий режим', ...exact }).uncheck();
+  await pop.getByRole('radio', { name: 'Темна', ...exact }).check();
+  await olya.locator('main h1').click();
+  await pop.waitFor({ state: 'detached' });
+  await expect.poll(() => html('is-light'), POLL).toBe(false);
+  await olya.evaluate("localStorage.setItem('quiz:easy', 'off'); localStorage.removeItem('quiz:theme')");
+  await olya.setViewportSize({ width: 375, height: 812 });
+
   // ── 3. «Провести гру» → «Почати гру» відкриває кімнату ведучого. ──
   const saved = await host.request.post(`${base}/api/quizzes`, { data: { ...makeQuiz([single], { speedBonus: false }), title: 'Старт 24a' } });
   expect(saved.ok(), await saved.text()).toBe(true);

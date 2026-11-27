@@ -1,22 +1,29 @@
 import type { JSX } from 'react';
 import { Link } from 'react-router-dom';
-import { EasyModeSwitch } from '../EasyModeSwitch';
+import { AppearanceControls } from '../appearance/AppearanceControls';
 import { t } from '../i18n';
 import { ProblemLink } from '../problems/ProblemLink';
-import { ThemeSwitch } from '../ThemeSwitch';
 
 /**
- * Низ головної (78), і гостю, і акаунту: довідка, «Легкий режим», тема, «Повідомити про проблему».
- * /help — довідка лише про проведення гри, тож і назва «Довідка ведучого»; «Як грати» для гравця додасть етап 5.
+ * Низ головної (78), і гостю, і акаунту: довідки, «Вигляд сайту» (легкий режим і тема), «Повідомити про проблему».
+ * Дві довідки поряд (80): «Як грати» для гравця (/help/play) і «Довідка ведучого» (/help).
  */
 export function HomeFooter(): JSX.Element {
   return (
     <section className="home-footer" aria-label={t('homeFooterLabel')}>
-      <Link className="quiet-link" to="/help">
-        {t('helpLink')}
-      </Link>
-      <EasyModeSwitch />
-      <ThemeSwitch />
+      <p className="home-footer-help">
+        <Link className="quiet-link" to="/help/play">
+          {t('playHelpTitle')}
+        </Link>
+        <Link className="quiet-link" to="/help">
+          {t('helpLink')}
+        </Link>
+      </p>
+      {/* 80: «Вигляд сайту» — легкий режим одним дотиком і тема; той самий блок, що й у поповері меню компʼютера. */}
+      <section className="home-looks" aria-labelledby="home-looks-title">
+        <h2 id="home-looks-title">{t('siteLooksTitle')}</h2>
+        <AppearanceControls />
+      </section>
       {/* Скаргу (64) може надіслати й гість. */}
       <ProblemLink className="quiet-link problem-link" />
     </section>

@@ -180,7 +180,7 @@ describe('AdminErrors (ServerErrors, PlayerReports)', () => {
 
     replied = { status: 409, body: { error: 'problem_replied' } };
     fireEvent.click(send);
-    expect(await screen.findByText('На цю скаргу вже відповіли.')).toBeTruthy();
+    expect(await screen.findByText('На це повідомлення вже відповіли.')).toBeTruthy();
     const post = calls.find((call) => call.url === '/api/admin/problems/r2/reply');
     expect(post).toMatchObject({ method: 'POST', body: { text: 'Виправили, дякуємо!' } });
     expect(screen.getByRole('status').textContent).toBe('');
@@ -197,7 +197,7 @@ describe('AdminErrors (ServerErrors, PlayerReports)', () => {
     reports = [];
     replied = { status: 200, body: { pushed: true, inbox: true } };
     fireEvent.click(within(card).getByRole('button', { name: 'Надіслати відповідь' }));
-    expect(await screen.findByText('Скарг немає.')).toBeTruthy();
+    expect(await screen.findByText('Повідомлень немає.')).toBeTruthy();
     expect(screen.getByRole('status').textContent).toBe('Відповідь додано у «Вхідні» гравця й надіслано сповіщенням.');
     expect(badgeEvents).toBe(1);
   });
@@ -210,7 +210,7 @@ describe('AdminErrors (ServerErrors, PlayerReports)', () => {
     fireEvent.change(within(card).getByLabelText('Відповідь автору'), { target: { value: 'Дякуємо!' } });
     reports = [];
     fireEvent.click(within(card).getByRole('button', { name: 'Надіслати відповідь' }));
-    expect(await screen.findByText('Скарг немає.')).toBeTruthy();
+    expect(await screen.findByText('Повідомлень немає.')).toBeTruthy();
     expect(screen.getByRole('status').textContent).toBe('Відповідь у вхідних гравця (сповіщень у нього немає).');
   });
 

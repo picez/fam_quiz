@@ -43,10 +43,10 @@ describe('AdminAppeals (70)', () => {
     open('/admin/appeals/problems');
     const nav = await screen.findByRole('navigation', { name: 'Розділи звернень' });
     const links = within(nav).getAllByRole('link');
-    expect(links.map((link) => link.textContent)).toEqual(['Скарги на вікторини й профілі', 'Щось не працює', 'Збої сервера']);
+    expect(links.map((link) => link.textContent)).toEqual(['Скарги на вікторини й профілі', 'Повідомлення про проблеми', 'Збої сервера']);
     expect(links.map((link) => link.getAttribute('href'))).toEqual(['/admin/appeals/complaints', '/admin/appeals/problems', '/admin/appeals/errors']);
     expect(links.map((link) => link.getAttribute('aria-current'))).toEqual([null, 'page', null]);
-    expect(await screen.findByText('Скарг немає.')).toBeTruthy();
+    expect(await screen.findByText('Повідомлень немає.')).toBeTruthy();
   });
 
   it('each link has its own counter', async () => {
@@ -55,7 +55,7 @@ describe('AdminAppeals (70)', () => {
     const nav = await screen.findByRole('navigation', { name: 'Розділи звернень' });
     const complaints = await within(nav).findByRole('link', { name: 'Скарги на вікторини й профілі, нових: 3' });
     expect(complaints.querySelector('.menu-badge')?.textContent).toBe('3');
-    expect(within(nav).getByRole('link', { name: 'Щось не працює, нових: 2' })).toBeTruthy();
+    expect(within(nav).getByRole('link', { name: 'Повідомлення про проблеми, нових: 2' })).toBeTruthy();
     expect(within(nav).getByRole('link', { name: 'Збої сервера, нових: 1' })).toBeTruthy();
   });
 

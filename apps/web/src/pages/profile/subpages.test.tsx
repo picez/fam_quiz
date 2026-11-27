@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter, useLocation } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ACHIEVEMENTS, levelProgress, type AchievementsPage, type OwnProfile } from '@quiz/shared';
@@ -226,9 +226,20 @@ describe('«Налаштування»', () => {
     expect(link.getAttribute('href')).toBe('/report?from=%2Fprofile%2Fsettings');
   });
 
-  it('31: has the «Легкий режим» section with the account hint', async () => {
+  it('80: the «Допомога» section links both helps, the problem report and «Мої звернення»', async () => {
     open('/profile/settings');
-    expect(await screen.findByRole('heading', { level: 2, name: 'Легкий режим' })).toBeTruthy();
+    const help = await screen.findByRole('region', { name: 'Допомога' });
+    expect(within(help).getByRole('link', { name: 'Як грати' }).getAttribute('href')).toBe('/help/play');
+    expect(within(help).getByRole('link', { name: 'Довідка ведучого' }).getAttribute('href')).toBe('/help');
+    expect(within(help).getByRole('link', { name: 'Повідомити про проблему' }).getAttribute('href')).toBe('/report?from=%2Fprofile%2Fsettings');
+    expect(within(help).getByRole('link', { name: 'Мої звернення' }).getAttribute('href')).toBe('/report/mine');
+  });
+
+  it('31: has «Легкий режим» with the account hint in the «Вигляд сайту» section (80), with the theme', async () => {
+    open('/profile/settings');
+    const looks = await screen.findByRole('region', { name: 'Вигляд сайту' });
+    expect(within(looks).getByRole('group', { name: 'Тема' })).toBeTruthy();
+    expect(within(looks).getByRole('checkbox', { name: 'Легкий режим' })).toBeTruthy();
     const box = await screen.findByRole('checkbox', { name: 'Легкий режим' });
     await waitFor(() =>
       expect(document.getElementById(box.getAttribute('aria-describedby') ?? '')?.textContent).toContain('Зберігається в профілі'),

@@ -36,6 +36,7 @@ const GroupJoin = lazy(() => import('./pages/GroupJoin').then((m) => ({ default:
 const GroupPage = lazy(() => import('./pages/GroupPage').then((m) => ({ default: m.GroupPage })));
 const Groups = lazy(() => import('./pages/Groups').then((m) => ({ default: m.Groups })));
 const HostHelp = lazy(() => import('./pages/HostHelp').then((m) => ({ default: m.HostHelp })));
+const PlayerHelp = lazy(() => import('./pages/PlayerHelp').then((m) => ({ default: m.PlayerHelp })));
 const PrizeStudioPage = lazy(() => import('./pages/PrizeStudioPage').then((m) => ({ default: m.PrizeStudioPage })));
 const MyChallenges = lazy(() => import('./pages/MyChallenges').then((m) => ({ default: m.MyChallenges })));
 const PlayedGame = lazy(() => import('./pages/PlayedGame').then((m) => ({ default: m.PlayedGame })));
@@ -44,6 +45,7 @@ const ProfileLooks = lazy(() => import('./pages/profile/ProfileLooks').then((m) 
 const ProfileStats = lazy(() => import('./pages/profile/ProfileStats').then((m) => ({ default: m.ProfileStats })));
 const InboxPage = lazy(() => import('./inbox/InboxPage').then((m) => ({ default: m.InboxPage })));
 const ProblemReport = lazy(() => import('./problems/ProblemReport').then((m) => ({ default: m.ProblemReport })));
+const ProblemMine = lazy(() => import('./problems/ProblemMine').then((m) => ({ default: m.ProblemMine })));
 
 /** Стара адреса сторінки (77): одна адреса на сторінку — перенаправлення на канонічну з тим самим ?query і #hash, без зайвого запису історії. */
 function Canonical({ to }: { to: string }) {
@@ -108,8 +110,10 @@ export function AppRoutes() {
           <Route path="/profile/:id/achievements" element={<Achievements />} />
           <Route path="/admin/*" element={<Admin />} />
           <Route path="/help" element={<HostHelp />} />
+          <Route path="/help/play" element={<PlayerHelp />} />
           {/* «Повідомити про проблему» (64): і гостям; ?from= — сторінка, з якої прийшли. */}
           <Route path="/report" element={<ProblemReport />} />
+          <Route path="/report/mine" element={<ProblemMine />} />
           <Route path="/inbox" element={<InboxPage />} />
           <Route path="/new" element={<Navigate to="/quizzes" replace />} />
         </Route>

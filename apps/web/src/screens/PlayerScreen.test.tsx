@@ -5691,6 +5691,18 @@ describe('PlayerScreen: «Легкий режим» (31)', () => {
   });
 });
 
+describe('PlayerScreen: «Як грати» from the lobby (80)', () => {
+  it('the lobby links the player help in a new tab, a question does not', () => {
+    show(view({ phase: 'lobby' }));
+    const link = screen.getByRole('link', { name: 'Як грати — відкриється в новій вкладці' });
+    expect(link.getAttribute('href')).toBe('/help/play');
+    expect(link.getAttribute('target')).toBe('_blank');
+    cleanup();
+    show(onQuestion());
+    expect(screen.queryByRole('link', { name: 'Як грати — відкриється в новій вкладці' })).toBeNull();
+  });
+});
+
 describe('PlayerScreen: family game (31)', () => {
   it('the lobby says it is a family game only when it is', () => {
     show(view({ phase: 'lobby', family: true }));
