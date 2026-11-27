@@ -242,7 +242,7 @@ describe('uk golden (22a)', () => {
   const ADDED_73 = ['quizFoldersLabel', 'quizFolderAll', 'quizFolderNone', 'quizFolderChip', 'quizFoldersManage', 'quizFoldersHint', 'quizFoldersEmpty', 'quizFolderNewLabel', 'quizFolderAdd', 'quizFolderNameLabel', 'quizFolderSave', 'quizFolderUp', 'quizFolderDown', 'quizFolderDelete', 'quizFolderDeleteConfirm', 'quizFoldersLimit', 'quizFolderPick', 'quizFolderPickNone', 'quizFolderEmptyList', 'quizNoFolderEmptyList', 'quizSort', 'quizSort_new', 'quizSort_old', 'quizSort_name', 'quizSort_changed', 'quizCreatedOn', 'quizCreatedChanged', 'err_folder_name_taken', 'err_folders_full', 'err_folders_changed'];
   const ADDED_75 = ['guideSkipVote', 'guideSkipCancel', 'guideSkipCount'];
   /** 76: навігація, етап 1 — головна, «назад» зі словом, стани сторінки, редактор. */
-  const ADDED_76 = ['pageHome', 'backTo', 'retryLoad', 'emptyHostGame', 'emptyJoinByCode', 'libraryClearSearch', 'leaveUnsaved', 'editorHostGame', 'editorHostSaveFirst'];
+  const ADDED_76 = ['pageHome', 'backTo', 'retryLoad', 'emptyHostGame', 'emptyJoinByCode', 'libraryClearSearch', 'leaveUnsaved', 'editorHostGame', 'editorSaveAndHost'];
   /** Пояснення після відповіді: телефон, редактор, імпорт таблиці й перегляд адміна. */
   const ADDED_EXPLANATION = ['explanationTitle', 'explanationLabel', 'explanationPlaceholder', 'ioProblem_explanation_long', 'adminPreviewExplanation', 'puzzleDoneIn', 'puzzleYoursIn'];
   const ADDED_74 = [

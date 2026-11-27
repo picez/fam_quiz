@@ -9,6 +9,7 @@ import { GroupDraftsProvider, usesToMark, type GroupDrafts } from '../editor/gro
 import { newId } from '../editor/new-id';
 import { QuizEditor, type EditorTab } from '../editor/QuizEditor';
 import { errorText, t } from '../i18n';
+import { useStartGame } from '../host-game';
 import { useAccount } from '../useAccount';
 import { BackLink } from '../nav/BackLink';
 import { Loading, LoadError } from '../ui/PageState';
@@ -16,6 +17,7 @@ import { Loading, LoadError } from '../ui/PageState';
 export function EditQuiz() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const startGame = useStartGame();
   // 76: «Спробувати ще раз» — і для перевірки входу, і для самої вікторини.
   const [attempt, setAttempt] = useState(0);
   const account = useAccount(attempt === 0 ? undefined : attempt);
@@ -125,7 +127,8 @@ export function EditQuiz() {
     );
   }
 
-  const save = async (quiz: Quiz): Promise<string | null> => {
+  /** Зберігає вікторину й прибирає чернетку, не переходячи нікуди: null — успіх, інакше текст помилки. */
+  const store = async (quiz: Quiz): Promise<string | null> => {
     const result = id === undefined ? await createQuiz(quiz) : await updateQuiz(id, quiz);
     if (!result.ok) {
       // Чернетка лишається у сховищі й повернеться після повторного входу.
@@ -145,9 +148,28 @@ export function EditQuiz() {
     }
     clearGroupDrafts(id);
     clearDraft(id);
-    navigate('/quizzes');
     return null;
   };
+
+  const save = async (quiz: Quiz): Promise<string | null> => {
+    const error = await store(quiz);
+    if (error === null) navigate('/quizzes');
+    return error;
+  };
+
+  /** «Провести гру» з редактора (76): незбережене — спершу зберегти, далі той самий запуск, що в «Створити гру». */
+  const host =
+    id === undefined
+      ? undefined
+      : async (changed: Quiz | null): Promise<string | null> => {
+          if (changed !== null) {
+            const error = await store(changed);
+            if (error !== null) return error;
+          }
+          const failure = await startGame(id);
+          if (failure === 'unauthorized') setExpired(true);
+          return failure === null ? null : errorText(failure);
+        };
 
   return (
     <GroupDraftsProvider
@@ -168,6 +190,7 @@ export function EditQuiz() {
         notice={initialDrafts?.fresh === true && draft !== null ? t('groupQuizNotice') : draft === null ? null : t('draftRestored')}
         onDraft={(quiz) => saveDraft(id, quiz)}
         onSave={save}
+        onHost={host}
         onCancel={() => {
           clearGroupDrafts(id);
           clearDraft(id);

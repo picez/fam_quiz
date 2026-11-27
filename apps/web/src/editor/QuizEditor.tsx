@@ -57,6 +57,7 @@ import { RoundSettings } from './RoundSettings';
 import { RoundStrip } from './RoundStrip';
 import { SparesEditor } from './SparesEditor';
 import { TeamsEditor } from './TeamsEditor';
+import { useLeaveGuard } from '../nav/leave-guard';
 
 interface Props {
   initial: Quiz;
@@ -70,6 +71,11 @@ interface Props {
   /** Зберігає вікторину; повертає текст помилки або null. */
   onSave: (quiz: Quiz) => Promise<string | null>;
   onCancel: () => void;
+  /**
+   * «Провести гру» (76) — лише для збереженої вікторини. changed не null, коли є незбережені зміни: їх треба спершу
+   * зберегти (без переходу на список), тоді запустити гру. Повертає текст помилки або null (тоді вже пішли на пульт).
+   */
+  onHost?: (changed: Quiz | null) => Promise<string | null>;
   /** Лічильники лайків збереженої вікторини; без них сердець не видно. */
   likes?: QuizLikes;
   /** Збережена вікторина, що редагується: у банку запитань її рядки позначені «ця вікторина». */
@@ -85,7 +91,7 @@ export type EditorTab = 'general' | 'rounds';
  * Редактор «список і сцена»: зверху назва й правила, далі раунди; ліворуч список запитань, праворуч одне запитання
  * таким, яким його побачать гравці. На вузькому екрані список ховається за кнопку.
  */
-export function QuizEditor({ initial, heading, back, notice = null, onDraft, onSave, onCancel, likes, quizId, tab, onTabChange }: Props) {
+export function QuizEditor({ initial, heading, back, notice = null, onDraft, onSave, onCancel, onHost, likes, quizId, tab, onTabChange }: Props) {
   const [quiz, setQuiz] = useState(initial);
   const [dirty, setDirty] = useState(false);
   const [roundIndex, setRoundIndex] = useState(0);
@@ -229,6 +235,8 @@ export function QuizEditor({ initial, heading, back, notice = null, onDraft, onS
     window.addEventListener('beforeunload', warn);
     return () => window.removeEventListener('beforeunload', warn);
   }, [dirty]);
+  // 76: і перехід усередині сайту (меню, «‹ Мої вікторини», будь-яке посилання) з незбереженим перепитує.
+  useLeaveGuard(dirty, t('leaveUnsaved'));
 
   const update = (next: Quiz) => {
     setQuiz(next);
@@ -447,9 +455,9 @@ export function QuizEditor({ initial, heading, back, notice = null, onDraft, onS
     onCancel();
   };
 
-  const save = async () => {
+  /** Перевірка перед збереженням: з помилками — показує їх (вкладка, раунд, запитання) і повертає false. */
+  const ready = (): boolean => {
     const found = placedProblemsOf(quiz);
-    setServerError(null);
     if (found.length > 0) {
       setSaveFailed(true);
       touch({ type: 'all' });
@@ -469,11 +477,29 @@ export function QuizEditor({ initial, heading, back, notice = null, onDraft, onS
       else if (tabs.includes('general')) showTab('general');
       // Лише назва: показати й поставити фокус у її поле.
       else focusTitle();
-      return;
+      return false;
     }
     setSaveFailed(false);
+    return true;
+  };
+
+  const save = async () => {
+    setServerError(null);
+    if (!ready()) return;
     setSaving(true);
     const error = await onSave(cleaned(quiz));
+    setSaving(false);
+    if (error === null) setDirty(false);
+    else setServerError(error);
+  };
+
+  /** «Провести гру» (76): незбережене — спершу та сама перевірка й збереження, далі пульт ведучого. */
+  const host = async () => {
+    if (onHost === undefined) return;
+    setServerError(null);
+    if (dirty && !ready()) return;
+    setSaving(true);
+    const error = await onHost(dirty ? cleaned(quiz) : null);
     setSaving(false);
     if (error === null) setDirty(false);
     else setServerError(error);
@@ -950,6 +976,11 @@ export function QuizEditor({ initial, heading, back, notice = null, onDraft, onS
         <button type="button" className="btn btn-primary" disabled={saving} onClick={save}>
           {t(saving ? 'saving' : 'save')}
         </button>
+        {onHost !== undefined && (
+          <button type="button" className="btn editor-host" disabled={saving} onClick={() => void host()}>
+            {t(dirty ? 'editorSaveAndHost' : 'editorHostGame')}
+          </button>
+        )}
       </footer>
     </main>
   );

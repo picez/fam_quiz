@@ -5735,5 +5735,5 @@
   "libraryClearSearch": "Wyczyść wyszukiwanie",
   "leaveUnsaved": "Zmiany nie są jeszcze zapisane. Opuścić stronę? Szkic zostanie w tej karcie.",
   "editorHostGame": "Poprowadź grę",
-  "editorHostSaveFirst": "Najpierw zapisz zmiany: gra zacznie się od zapisanej wersji."
+  "editorSaveAndHost": "Zapisz i poprowadź grę"
 }

@@ -2,7 +2,7 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { createQuiz, fetchQuizLikes, getQuiz, markGroupUses, me, sendEditorTime, updateQuiz } from '../api';
+import { createGame, createQuiz, fetchQuizLikes, getQuiz, markGroupUses, me, sendEditorTime, updateQuiz } from '../api';
 import { forgetAccount } from '../useAccount';
 import { roundQuestions } from '@quiz/shared';
 import { demoQuiz } from '../demo-quiz';
@@ -13,7 +13,7 @@ import { errorText, t } from '../i18n';
 import { chooseType, openTab } from '../editor/editor-testing';
 import { EditQuiz } from './EditQuiz';
 
-vi.mock('../api', () => ({ me: vi.fn(), getQuiz: vi.fn(), createQuiz: vi.fn(), updateQuiz: vi.fn(), fetchQuizLikes: vi.fn(), markGroupUses: vi.fn(), sendEditorTime: vi.fn() }));
+vi.mock('../api', () => ({ me: vi.fn(), createGame: vi.fn(), getQuiz: vi.fn(), createQuiz: vi.fn(), updateQuiz: vi.fn(), fetchQuizLikes: vi.fn(), markGroupUses: vi.fn(), sendEditorTime: vi.fn() }));
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -32,6 +32,7 @@ const open = (path: string) =>
         <Route path="/quizzes/:id" element={<EditQuiz />} />
         <Route path="/quizzes" element={<p>мої вікторини</p>} />
         <Route path="/login" element={<p>сторінка входу</p>} />
+        <Route path="/host/:code" element={<p>пульт</p>} />
       </Routes>
     </MemoryRouter>,
   );
@@ -173,6 +174,64 @@ describe('EditQuiz', () => {
     vi.mocked(getQuiz).mockResolvedValue({ ok: false, error: 'unauthorized' });
     open('/quizzes/q1');
     expect(await screen.findByText('сторінка входу')).toBeTruthy();
+  });
+
+  it('«Провести гру» hosts a saved quiz without changes (76)', async () => {
+    vi.mocked(getQuiz).mockResolvedValue({ ok: true, data: demoQuiz });
+    vi.mocked(createGame).mockResolvedValue({ ok: true, gameId: 'g1', code: '123456', hostToken: 'h', stageToken: 's' });
+    open('/quizzes/q1');
+    await screen.findByLabelText('Назва вікторини');
+    expect(screen.getByRole('link', { name: 'Назад: Мої вікторини' }).getAttribute('href')).toBe('/quizzes');
+    fireEvent.click(screen.getByRole('button', { name: 'Провести гру' }));
+    expect(await screen.findByText('пульт')).toBeTruthy();
+    expect(createGame).toHaveBeenCalledWith('q1');
+    expect(updateQuiz).not.toHaveBeenCalled();
+  });
+
+  it('with unsaved changes it is «Зберегти й провести гру»: saves first, then hosts (76)', async () => {
+    vi.mocked(getQuiz).mockResolvedValue({ ok: true, data: demoQuiz });
+    vi.mocked(updateQuiz).mockResolvedValue({ ok: true, id: 'q1' });
+    vi.mocked(createGame).mockResolvedValue({ ok: true, gameId: 'g1', code: '123456', hostToken: 'h', stageToken: 's' });
+    open('/quizzes/q1');
+    fireEvent.change(await screen.findByLabelText('Назва вікторини'), { target: { value: 'Нова назва' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Зберегти й провести гру' }));
+    expect(await screen.findByText('пульт')).toBeTruthy();
+    expect(updateQuiz).toHaveBeenCalledWith('q1', expect.objectContaining({ title: 'Нова назва' }));
+    expect(vi.mocked(updateQuiz).mock.invocationCallOrder[0]).toBeLessThan(vi.mocked(createGame).mock.invocationCallOrder[0]!);
+  });
+
+  it('does not host a quiz with errors or a failed save (76)', async () => {
+    vi.mocked(getQuiz).mockResolvedValue({ ok: true, data: demoQuiz });
+    vi.mocked(updateQuiz).mockResolvedValue({ ok: false, error: 'offline' });
+    open('/quizzes/q1');
+    const name = await screen.findByLabelText('Назва вікторини');
+    fireEvent.change(name, { target: { value: '' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Зберегти й провести гру' }));
+    expect(updateQuiz).not.toHaveBeenCalled();
+    fireEvent.change(name, { target: { value: 'Гра' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Зберегти й провести гру' }));
+    await waitFor(() => expect(screen.getByRole('alert').textContent).toContain('Немає зв’язку із сервером.'));
+    expect(createGame).not.toHaveBeenCalled();
+  });
+
+  it('a new quiz has no «Провести гру» (76)', async () => {
+    open('/quizzes/new');
+    await screen.findByLabelText('Назва вікторини');
+    expect(screen.queryByRole('button', { name: /провести гру/i })).toBeNull();
+  });
+
+  it('asks before leaving through a link with unsaved changes (76)', async () => {
+    vi.mocked(getQuiz).mockResolvedValue({ ok: true, data: demoQuiz });
+    const ask = vi.spyOn(window, 'confirm').mockReturnValue(false);
+    open('/quizzes/q1');
+    fireEvent.change(await screen.findByLabelText('Назва вікторини'), { target: { value: 'Нова назва' } });
+    fireEvent.click(screen.getByRole('link', { name: 'Назад: Мої вікторини' }));
+    expect(ask).toHaveBeenCalledWith(t('leaveUnsaved'));
+    expect(screen.queryByText('мої вікторини')).toBeNull();
+    ask.mockReturnValue(true);
+    fireEvent.click(screen.getByRole('link', { name: 'Назад: Мої вікторини' }));
+    expect(await screen.findByText('мої вікторини')).toBeTruthy();
+    ask.mockRestore();
   });
 
   it('says so when the quiz does not exist', async () => {

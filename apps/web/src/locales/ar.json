@@ -5942,5 +5942,5 @@
   "libraryClearSearch": "امسح البحث",
   "leaveUnsaved": "لم تُحفظ التغييرات بعد. هل تغادر الصفحة؟ تبقى المسودة في هذا التبويب.",
   "editorHostGame": "أدر لعبة",
-  "editorHostSaveFirst": "احفظ التغييرات أولًا: تبدأ اللعبة من النسخة المحفوظة."
+  "editorSaveAndHost": "احفظ وأدر لعبة"
 }

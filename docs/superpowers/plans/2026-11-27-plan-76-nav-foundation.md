@@ -17,7 +17,7 @@
 - **Фокус:** перше відкриття сайту — без фокуса (не крадемо). Зміна `pathname` між різними сторінками → фокус на перший `main h1` (до ~1 с чекаємо, поки зʼявиться; інакше — на `main`), з `tabindex="-1"`, `preventScroll`, без рамки. Якщо сторінка сама поставила фокус у свій `main` (autofocus поля) — не чіпаємо. **Групи вкладок** — `/feed` ↔ `/feed/calendar`, `/history` ↔ `/me`, `/admin` ↔ `/admin/<розділ>` (один сегмент): між ними фокус на h1 не переноситься; якщо фокус загубився (на `body`), він стає на активну вкладку `main a[aria-current="page"]`.
 - **«Назад»:** `nav-trail` для кожного `location.key` памʼятає `{ from, steps }`: `PUSH` на інший шлях → `{ from: попередній шлях+query, steps: 1 }`; `PUSH` на той самий шлях → `{ from: попереднього.from, steps: попереднього.steps + 1 }`; `REPLACE` → успадковує запис заміненого; `POP` нічого не пише. `sessionStorage` `quiz.nav.trail`, до 200 записів. `BackLink parent="/profile"`: якщо є `from`, це не ігровий екран і не `/login`, і він не дорівнює поточному шляху → підпис — назва сторінки `from`, клік — `navigate(-steps)` (повертає й прокрутку); інакше — `Link` на `parent` з назвою батьківської сторінки. Завжди справжній `href` (відкрити в новій вкладці працює).
 - **Заголовок вкладки:** «Сторінка · Вікторина»; головна — просто «Вікторина»; ігрові екрани — «Вікторина». Сторінки з власною назвою (бібліотечна вікторина, публічний профіль, гра в історії) уточнюють її `useDocumentTitle(text)` — ефект сторінки йде після ефекту `RouteEffects`, бо той стоїть раніше в дереві.
-- **«Провести гру» в редакторі** — лише для збереженої вікторини (`quizId`), тим самим `useStartGame` (як «Почати гру» у «Створити гру»). Поки є незбережені зміни — кнопка вимкнена з підказкою «спершу збережи».
+- **«Провести гру» в редакторі** — лише для збереженої вікторини (`quizId`), тим самим `useStartGame` (як «Почати гру» у «Створити гру»). Є незбережені зміни — кнопка зветься «Зберегти й провести гру»: та сама перевірка, що в «Зберегти», збереження без переходу на список, тоді запуск (зберегти мусимо: інакше «Зберегти» веде на /quizzes і провести з редактора було б неможливо).
 - **Retry:** `usePrivateData` у стані `error` віддає `retry()` (внутрішній лічильник спроби + `useAccount(attempt)`), тож кнопка є на всіх сторінках, що ним користуються; сторінки з власним завантаженням (`Quizzes`, `CreateGame`, `PublicProfile`, `Library`, `LibraryQuiz`) мають свій лічильник спроби.
 
 ## Глобальні обмеження
@@ -42,7 +42,7 @@
 | `libraryClearSearch` | `Очистити пошук` |
 | `leaveUnsaved` | `Зміни ще не збережено. Піти зі сторінки? Чернетка лишиться в цій вкладці.` |
 | `editorHostGame` | `Провести гру` |
-| `editorHostSaveFirst` | `Спершу збережи зміни: гра почнеться зі збереженої версії.` |
+| `editorSaveAndHost` | `Зберегти й провести гру` |
 
 Змінені uk (у `CHANGED_LATER`, переклади оновити): `historyEmpty` → `Тут з’являться ігри, які ти проведеш.`; `myGamesEmpty` → `Тут з’являться ігри, у які ти зіграєш зі свого акаунта.`
 
@@ -131,12 +131,12 @@
 
 **Files:**
 - Create: `apps/web/src/nav/leave-guard.ts`, `apps/web/src/nav/leave-guard.test.tsx`
-- Modify: `apps/web/src/editor/QuizEditor.tsx` (`useLeaveGuard(dirty)`; кнопка «Провести гру» у `footer.actions`, коли передано `onHost`), `apps/web/src/pages/EditQuiz.tsx` (`onHost` для `id !== undefined` через `useStartGame`), тести редактора; i18n (`leaveUnsaved`, `editorHostGame`, `editorHostSaveFirst`).
+- Modify: `apps/web/src/editor/QuizEditor.tsx` (`useLeaveGuard(dirty)`; кнопка «Провести гру» у `footer.actions`, коли передано `onHost`), `apps/web/src/pages/EditQuiz.tsx` (`onHost` для `id !== undefined` через `useStartGame`), тести редактора; i18n (`leaveUnsaved`, `editorHostGame`, `editorSaveAndHost`).
 
 **Interfaces:**
-- Produces: `useLeaveGuard(active: boolean, message: string): void` — поки `active`, `document.addEventListener('click', …, true)`: лише ліва кнопка без модифікаторів, найближчий `a[href]` без `target`/`download`, той самий origin і інший `pathname+search` → `window.confirm(message)`; «Скасувати» → `event.preventDefault()`. `QuizEditor` prop `onHost?: () => Promise<string | null>` (помилка → `serverError`).
+- Produces: `useLeaveGuard(active: boolean, message: string): void` — поки `active`, `document.addEventListener('click', …, true)`: лише ліва кнопка без модифікаторів, найближчий `a[href]` без `target`/`download`, той самий origin і інший `pathname+search` → `window.confirm(message)`; «Скасувати» → `event.preventDefault()`. `QuizEditor` prop `onHost?: (changed: Quiz | null) => Promise<string | null>` — `changed` не null, коли є незбережене (EditQuiz зберігає без переходу, тоді запускає); помилка → `serverError`.
 
-- [ ] **Крок 1: тести**: брудний редактор, клік по `Link` меню → `confirm` з текстом `leaveUnsaved`; відмова — адреса та сама; згода — перехід; чистий редактор — без `confirm`; Ctrl+клік і `target="_blank"` — без `confirm`; «Провести гру» для збереженої вікторини викликає `createGame(id)` і веде на `/host/<код>`; брудний — кнопка вимкнена й видно `editorHostSaveFirst`; нова вікторина — кнопки немає.
+- [ ] **Крок 1: тести**: брудний редактор, клік по `Link` меню → `confirm` з текстом `leaveUnsaved`; відмова — адреса та сама; згода — перехід; чистий редактор — без `confirm`; Ctrl+клік і `target="_blank"` — без `confirm`; «Провести гру» для збереженої вікторини викликає `createGame(id)` і веде на `/host/<код>`; брудний — кнопка «Зберегти й провести гру» зберігає (updateQuiz) і тоді запускає; з помилками в вікторині — не зберігає й не запускає; нова вікторина — кнопки немає.
 - [ ] **Крок 2:** FAIL. **Крок 3:** реалізувати. **Крок 4:** PASS.
 - [ ] **Крок 5:** коміт `feat(web): editor asks before leaving with unsaved changes and can host the saved quiz (76)`.
 

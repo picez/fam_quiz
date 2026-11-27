@@ -5711,5 +5711,5 @@
   "libraryClearSearch": "Borrar búsqueda",
   "leaveUnsaved": "Los cambios aún no están guardados. ¿Salir de la página? El borrador se queda en esta pestaña.",
   "editorHostGame": "Dirigir una partida",
-  "editorHostSaveFirst": "Guarda primero los cambios: la partida empieza con la versión guardada."
+  "editorSaveAndHost": "Guardar y dirigir una partida"
 }
